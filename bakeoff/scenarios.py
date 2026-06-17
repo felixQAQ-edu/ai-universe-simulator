@@ -16,6 +16,7 @@ import prompts
 from client import CallRecord
 
 LOG_KEEP = 4          # 近 N 回合 log 原文回传,更旧的压进 logSummary(成本控制)
+JUMP_THRESHOLD = 40   # 单回合 hp/san 跳变超过此值才标“需复核”(F-003:允许有据恢复)
 
 # ── 种子(A1 固定 / A2 多样)──────────────────────────────────────────
 SEED_A1 = """模式:规则怪谈(单体)
@@ -52,12 +53,19 @@ def _parse_json(raw: str):
         raise
 
 
-def _generate(client, *, name, step, scenario, vars, validate) -> CallRecord:
-    """一次生成 + schema 校验 + 至多一次“修复重试”(ADR-001 指标 #1)。"""
+def _generate(client, *, name, step, scenario, vars, validate, sink=None) -> CallRecord:
+    """一次生成 + schema 校验 + 至多一次“修复重试”(ADR-001 指标 #1)。
+
+    F-002:触发修复时,把**首次失败**记录也落盘(attempt=1),便于回看真因;
+    返回的最终记录标 attempt=2。sink 为明细列表,首次失败会被 append 进去。
+    """
     msgs = prompts.messages(name, vars)
     rec = client.generate(messages=msgs, step=step, scenario=scenario)
     rec = _check(rec, validate)
+    rec.attempt = 1
     if rec.ok and rec.schema_ok is False:
+        if sink is not None:
+            sink.append(rec)  # 保留首次失败原始响应(F-002)
         # 修复重试:把校验错误回喂模型,要求只回修正后的 JSON。
         fix = msgs + [
             {"role": "assistant", "content": rec.raw},
@@ -68,6 +76,7 @@ def _generate(client, *, name, step, scenario, vars, validate) -> CallRecord:
         rec2 = client.generate(messages=fix, step=step, scenario=scenario + "+fix")
         rec2 = _check(rec2, validate)
         rec2.repaired = True
+        rec2.attempt = 2
         return rec2
     return rec
 
@@ -98,7 +107,7 @@ def run_scenario_A(client, runs: int = 5):
     for i in range(runs):  # A1 稳定性
         rec = _generate(client, name="world-gen", step="world-gen",
                         scenario="A1", vars={"SEED": SEED_A1},
-                        validate=schema.validate_world)
+                        validate=schema.validate_world, sink=records)
         _leak_scan_world(rec)
         records.append(rec)
         if world_for_B is None and rec.schema_ok and rec.parsed:
@@ -107,7 +116,7 @@ def run_scenario_A(client, runs: int = 5):
     for j, seed in enumerate(SEEDS_A2, 1):  # A2 多样性
         rec = _generate(client, name="world-gen", step="world-gen",
                         scenario=f"A2-seed{j}", vars={"SEED": seed},
-                        validate=schema.validate_world)
+                        validate=schema.validate_world, sink=records)
         _leak_scan_world(rec)
         records.append(rec)
 
@@ -162,12 +171,13 @@ class Engine:
         self.turn += 1
         upd = parsed.get("stateUpdate", {})
         new_hp, new_san = upd.get("hp", self.hp), upd.get("san", self.san)
-        # 一致性核对①:hp/san 不得无故回升(允许相等或下降)。
-        if new_hp > self.hp:
-            self.issues.append(f"T{self.turn} hp 回升 {self.hp}->{new_hp}")
-        if new_san > self.san:
-            self.issues.append(f"T{self.turn} san 回升 {self.san}->{new_san}")
-        self.hp, self.san = max(0, new_hp), max(0, new_san)
+        # 一致性核对①(F-003 修订口径):允许“有据恢复”(休息/安全屋/解谜),
+        # 不再把任何回升都判为矛盾;只标“单回合跳变过大”需人工复核(默认阈值 40)。
+        if abs(new_hp - self.hp) > JUMP_THRESHOLD:
+            self.issues.append(f"T{self.turn} hp 跳变过大 {self.hp}->{new_hp}(需复核)")
+        if abs(new_san - self.san) > JUMP_THRESHOLD:
+            self.issues.append(f"T{self.turn} san 跳变过大 {self.san}->{new_san}(需复核)")
+        self.hp, self.san = max(0, min(100, new_hp)), max(0, min(100, new_san))
         self.timeline = upd.get("timeline", self.timeline)
         # 一致性核对②:已触发规则保持记录(供后续回合核对一致性)。
         self.triggered |= set(parsed.get("triggeredRuleIds", []))
@@ -225,7 +235,7 @@ def run_scenario_B(client, world: dict, turns: int = 10):
                     "PLAYER_ACTION": f"{choice['id']}. {choice['text']}"}
             rec = _generate(client, name="event-loop", step="event-loop",
                             scenario=f"{path}-T{t}", vars=vars,
-                            validate=schema.validate_turn)
+                            validate=schema.validate_turn, sink=records)
             records.append(rec)
             if not (rec.schema_ok and rec.parsed):
                 eng.issues.append(f"T{t} 产出非法,路径中断")

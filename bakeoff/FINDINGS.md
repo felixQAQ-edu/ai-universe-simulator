@@ -40,6 +40,9 @@
   追加进明细(标 `attempt=1, schema_ok=False`),修复记录标 `attempt=2`。
   这样才能按 schema_errors 聚类首次失败、针对性改 prompt 或 schema。
 - **关联**:F-001、ADR §3 #1。
+- **✅ 已处置(2026-06-17)**:`_generate()` 加 `sink` 参数,触发修复时把首次失败
+  (`attempt=1`)落进明细;report 区分“物理调用 / 逻辑生成步”,JSON 有效率按逻辑步算。
+  立刻见效——复跑首次失败可回看,定位到 F-004(endings.title 缺失)。
 
 ---
 
@@ -54,3 +57,25 @@
   若允许恢复,引擎应改成“校验 stateUpdate 与 narrative/规则后果是否自洽”,
   而非简单禁止上升。本条不改模型,改的是验收口径。
 - **关联**:ADR §3 #2、CONTEXT §三.5(数值范围)。
+- **✅ 已处置(2026-06-17)**:口径改为“允许有据恢复”——`Engine.apply()` 不再把任何
+  回升判为矛盾,只在单回合 hp/san 跳变 > `JUMP_THRESHOLD`(默认 40)时标“需复核”;
+  同时把数值 clamp 到 0–100。复跑 B 组一致性问题清零,指标 #2 由 ❌ 转 ✅。
+  注:阈值 40 是工程默认,数值语义最终以 CONTEXT/ADR 决策为准。
+
+---
+
+## F-004 · world-gen 漏 `endings[].title`(改用 `description`)+ 偶发漏 `character.attributes`
+
+- **日期**:2026-06-17 | **provider**:DeepSeek V4-Flash | **步骤**:world-gen
+- **现象(F-002 落盘后才看见)**:F-001 修好后首次有效率升到 86.8%,剩余首次失败 5/5
+  全在 world-gen:4 条报 `endings/N: 'title' is a required property`,1 条报
+  `character: 'attributes' is a required property`。
+- **根因**:模型给 endings 输出了更丰富的 `description`(整句结局描述)却**漏了 schema
+  要求的 `title`**(短标题);偶发把 `character.attributes` 整个漏掉/换层级。
+  又是“模型自发产出 vs schema 约定”的字段错配——`description` 其实比单 `title` 更有用。
+- **影响**:挡住把 JSON 首次有效率从 86.8% 推到 ≥98%。
+- **建议处置**:
+  - (治标,提示词)world-gen 显式要求 endings 同时给 `title`(短)与必填 `character.attributes`;
+  - (治本,schema)下版 CONTEXT 给 endings 增加可选 `description` 字段(承认模型偏好),
+    `title` 仍必填但强调“短名”;明确 character 结构层级,降低漏字段概率。
+- **关联**:F-001(同类:模型产出与 schema 错配)、ADR §3 #1。

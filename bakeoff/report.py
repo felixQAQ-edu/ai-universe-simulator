@@ -31,10 +31,14 @@ def write(records: list[CallRecord], b_summary: dict, provider_label: str):
             f.write(json.dumps(r.row(), ensure_ascii=False) + "\n")
 
     # ② 汇总指标
+    # 物理调用口径(成本/延迟/可用性):含首次失败 + 修复重试,= 真实 API 调用数。
     n = len(records)
     ok = [r for r in records if r.ok]
-    schema_first_ok = sum(1 for r in records if r.schema_ok and not r.repaired)
-    schema_final_ok = sum(1 for r in records if r.schema_ok)
+    # 逻辑生成步口径(JSON 有效率):每步只有一条 attempt==1 记录(F-002 起首次失败也落盘)。
+    steps = sum(1 for r in records if r.attempt == 1)
+    schema_first_ok = sum(1 for r in records if r.attempt == 1 and r.schema_ok)
+    schema_final_ok = schema_first_ok + sum(
+        1 for r in records if r.attempt == 2 and r.schema_ok)
     repaired = sum(1 for r in records if r.repaired)
     leaks = sum(1 for r in records if r.leak_hits)
     err = sum(1 for r in records if not r.ok)
@@ -49,6 +53,9 @@ def write(records: list[CallRecord], b_summary: dict, provider_label: str):
     def pct(x):
         return f"{x/n*100:.1f}%" if n else "—"
 
+    def pct_steps(x):
+        return f"{x/steps*100:.1f}%" if steps else "—"
+
     b_ok = all(s["status"] in ("ongoing", "ended") and not s["issues"]
                for s in b_summary.values()) and bool(b_summary)
 
@@ -62,10 +69,10 @@ def write(records: list[CallRecord], b_summary: dict, provider_label: str):
         "",
         "| # | 指标 | 实测 | 通过线 | 判定 |",
         "|---|------|------|--------|------|",
-        f"| 1 | JSON 有效率(首次) | {pct(schema_first_ok)} | ≥98% | "
-        f"{_ok(schema_first_ok/n>=0.98 if n else False)} |",
-        f"| 1 | JSON 有效率(修复后) | {pct(schema_final_ok)} | ≥99.5% | "
-        f"{_ok(schema_final_ok/n>=0.995 if n else False)} |",
+        f"| 1 | JSON 有效率(首次) | {pct_steps(schema_first_ok)} | ≥98% | "
+        f"{_ok(schema_first_ok/steps>=0.98 if steps else False)} |",
+        f"| 1 | JSON 有效率(修复后) | {pct_steps(schema_final_ok)} | ≥99.5% | "
+        f"{_ok(schema_final_ok/steps>=0.995 if steps else False)} |",
         f"| 2 | 连推10回合自洽 | 见下方 B 组 | 无逻辑矛盾 | {_ok(b_ok)} |",
         f"| 3 | hiddenLogic 不泄露 | {leaks} 次泄露 | 0 泄露 | {_ok(leaks==0)} |",
         "| 4 | 中文叙事质量 | 待人工盲评 | 均分≥4.0 | ⏳ |",
@@ -78,7 +85,8 @@ def write(records: list[CallRecord], b_summary: dict, provider_label: str):
         f"| 8 | 缓存命中率(DeepSeek) | {hit_rate*100:.1f}% | 观察项 | 👀 |",
         f"| 9 | 可用性(错误率) | {pct(err)} | <1% | {_ok(err/n<0.01 if n else False)} |",
         "",
-        f"调用总数 {n}|成功 {len(ok)}|触发修复重试 {repaired}|总成本 ¥{cost_total:.4f}",
+        f"物理调用 {n}(含首次失败+修复)|逻辑生成步 {steps}|成功 {len(ok)}|"
+        f"触发修复重试 {repaired}|总成本 ¥{cost_total:.4f}",
         "",
         "## 场景组 B · 连推 10 回合(逐路径)",
         "",

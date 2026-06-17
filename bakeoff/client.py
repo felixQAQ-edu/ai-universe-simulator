@@ -21,6 +21,7 @@ class CallRecord:
     model: str
     step: str                 # world-gen / event-loop / ...
     scenario: str             # A1 / B1 / ...
+    attempt: int = 1          # 1 = 首次,2 = 修复重试(F-002:首次失败也落盘)
     ok: bool = False          # 调用是否成功返回
     ttft_s: float | None = None
     latency_s: float | None = None
