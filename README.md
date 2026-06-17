@@ -34,6 +34,8 @@
 
 决策随进度建立,完整列表见 [docs/adr/](docs/adr/);首批待决策议题见 ROADMAP 第五节。
 
+- [ADR-001](docs/adr/ADR-001-runtime-model-and-provider-abstraction.md) — 运行模型选 DeepSeek V4-Flash 为主力,provider 走 OpenAI 兼容配置表抽象(依据:[bake-off 实测](bakeoff/out/report.md))
+
 ## 文档
 
 - [docs/ROADMAP.md](docs/ROADMAP.md) — 开发计划总览(中央档案)
