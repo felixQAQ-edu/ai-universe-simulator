@@ -17,6 +17,8 @@
    - `hiddenLogic` 是**只有引擎能看**的真实机制(违反/遵守后的数值与剧情后果),写清楚触发条件与 hp/san 变化;
    - `discovered` 初始一律 `false`;`id` 从 1 连续编号。
 5. `endings`:2–3 个,含至少一个“生存”与一个“失败”结局,`condition` 写成可判定的中文条件,`reached` 初始 `false`。
+   - **`endings[].id` 必须是 snake_case 英文字符串**(如 `survive_dawn`、`lost_mind`),**不是数字**。
+     注意与 `rules[].id`(整数)区分:rules 用整数编号,endings 用英文字符串 id。
 
 **绝不**把 `isTrue` / `hiddenLogic` 的内容写进 `content`、`background` 等任何玩家可见字段。
 
