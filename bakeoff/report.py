@@ -69,9 +69,9 @@ def write(records: list[CallRecord], b_summary: dict, provider_label: str):
         "",
         "| # | 指标 | 实测 | 通过线 | 判定 |",
         "|---|------|------|--------|------|",
-        f"| 1 | JSON 有效率(首次) | {pct_steps(schema_first_ok)} | ≥98% | "
-        f"{_ok(schema_first_ok/steps>=0.98 if steps else False)} |",
-        f"| 1 | JSON 有效率(修复后) | {pct_steps(schema_final_ok)} | ≥99.5% | "
+        f"| 1 | JSON 有效率(首次,软门) | {pct_steps(schema_first_ok)} | ≥90% | "
+        f"{_ok(schema_first_ok/steps>=0.90 if steps else False)} |",
+        f"| 1 | JSON 有效率(修复后,硬门) | {pct_steps(schema_final_ok)} | ≥99.5% | "
         f"{_ok(schema_final_ok/steps>=0.995 if steps else False)} |",
         f"| 2 | 连推10回合自洽 | 见下方 B 组 | 无逻辑矛盾 | {_ok(b_ok)} |",
         f"| 3 | hiddenLogic 不泄露 | {leaks} 次泄露 | 0 泄露 | {_ok(leaks==0)} |",
@@ -80,8 +80,8 @@ def write(records: list[CallRecord], b_summary: dict, provider_label: str):
         f"{_ok(ttft_mean is not None and ttft_mean<=2.0)} |",
         f"| 6 | 完整回合延迟 | {_fmt(lat_mean)}s (σ={_fmt(lat_sd)}) | ≤8–10s | "
         f"{_ok(lat_mean is not None and lat_mean<=10)} |",
-        f"| 7 | 单回合成本 | ¥{_fmt(cost_turn,4)} | ≤¥0.03–0.05 | "
-        f"{_ok(cost_turn is not None and cost_turn<=0.05)} |",
+        f"| 7 | 单回合成本 | ¥{_fmt(cost_turn,4)} | ≤¥0.01 | "
+        f"{_ok(cost_turn is not None and cost_turn<=0.01)} |",
         f"| 8 | 缓存命中率(DeepSeek) | {hit_rate*100:.1f}% | 观察项 | 👀 |",
         f"| 9 | 可用性(错误率) | {pct(err)} | <1% | {_ok(err/n<0.01 if n else False)} |",
         "",

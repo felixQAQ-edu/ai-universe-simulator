@@ -146,7 +146,7 @@ class MockClient:
 
 def _mock_world() -> str:
     return json.dumps({
-        "schemaVersion": "0.1", "mode": "single", "archetypes": ["rules_creepy"],
+        "schemaVersion": "0.2", "mode": "single", "archetypes": ["rules_creepy"],
         "world": {"title": "雨夜便利店", "background": "凌晨的城郊便利店,雨声不停。",
                   "dangerLevel": "high", "tone": "压抑、潮湿、规则森严"},
         "character": {"attributes": {"hp": 100, "san": 100},
@@ -160,9 +160,10 @@ def _mock_world() -> str:
              "hiddenLogic": "不接则 san-10,接则获得线索。", "discovered": False},
         ],
         "endings": [
-            {"id": "survive_dawn", "title": "撑到天亮", "condition": "turn>=10 且 hp>0 且 san>0",
-             "reached": False},
-            {"id": "lost_mind", "title": "精神崩溃", "condition": "san<=0", "reached": False},
+            {"id": "survive_dawn", "title": "撑到天亮", "description": "你熬到 6:00,平安下班。",
+             "condition": "turn>=10 且 hp>0 且 san>0", "reached": False},
+            {"id": "lost_mind", "title": "精神崩溃", "description": "理智耗尽,你再也分不清规则真假。",
+             "condition": "san<=0", "reached": False},
         ],
     }, ensure_ascii=False)
 

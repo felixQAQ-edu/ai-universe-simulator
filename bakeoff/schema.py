@@ -16,7 +16,7 @@ WORLD_SCHEMA = {
                  "character", "rules", "endings"],
     "additionalProperties": True,
     "properties": {
-        "schemaVersion": {"const": "0.1"},
+        "schemaVersion": {"const": "0.2"},
         "mode": {"enum": ["single", "hybrid"]},
         "archetypes": {"type": "array", "minItems": 1, "items": {"type": "string"}},
         "world": {
@@ -67,8 +67,9 @@ WORLD_SCHEMA = {
                 "type": "object",
                 "required": ["id", "title", "condition", "reached"],
                 "properties": {
-                    "id": {"type": "string"},
-                    "title": {"type": "string", "minLength": 1},
+                    "id": {"type": "string"},          # snake_case 字符串(v0.2)
+                    "title": {"type": "string", "minLength": 1},   # 短名必填
+                    "description": {"type": "string"},  # 可选,整句结局描述(v0.2)
                     "condition": {"type": "string", "minLength": 1},
                     "reached": {"type": "boolean"},
                 },

@@ -25,7 +25,7 @@
 
 ```json
 {
-  "schemaVersion": "0.1",
+  "schemaVersion": "0.2",
   "mode": "single",                 // single | hybrid
   "archetypes": ["rules_creepy"],   // 1 个 = 单体,2–3 个 = 混合
   "world": {
@@ -35,11 +35,12 @@
     "tone": "..."
   },
   "character": {
-    "attributes": { "hp": 100, "san": 100 },   // 字段因模式而异(修仙:灵根/境界…)
+    "attributes": { "hp": 100, "san": 100 },   // 必填对象;字段因模式而异(修仙:灵根/境界…)
     "traits": ["..."],
     "inventory": ["..."]
   },
   "rules": [
+    // 注意:rules[].id 是【整数】,与 endings[].id(字符串)刻意不同,详见字段职责。
     { "id": 1, "content": "...", "isTrue": true, "hiddenLogic": "...", "discovered": false }
   ],
   "state": {
@@ -55,7 +56,8 @@
     { "id": "A", "text": "...", "hint": "" }
   ],
   "endings": [
-    { "id": "...", "title": "...", "condition": "...", "reached": false }
+    // id 是【snake_case 字符串】;title 必填(短名);description 可选(整句结局描述)。
+    { "id": "survive_dawn", "title": "...", "description": "", "condition": "...", "reached": false }
   ]
 }
 ```
@@ -65,6 +67,9 @@
 - **AI 生成**:`world` / `character` 初值 / `rules` / `availableActions` / 每回合的 `narrative` 与结局判定。
 - **引擎维护**:`state.turn` / `status` / `log` / `logSummary`、数值结算、行动合法性校验。
 - `rules[].isTrue` 与 `hiddenLogic` 是**作者/引擎视角**字段,任何返回给玩家的文本都不得泄露。
+- **id 约定(v0.2 收敛,见 ADR-001 / bakeoff FINDINGS F-001)**:`rules[].id` 用**整数**(便于引擎引用、状态回传里轻量);`endings[].id` 用 **snake_case 英文字符串**(作为稳定语义标识,便于命中判定与跨回合引用)。两者刻意不同且**各自固定**——生成时务必按类型产出,勿混用。
+- **endings 字段(v0.2)**:`title` 必填(短标题);`description` 可选(整句结局描述,模型偏好产出,予以承认);`condition` 为可判定的中文条件;`reached` 初始 `false`。
+- `character.attributes` 为**必填对象**,至少含该模式的核心数值(规则怪谈:`hp`/`san`)。
 
 ## 三、关键约定
 
@@ -81,3 +86,4 @@
 | 版本 | 日期 | 修订内容 |
 |------|------|---------|
 | v0.1 | 2026-06-16 | 初版:术语表 + 统一 JSON Schema v0.1 + 关键约定 |
+| v0.2 | 2026-06-17 | schema 收敛(据 bakeoff 实测 FINDINGS F-001/F-004):明确 `rules[].id` 整数 / `endings[].id` 字符串的刻意差异;endings 增可选 `description`、`title` 改“短名必填”;`character.attributes` 标必填。详见 ADR-001。 |

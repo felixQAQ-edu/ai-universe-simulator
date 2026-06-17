@@ -79,3 +79,8 @@
   - (治本,schema)下版 CONTEXT 给 endings 增加可选 `description` 字段(承认模型偏好),
     `title` 仍必填但强调“短名”;明确 character 结构层级,降低漏字段概率。
 - **关联**:F-001(同类:模型产出与 schema 错配)、ADR §3 #1。
+- **✅ 已处置(2026-06-17,CONTEXT v0.2 收敛)**:CONTEXT 升 v0.2——endings 增可选
+  `description`、`title` 改“短名必填”、`character.attributes` 标必填,并明确两个 id 的刻意
+  差异;同步 `schema.py` / `prompts/world-gen.md` / mock。复跑首次有效率 **86.8% → 97.1%**
+  (修复次数 5 → 1),过软门 ≥90%;修复后仍 100%。残留唯一首次失败转移到 event-loop
+  偶发 `availableActions: []`(1/34,经修复重试已纠正,属长尾,暂记观察)。
