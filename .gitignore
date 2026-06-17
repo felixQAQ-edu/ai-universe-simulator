@@ -11,3 +11,9 @@ dist/
 
 *.log
 
+# Python (bakeoff 验证脚本)
+.venv/
+__pycache__/
+*.pyc
+bakeoff/out/
+

@@ -1,0 +1,4 @@
+# Provider bake-off harness (ADR-001) — Python 3.13
+openai>=1.40.0        # OpenAI 兼容客户端,统一调各家 provider
+jsonschema>=4.21.0    # v0.1 schema 校验(对齐 docs/CONTEXT.md §二)
+python-dotenv>=1.0.0  # 读取 .env 里的 api key
