@@ -52,8 +52,8 @@ PROVIDERS: dict[str, Provider] = {
         base_url="https://api.deepseek.com",
         model="deepseek-v4-flash",          # 用户确认的 model id;变动请回此处改
         api_key_env="DEEPSEEK_API_KEY",
-        price=Price(input_cache_miss=0.5, input_cache_hit=0.1, output=2.0),  # ⚠️ VERIFY 占位
-        max_context=128_000,
+        price=Price(input_cache_miss=1.0, input_cache_hit=0.02, output=2.0),
+        max_context=1_000_000,
         thinking=False,
         priority="core",
         notes="event-loop 高频回合主力候选。缓存命中/未命中成本差为指标 #8 观察项。",
@@ -64,7 +64,8 @@ PROVIDERS: dict[str, Provider] = {
         key="deepseek-v4-pro", label="DeepSeek V4-Pro",
         base_url="https://api.deepseek.com", model="deepseek-v4-pro",
         api_key_env="DEEPSEEK_API_KEY",
-        price=Price(2.0, 0.4, 8.0), max_context=128_000, thinking=False,
+        price=Price(input_cache_miss=3.0, input_cache_hit=0.025, output=6.0),
+        max_context=1_000_000, thinking=False,
         priority="core", notes="world-gen / 难场景候选,低频高价值。占位 VERIFY。",
     ),
     "qwen3.5-plus": Provider(
