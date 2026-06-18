@@ -81,7 +81,7 @@
 
 | 阶段 | 周 | 核心任务 | 状态 | 完成日期 | 主要产出 / 链接 | 备注 |
 |------|----|---------|------|---------|----------------|------|
-| Phase 0 | W1–3 | 核心验证:Schema + 稳定生成 + 连推 10 回合 | 🟨 | | [ADR-001](adr/ADR-001-runtime-model-and-provider-abstraction.md) · [bakeoff/](../bakeoff/) · CONTEXT v0.2 | provider bake-off ✅(连推 10 回合自洽里程碑达成);余前端工程初始化 |
+| Phase 0 | W1–3 | 核心验证:Schema + 稳定生成 + 连推 10 回合 | 🟨 | | [ADR-001](adr/ADR-001-runtime-model-and-provider-abstraction.md) · [ADR-002](adr/ADR-002-backend-form-factor.md) · [bakeoff/](../bakeoff/) · CONTEXT v0.2 | provider bake-off ✅(连推 10 回合自洽里程碑达成);ADR-002 后端形态已采纳;余前端工程初始化 |
 | Phase 1 | W4–9 | 单模式 H5 闭环(规则怪谈) | ⬜ | | | |
 | Phase 2 | W10–16 | 多模式 + 分享 + 云存档 + 成本控制 | ⬜ | | | |
 | Phase 3 | W17–22 | 混合模式 + 变现 + 软启动 | ⬜ | | | |
@@ -93,7 +93,8 @@
 - **完成**:provider bake-off 跑通——`bakeoff/` 脚本(统一 OpenAI 兼容客户端 + provider 配置表 + 状态机引擎 + 场景组 A/B + 报告 + 盲评生成器),实跑 DeepSeek V4-Flash。工程指标全部达标(JSON 修复后/首次 100%、TTFT~1s、回合~5.8s、单回合~¥0.002、0 泄露、0 错误、连推 10 回合三路径自洽);人工盲评(ADR-001 §6)综合 ~4.4 通过。**Phase 0 核心验证里程碑(连推 10 回合自洽)达成。**
 - **决策**:ADR-001(运行模型与 provider 抽象选型)已采纳——DeepSeek V4-Flash 为 event-loop 主力,provider 走 OpenAI 兼容配置表抽象;「改配置即可换 provider」假设实测成立。
 - **卡点**:bake-off 暴露 5 条 schema/质量问题(`bakeoff/FINDINGS.md` F-001~F-005),F-001~F-004 已 unblock(收敛进 CONTEXT v0.2);F-005(单一种子致沉浸感套路化,沉浸感 3.25)挂 Phase 1 world-gen 提示词待办,不影响主力决策。
-- **下周计划**:初始化前端工程(React + Vite)完成 Phase 0 收尾;推进 ADR-002(后端形态)。
+- **决策(补)**:ADR-002(后端形态)已采纳——选方案 C「Spring Boot 运行于 CloudBase 云托管」:应用层经验(SSE/LLM 代理/计费)照搬 + 微信原生集成 + 免小程序域名白名单,以薄适配层缓解平台锁定(沿用 ADR-001 抽象哲学)。
+- **下周计划**:初始化前端工程(React + Vite)完成 Phase 0 收尾;按 ADR-002 起 Spring Boot 工程骨架,Phase 1 排期纳入 ICP 备案。
 
 ---
 
@@ -103,7 +104,6 @@
 
 ### 首批待决策议题
 
-- **ADR-002 · 后端形态**:**复用自建 Spring Boot 后端**(贴合你后端架构师主线,可复用 chat-pipeline 的 SSE / ChatMemory / 计费经验,但重)vs **微信云开发 CloudBase**(serverless,低运维,与微信登录/支付/审核天然集成,快)。本条对本项目影响最大,值得认真写。
 - **ADR-003 · 前端栈与跨端路线**:React + Vite H5 先行 → Taro 移植小程序的取舍与边界
 - **ADR-004 · 内容安全方案**:审核 API 选型 + 兜底过滤策略
 
@@ -112,6 +112,7 @@
 | ADR | 主题 | 状态 | 日期 |
 |-----|------|------|------|
 | [ADR-001](adr/ADR-001-runtime-model-and-provider-abstraction.md) | 运行模型选 DeepSeek V4-Flash 为主力,provider 走 OpenAI 兼容配置表抽象 | 已采纳 | 2026-06-17 |
+| [ADR-002](adr/ADR-002-backend-form-factor.md) | 后端形态选 Spring Boot 运行于 CloudBase 云托管(应用层自控 + 微信原生集成,薄适配层缓解锁定) | 已采纳 | 2026-06-18 |
 
 ---
 
@@ -155,3 +156,4 @@
 |------|------|---------|
 | v0.1 | 2026-06-15 | 初版:项目元信息 + Phase 0–4 路线图 + 技术选型倾向 + 进度表骨架 + 首批 ADR 议题 + 中国雷区清单 + 设计要点 + 协作说明 |
 | v0.2 | 2026-06-18 | Phase 0 进度更新(provider bake-off 完成 + 盲评通过);追加 Week 1 周度日志;ADR-001 落档移入已完成索引、从待决策议题移除 |
+| v0.3 | 2026-06-18 | ADR-002(后端形态,采纳方案 C:Spring Boot @ CloudBase 云托管)落档:移入已完成 ADR 索引、从待决策议题移除;Week 1 日志补 ADR-002 决策与下周计划 |

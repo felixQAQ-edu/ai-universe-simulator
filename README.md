@@ -26,7 +26,7 @@
 
 - **前端**:React + Vite(H5 先行)→ Taro(微信小程序)
 - **运行模型**:DeepSeek 为主,provider 可换(备选 通义千问 / Kimi / 智谱 GLM / 豆包)— 见 ADR-001
-- **后端**:待决策(自建 Spring Boot vs 微信云开发)— 见 ADR-002
+- **后端**:Spring Boot 运行于 CloudBase 云托管(见 ADR-002)
 - **内容安全**:文本审核网关
 - **数据**:统一 JSON Schema(世界 / 角色 / 规则 / 状态 / 行动 / 结局)
 
@@ -35,6 +35,7 @@
 决策随进度建立,完整列表见 [docs/adr/](docs/adr/);首批待决策议题见 ROADMAP 第五节。
 
 - [ADR-001](docs/adr/ADR-001-runtime-model-and-provider-abstraction.md) — 运行模型选 DeepSeek V4-Flash 为主力,provider 走 OpenAI 兼容配置表抽象(依据:[bake-off 实测](bakeoff/out/report.md))
+- [ADR-002](docs/adr/ADR-002-backend-form-factor.md) — 后端形态选 Spring Boot 运行于 CloudBase 云托管(应用层自控 + 微信原生集成,薄适配层缓解锁定)
 
 ## 文档
 
