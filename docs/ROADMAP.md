@@ -10,7 +10,7 @@
 | 字段 | 内容 |
 |------|------|
 | 项目类型 | 基于大语言模型的生成式、可交互、无限流文字模拟游戏平台 |
-| 当前阶段 | Phase 0 收口 ✅ → 即将进入 Phase 1 · 单模式 H5 闭环(规则怪谈) |
+| 当前阶段 | Phase 1 · 单模式 H5 闭环(规则怪谈)进行中 🟨(后端骨架已搭、SSE 通路本地跑通) |
 | 目标用户 | 主要面向中国用户(微信生态为主) |
 | 平台路线 | H5(响应式网页)先行 → 微信小程序(Taro)→ 可选 App 套壳 |
 | 投入节奏 | 业余,每周 10–20 小时 |
@@ -82,7 +82,7 @@
 | 阶段 | 周 | 核心任务 | 状态 | 完成日期 | 主要产出 / 链接 | 备注 |
 |------|----|---------|------|---------|----------------|------|
 | Phase 0 | W1–3 | 核心验证:Schema + 稳定生成 + 连推 10 回合 | ✅ | 2026-06-18 | [ADR-001](adr/ADR-001-runtime-model-and-provider-abstraction.md) · [ADR-002](adr/ADR-002-backend-form-factor.md) · [bakeoff/](../bakeoff/) · CONTEXT v0.2 · [web/](../web/) | provider bake-off ✅(连推 10 回合自洽里程碑达成);ADR-001/002 已采纳;前端工程(React + Vite + TS,scaffold)初始化完成,schema v0.2 已落 TS 类型 → **Phase 0 整体收口** |
-| Phase 1 | W4–9 | 单模式 H5 闭环(规则怪谈) | ⬜ | | | |
+| Phase 1 | W4–9 | 单模式 H5 闭环(规则怪谈) | 🟨 | | [server/](../server/) · [ADR-005](adr/ADR-005-sse-web-stack-mvc-thin-seam.md) | 开工:Spring Boot 3.5(Java 21/Maven)后端骨架落 `server/`,provider 抽象(`LlmClient`/`LlmProperties` 配置表 + mock 实现)+ 审核网关 no-op 接缝 + SSE 冒烟端点本地跑通(逐字流式,印证 ADR-002 承重假设本地侧);ADR-005(SSE web 栈:MVC + 薄接缝)已采纳。**skeleton only,未接真实 DeepSeek、未实现规则怪谈业务、未碰 CloudBase 部署** |
 | Phase 2 | W10–16 | 多模式 + 分享 + 云存档 + 成本控制 | ⬜ | | | |
 | Phase 3 | W17–22 | 混合模式 + 变现 + 软启动 | ⬜ | | | |
 | Phase 4 | W23+ | 微信小程序化 + 增长 | ⬜ | | | 第 5–6 月 |
@@ -95,7 +95,9 @@
 - **决策**:ADR-001(运行模型与 provider 抽象选型)已采纳——DeepSeek V4-Flash 为 event-loop 主力,provider 走 OpenAI 兼容配置表抽象;「改配置即可换 provider」假设实测成立。
 - **卡点**:bake-off 暴露 5 条 schema/质量问题(`bakeoff/FINDINGS.md` F-001~F-005),F-001~F-004 已 unblock(收敛进 CONTEXT v0.2);F-005(单一种子致沉浸感套路化,沉浸感 3.25)挂 Phase 1 world-gen 提示词待办,不影响主力决策。
 - **决策(补)**:ADR-002(后端形态)已采纳——选方案 C「Spring Boot 运行于 CloudBase 云托管」:应用层经验(SSE/LLM 代理/计费)照搬 + 微信原生集成 + 免小程序域名白名单,以薄适配层缓解平台锁定(沿用 ADR-001 抽象哲学)。
-- **下周计划**:初始化前端工程(React + Vite)完成 Phase 0 收尾;按 ADR-002 起 Spring Boot 工程骨架,Phase 1 排期纳入 ICP 备案。
+- **完成(Phase 1 开工)**:按 ADR-002 起 **Spring Boot 3.5(Java 21 / Maven)后端骨架**,落仓库 `server/`(与 `web/` 平级)。包结构落 ADR-001 provider 抽象:`llm/`(平台无关核心)`LlmClient` + `TokenStream`(最小流式 sink)+ `LlmProperties` 配置表(对应 bakeoff `providers.py`,key 只存环境变量名)+ `ThinkingAdapter`(占位)+ `MockLlmClient`(逐字 echo);`moderation/` 审核网关 no-op 接缝(ADR-004 未定)；`web/StreamController` 薄 SSE 适配(唯一碰 `SseEmitter`);`platform/` CloudBase/微信薄适配层占位。冒烟:`mvn test` 上下文绿、`POST /api/dev/echo-stream` 本地逐字流式返回、空 prompt → 400。**skeleton only · mock 实现,未接真实 DeepSeek、未实现规则怪谈业务/状态机、未碰 CloudBase 部署/ICP 备案。**
+- **决策(补)**:ADR-005(SSE/流式 web 栈)已采纳——选 **Spring MVC(SseEmitter)+ 可换 WebFlux 的薄接缝**:核心只把 token 吐给最小 `TokenStream` sink,web 层薄适配桥到 SSE,日后换 WebFlux 只动 web 层;骨架阶段优先出闭环、复用命令式 bake-off client 心智,响应式留作日后独立深啃。本地 SSE 通路跑通,印证 ADR-002 承重假设(云托管 SSE)的本地侧。
+- **下周计划**:接真实 DeepSeek(在 `LlmClient` 下新增 OpenAI 兼容实现,走完整红绿循环);Phase 1 排期纳入 ICP 备案。
 
 ---
 
@@ -114,6 +116,7 @@
 |-----|------|------|------|
 | [ADR-001](adr/ADR-001-runtime-model-and-provider-abstraction.md) | 运行模型选 DeepSeek V4-Flash 为主力,provider 走 OpenAI 兼容配置表抽象 | 已采纳 | 2026-06-17 |
 | [ADR-002](adr/ADR-002-backend-form-factor.md) | 后端形态选 Spring Boot 运行于 CloudBase 云托管(应用层自控 + 微信原生集成,薄适配层缓解锁定) | 已采纳 | 2026-06-18 |
+| [ADR-005](adr/ADR-005-sse-web-stack-mvc-thin-seam.md) | SSE/流式 web 栈选 Spring MVC(SseEmitter)+ 可换 WebFlux 的薄接缝(`TokenStream` 解耦核心与传输) | 已采纳 | 2026-06-18 |
 
 ---
 
@@ -159,3 +162,4 @@
 | v0.2 | 2026-06-18 | Phase 0 进度更新(provider bake-off 完成 + 盲评通过);追加 Week 1 周度日志;ADR-001 落档移入已完成索引、从待决策议题移除 |
 | v0.3 | 2026-06-18 | ADR-002(后端形态,采纳方案 C:Spring Boot @ CloudBase 云托管)落档:移入已完成 ADR 索引、从待决策议题移除;Week 1 日志补 ADR-002 决策与下周计划 |
 | v0.4 | 2026-06-18 | 前端工程初始化(React + Vite + TS,scaffold,落 `web/`)完成,schema v0.2 落 TS 类型 → Phase 0 整体收口:进度表 Phase 0 行标 ✅、当前阶段更新、Week 1 日志补「完成(补)」一条 |
+| v0.5 | 2026-06-18 | Phase 1 开工:后端 Spring Boot 骨架(`server/`,mock 实现)+ SSE 通路本地跑通 + ADR-005(SSE web 栈:MVC + 薄接缝)落档 → 进度表 Phase 1 行转 🟨、当前阶段更新、Week 1 日志补两条、ADR-005 进已完成索引(003/004 仍留候选) |
