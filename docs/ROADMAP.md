@@ -10,7 +10,7 @@
 | 字段 | 内容 |
 |------|------|
 | 项目类型 | 基于大语言模型的生成式、可交互、无限流文字模拟游戏平台 |
-| 当前阶段 | Phase 0 · 准备与核心验证 |
+| 当前阶段 | Phase 0 收口 ✅ → 即将进入 Phase 1 · 单模式 H5 闭环(规则怪谈) |
 | 目标用户 | 主要面向中国用户(微信生态为主) |
 | 平台路线 | H5(响应式网页)先行 → 微信小程序(Taro)→ 可选 App 套壳 |
 | 投入节奏 | 业余,每周 10–20 小时 |
@@ -81,7 +81,7 @@
 
 | 阶段 | 周 | 核心任务 | 状态 | 完成日期 | 主要产出 / 链接 | 备注 |
 |------|----|---------|------|---------|----------------|------|
-| Phase 0 | W1–3 | 核心验证:Schema + 稳定生成 + 连推 10 回合 | 🟨 | | [ADR-001](adr/ADR-001-runtime-model-and-provider-abstraction.md) · [ADR-002](adr/ADR-002-backend-form-factor.md) · [bakeoff/](../bakeoff/) · CONTEXT v0.2 | provider bake-off ✅(连推 10 回合自洽里程碑达成);ADR-002 后端形态已采纳;余前端工程初始化 |
+| Phase 0 | W1–3 | 核心验证:Schema + 稳定生成 + 连推 10 回合 | ✅ | 2026-06-18 | [ADR-001](adr/ADR-001-runtime-model-and-provider-abstraction.md) · [ADR-002](adr/ADR-002-backend-form-factor.md) · [bakeoff/](../bakeoff/) · CONTEXT v0.2 · [web/](../web/) | provider bake-off ✅(连推 10 回合自洽里程碑达成);ADR-001/002 已采纳;前端工程(React + Vite + TS,scaffold)初始化完成,schema v0.2 已落 TS 类型 → **Phase 0 整体收口** |
 | Phase 1 | W4–9 | 单模式 H5 闭环(规则怪谈) | ⬜ | | | |
 | Phase 2 | W10–16 | 多模式 + 分享 + 云存档 + 成本控制 | ⬜ | | | |
 | Phase 3 | W17–22 | 混合模式 + 变现 + 软启动 | ⬜ | | | |
@@ -90,6 +90,7 @@
 ### 周度日志(最近三周,循环覆盖)
 
 **Week 1(2026-06-15 ~ 2026-06-21)**
+- **完成(补)**:前端工程初始化(Phase 0 末项)——`npm create vite` 起 React + Vite + TypeScript 工程,落在仓库 `web/` 子目录(为 ADR-002 的 Spring Boot 后端留清晰边界);移动优先基底(viewport / safe-area / 深浅色)+ Phase 1 目录占位(`features/` `state/` `api/`,均未实现);把 CONTEXT §二 统一 JSON Schema v0.2 落成 TS 类型(`src/types/schema.ts`,严守 rules[].id 整数 / endings[].id 字符串 / attributes 必填),并用一份硬编码示例 state 渲染占位页验证「工程能跑、类型能用」(build/lint/dev 全绿)。**scaffold only,未接 LLM、未实现规则怪谈流程。Phase 0 整体收口。**
 - **完成**:provider bake-off 跑通——`bakeoff/` 脚本(统一 OpenAI 兼容客户端 + provider 配置表 + 状态机引擎 + 场景组 A/B + 报告 + 盲评生成器),实跑 DeepSeek V4-Flash。工程指标全部达标(JSON 修复后/首次 100%、TTFT~1s、回合~5.8s、单回合~¥0.002、0 泄露、0 错误、连推 10 回合三路径自洽);人工盲评(ADR-001 §6)综合 ~4.4 通过。**Phase 0 核心验证里程碑(连推 10 回合自洽)达成。**
 - **决策**:ADR-001(运行模型与 provider 抽象选型)已采纳——DeepSeek V4-Flash 为 event-loop 主力,provider 走 OpenAI 兼容配置表抽象;「改配置即可换 provider」假设实测成立。
 - **卡点**:bake-off 暴露 5 条 schema/质量问题(`bakeoff/FINDINGS.md` F-001~F-005),F-001~F-004 已 unblock(收敛进 CONTEXT v0.2);F-005(单一种子致沉浸感套路化,沉浸感 3.25)挂 Phase 1 world-gen 提示词待办,不影响主力决策。
@@ -157,3 +158,4 @@
 | v0.1 | 2026-06-15 | 初版:项目元信息 + Phase 0–4 路线图 + 技术选型倾向 + 进度表骨架 + 首批 ADR 议题 + 中国雷区清单 + 设计要点 + 协作说明 |
 | v0.2 | 2026-06-18 | Phase 0 进度更新(provider bake-off 完成 + 盲评通过);追加 Week 1 周度日志;ADR-001 落档移入已完成索引、从待决策议题移除 |
 | v0.3 | 2026-06-18 | ADR-002(后端形态,采纳方案 C:Spring Boot @ CloudBase 云托管)落档:移入已完成 ADR 索引、从待决策议题移除;Week 1 日志补 ADR-002 决策与下周计划 |
+| v0.4 | 2026-06-18 | 前端工程初始化(React + Vite + TS,scaffold,落 `web/`)完成,schema v0.2 落 TS 类型 → Phase 0 整体收口:进度表 Phase 0 行标 ✅、当前阶段更新、Week 1 日志补「完成(补)」一条 |

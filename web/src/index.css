@@ -1,0 +1,42 @@
+:root {
+  --bg: #faf9fb;
+  --text: #1c1822;
+  --muted: #6b6375;
+  --line: #e5e4e7;
+  --card: #ffffff;
+  --chip: #f3f1f6;
+
+  font-family: system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  line-height: 1.5;
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #131019;
+    --text: #ece9f1;
+    --muted: #9a93a6;
+    --line: #2b2733;
+    --card: #1b1722;
+    --chip: #242030;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg);
+  min-height: 100vh;
+  /* 移动优先:适配 iOS 安全区,避免被刘海/底部条遮挡。 */
+  padding: env(safe-area-inset-top) env(safe-area-inset-right)
+    env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
