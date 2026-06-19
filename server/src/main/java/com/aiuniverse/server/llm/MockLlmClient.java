@@ -1,15 +1,13 @@
 package com.aiuniverse.server.llm;
 
-import org.springframework.stereotype.Component;
-
 /**
- * 骨架阶段的 mock 实现:不连任何 provider,把 prompt 包一层后逐字吐回,用来证明流式通路成立。
- * 接真实 DeepSeek 是下一个任务(届时新增一个 OpenAI 兼容实现,本类可保留作 {@code --mock} 用途)。
+ * 离线 mock 实现:不连任何 provider,把 prompt 包一层后逐字吐回,用来证明流式通路成立。
+ * 真实 DeepSeek 走 {@link OpenAiCompatLlmClient};本类保留作默认 / 回退({@code active=mock})。
  *
- * <p>默认激活(配置 {@code aiuniverse.llm.active=mock});每个字符间插一个很小的停顿,让 SSE 的
- * 逐字流式在 {@code curl -N} 下肉眼可见。
+ * <p>由 {@link LlmClientConfig} 按 {@code aiuniverse.llm.active} 决定是否选用(故不再挂 {@code @Component},
+ * 避免与真实实现产生「两个 LlmClient bean」歧义);每个字符间插一个很小的停顿,让 SSE 的逐字流式
+ * 在 {@code curl -N} 下肉眼可见。
  */
-@Component
 public class MockLlmClient implements LlmClient {
 
 	private final LlmProperties properties;

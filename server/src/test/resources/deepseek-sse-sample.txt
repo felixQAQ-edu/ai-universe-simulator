@@ -1,0 +1,15 @@
+data: {"id":"chatcmpl-rec1","object":"chat.completion.chunk","created":1,"model":"deepseek-v4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":""},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-rec1","object":"chat.completion.chunk","created":1,"model":"deepseek-v4-flash","choices":[{"index":0,"delta":{"content":"雨"},"finish_reason":null}]}
+
+: keep-alive
+
+data: {"id":"chatcmpl-rec1","object":"chat.completion.chunk","created":1,"model":"deepseek-v4-flash","choices":[{"index":0,"delta":{"content":"夜"},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-rec1","object":"chat.completion.chunk","created":1,"model":"deepseek-v4-flash","choices":[{"index":0,"delta":{"content":"便利店"},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-rec1","object":"chat.completion.chunk","created":1,"model":"deepseek-v4-flash","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}
+
+data: {"id":"chatcmpl-rec1","object":"chat.completion.chunk","created":1,"model":"deepseek-v4-flash","choices":[],"usage":{"prompt_tokens":12,"completion_tokens":3,"prompt_cache_hit_tokens":8,"prompt_cache_miss_tokens":4}}
+
+data: [DONE]
