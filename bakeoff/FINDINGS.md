@@ -109,3 +109,23 @@
   2. 种子层多样化:world-gen 入参带场景/主题/惊吓母题的随机维度,降低同质化。
   3. A2 多样性测试常态化:盲评样本按场景均衡抽样,别让单一种子主导沉浸感评分。
 - **关联**:ADR-001 §3 #4 / §6、bakeoff 场景组 A2、Phase 1 提示词工程。
+
+---
+
+## F-006 · DeepSeek 思考开关 `thinking.type=disabled` 实测有效(解掉 ThinkingAdapter 的 VERIFY 占位)
+
+- **日期**:2026-06-19 | **provider**:DeepSeek V4-Flash | **步骤**:Phase 1 接真实 DeepSeek 集成冒烟
+- **现象**:直连 `deepseek-v4-flash`(未带思考开关)时,**默认走思考模式**——早期 chunk 全是
+  `delta.reasoning_content` 有值、`delta.content=null`,模型先吐"内心独白"再给答案。而 server
+  端经 `ThinkingAdapter` 发 `{"thinking":{"type":"disabled"}}` 后,同一 prompt 直接吐纯 `content`、
+  零 reasoning(冒烟输出「雨夜便利店,灯光惨白如殡仪馆。」逐字流式)。
+- **意义**:
+  1. ADR-001 §5.2 里 DeepSeek 思考参数原是 bakeoff 沿用的 **VERIFY 占位**(`_thinking_extra_body`
+     注释标"占位待核")——本次实测证实 `thinking.type=disabled` 真实生效,**占位转已实测**。
+  2. 顺带验证 `OpenAiStreamDecoder` 只取 `delta.content`、忽略 `reasoning_content` 的设计是对的:
+     哪怕将来误开思考,模型推理过程也不会泄给玩家(契合规则怪谈 `hiddenLogic` 绝不泄露的纪律)。
+- **影响面**:DeepSeek 系 provider 的思考开关已可信赖;Qwen(`enable_thinking`)/ GLM(`thinking`)
+  两支仍为待实测占位,接通各家时同法验证。
+- **处置**:`server` 端 `ThinkingAdapter` 注释 DeepSeek 分支 VERIFY 占位 → 已实测(本条交叉引用);
+  本条记入 FINDINGS。**未改任何参数值**(冒烟即用现值跑通)。
+- **关联**:ADR-001 §5.2、`server/.../llm/ThinkingAdapter.java`、`OpenAiStreamDecoder`。
