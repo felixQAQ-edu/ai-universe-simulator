@@ -8,7 +8,8 @@ SSE/流式 web 栈见 [ADR-005](../docs/adr/ADR-005-sse-web-stack-mvc-thin-seam.
 > **未接真实 DeepSeek、未实现规则怪谈业务、未碰 CloudBase 部署 / ICP 备案**——均留后续任务。
 
 ## 技术栈
-- Java 21(LTS)· Spring Boot 3.5.x · Maven · Spring MVC(`SseEmitter`,见 ADR-005)
+- Spring Boot 4.1.x · 编译目标 Java 21(LTS)· Maven · Spring MVC(`SseEmitter`,见 ADR-005)
+  - 运行时:Boot 4 支持到 JDK 26,本机用默认 JDK 直接跑,无需固定 `JAVA_HOME`。
 
 ## 包结构
 - `llm/` — 运行模型抽象(平台无关核心):`LlmClient` / `TokenStream`(最小流式 sink)/
@@ -18,10 +19,7 @@ SSE/流式 web 栈见 [ADR-005](../docs/adr/ADR-005-sse-web-stack-mvc-thin-seam.
 - `platform/` — CloudBase / 微信薄适配层占位(ADR-002),骨架阶段空置
 
 ## 本地运行
-本机 Maven 默认跑在 JDK 26 上,需把构建固定到 JDK 21:
-
 ```bash
-export JAVA_HOME=$(/usr/libexec/java_home -v 21)
 ./mvnw spring-boot:run        # 起服务(默认端口 8080)
 ```
 
