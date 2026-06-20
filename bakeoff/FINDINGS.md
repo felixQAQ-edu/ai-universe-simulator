@@ -146,3 +146,21 @@
   **手写校验器**(`GameSchemas`,~120 行,直接吃 `tools.jackson.JsonNode`,零新依赖、单一 Jackson)。
   约束:今后任何库选型先验 **Jackson-3-native**,否则一票否决。
 - **关联**:`server/.../engine/GameSchemas.java`、ADR-005(单一 ObjectNode 接缝)、Phase 1 event-loop 规格 §4.4/§6。
+
+---
+
+## F-008 · Java 引擎有意偏离 bake-off Python:ending id 存在性 gate(依 §4.4,golden-safe)
+
+- **日期**:2026-06-20 | **步骤**:Phase 1 event-loop 内核加固(结局三子分支单测)
+- **背景**:bake-off `scenarios.py` 的 `Engine.apply()` 对 AI 提议的结局,只要 `ending.reached==true`
+  就 `status=ended`,再遍历 `endings[]` 标 `reached`——但**若 `ending.id` 不在 `endings[]`,则 status
+  已 ended 却标不到任何 ending**。
+- **现象/判断**:这不是设计,是个**潜伏 bug**——前端会拿到一个「没有对应 ending 对象的幽灵结局」
+  (无 title/description 可显)。规格 §4.4「`ending.id` 须存在于 world `endings[]`」才是真正的契约;
+  Python 当初只是没覆盖这个缺口(bake-off 连推从未触发结局,golden 三路径亦全程 ongoing)。
+- **处置**:Java `Engine.apply()` 把结局接受 **gate 于 id 存在性**——幽灵 id 不 flip `status`、不标任何
+  ending;触底兜底改用 `aiAccepted`(替 `aiReached`)判断,幽灵 id + 触底 → §5 兜底接管。
+  **golden 无 ending,故 parity 不受影响**(golden-safe)。
+- **取向**:「忠实移植 Python」只是信任 bake-off 验证的**手段**,非目的;**契约说了算**。引擎对齐 §4.4 正确。
+- **备注**:留此条是防将来谁重跑 parity 看到 **Java ≠ Python** 误判为移植 bug——这是有意偏离,非回归。
+- **关联**:`server/.../engine/Engine.java`(apply 第 9–10 步)、`EngineEndingTest`、Phase 1 event-loop 规格 §4.4/§5、commit `4e66056`。
