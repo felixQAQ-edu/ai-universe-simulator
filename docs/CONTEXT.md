@@ -80,6 +80,8 @@
 5. **数值范围**:默认 0–100;模式特有数值(境界等)在该模式的提示词与 schema 扩展里定义。
 6. **提示词是核心资产**:统一放 `prompts/`,按管线步骤组织(`world-gen` / `char-gen` / `rule-gen` / `event-loop` / `ending-gen` / `fusion`),版本化管理。
 7. **内容安全**:所有生成文本经审核网关通过后再返回前端(方案见 ADR-004)。
+8. **数值权威**:数值由引擎落账,AI 只提议。event-loop 每回合 AI 在 `stateUpdate` 里回传 `hp`/`san` 的**绝对新值**(非增量);`Engine.apply()` 负责校验落账,三道闸门分工——`TURN_SCHEMA` 硬性范围 0–100(越界→修复重试)、单回合跳变 > `JUMP_THRESHOLD`(默认 40)记「需复核」但不拒绝(允许有据恢复,见 FINDINGS F-003)、`clamp(0,100)` 兜底。结局:AI 提议 `ending{id,reached}`,引擎校验 `id` 存在于 `endings[]` 并转 `status`;`hp`/`san`≤0 时引擎强制 `ended` 并兜底指派一个坏结局 id。详见 Phase 1 event-loop 规格 §5。
+9. **state 三视图与消毒边界**:同一真理之源有三个投影——(1) 引擎内部全量(含 `isTrue`/`hiddenLogic`);(2) 喂模型的(也含 `hiddenLogic`,裁决真假规则需要);(3) 客户端消毒投影(绝不含 `isTrue`/`hiddenLogic`)。任何下发前端的 SSE 事件 / state 快照只走 (3)。实时防护 = 提示词硬禁吐隐藏逻辑 + 结构层消毒;`detect_leak` 在流式路径里是事后遥测(只抓逐字照抄 + 字段名,抓不到改写式泄露),非实时拦截。见 ADR-006、规格 §1。
 
 ## 四、版本历史
 
@@ -87,3 +89,4 @@
 |------|------|---------|
 | v0.1 | 2026-06-16 | 初版:术语表 + 统一 JSON Schema v0.1 + 关键约定 |
 | v0.2 | 2026-06-17 | schema 收敛(据 bakeoff 实测 FINDINGS F-001/F-004):明确 `rules[].id` 整数 / `endings[].id` 字符串的刻意差异;endings 增可选 `description`、`title` 改“短名必填”;`character.attributes` 标必填。详见 ADR-001。 |
+| v0.3 | 2026-06-19 | 追加 §三.8 数值权威(绝对值)+ §三.9 state 三视图消毒(据 ADR-006 与 Phase 1 规格);约定层补充,JSON schemaVersion 仍 "0.2"(字段未变),仅 CONTEXT 文档版本升 v0.3 |

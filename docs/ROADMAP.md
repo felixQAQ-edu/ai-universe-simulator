@@ -82,7 +82,7 @@
 | 阶段 | 周 | 核心任务 | 状态 | 完成日期 | 主要产出 / 链接 | 备注 |
 |------|----|---------|------|---------|----------------|------|
 | Phase 0 | W1–3 | 核心验证:Schema + 稳定生成 + 连推 10 回合 | ✅ | 2026-06-18 | [ADR-001](adr/ADR-001-runtime-model-and-provider-abstraction.md) · [ADR-002](adr/ADR-002-backend-form-factor.md) · [bakeoff/](../bakeoff/) · CONTEXT v0.2 · [web/](../web/) | provider bake-off ✅(连推 10 回合自洽里程碑达成);ADR-001/002 已采纳;前端工程(React + Vite + TS,scaffold)初始化完成,schema v0.2 已落 TS 类型 → **Phase 0 整体收口** |
-| Phase 1 | W4–9 | 单模式 H5 闭环(规则怪谈) | 🟨 | | [server/](../server/) · [ADR-005](adr/ADR-005-sse-web-stack-mvc-thin-seam.md) | 开工:Spring Boot 4.1(编译目标 Java 21/Maven)后端骨架落 `server/`,provider 抽象(`LlmClient`/`LlmProperties` 配置表 + mock 实现)+ 审核网关 no-op 接缝 + SSE 冒烟端点本地跑通(逐字流式,印证 ADR-002 承重假设本地侧);ADR-005(SSE web 栈:MVC + 薄接缝)已采纳。**已接真实 DeepSeek**(`OpenAiCompatLlmClient`,OpenAI 兼容流式,真实 token 经现有 `TokenStream` 接缝流到 SSE、web 层一行未动,15 测全绿;手动集成冒烟待 key 就位)。**未实现规则怪谈业务 / event-loop 契约 / 状态机,未碰 CloudBase 部署** |
+| Phase 1 | W4–9 | 单模式 H5 闭环(规则怪谈) | 🟨 | | [server/](../server/) · [ADR-005](adr/ADR-005-sse-web-stack-mvc-thin-seam.md) · [ADR-006](adr/ADR-006-event-loop-streaming-wire-protocol.md) · [event-loop 规格](phase1-event-loop-contract-and-state-machine.md) · CONTEXT v0.3 | 开工:Spring Boot 4.1(编译目标 Java 21/Maven)后端骨架落 `server/`,provider 抽象(`LlmClient`/`LlmProperties` 配置表 + mock 实现)+ 审核网关 no-op 接缝 + SSE 冒烟端点本地跑通(逐字流式,印证 ADR-002 承重假设本地侧);ADR-005(SSE web 栈:MVC + 薄接缝)已采纳。**已接真实 DeepSeek**(`OpenAiCompatLlmClient`,OpenAI 兼容流式,真实 token 经现有 `TokenStream` 接缝流到 SSE、web 层一行未动,15 测全绿;手动集成冒烟待 key 就位)。**event-loop 契约/状态机设计定稿**(规格入库 + ADR-006 流式线上协议采纳 + CONTEXT v0.3:数值权威/三视图消毒)——设计检查点,**业务代码未写**。**未实现规则怪谈业务 / event-loop 实现 / 状态机,未碰 CloudBase 部署** |
 | Phase 2 | W10–16 | 多模式 + 分享 + 云存档 + 成本控制 | ⬜ | | | |
 | Phase 3 | W17–22 | 混合模式 + 变现 + 软启动 | ⬜ | | | |
 | Phase 4 | W23+ | 微信小程序化 + 增长 | ⬜ | | | 第 5–6 月 |
@@ -100,7 +100,8 @@
 - **完成(工具链修缮)**:Spring Boot parent 升 **3.5.3 → 4.1.0**(编译目标保持 Java 21)。起因:初版踩了两个坑——Initializr 返回的版本号带 `.RELEASE` 后缀(Boot 2.x 后已废,Central 无此物),且当时拿 `search.maven.org` solr 索引交叉核对而它滞后(只到 3.5.3),误选了 3.5.3。复核 Central 权威 `maven-metadata.xml` 确认 3.5.15 / 4.1.0 均在;Central 本身不滞后,无需换源。Boot 4 支持到 JDK 26 → 本机默认 JDK 直接跑,**去掉 `JAVA_HOME=21` workaround**(README 同步)。冒烟照旧:`mvn test` 绿、SSE 逐字流式、空 prompt → 400。ADR 不改。
 - **完成(接真实 DeepSeek)**:在 `LlmClient` 下新增 OpenAI 兼容实现 `OpenAiCompatLlmClient`(JDK `HttpClient`,`stream=true`),真实 token 经现有 `TokenStream` 接缝流到 SSE、**web 层一行未动**(印证 ADR-005 接缝设计成立);**零新增依赖**(JDK `HttpClient` + 随 starter-web 来的 Jackson)。新增 `OpenAiStreamDecoder`(纯 SSE 解析,移植自 bakeoff `client.py` 的 chunk 消费循环)、`LlmException`(缺 key/网络失败/非 200/流中断统一干净降级,不泄露 key 给前端)、`LlmClientConfig`(按 `aiuniverse.llm.active` 选实现,mock 作默认/回退、未知 active fail-fast);`ThinkingAdapter` 从占位 throw 改为移植 bakeoff `_thinking_extra_body`(deepseek/dashscope/bigmodel 分派,ADR-001 §5.2 单点)。**走完整 TDD 红绿**:用一段录制的 DeepSeek SSE 样本做单测(解析→token 序列)+ 配置绑定选择 + 错误映射 + 缺 key 降级,共 15 测全绿;单测不打真实 API(确定性、零成本),手动集成冒烟(挂真 key curl 端点看逐字流)留待 `DEEPSEEK_API_KEY` 就位后跑。**安全核查**:git 历史确认 key 明文从未提交(`.env` 已 gitignore、只 `.env.example` 占位),无需重置。**仍是接缝/通路工作,未碰规则怪谈业务 / event-loop / 状态机。**
 - **卡点(已 unblock)**:Spring Boot 4 用 **Jackson 3**(包名 `com.fasterxml.jackson` → `tools.jackson`,异常改为 unchecked)+ 自动配置类包路径变动 → import 迁移、测试改直接提供 `ObjectMapper` bean 后全绿。
-- **下周计划**:手动集成冒烟(`DEEPSEEK_API_KEY` 就位后 curl 看真实逐字流);着手规则怪谈业务(world-gen 提示词 + event-loop 契约 / 状态机);Phase 1 排期纳入 ICP 备案。
+- **完成(event-loop 契约/状态机设计定稿)**:把 bake-off 已验证逻辑(`scenarios.py` 的 `Engine` + `client.py` + `schema.py`)形式化为生产实现蓝本——[event-loop 契约 + 状态机规格](phase1-event-loop-contract-and-state-machine.md)入库 `docs/`(整局/单回合状态机、线上契约、数值结算、可靠性/降级、log 压缩、消毒边界,逐项标「已验证 / 🆕 新设计」)。**决策**:ADR-006(event-loop 流式线上协议)已采纳——选**叙事先行单次调用 + 哨兵 `<<<DELTA>>>` + 结构化尾巴 + 叙事回灌**:服务端回灌叙事使 `validate_turn`/`detect_leak`/`Engine.apply` 原样复用(下游零改),贴 ~¥0.002 成本、守 ADR-005 薄接缝;两次调用(方案 B)留作埋点示警后的可切换后路。**约定回写**:CONTEXT 升 **v0.3**——§三.8 数值权威(AI 提议绝对值、引擎三道闸门落账)+ §三.9 state 三视图与消毒边界(`detect_leak` 流式路径降为遥测);**JSON `schemaVersion` 仍 "0.2"(字段未变),仅文档版本号升**。**设计检查点,非阶段完成——event-loop 业务代码尚未起。**
+- **下周计划**:按 [event-loop 规格](phase1-event-loop-contract-and-state-machine.md)起 event-loop 实现(`EventLoopService` 哨兵切分 + 叙事回灌 + 消毒投影 + 忙态/合法性/兜底/降级,各配单测;改造 `prompts/event-loop.md`:prose+哨兵+尾巴去 narrative);手动集成冒烟(`DEEPSEEK_API_KEY` 就位后 curl 看真实逐字流);Phase 1 排期纳入 ICP 备案。
 
 ---
 
@@ -120,6 +121,7 @@
 | [ADR-001](adr/ADR-001-runtime-model-and-provider-abstraction.md) | 运行模型选 DeepSeek V4-Flash 为主力,provider 走 OpenAI 兼容配置表抽象 | 已采纳 | 2026-06-17 |
 | [ADR-002](adr/ADR-002-backend-form-factor.md) | 后端形态选 Spring Boot 运行于 CloudBase 云托管(应用层自控 + 微信原生集成,薄适配层缓解锁定) | 已采纳 | 2026-06-18 |
 | [ADR-005](adr/ADR-005-sse-web-stack-mvc-thin-seam.md) | SSE/流式 web 栈选 Spring MVC(SseEmitter)+ 可换 WebFlux 的薄接缝(`TokenStream` 解耦核心与传输) | 已采纳 | 2026-06-18 |
+| [ADR-006](adr/ADR-006-event-loop-streaming-wire-protocol.md) | event-loop 流式线上协议选叙事先行单次调用 + 哨兵 + 结构化尾巴 + 叙事回灌复用(下游校验/引擎零改,守 ADR-005 薄接缝) | 已采纳 | 2026-06-19 |
 
 ---
 
@@ -168,3 +170,4 @@
 | v0.5 | 2026-06-18 | Phase 1 开工:后端 Spring Boot 骨架(`server/`,mock 实现)+ SSE 通路本地跑通 + ADR-005(SSE web 栈:MVC + 薄接缝)落档 → 进度表 Phase 1 行转 🟨、当前阶段更新、Week 1 日志补两条、ADR-005 进已完成索引(003/004 仍留候选) |
 | v0.6 | 2026-06-19 | 工具链修缮:Spring Boot 3.5.3 → 4.1.0(编译目标仍 Java 21),去掉 `JAVA_HOME=21` workaround → 同步进度表/Week 1 日志的版本号、补「完成(工具链修缮)」一条;ADR 不改 |
 | v0.7 | 2026-06-19 | Phase 1 推进:接真实 DeepSeek(`OpenAiCompatLlmClient`,OpenAI 兼容流式,token 经 `TokenStream` 接缝流到 SSE、web 层未动,TDD 15 测全绿)→ 进度表 Phase 1 备注与「当前阶段」更新、Week 1 日志补「完成(接真实 DeepSeek)」+ Jackson 3 卡点 + 刷新下周计划;ADR 不改 |
+| v0.8 | 2026-06-19 | Phase 1 设计检查点(非阶段完成,行仍 🟨):event-loop 契约/状态机规格入库 `docs/` + ADR-006(流式线上协议:叙事先行单次调用 + 哨兵 + 结构化尾巴 + 叙事回灌)落档进已完成索引 + CONTEXT v0.3(§三.8 数值权威 / §三.9 三视图消毒,JSON schemaVersion 仍 "0.2")→ 进度表 Phase 1 产出/链接与备注更新、Week 1 日志补「完成(设计定稿)」一条 + 刷新下周计划 |
