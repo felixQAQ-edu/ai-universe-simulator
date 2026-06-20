@@ -1,0 +1,309 @@
+{
+  "_note": "由 bakeoff/gen_validator_parity.py 从 out/calls.jsonl 生成,勿手改。verdict 为 Python schema.py 参照判定,供 Java GameSchemas accept-parity 断言。",
+  "cases": [
+    {
+      "id": "world-gen:A1:0",
+      "kind": "world",
+      "raw": "{\n  \"schemaVersion\": \"0.2\",\n  \"mode\": \"single\",\n  \"archetypes\": [\"rules_creepy\"],\n  \"world\": {\n    \"title\": \"雨夜便利店\",\n    \"background\": \"凌晨零点，你接替了夜班店员的工作。窗外大雨滂沱，街道空无一人。店内的荧光灯忽明忽暗，货架上的商品投下怪异的影子。墙上贴着一张泛黄的告示，上面写着一些规则。你必须撑到早上六点。\",\n    \"tone\": \"压抑、诡异、不安\",\n    \"dangerLevel\": \"high\"\n  },\n  \"character\": {\n    \"attributes\": {\n      \"hp\": 80,\n      \"san\": 70,\n      \"traits\": [\"警觉\", \"胆大\", \"好奇心重\"],\n      \"inventory\": [\"手电筒\", \"手机\", \"便利店钥匙\"]\n    }\n  },\n  \"rules\": [\n    {\n      \"id\": 1,\n      \"content\": \"1. 凌晨一点到三点之间，不要直视收银台右侧的监控屏幕。如果看到屏幕上出现自己的倒影，请立刻低头，默数三十秒。\",\n      \"isTrue\": true,\n      \"hiddenLogic\": \"如果玩家在1:00-3:00期间直视监控屏幕，san值每5秒下降5点；若看到倒影后不低头，san值会持续下降至0，触发幻觉。\",\n      \"discovered\": false\n    },\n    {\n      \"id\": 2,\n      \"content\": \"2. 如果有穿红色雨衣的顾客进店，请正常接待，但不要收他给的现金。告诉他本店只接受扫码支付。\",\n      \"isTrue\": false,\n      \"hiddenLogic\": \"实际上，红色雨衣顾客是友善的，给他现金反而会得到护身符（增加san值10点）。拒绝现金会导致他失望离开，错过增益。\",\n      \"discovered\": false\n    },\n    {\n      \"id\": 3,\n      \"content\": \"3. 冰柜里的蓝色饮料永远不要卖。如果顾客指定要买，告诉他缺货。\",\n      \"isTrue\": true,\n      \"hiddenLogic\": \"蓝色饮料是封印物，卖出会导致店内温度骤降，hp每10秒减少2点，直至顾客离开。\",\n      \"discovered\": false\n    },\n    {\n      \"id\": 4,\n      \"content\": \"4. 凌晨两点整，店内的电话会响。请在三声内接起，无论对方说什么，回答“好的，马上到”，然后挂断。\",\n      \"isTrue\": true,\n      \"hiddenLogic\": \"电话是‘午夜调度’的测试，不接或回答错误，san值减少20点，且会有一个无脸人出现在店门口。\",\n      \"discovered\": false\n    },\n    {\n      \"id\": 5,\n      \"content\": \"5. 如果听到货架之间有小孩的笑声，请立刻关掉所有灯，在黑暗中等待五分钟。期间不要发出任何声音。\",\n      \"isTrue\": false,\n      \"hiddenLogic\": \"关灯会激怒那个‘小孩’，它会从货架间爬出攻击玩家，hp减少30点。正确做法是打开手机录音并播放，它会消失。\",\n      \"discovered\": false\n    },\n    {\n      \"id\": 6,\n      \"content\": \"6. 凌晨三点后，可以打开后门的锁出去透透气，但不要走远，尽量在门口视线范围内。\",\n      \"isTrue\": false,\n      \"hiddenLogic\": \"后门外是一个循环空间，出去后无法找到回来的路，san值每30秒下降10点，直到迷失。\",\n      \"discovered\": false\n    },\n    {\n      \"id\": 7,\n      \"content\": \"7. 收银台抽屉里有一张白色卡片，如果感到恐惧，可以握在手里。\",\n      \"isTrue\": true,\n      \"hiddenLogic\": \"白色卡片能稳定心神，使用后san值恢复15点，但只能使用一次。\",\n      \"discovered\": false\n    }\n  ],\n  \"endings\": [\n    {\n      \"id\": \"survive_dawn\",\n      \"title\": \"撑到天亮\",\n      \"description\": \"你严格遵守规则，在恐惧中坚持到了早上六点。晨光透过玻璃门照进来，一切恢复正常。你活下来了。\",\n      \"condition\": \"成功存活至6:00且san值大于0\",\n      \"reached\": false\n    },\n    {\n      \"id\": \"lost_mind\",\n      \"title\": \"精神崩溃\",\n      \"description\": \"你的理智被彻底摧毁，在无尽的恐惧中尖叫着冲出便利店，消失在雨夜中。\",\n      \"condition\": \"san值降至0\",\n      \"reached\": false\n    },\n    {\n      \"id\": \"death_by_entity\",\n      \"title\": \"死于非命\",\n      \"description\": \"你触犯了致命的规则，被不可名状的存在拖入黑暗，永远消失。\",\n      \"condition\": \"hp降至0\",\n      \"reached\": false\n    }\n  ]\n}",
+      "parseOk": true,
+      "valid": true,
+      "errors": []
+    },
+    {
+      "id": "world-gen:A1:1",
+      "kind": "world",
+      "raw": "{\n  \"schemaVersion\": \"0.2\",\n  \"mode\": \"single\",\n  \"archetypes\": [\"rules_creepy\"],\n  \"world\": {\n    \"title\": \"雨夜便利店\",\n    \"background\": \"凌晨零点，你独自在便利店值夜班。窗外的雨不停地下，街道空无一人。店内的灯忽明忽暗，你注意到墙上贴着一张有些泛黄的告示。\",\n    \"tone\": \"压抑、诡异、不安\",\n    \"dangerLevel\": \"high\"\n  },\n  \"character\": {\n    \"attributes\": {\n      \"hp\": 80,\n      \"san\": 60\n    },\n    \"traits\": [\"夜猫子\", \"好奇心强\", \"胆小\"],\n    \"inventory\": [\"手电筒\", \"手机\", \"钥匙串\"]\n  },\n  \"rules\": [\n    {\n      \"id\": 1,\n      \"content\": \"欢迎光临。本店24小时营业，但凌晨2:00至3:00期间，请勿进入仓库。如听到敲门声，请回答“欢迎光临”，然后保持安静。\",\n      \"isTrue\": true,\n      \"hiddenLogic\": \"如果在2:00-3:00进入仓库，san值-20，且会看到不该看的东西。敲门声来自非人存在，回答后若发出其他声音，它会直接出现，san值-30。\",\n      \"discovered\": false\n    },\n    {\n      \"id\": 2,\n      \"content\": \"如果发现货架上的商品自行移动，请立刻闭眼数到十，然后去收银台按下红色按钮。\",\n      \"isTrue\": true,\n      \"hiddenLogic\": \"商品移动是灵体在捣乱。闭眼数数后按下按钮，可暂时压制，san值+5。若不按按钮或睁眼，san值-15，且灵体会靠近。\",\n      \"discovered\": false\n    },\n    {\n      \"id\": 3,\n      \"content\": \"本店不提供热水。如果有顾客要求喝热水，请告诉他我们只卖冷饮。\",\n      \"isTrue\": false,\n      \"hiddenLogic\": \"实际上热水是安全的，但这条规则是假的。如果拒绝提供热水，顾客（非人）会纠缠，san值-10；如果给了热水，它会感激离开，san值+10。\",\n      \"discovered\": false\n    },\n    {\n      \"id\": 4,\n      \"content\": \"收银台下方有一把伞，但请不要使用。如果看到有人没打伞站在店外，请无视他。\",\n      \"isTrue\": true,\n      \"hiddenLogic\": \"伞是封印物，使用会释放东西，hp-20。无视门外的人可避免被诱骗出门，若回应或出门，hp-30。\",\n      \"discovered\": false\n    },\n    {\n      \"id\": 5,\n      \"content\": \"每隔一小时，请去厕所照镜子一次，并对自己微笑。如果镜子里的你表情不同，立刻打破镜子。\",\n      \"isTrue\": false,\n      \"hiddenLogic\": \"照镜子会吸引镜中灵，微笑是挑衅。若按规则做，san值-10；若不照镜子则无事。打破镜子会释放镜中灵，hp-20。\",\n      \"discovered\": false\n    },\n    {\n      \"id\": 6,\n      \"content\": \"凌晨4:00整，店内会停电10秒。届时请站在原地不要动，不要发出任何声音。\",\n      \"isTrue\": true,\n      \"hiddenLogic\": \"停电期间有东西在店内游走。不动不说话则安全，若移动或出声，会被发现，san值-25。\",\n      \"discovered\": false\n    },\n    {\n      \"id\": 7,\n      \"content\": \"如果看到穿红色雨衣的顾客，请主动为他开门，并说“请慢走”。\",\n      \"isTrue\": false,\n      \"hiddenLogic\": \"红色雨衣顾客是死神化身。主动开门并说话会让他带走你的灵魂，直接死亡。无视或躲避可存活，但san值-10。\",\n      \"discovered\": false\n    }\n  ],\n  \"endings\": [\n    {\n      \"id\": \"survive_dawn\",\n      \"title\": \"撑到天亮\",\n      \"description\": \"你成功遵守了大部分规则，熬到了早上6点。阳光洒进便利店，一切恢复正常。\",\n      \"condition\": \"san > 0 且 hp > 0 且 时间到达6:00\",\n      \"reached\": false\n    },\n    {\n      \"id\": \"lost_mind\",\n      \"title\": \"精神崩溃\",\n      \"description\": \"你的理智被彻底摧毁，你开始自言自语，成为便利店的一部分。\",\n      \"condition\": \"san <= 0\",\n      \"reached\": false\n    },\n    {\n      \"id\": \"death_by_rule\",\n      \"title\": \"规则之死\",\n      \"description\": \"你触犯了致命的规则，被未知力量带走，消失在雨夜中。\",\n      \"condition\": \"hp <= 0 或 触发红色雨衣结局\",\n      \"reached\": false\n    }\n  ]\n}",
+      "parseOk": true,
+      "valid": true,
+      "errors": []
+    },
+    {
+      "id": "world-gen:A1:2",
+      "kind": "world",
+      "raw": "{\n  \"schemaVersion\": \"0.2\",\n  \"mode\": \"single\",\n  \"archetypes\": [\"rules_creepy\"],\n  \"world\": {\n    \"title\": \"雨夜便利店\",\n    \"background\": \"凌晨零点，你作为临时店员来到这家24小时便利店。外面下着大雨，街道空无一人。店内的灯光忽明忽暗，货架上摆着一些你从未见过的商品。墙上有好几张泛黄的告示，上面写着各种规则。你必须坚持到早上六点。\",\n    \"tone\": \"压抑、诡异、不安\",\n    \"dangerLevel\": \"high\"\n  },\n  \"character\": {\n    \"attributes\": {\n      \"hp\": 80,\n      \"san\": 60,\n      \"traits\": [\"夜班经验\", \"好奇心重\", \"轻微近视\", \"容易紧张\"],\n      \"inventory\": [\"手电筒\", \"手机\", \"雨伞\"]\n    }\n  },\n  \"rules\": [\n    {\n      \"id\": 1,\n      \"content\": \"凌晨2:00到3:00，请不要直视货架上的任何商品。如果听到背后有脚步声，请闭上眼睛数到十。\",\n      \"isTrue\": true,\n      \"hiddenLogic\": \"如果玩家在2:00-3:00期间直视商品，san值-10；若听到脚步声未闭眼，san值-20，且背后会出现一个穿雨衣的人影。闭眼数到十可避免。\",\n      \"discovered\": false\n    },\n    {\n      \"id\": 2,\n      \"content\": \"店内所有饮料均免费，但请勿购买标有“特价”的红色罐装饮料。\",\n      \"isTrue\": true,\n      \"hiddenLogic\": \"如果玩家购买或饮用红色罐装饮料，san值-30，且会看到镜中的自己变成腐烂的模样。\",\n      \"discovered\": false\n    },\n    {\n      \"id\": 3,\n      \"content\": \"如果听到收银台电话铃响，请立即接听，无论对方说什么都要回答“好的”。\",\n      \"isTrue\": false,\n      \"hiddenLogic\": \"实际上，电话铃响时不要接听。如果接听并回答“好的”，hp-20，且会有一个穿红裙子的女人出现在店门口。不接听则无事。\",\n      \"discovered\": false\n    },\n    {\n      \"id\": 4,\n      \"content\": \"凌晨3:00整，请将店内的灯全部关闭，并打开手电筒，持续一分钟。\",\n      \"isTrue\": true,\n      \"hiddenLogic\": \"如果不执行此操作，san值-15，且店内温度骤降，出现鬼影。执行后安全度过。\",\n      \"discovered\": false\n    },\n    {\n      \"id\": 5,\n      \"content\": \"如果有顾客进门，请热情招待，并提醒他阅读墙上的规则。\",\n      \"isTrue\": false,\n      \"hiddenLogic\": \"实际上，凌晨0:00-6:00不会有正常顾客。如果开门或与“顾客”互动，hp-30，且“顾客”会露出真面目（无脸人）。正确的做法是锁好门，不理睬。\",\n      \"discovered\": false\n    },\n    {\n      \"id\": 6,\n      \"content\": \"卫生间的镜子是正常的，请放心使用。\",\n      \"isTrue\": false,\n      \"hiddenLogic\": \"镜子实际上是通往另一个空间的入口。如果使用镜子，san值-20，并看到镜中的自己做出不同动作。不要看镜子超过5秒。\",\n      \"discovered\": false\n    },\n    {\n      \"id\": 7,\n      \"content\": \"如果听到货架上有东西掉落的声音，请不要回头，直接去收银台按下警报按钮。\",\n      \"isTrue\": true,\n      \"hiddenLogic\": \"如果回头查看，san值-15，且会看到一个球状物体滚到脚边。按下警报按钮可驱散异常。\",\n      \"discovered\": false\n    }\n  ],\n  \"endings\": [\n    {\n      \"id\": \"survive_dawn\",\n      \"title\": \"撑到天亮\",\n      \"description\": \"你严格遵守规则，终于熬到了清晨六点。雨停了，阳光透过玻璃门照进来。你成功活了下来。\",\n      \"condition\": \"hp>0且san>0且时间达到06:00\",\n      \"reached\": false\n    },\n    {\n      \"id\": \"lost_mind\",\n      \"title\": \"精神崩溃\",\n      \"description\": \"你的理智被彻底摧毁。你开始对着空气说话，最终被穿红裙子的女人带走，消失在雨夜中。\",\n      \"condition\": \"san<=0\",\n      \"reached\": false\n    },\n    {\n      \"id\": \"death_unknown\",\n      \"title\": \"不明死亡\",\n      \"description\": \"你因违反致命规则而死去。第二天，警方发现你的尸体，死因不明。\",\n      \"condition\": \"hp<=0\",\n      \"reached\": false\n    }\n  ]\n}",
+      "parseOk": true,
+      "valid": true,
+      "errors": []
+    },
+    {
+      "id": "world-gen:A1:3",
+      "kind": "world",
+      "raw": "{\n  \"schemaVersion\": \"0.2\",\n  \"mode\": \"single\",\n  \"archetypes\": [\"rules_creepy\"],\n  \"world\": {\n    \"title\": \"雨夜便利店\",\n    \"background\": \"你是一名临时夜班店员，在凌晨0:00至6:00值守这家位于偏僻路段的便利店。窗外大雨滂沱，店内灯光惨白，货架阴影中似乎有东西在移动。你必须遵守墙上贴着的规则，否则……\",\n    \"tone\": \"压抑、诡异、不安\",\n    \"dangerLevel\": \"high\"\n  },\n  \"character\": {\n    \"name\": \"夜班店员\",\n    \"attributes\": {\n      \"hp\": 60,\n      \"san\": 50\n    },\n    \"traits\": [\"警觉\", \"易受惊吓\", \"责任心强\"],\n    \"inventory\": [\"手电筒\", \"便利店钥匙\", \"员工手册\"]\n  },\n  \"rules\": [\n    {\n      \"id\": 1,\n      \"content\": \"1. 凌晨1:00至3:00期间，无论听到什么声音，都不要看向收银台右侧的货架。\",\n      \"isTrue\": true,\n      \"hiddenLogic\": \"若违反看向右侧货架，san值-20，并看到一名穿红衣的无脸女子。若持续注视超过3秒，san值-30，且hp-10。\",\n      \"discovered\": false\n    },\n    {\n      \"id\": 2,\n      \"content\": \"2. 如果有顾客进店，必须微笑并说“欢迎光临”。若顾客没有回应，立即躲进仓库并锁门。\",\n      \"isTrue\": true,\n      \"hiddenLogic\": \"若未说欢迎光临，顾客会变成黑色人影，hp-15，san-10。若顾客无回应但未躲进仓库，san-20，且顾客会尾随你。\",\n      \"discovered\": false\n    },\n    {\n      \"id\": 3,\n      \"content\": \"3. 每整点（如1:00、2:00等），必须去卫生间照镜子一次，并对自己说三次“我是人”。\",\n      \"isTrue\": false,\n      \"hiddenLogic\": \"实际规则：整点照镜子会吸引镜中鬼魂，san-10。若说了“我是人”，鬼魂会记住你，后续san值持续下降。正确做法是忽略整点。\",\n      \"discovered\": false\n    },\n    {\n      \"id\": 4,\n      \"content\": \"4. 如果看到穿黄色雨衣的人站在店外，不要开门，并拉下卷帘门直到他离开。\",\n      \"isTrue\": true,\n      \"hiddenLogic\": \"若开门，黄雨衣人会闯入并攻击，hp-25，san-15。若未拉下卷帘门，他会一直敲玻璃，san-5/分钟。\",\n      \"discovered\": false\n    },\n    {\n      \"id\": 5,\n      \"content\": \"5. 收银机里的钱绝对不能碰，否则会发生不好的事情。\",\n      \"isTrue\": false,\n      \"hiddenLogic\": \"实际上碰钱会触发隐藏机关，获得一张写有安全提示的纸条，有助于生存。但若被监控看到，经理会扣工资（不影响hp/san）。\",\n      \"discovered\": false\n    },\n    {\n      \"id\": 6,\n      \"content\": \"6. 如果有小孩进店买糖果，必须给他一包，并让他立刻离开。不要找零。\",\n      \"isTrue\": true,\n      \"hiddenLogic\": \"若不给糖果，小孩会尖叫，san-15，并引来其他异常。若找零，零钱会变成冥币，san-10。\",\n      \"discovered\": false\n    },\n    {\n      \"id\": 7,\n      \"content\": \"7. 凌晨4:00后，可以打开收音机，但只能调频到FM 88.8。\",\n      \"isTrue\": false,\n      \"hiddenLogic\": \"FM 88.8会播放招魂曲，san-5/分钟。正确做法是保持安静或调至其他频道（无影响）。\",\n      \"discovered\": false\n    }\n  ],\n  \"endings\": [\n    {\n      \"id\": \"survive_dawn\",\n      \"title\": \"撑到天亮\",\n      \"description\": \"你成功遵守了所有真实规则，躲避了所有危险，在6:00迎来黎明，安全下班。\",\n      \"condition\": \"hp>0且san>0且时间到达6:00\",\n      \"reached\": false\n    },\n    {\n      \"id\": \"lost_mind\",\n      \"title\": \"精神崩溃\",\n      \"description\": \"你的理智值降为0，你看到了不可名状的恐怖，最终精神失常，被送入精神病院。\",\n      \"condition\": \"san<=0\",\n      \"reached\": false\n    },\n    {\n      \"id\": \"death_by_entity\",\n      \"title\": \"死于非命\",\n      \"description\": \"你违反了关键规则，被便利店中的实体袭击，生命值归零。\",\n      \"condition\": \"hp<=0\",\n      \"reached\": false\n    }\n  ]\n}",
+      "parseOk": true,
+      "valid": true,
+      "errors": []
+    },
+    {
+      "id": "world-gen:A1:4",
+      "kind": "world",
+      "raw": "{\n  \"schemaVersion\": \"0.2\",\n  \"mode\": \"single\",\n  \"archetypes\": [\"rules_creepy\"],\n  \"seed\": \"雨夜便利店,玩家是临时夜班店员,凌晨 0:00–6:00\",\n  \"world\": {\n    \"title\": \"雨夜便利店\",\n    \"background\": \"你是一名临时夜班店员，在凌晨0:00到6:00值守这家便利店。窗外大雨滂沱，街道空无一人。店内的灯光忽明忽暗，货架上的商品似乎比平时更加陈旧。你注意到墙上贴着一张泛黄的告示，上面写着一些规则。\",\n    \"tone\": \"压抑、诡异、不安\",\n    \"dangerLevel\": \"high\"\n  },\n  \"character\": {\n    \"attributes\": {\n      \"hp\": 80,\n      \"san\": 70\n    },\n    \"traits\": [\"夜班经验不足\", \"容易紧张\", \"好奇心强\", \"善良\"],\n    \"inventory\": [\"手电筒\", \"便利店钥匙\", \"手机\"]\n  },\n  \"rules\": [\n    {\n      \"id\": 1,\n      \"content\": \"1. 凌晨2:00到3:00之间，请确保店内所有灯光保持开启，不要关闭任何一盏灯。\",\n      \"isTrue\": true,\n      \"hiddenLogic\": \"若关闭灯光，san值下降20，并会吸引‘无脸人’出现，hp减少30。若保持灯光，安全。\",\n      \"discovered\": false\n    },\n    {\n      \"id\": 2,\n      \"content\": \"2. 如果听到收银台方向传来三声敲门声，请立刻面向墙壁，闭上眼睛，数到30。\",\n      \"isTrue\": true,\n      \"hiddenLogic\": \"若不遵守，会看到无法直视的恐怖景象，san值下降40，hp减少20。遵守则无事发生。\",\n      \"discovered\": false\n    },\n    {\n      \"id\": 3,\n      \"content\": \"3. 店内所有商品均可正常售卖，但不要出售任何标有‘已售’标签的商品。\",\n      \"isTrue\": false,\n      \"hiddenLogic\": \"实际上，出售‘已售’商品会导致顾客变成怪物，hp减少50。但规则本身是假的，因为根本没有‘已售’标签。\",\n      \"discovered\": false\n    },\n    {\n      \"id\": 4,\n      \"content\": \"4. 如果有顾客询问‘有没有红色的伞’，请回答‘没有，但我们可以为您预订’。\",\n      \"isTrue\": true,\n      \"hiddenLogic\": \"若回答其他内容，顾客会变成红衣女人，san值下降30，hp减少20。正确回答则无事。\",\n      \"discovered\": false\n    },\n    {\n      \"id\": 5,\n      \"content\": \"5. 便利店后门在任何情况下都不要打开，即使听到熟悉的呼救声。\",\n      \"isTrue\": true,\n      \"hiddenLogic\": \"打开后门会释放‘影怪’，hp直接归零，游戏结束。\",\n      \"discovered\": false\n    },\n    {\n      \"id\": 6,\n      \"content\": \"6. 如果看到货架上的罐头突然自己排列成笑脸形状，请立即向店长报告。\",\n      \"isTrue\": false,\n      \"hiddenLogic\": \"实际上，罐头排列是正常现象，报告后店长会责备你大惊小怪，san值下降10。但规则本身是误导。\",\n      \"discovered\": false\n    },\n    {\n      \"id\": 7,\n      \"content\": \"7. 凌晨3:30左右，会有一个穿黑色雨衣的人进店，不要与他有任何眼神接触，也不要与他对话。\",\n      \"isTrue\": true,\n      \"hiddenLogic\": \"若违反，黑雨衣人会对你低语，san值下降50，hp减少30。无视则安全。\",\n      \"discovered\": false\n    }\n  ],\n  \"endings\": [\n    {\n      \"id\": \"survive_dawn\",\n      \"title\": \"撑到天亮\",\n      \"description\": \"你成功遵守所有规则，熬到了清晨6:00。雨停了，阳光照进便利店，一切恢复正常。\",\n      \"condition\": \"在游戏结束时，hp > 0且san > 0，且没有触发致命规则。\",\n      \"reached\": false\n    },\n    {\n      \"id\": \"lost_mind\",\n      \"title\": \"精神崩溃\",\n      \"description\": \"你的理智被彻底摧毁，你蜷缩在角落，再也无法分辨现实与幻觉。\",\n      \"condition\": \"san值降至0。\",\n      \"reached\": false\n    },\n    {\n      \"id\": \"devoured\",\n      \"title\": \"被吞噬\",\n      \"description\": \"你违反了致命规则，被黑暗中的存在拖入深渊。\",\n      \"condition\": \"hp降至0。\",\n      \"reached\": false\n    }\n  ]\n}",
+      "parseOk": true,
+      "valid": true,
+      "errors": []
+    },
+    {
+      "id": "world-gen:A2-seed1:5",
+      "kind": "world",
+      "raw": "{\n  \"schemaVersion\": \"0.2\",\n  \"mode\": \"single\",\n  \"archetypes\": [\"rules_creepy\"],\n  \"world\": {\n    \"title\": \"深夜末班地铁\",\n    \"background\": \"你错过了下车的时机，车厢里只剩下你一人。灯光忽明忽暗，地铁在隧道中疾驰，似乎永远不会停靠下一站。\",\n    \"tone\": \"压抑、诡异、孤立无援\",\n    \"dangerLevel\": \"high\"\n  },\n  \"character\": {\n    \"attributes\": {\n      \"hp\": 80,\n      \"san\": 60\n    },\n    \"traits\": [\"警惕\", \"好奇心强\", \"容易焦虑\"],\n    \"inventory\": [\"手机\", \"手电筒\", \"矿泉水\"]\n  },\n  \"rules\": [\n    {\n      \"id\": 1,\n      \"content\": \"请勿在车厢内使用手机拍照或录像。\",\n      \"isTrue\": true,\n      \"hiddenLogic\": \"如果拍照或录像，会拍下不该存在的东西（如空座位上的黑影），san值-20，并可能触发后续事件。\",\n      \"discovered\": false\n    },\n    {\n      \"id\": 2,\n      \"content\": \"如果看到空座位上有人影，请立即闭眼并数到三十。\",\n      \"isTrue\": true,\n      \"hiddenLogic\": \"闭眼数到三十可避免被‘乘客’注意，否则san值-30，且‘乘客’会靠近，hp-15。\",\n      \"discovered\": false\n    },\n    {\n      \"id\": 3,\n      \"content\": \"列车广播会每站播报站名，请留意下一站是否是‘终点站’。\",\n      \"isTrue\": false,\n      \"hiddenLogic\": \"实际上广播会逐渐扭曲，如果相信广播，会误导玩家做出错误决定。正确做法是不听广播。\",\n      \"discovered\": false\n    },\n    {\n      \"id\": 4,\n      \"content\": \"如果感到困倦，可以靠在座位上小睡片刻。\",\n      \"isTrue\": false,\n      \"hiddenLogic\": \"睡着后会被带入‘里层车厢’，醒来时san-40，且可能面对更危险的规则。\",\n      \"discovered\": false\n    },\n    {\n      \"id\": 5,\n      \"content\": \"当车厢灯光变为红色时，请立刻躲到座位下方。\",\n      \"isTrue\": true,\n      \"hiddenLogic\": \"红灯表示‘检查者’经过，躲到座位下可避免被发现，否则san-25且hp-10。\",\n      \"discovered\": false\n    },\n    {\n      \"id\": 6,\n      \"content\": \"本站为‘幸福里’，请所有乘客带好随身物品下车。\",\n      \"isTrue\": false,\n      \"hiddenLogic\": \"这是假站名，实际不存在。如果下车，会进入一个废弃隧道，san-50，且难以返回。\",\n      \"discovered\": false\n    },\n    {\n      \"id\": 7,\n      \"content\": \"车厢内的紧急通话按钮仅供紧急情况使用，按动后会有工作人员回应。\",\n      \"isTrue\": true,\n      \"hiddenLogic\": \"按动后会有声音回应，但必须是真正的紧急情况（如san低于20或hp低于30），否则会激怒‘他们’，san-15。\",\n      \"discovered\": false\n    },\n    {\n      \"id\": 8,\n      \"content\": \"请勿阅读车厢内张贴的任何广告或海报。\",\n      \"isTrue\": true,\n      \"hiddenLogic\": \"广告上的文字会诱导乘客做出危险行为，阅读后san-10，并可能触发幻觉。\",\n      \"discovered\": false\n    }\n  ],\n  \"endings\": [\n    {\n      \"id\": \"survive_dawn\",\n      \"title\": \"撑到天亮\",\n      \"description\": \"你坚持到地铁驶出隧道，阳光照进车厢，一切恢复正常。\",\n      \"condition\": \"san>0且hp>0，且未触发致命事件，直到游戏时间达到‘清晨’\",\n      \"reached\": false\n    },\n    {\n      \"id\": \"lost_mind\",\n      \"title\": \"精神崩溃\",\n      \"description\": \"你的理智被彻底摧毁，永远迷失在无尽的地铁中。\",\n      \"condition\": \"san降至0\",\n      \"reached\": false\n    },\n    {\n      \"id\": \"death_in_tunnel\",\n      \"title\": \"隧道亡魂\",\n      \"description\": \"你未能遵守规则，被‘乘客’带走，成为地铁的一部分。\",\n      \"condition\": \"hp降至0\",\n      \"reached\": false\n    }\n  ]\n}",
+      "parseOk": true,
+      "valid": true,
+      "errors": []
+    },
+    {
+      "id": "world-gen:A2-seed2:6",
+      "kind": "world",
+      "raw": "{\n  \"schemaVersion\": \"0.2\",\n  \"mode\": \"single\",\n  \"archetypes\": [\"rules_creepy\"],\n  \"world\": {\n    \"title\": \"山间民宿\",\n    \"background\": \"你独自一人来到这座位于深山的民宿，老板热情地递给你钥匙，并提醒你仔细阅读墙上的《住宿须知》。窗外天色渐暗，山风呼啸，屋内灯光忽明忽暗。\",\n    \"tone\": \"压抑、诡异、不安\",\n    \"dangerLevel\": \"medium\"\n  },\n  \"character\": {\n    \"attributes\": {\n      \"hp\": 80,\n      \"san\": 70,\n      \"traits\": [\"多疑\", \"胆大\", \"好奇心重\"],\n      \"inventory\": [\"手电筒\", \"打火机\", \"半瓶矿泉水\"]\n    }\n  },\n  \"rules\": [\n    {\n      \"id\": 1,\n      \"content\": \"晚上10点后请勿外出，若听到敲门声，不要开门。\",\n      \"isTrue\": true,\n      \"hiddenLogic\": \"若开门，门外无人，但san值-15，并触发“脚步声跟随”事件，后续每次进入新区域san-5。\",\n      \"discovered\": false\n    },\n    {\n      \"id\": 2,\n      \"content\": \"如果看到窗外有白色人影，请立刻拉上窗帘，并默念“我看不见你”三遍。\",\n      \"isTrue\": true,\n      \"hiddenLogic\": \"若不拉窗帘，人影会逐渐靠近，san值每30秒-10，直到拉上窗帘或san归零。默念可阻止san下降。\",\n      \"discovered\": false\n    },\n    {\n      \"id\": 3,\n      \"content\": \"浴室的水龙头如果自己打开，请立即关闭并离开浴室，不要看镜子。\",\n      \"isTrue\": true,\n      \"hiddenLogic\": \"若看镜子，镜中会出现另一个自己，san-20，且之后每次照镜子san-5。\",\n      \"discovered\": false\n    },\n    {\n      \"id\": 4,\n      \"content\": \"民宿提供免费夜宵，如有需要请拨打前台电话。\",\n      \"isTrue\": false,\n      \"hiddenLogic\": \"拨打后无人接听，但10分钟后会有敲门声，开门则触发规则1后果，不开则无事。\",\n      \"discovered\": false\n    },\n    {\n      \"id\": 5,\n      \"content\": \"走廊尽头的红色房门请勿进入，那是老板的私人仓库。\",\n      \"isTrue\": false,\n      \"hiddenLogic\": \"进入后房间空无一物，但san-10，并发现一张纸条写着“你已违反规则”，之后所有规则触发概率翻倍。\",\n      \"discovered\": false\n    },\n    {\n      \"id\": 6,\n      \"content\": \"如果听到楼上传来弹珠声，请用力敲击天花板三下，声音就会停止。\",\n      \"isTrue\": true,\n      \"hiddenLogic\": \"若不敲击，弹珠声持续1小时后，楼上会传来脚步声，然后你的房门会被敲响，开门则san-25。敲击后声音停止，但10分钟后会从楼下传来。\",\n      \"discovered\": false\n    },\n    {\n      \"id\": 7,\n      \"content\": \"凌晨3点整，请将房间内所有灯光关闭并保持安静，直到3点05分。\",\n      \"isTrue\": true,\n      \"hiddenLogic\": \"若未关灯或发出声音，会看到床头出现一个黑影，san-30，且黑影会跟随你直到结局。若遵守，则无事发生。\",\n      \"discovered\": false\n    },\n    {\n      \"id\": 8,\n      \"content\": \"如果你在枕头下发现一张纸条，请按照纸条上的指示行动。\",\n      \"isTrue\": false,\n      \"hiddenLogic\": \"纸条上写着“请离开这里”，但离开房间会导致触发规则1后果，并迷失方向，hp-10。\",\n      \"discovered\": false\n    }\n  ],\n  \"endings\": [\n    {\n      \"id\": \"survive_dawn\",\n      \"title\": \"撑到天亮\",\n      \"description\": \"你严格遵守所有规则，平安度过了夜晚，清晨阳光洒进房间，一切恢复正常。\",\n      \"condition\": \"所有规则均未被违反（或违反后及时补救），且san值>0\",\n      \"reached\": false\n    },\n    {\n      \"id\": \"lost_mind\",\n      \"title\": \"精神崩溃\",\n      \"description\": \"你的理智被彻底摧毁，你开始疯狂地撕扯墙上的规则，最终被送进精神病院。\",\n      \"condition\": \"san值降至0\",\n      \"reached\": false\n    },\n    {\n      \"id\": \"disappear\",\n      \"title\": \"神秘消失\",\n      \"description\": \"你违反了关键规则，被黑暗中的存在带走，从此人间蒸发。\",\n      \"condition\": \"hp降至0或触发特定致命规则（如开门后连续遭遇）\",\n      \"reached\": false\n    }\n  ]\n}",
+      "parseOk": true,
+      "valid": true,
+      "errors": []
+    },
+    {
+      "id": "world-gen:A2-seed3:7",
+      "kind": "world",
+      "raw": "{\n  \"schemaVersion\": \"0.2\",\n  \"mode\": \"single\",\n  \"archetypes\": [\"rules_creepy\"],\n  \"world\": {\n    \"title\": \"永夜走廊\",\n    \"background\": \"凌晨三点，你作为陪护家属，被困在医院住院部的走廊里。灯光忽明忽暗，尽头的安全出口标志泛着诡异的绿光。你必须遵守墙上贴着的规则，直到天亮。\",\n    \"tone\": \"压抑、诡异、绝望\",\n    \"dangerLevel\": \"extreme\"\n  },\n  \"character\": {\n    \"attributes\": {\n      \"hp\": 50,\n      \"san\": 40,\n      \"traits\": [\"警惕\", \"易受暗示\", \"疲惫\", \"护亲心切\"],\n      \"inventory\": [\"手机（电量20%）\", \"保温杯\", \"病房门卡\"]\n    }\n  },\n  \"rules\": [\n    {\n      \"id\": 1,\n      \"content\": \"请勿在走廊中奔跑，以免打扰病人休息。\",\n      \"hiddenLogic\": \"奔跑会触发护士站铃声，吸引‘值班护士’出现，san-15；若保持行走，无影响。\",\n      \"isTrue\": true,\n      \"discovered\": false\n    },\n    {\n      \"id\": 2,\n      \"content\": \"若听到走廊尽头传来婴儿哭声，请立刻返回病房并锁门。\",\n      \"hiddenLogic\": \"婴儿哭声是陷阱，循声而去会看到空摇篮，san-20；若返回病房锁门，安全度过一次危机。\",\n      \"isTrue\": true,\n      \"discovered\": false\n    },\n    {\n      \"id\": 3,\n      \"content\": \"凌晨3:33分，请面朝墙壁站立，直到钟声结束。\",\n      \"hiddenLogic\": \"若不照做，会看到‘不存在的东西’，san-30；照做则无事发生，但会错过一次逃生线索。\",\n      \"isTrue\": true,\n      \"discovered\": false\n    },\n    {\n      \"id\": 4,\n      \"content\": \"如果遇到穿红色衣服的护士，可以向她求助。\",\n      \"hiddenLogic\": \"红色护士是幻象，求助会导致被引向死路，hp-20；无视则无事。\",\n      \"isTrue\": false,\n      \"discovered\": false\n    },\n    {\n      \"id\": 5,\n      \"content\": \"电梯井传来敲击声时，请按-1层按钮。\",\n      \"hiddenLogic\": \"按-1层会进入地下室陷阱，hp-30；不按则电梯门关闭，无事。\",\n      \"isTrue\": false,\n      \"discovered\": false\n    },\n    {\n      \"id\": 6,\n      \"content\": \"走廊尽头的饮水机，请只在整点时使用。\",\n      \"hiddenLogic\": \"非整点使用饮水机，水会变成血水，san-10；整点使用正常。\",\n      \"isTrue\": true,\n      \"discovered\": false\n    },\n    {\n      \"id\": 7,\n      \"content\": \"如果看到自己的病房号出现在走廊天花板上，请立即闭眼后退三步。\",\n      \"hiddenLogic\": \"闭眼后退可避开幻觉，san-5；若睁眼查看，会陷入循环走廊，san-25。\",\n      \"isTrue\": true,\n      \"discovered\": false\n    }\n  ],\n  \"endings\": [\n    {\n      \"id\": \"survive_dawn\",\n      \"title\": \"撑到天亮\",\n      \"description\": \"你严格遵守规则，在黎明时分安全回到病房，亲人安然无恙。\",\n      \"condition\": \"当游戏时间达到6:00且san>0且hp>0\",\n      \"reached\": false\n    },\n    {\n      \"id\": \"lost_mind\",\n      \"title\": \"精神崩溃\",\n      \"description\": \"你被走廊中的恐怖景象逼疯，最终被送入精神科。\",\n      \"condition\": \"当san降至0\",\n      \"reached\": false\n    },\n    {\n      \"id\": \"fatal_choice\",\n      \"title\": \"致命选择\",\n      \"description\": \"你触发了致命陷阱，在走廊中消失，再也没有人见过你。\",\n      \"condition\": \"当hp降至0\",\n      \"reached\": false\n    }\n  ]\n}",
+      "parseOk": true,
+      "valid": true,
+      "errors": []
+    },
+    {
+      "id": "event-loop:B1-T1:8",
+      "kind": "turn",
+      "raw": "{\n  \"narrative\": \"你站在收银台后，荧光灯闪了一下，墙上的挂钟显示00:05。窗外雨声密集，店内只有货架间回荡的轻微嗡鸣。你深吸一口气，决定先熟悉环境。目光扫过泛黄的告示，那些规则在你脑中盘旋。你注意到监控屏幕正对着收银台，此刻还不到一点，屏幕里只有空荡荡的货架。你检查了抽屉，里面有一张白色卡片，触感冰凉。一切暂时安静，但你知道，午夜才刚刚开始。\",\n  \"stateUpdate\": {\n    \"hp\": 80,\n    \"san\": 70,\n    \"timeline\": \"第1回合结束，时间00:05，平安无事。\"\n  },\n  \"triggeredRuleIds\": [],\n  \"discoveredRuleIds\": [],\n  \"availableActions\": [\n    {\n      \"id\": \"A\",\n      \"text\": \"研究收银台抽屉里的白色卡片\"\n    },\n    {\n      \"id\": \"B\",\n      \"text\": \"检查冰柜里的蓝色饮料\"\n    },\n    {\n      \"id\": \"C\",\n      \"text\": \"盯着监控屏幕，确认倒影是否会出现\"\n    },\n    {\n      \"id\": \"D\",\n      \"text\": \"整理货架，等待第一位顾客\"\n    }\n  ],\n  \"ending\": null\n}",
+      "parseOk": true,
+      "valid": true,
+      "errors": []
+    },
+    {
+      "id": "event-loop:B1-T2:9",
+      "kind": "turn",
+      "raw": "{\n  \"narrative\": \"你拿起白色卡片，指尖传来一阵冰凉。卡片表面光滑，没有文字，只有淡淡的纹路。握在手中时，你感到一股安心的力量流入体内，恐惧似乎减轻了些。墙上的钟指向00:10，窗外雨声依旧。你决定把卡片放回抽屉，以备不时之需。\",\n  \"stateUpdate\": {\n    \"hp\": 80,\n    \"san\": 85,\n    \"timeline\": \"第2回合结束，时间00:10，使用了白色卡片，san值恢复。\"\n  },\n  \"triggeredRuleIds\": [7],\n  \"discoveredRuleIds\": [7],\n  \"availableActions\": [\n    {\"id\": \"A\", \"text\": \"走到店门口，检查门锁是否牢固\"},\n    {\"id\": \"B\", \"text\": \"去冰柜区查看蓝色饮料的库存\"},\n    {\"id\": \"C\", \"text\": \"回到收银台，盯着监控屏幕等时间流逝\"},\n    {\"id\": \"D\", \"text\": \"再次阅读墙上的告示，逐条记忆\"}\n  ],\n  \"ending\": null\n}",
+      "parseOk": true,
+      "valid": true,
+      "errors": []
+    },
+    {
+      "id": "event-loop:B1-T3:10",
+      "kind": "turn",
+      "raw": "{\n  \"narrative\": \"你走向店门口，鞋底与地砖摩擦发出轻微的声响。门锁是普通的弹簧锁，看起来牢固，但门缝处渗进一丝冷风。你注意到玻璃门上倒映出自己的身影，在昏暗灯光下显得苍白。雨滴敲打玻璃的声音像无数细小的手指在叩击。你试着推了推门，纹丝不动。正当你转身时，余光瞥见门外雨幕中似乎有一个红色身影一闪而过，但再看时只有雨幕。钟显示00:12。\",\n  \"stateUpdate\": {\n    \"hp\": 80,\n    \"san\": 85,\n    \"timeline\": \"第3回合结束，时间00:12，检查了店门，未触发异常。\"\n  },\n  \"triggeredRuleIds\": [],\n  \"discoveredRuleIds\": [],\n  \"availableActions\": [\n    {\n      \"id\": \"A\",\n      \"text\": \"回到收银台，打开抽屉检查白色卡片\"\n    },\n    {\n      \"id\": \"B\",\n      \"text\": \"走到冰柜前，查看那些蓝色饮料\"\n    },\n    {\n      \"id\": \"C\",\n      \"text\": \"盯着监控屏幕，看看有没有异常\"\n    },\n    {\n      \"id\": \"D\",\n      \"text\": \"在店内踱步，仔细观察每一条规则\"\n    }\n  ],\n  \"ending\": null\n}",
+      "parseOk": true,
+      "valid": true,
+      "errors": []
+    },
+    {
+      "id": "event-loop:B1-T4:11",
+      "kind": "turn",
+      "raw": "{\n  \"narrative\": \"你回到收银台，拉开抽屉，白色卡片静静躺在那里。你拿起它，指尖再次传来熟悉的冰凉触感。你翻看卡片——确实没有任何文字或图案，只有细微的纹理，在灯光下隐约泛着微光。你将卡片握在手中片刻，感觉心跳平稳了一些。窗外雨声依旧，荧光灯又闪了一下。你看了看钟，00:15。你决定把卡片放回原处，以备不时之需。\",\n  \"stateUpdate\": {\n    \"hp\": 80,\n    \"san\": 85,\n    \"timeline\": \"第4回合结束，时间00:15，检查了白色卡片，未触发异常。\"\n  },\n  \"triggeredRuleIds\": [],\n  \"discoveredRuleIds\": [],\n  \"availableActions\": [\n    {\n      \"id\": \"A\",\n      \"text\": \"回到收银台，盯着监控屏幕看一会儿。\"\n    },\n    {\n      \"id\": \"B\",\n      \"text\": \"走到冰柜前，看看那些蓝色饮料。\"\n    },\n    {\n      \"id\": \"C\",\n      \"text\": \"检查收银台下的其他抽屉，寻找有用的物品。\"\n    },\n    {\n      \"id\": \"D\",\n      \"text\": \"在店内巡视一圈，仔细听货架间的声音。\"\n    }\n  ],\n  \"ending\": null\n}",
+      "parseOk": true,
+      "valid": true,
+      "errors": []
+    },
+    {
+      "id": "event-loop:B1-T5:12",
+      "kind": "turn",
+      "raw": "{\n  \"narrative\": \"你回到收银台，目光不由自主地投向监控屏幕。此刻时间刚过00:15，还不到一点，屏幕里显示着店内各个角落的画面——空荡的货架、紧闭的后门、以及你自己站在收银台前的背影。你盯着看了几秒，画面似乎微微闪烁，但一切正常。你松了一口气，但心底有个声音警告你：规则一提到凌晨一点到三点之间不要直视屏幕。你移开视线，钟声滴答作响，雨声依旧。\",\n  \"stateUpdate\": {\n    \"hp\": 80,\n    \"san\": 85,\n    \"timeline\": \"第5回合结束，时间00:20，检查了监控屏幕，未触发异常。\"\n  },\n  \"triggeredRuleIds\": [],\n  \"discoveredRuleIds\": [],\n  \"availableActions\": [\n    {\n      \"id\": \"A\",\n      \"text\": \"走到冰柜前，检查那些蓝色饮料。\"\n    },\n    {\n      \"id\": \"B\",\n      \"text\": \"在店内走动，检查货架间是否有异常。\"\n    },\n    {\n      \"id\": \"C\",\n      \"text\": \"回到收银台，准备迎接可能的顾客。\"\n    },\n    {\n      \"id\": \"D\",\n      \"text\": \"尝试拨打手机，看看是否有信号。\"\n    }\n  ],\n  \"ending\": null\n}",
+      "parseOk": true,
+      "valid": true,
+      "errors": []
+    },
+    {
+      "id": "event-loop:B1-T6:13",
+      "kind": "turn",
+      "raw": "{\n  \"narrative\": \"你走向冰柜，荧光灯在头顶闪烁，投下忽明忽暗的光。冰柜里的蓝色饮料排列整齐，瓶身标签模糊不清，液体在灯光下泛着诡异的荧光。你伸手触碰冰柜门，金属表面冰冷刺骨，指尖传来一阵刺痛。你注意到其中一瓶的瓶盖似乎微微松动，像是被打开过。钟声滴答，指向00:22，你感到一股莫名的寒意从冰柜中渗出。\",\n  \"stateUpdate\": {\n    \"hp\": 80,\n    \"san\": 85,\n    \"timeline\": \"第6回合结束，时间00:22，检查了冰柜中的蓝色饮料，未触发异常。\"\n  },\n  \"triggeredRuleIds\": [],\n  \"discoveredRuleIds\": [],\n  \"availableActions\": [\n    {\n      \"id\": \"A\",\n      \"text\": \"回到收银台，查看监控屏幕（注意时间）\"\n    },\n    {\n      \"id\": \"B\",\n      \"text\": \"尝试打开一瓶蓝色饮料，闻一闻气味\"\n    },\n    {\n      \"id\": \"C\",\n      \"text\": \"去后门附近，听听有没有奇怪的声音\"\n    },\n    {\n      \"id\": \"D\",\n      \"text\": \"拿出白色卡片握在手里，保持镇定\"\n    }\n  ],\n  \"ending\": null\n}",
+      "parseOk": true,
+      "valid": true,
+      "errors": []
+    },
+    {
+      "id": "event-loop:B1-T7:14",
+      "kind": "turn",
+      "raw": "{\n  \"narrative\": \"你回到收银台，目光不自觉地被监控屏幕吸引。此刻时间00:26，还差34分钟才到凌晨一点，但屏幕中你的倒影在荧光灯下显得格外清晰。你盯着屏幕看了几秒，忽然发现屏幕中的自己似乎在微笑——而你并没有笑。你猛地移开视线，心跳加速。雨声如鼓点般密集，店内荧光灯又闪了一下。你深呼吸，提醒自己规则一的时间限制尚未到来。\",\n  \"stateUpdate\": {\n    \"hp\": 80,\n    \"san\": 85,\n    \"timeline\": \"第7回合结束，时间00:26，查看监控屏幕但未到危险时间，未触发异常。\"\n  },\n  \"triggeredRuleIds\": [],\n  \"discoveredRuleIds\": [],\n  \"availableActions\": [\n    {\n      \"id\": \"A\",\n      \"text\": \"检查收银台抽屉里的白色卡片（确认其效果）\"\n    },\n    {\n      \"id\": \"B\",\n      \"text\": \"去后门查看，确认门锁是否牢固\"\n    },\n    {\n      \"id\": \"C\",\n      \"text\": \"整理货架，检查是否有异常物品\"\n    },\n    {\n      \"id\": \"D\",\n      \"text\": \"坐在收银台前等待，观察店内动静\"\n    }\n  ],\n  \"ending\": null\n}",
+      "parseOk": true,
+      "valid": true,
+      "errors": []
+    },
+    {
+      "id": "event-loop:B1-T8:15",
+      "kind": "turn",
+      "raw": "{\n  \"narrative\": \"你再次拉开收银台抽屉，白色卡片静静躺在角落。你拿起它，指尖传来熟悉的冰凉触感，这一次你仔细端详——卡片纯白无瑕，没有任何文字或图案，但当你握紧时，一股安心的感觉从掌心蔓延至全身，仿佛它能驱散周围的阴冷。你想起规则七的描述，确认这就是那张能稳定心神的卡片。你将它放回抽屉，准备在需要时使用。窗外雨声渐急，时钟指向00:30。\",\n  \"stateUpdate\": {\n    \"hp\": 80,\n    \"san\": 85,\n    \"timeline\": \"第8回合结束，时间00:30，确认白色卡片效果，未触发异常。\"\n  },\n  \"triggeredRuleIds\": [],\n  \"discoveredRuleIds\": [7],\n  \"availableActions\": [\n    {\"id\": \"A\", \"text\": \"继续等待，观察店内情况，直到凌晨一点\"},\n    {\"id\": \"B\", \"text\": \"走向后门，试着打开锁出去透透气\"},\n    {\"id\": \"C\", \"text\": \"去冰柜处，仔细检查那瓶瓶盖松动的蓝色饮料\"},\n    {\"id\": \"D\", \"text\": \"拿起白色卡片握在手中，保持镇定\"}\n  ],\n  \"ending\": null\n}",
+      "parseOk": true,
+      "valid": true,
+      "errors": []
+    },
+    {
+      "id": "event-loop:B1-T9:16",
+      "kind": "turn",
+      "raw": "{\n  \"narrative\": \"你决定继续等待，目光在店内扫视。荧光灯发出轻微的嗡鸣，货架的影子在墙壁上扭曲。你盯着时钟，秒针缓慢移动，雨声像无数只手指敲击玻璃。时间一分一秒过去，00:45、00:50、00:55……当指针终于指向凌晨一点整时，店内突然陷入一片死寂——雨声消失了，荧光灯也不再闪烁，只有你的呼吸声清晰可闻。你感到一股寒意从脚底升起，收银台右侧的监控屏幕亮起微光，你想起规则一的警告，赶紧移开视线，低头盯着桌面。默数三十秒后，你抬起头，一切恢复正常，雨声重新响起。你松了口气，但手心已全是冷汗。\",\n  \"stateUpdate\": {\n    \"hp\": 80,\n    \"san\": 85,\n    \"timeline\": \"第9回合结束，时间01:05，安全度过一点整，未触发异常。\"\n  },\n  \"triggeredRuleIds\": [],\n  \"discoveredRuleIds\": [1],\n  \"availableActions\": [\n    {\n      \"id\": \"A\",\n      \"text\": \"继续守在收银台，观察监控屏幕的动静\"\n    },\n    {\n      \"id\": \"B\",\n      \"text\": \"去检查冰柜里的蓝色饮料，确认封印状态\"\n    },\n    {\n      \"id\": \"C\",\n      \"text\": \"拿出白色卡片握在手中，提前做好防护\"\n    },\n    {\n      \"id\": \"D\",\n      \"text\": \"走到店门口，透过玻璃观察外面的雨夜\"\n    }\n  ],\n  \"ending\": null\n}",
+      "parseOk": true,
+      "valid": true,
+      "errors": []
+    },
+    {
+      "id": "event-loop:B1-T10:17",
+      "kind": "turn",
+      "raw": "{\n  \"narrative\": \"凌晨一点零五分，你继续守在收银台，目光警惕地扫视四周。荧光灯忽明忽暗，投下不安的影子。你瞥了一眼监控屏幕，但立刻想起规则，强迫自己移开视线。雨声再次变得清晰，店内暂时平静，但你知道危险尚未过去。时钟滴答作响，每一秒都像在敲击你的神经。你握紧拳头，准备应对接下来的挑战。\",\n  \"stateUpdate\": {\n    \"hp\": 80,\n    \"san\": 85,\n    \"timeline\": \"第10回合结束，时间01:10，安全度过一点零五分，未触发异常。\"\n  },\n  \"triggeredRuleIds\": [],\n  \"discoveredRuleIds\": [],\n  \"availableActions\": [\n    {\n      \"id\": \"A\",\n      \"text\": \"继续观察收银台周围，留意任何异常动静\"\n    },\n    {\n      \"id\": \"B\",\n      \"text\": \"去检查冰柜里的蓝色饮料，确认是否还在\"\n    },\n    {\n      \"id\": \"C\",\n      \"text\": \"拿出抽屉里的白色卡片握在手中，以防万一\"\n    },\n    {\n      \"id\": \"D\",\n      \"text\": \"在店内走动巡逻，检查各个角落\"\n    }\n  ],\n  \"ending\": null\n}",
+      "parseOk": true,
+      "valid": true,
+      "errors": []
+    },
+    {
+      "id": "event-loop:B2-T1:18",
+      "kind": "turn",
+      "raw": "{\n  \"narrative\": \"你深吸一口气，决定主动探查这家便利店里的异常。你环顾四周，荧光灯发出的嗡嗡声在雨夜中格外清晰。你注意到墙上的告示似乎比刚才更旧了一些，边缘微微卷曲。当你走近收银台时，余光瞥见监控屏幕上的画面——画面里，你身后的货架间似乎有一个矮小的身影一闪而过。你猛地回头，却什么也没有。\",\n  \"stateUpdate\": {\n    \"hp\": 80,\n    \"san\": 65,\n    \"timeline\": \"凌晨0:05，你开始主动探查便利店，san值因紧张而略微下降。\"\n  },\n  \"triggeredRuleIds\": [],\n  \"discoveredRuleIds\": [],\n  \"availableActions\": [\n    {\n      \"id\": \"A\",\n      \"text\": \"检查收银台抽屉里的白色卡片\"\n    },\n    {\n      \"id\": \"B\",\n      \"text\": \"走到货架间查看刚才的影子\"\n    },\n    {\n      \"id\": \"C\",\n      \"text\": \"仔细阅读墙上的告示\"\n    },\n    {\n      \"id\": \"D\",\n      \"text\": \"打开手机录音，准备记录异常声音\"\n    }\n  ],\n  \"ending\": null\n}",
+      "parseOk": true,
+      "valid": true,
+      "errors": []
+    },
+    {
+      "id": "event-loop:B2-T2:19",
+      "kind": "turn",
+      "raw": "{\n  \"narrative\": \"你掏出手机，打开录音功能，准备捕捉任何异常声音。录音软件启动的瞬间，你听到一阵微弱的电流声，随后是雨声的杂音。你竖起耳朵，等待可能出现的动静。突然，货架深处传来一阵窸窸窣窣的声音，像是有什么东西在爬行。你握紧手机，心跳加速。录音界面显示声波图有轻微波动，但很快恢复平静。你感觉周围的空气似乎冷了几度。\",\n  \"stateUpdate\": {\n    \"hp\": 80,\n    \"san\": 65,\n    \"timeline\": \"凌晨0:07，你打开手机录音，警惕地等待异常声音。\"\n  },\n  \"triggeredRuleIds\": [],\n  \"discoveredRuleIds\": [],\n  \"availableActions\": [\n    {\n      \"id\": \"A\",\n      \"text\": \"继续探查货架区，寻找刚才声音的来源\"\n    },\n    {\n      \"id\": \"B\",\n      \"text\": \"回到收银台，检查收银台抽屉里的白色卡片\"\n    },\n    {\n      \"id\": \"C\",\n      \"text\": \"查看监控屏幕，确认刚才看到的身影\"\n    },\n    {\n      \"id\": \"D\",\n      \"text\": \"去检查冰柜里的蓝色饮料\"\n    }\n  ],\n  \"ending\": null\n}",
+      "parseOk": true,
+      "valid": true,
+      "errors": []
+    },
+    {
+      "id": "event-loop:B2-T3:20",
+      "kind": "turn",
+      "raw": "{\n  \"narrative\": \"你走向冰柜，目光落在那排蓝色饮料上。瓶身标签在荧光灯下泛着幽幽的蓝光，液体内部似乎有细小的气泡在缓慢升腾。你伸手触碰玻璃门，指尖传来刺骨的寒意——冰柜的温度似乎比正常低得多。就在这时，你听到店门口传来脚步声，一个穿着红色雨衣的身影推门而入，雨水顺着衣摆滴落在地板上。他径直走向收银台，从口袋里掏出一张皱巴巴的现金。\",\n  \"stateUpdate\": {\n    \"hp\": 80,\n    \"san\": 65,\n    \"timeline\": \"凌晨0:10，你检查了冰柜中的蓝色饮料，此时一位穿红色雨衣的顾客进店。\"\n  },\n  \"triggeredRuleIds\": [],\n  \"discoveredRuleIds\": [],\n  \"availableActions\": [\n    {\n      \"id\": \"A\",\n      \"text\": \"忽略红色雨衣顾客，继续检查蓝色饮料，尝试打开冰柜门拿出饮料。\"\n    },\n    {\n      \"id\": \"B\",\n      \"text\": \"回到收银台，正常接待红色雨衣顾客，准备拒绝他的现金。\"\n    },\n    {\n      \"id\": \"C\",\n      \"text\": \"假装没看见顾客，躲到货架后观察他的举动。\"\n    },\n    {\n      \"id\": \"D\",\n      \"text\": \"取出收银台抽屉里的白色卡片握在手中，再上前接待顾客。\"\n    }\n  ],\n  \"ending\": null\n}",
+      "parseOk": true,
+      "valid": true,
+      "errors": []
+    },
+    {
+      "id": "event-loop:B2-T4:21",
+      "kind": "turn",
+      "raw": "{\n  \"narrative\": \"你迅速打开收银台抽屉，手指触到那张白色卡片时，一股微弱的暖意传来。你将它紧紧握在手中，感觉心中的不安稍微平复了一些。你走向那位红色雨衣顾客，他沉默地递过一张百元现金，纸币边缘有些湿润。你注意到他的雨衣帽檐压得很低，看不清面容。\",\n  \"stateUpdate\": {\n    \"hp\": 80,\n    \"san\": 80,\n    \"timeline\": \"凌晨0:12，你拿起白色卡片（san+15），正接待红色雨衣顾客。\"\n  },\n  \"triggeredRuleIds\": [7],\n  \"discoveredRuleIds\": [7],\n  \"availableActions\": [\n    {\n      \"id\": \"A\",\n      \"text\": \"拒绝收现金，告诉他本店只接受扫码支付。\"\n    },\n    {\n      \"id\": \"B\",\n      \"text\": \"接过现金，为他找零，并留意他的反应。\"\n    },\n    {\n      \"id\": \"C\",\n      \"text\": \"假装没有现金找零，让他稍等，自己去后面换零钱。\"\n    },\n    {\n      \"id\": \"D\",\n      \"text\": \"直接问他需要什么商品，转移注意力。\"\n    }\n  ],\n  \"ending\": null\n}",
+      "parseOk": true,
+      "valid": true,
+      "errors": []
+    },
+    {
+      "id": "event-loop:B2-T5:22",
+      "kind": "turn",
+      "raw": "{\n  \"narrative\": \"你尽量保持镇定，对红色雨衣顾客说：“请问您需要什么？”他沉默了几秒，然后缓缓抬起手，指向冰柜的方向——正是那排蓝色饮料的位置。他的手指苍白细长，指甲泛着不正常的青灰色。雨衣上的水珠滴落在地板上，发出有节奏的滴答声。你感到手中的白色卡片微微发热，提醒你保持清醒。\",\n  \"stateUpdate\": {\n    \"hp\": 80,\n    \"san\": 80,\n    \"timeline\": \"凌晨0:14，你询问红色雨衣顾客需求，他指向蓝色饮料。\"\n  },\n  \"triggeredRuleIds\": [],\n  \"discoveredRuleIds\": [],\n  \"availableActions\": [\n    {\n      \"id\": \"A\",\n      \"text\": \"按照规则告知蓝色饮料缺货。\"\n    },\n    {\n      \"id\": \"B\",\n      \"text\": \"假装没看懂，继续问他要不要其他商品。\"\n    },\n    {\n      \"id\": \"C\",\n      \"text\": \"直接收下现金，把蓝色饮料卖给他。\"\n    },\n    {\n      \"id\": \"D\",\n      \"text\": \"借口去仓库查看，暂时离开收银台。\"\n    }\n  ],\n  \"ending\": null\n}",
+      "parseOk": true,
+      "valid": true,
+      "errors": []
+    },
+    {
+      "id": "event-loop:B2-T6:23",
+      "kind": "turn",
+      "raw": "{\n  \"narrative\": \"你以去仓库查看库存为借口，快步离开收银台。身后传来红色雨衣顾客的滴水声，似乎没有跟来。仓库的门虚掩着，里面堆满纸箱，只有一盏昏暗的灯。你刚踏入，身后传来“咔哒”一声——门自动关上了。你回头，门缝下透进一丝光，但怎么拉都拉不开。墙角的通风口传来微弱的呼吸声，你感到一阵寒意。\",\n  \"stateUpdate\": {\n    \"hp\": 80,\n    \"san\": 80,\n    \"timeline\": \"凌晨0:14，你借口去仓库，被困其中。\"\n  },\n  \"triggeredRuleIds\": [],\n  \"discoveredRuleIds\": [],\n  \"availableActions\": [\n    {\n      \"id\": \"A\",\n      \"text\": \"用力拍门呼救，希望有人听见。\"\n    },\n    {\n      \"id\": \"B\",\n      \"text\": \"检查仓库内的纸箱，寻找出口或工具。\"\n    },\n    {\n      \"id\": \"C\",\n      \"text\": \"靠近通风口，查看呼吸声的来源。\"\n    },\n    {\n      \"id\": \"D\",\n      \"text\": \"尝试用手机照明，寻找电灯开关。\"\n    }\n  ],\n  \"ending\": null\n}",
+      "parseOk": true,
+      "valid": true,
+      "errors": []
+    },
+    {
+      "id": "event-loop:B2-T7:24",
+      "kind": "turn",
+      "raw": "{\n  \"narrative\": \"你掏出手机打开手电筒，惨白的光照亮了仓库的角落。纸箱堆得杂乱，墙上有一个老旧的配电箱。你拉开配电箱的门，里面有几个开关，其中一个标着“照明”。你按下开关，头顶的灯闪了两下才稳定亮起。就在这时，你听到门外传来脚步声，然后是收银台电话的铃声——凌晨两点整，电话响了。你被困在仓库里，无法接听。\",\n  \"stateUpdate\": {\n    \"hp\": 80,\n    \"san\": 75,\n    \"timeline\": \"凌晨2:00，你被困仓库，电话铃响未能接听。\"\n  },\n  \"triggeredRuleIds\": [4],\n  \"discoveredRuleIds\": [],\n  \"availableActions\": [\n    {\"id\": \"A\", \"text\": \"尝试用力撞开仓库门\"},\n    {\"id\": \"B\", \"text\": \"寻找仓库内的其他出口\"},\n    {\"id\": \"C\", \"text\": \"用手机拨打收银台电话，假装接听\"},\n    {\"id\": \"D\", \"text\": \"关掉灯，躲进纸箱堆里不出声\"}\n  ],\n  \"ending\": null\n}",
+      "parseOk": true,
+      "valid": true,
+      "errors": []
+    },
+    {
+      "id": "event-loop:B2-T8:25",
+      "kind": "turn",
+      "raw": "{\n  \"narrative\": \"你迅速关掉仓库的灯，缩进纸箱堆里，屏住呼吸。黑暗中，脚步声在门外停住，电话铃声在店内回荡，一声、两声、三声——然后戛然而止。你听到一阵低沉的窃笑，像从喉咙深处挤出来的。仓库的门把手开始转动，发出吱呀的金属声。你全身僵硬，手中的白色卡片变得冰冷刺骨。门缓缓开了一条缝，一道浑浊的光线透进来，在地上投下一个扭曲的影子——没有头。\",\n  \"stateUpdate\": {\n    \"hp\": 80,\n    \"san\": 55,\n    \"timeline\": \"凌晨2:00，你关灯躲进纸箱，电话未接，无脸人出现。\"\n  },\n  \"triggeredRuleIds\": [4],\n  \"discoveredRuleIds\": [4],\n  \"availableActions\": [\n    {\n      \"id\": \"A\",\n      \"text\": \"从纸箱堆里冲出去，直面无脸人\"\n    },\n    {\n      \"id\": \"B\",\n      \"text\": \"继续躲藏，不出声，等待它离开\"\n    },\n    {\n      \"id\": \"C\",\n      \"text\": \"打开手机录音，播放声音试探\"\n    },\n    {\n      \"id\": \"D\",\n      \"text\": \"摸索仓库后门，尝试从后门逃离\"\n    }\n  ],\n  \"ending\": null\n}",
+      "parseOk": true,
+      "valid": true,
+      "errors": []
+    },
+    {
+      "id": "event-loop:B2-T9:26",
+      "kind": "turn",
+      "raw": "{\n  \"narrative\": \"你摸索着仓库的后墙，手指触到冰冷的金属——那是一扇铁门。门把手锈迹斑斑，你用力转动，门吱呀一声开了。外面是无尽的黑暗，雨声似乎近在咫尺，但你看不到任何雨滴。你踏出一步，地面是干燥的水泥地，但空气中弥漫着潮湿的霉味。身后的门自动关上，发出沉重的撞击声。你回头，发现门已经消失了——取而代之的是一面光滑的墙壁。你陷入了循环空间，手机信号全无，只有自己的呼吸声在空旷中回响。\",\n  \"stateUpdate\": {\n    \"hp\": 80,\n    \"san\": 45,\n    \"timeline\": \"凌晨2:05，你从后门进入循环空间，理智开始流失。\"\n  },\n  \"triggeredRuleIds\": [6],\n  \"discoveredRuleIds\": [6],\n  \"availableActions\": [\n    {\n      \"id\": \"A\",\n      \"text\": \"大声呼救，希望有人能听见\"\n    },\n    {\n      \"id\": \"B\",\n      \"text\": \"沿着墙壁一直走，寻找出口\"\n    },\n    {\n      \"id\": \"C\",\n      \"text\": \"蹲下闭眼，默念白色卡片上的文字\"\n    },\n    {\n      \"id\": \"D\",\n      \"text\": \"拿出手机尝试录像，记录周围环境\"\n    }\n  ],\n  \"ending\": null\n}",
+      "parseOk": true,
+      "valid": true,
+      "errors": []
+    },
+    {
+      "id": "event-loop:B2-T10:27",
+      "kind": "turn",
+      "raw": "{\n  \"narrative\": \"你举起手机，打开录像功能，屏幕中映出灰蒙蒙的画面——周围是无限延伸的灰色墙壁，地面是同样的灰色，没有边界，没有出口。你转了一圈，画面毫无变化，仿佛你被困在一个巨大的灰色盒子里。突然，录像画面中出现了一个模糊的黑色人影，就在你身后不到两米处。你猛地回头，却空无一物。但当你再次看向屏幕，那个人影离得更近了，轮廓更清晰——它没有脸，只有一张平滑的面具般的面孔。你的心跳加速，手机屏幕开始闪烁，最后黑屏。无论怎么按，手机都无法开机。\",\n  \"stateUpdate\": {\n    \"hp\": 80,\n    \"san\": 35,\n    \"timeline\": \"凌晨2:10，你困在循环空间，手机失灵，理智持续流失。\"\n  },\n  \"triggeredRuleIds\": [6],\n  \"discoveredRuleIds\": [6],\n  \"availableActions\": [\n    {\n      \"id\": \"A\",\n      \"text\": \"沿着灰色墙壁一直走，寻找出口\"\n    },\n    {\n      \"id\": \"B\",\n      \"text\": \"大声呼救，期望有人能听到\"\n    },\n    {\n      \"id\": \"C\",\n      \"text\": \"闭上眼睛，原地不动，默念收银台白色卡片上的文字\"\n    },\n    {\n      \"id\": \"D\",\n      \"text\": \"蹲下来，用手触摸地面，试图找到裂缝或异常\"\n    }\n  ],\n  \"ending\": null\n}",
+      "parseOk": true,
+      "valid": true,
+      "errors": []
+    },
+    {
+      "id": "event-loop:B3-T1:28",
+      "kind": "turn",
+      "raw": "{\n  \"narrative\": \"你站在收银台后，看着墙上的时钟指向凌晨零点零三分。雨声如鼓点般敲打着玻璃门，荧光灯管发出细微的嗡鸣。你选择原地等待，但空气中似乎有什么在缓缓蠕动。你感到一阵莫名的寒意从脚底升起，仿佛有什么东西正在暗处注视着你。\",\n  \"stateUpdate\": {\n    \"hp\": 80,\n    \"san\": 68,\n    \"timeline\": \"凌晨零点零三分，你开始在便利店当值。\"\n  },\n  \"triggeredRuleIds\": [],\n  \"discoveredRuleIds\": [],\n  \"availableActions\": [\n    {\n      \"id\": \"A\",\n      \"text\": \"检查收银台抽屉里的白色卡片\"\n    },\n    {\n      \"id\": \"B\",\n      \"text\": \"走到货架间巡视一圈\"\n    },\n    {\n      \"id\": \"C\",\n      \"text\": \"盯着监控屏幕观察四周\"\n    },\n    {\n      \"id\": \"D\",\n      \"text\": \"整理柜台上的杂物\"\n    }\n  ],\n  \"ending\": null\n}",
+      "parseOk": true,
+      "valid": true,
+      "errors": []
+    },
+    {
+      "id": "event-loop:B3-T2:29",
+      "kind": "turn",
+      "raw": "{\n  \"narrative\": \"你鼓起勇气，将目光投向收银台右侧的监控屏幕。屏幕上是店内各个角落的实时画面：空无一人的货架、紧闭的冰柜、以及……你自己的背影。但下一秒，你惊恐地发现，屏幕中的你并没有跟随你的动作——它正缓缓转过身，露出一张和你一模一样却毫无表情的脸。你的san值骤然下降。\",\n  \"stateUpdate\": {\n    \"hp\": 80,\n    \"san\": 58,\n    \"timeline\": \"凌晨零点零五分，你直视了监控屏幕，看到自己的倒影，san值下降。\"\n  },\n  \"triggeredRuleIds\": [1],\n  \"discoveredRuleIds\": [1],\n  \"availableActions\": [\n    {\"id\": \"A\", \"text\": \"立刻低头，默数三十秒\"},\n    {\"id\": \"B\", \"text\": \"冲向收银台抽屉，寻找白色卡片\"},\n    {\"id\": \"C\", \"text\": \"继续盯着屏幕，看它要做什么\"},\n    {\"id\": \"D\", \"text\": \"闭上眼睛，告诉自己这是幻觉\"}\n  ],\n  \"ending\": null\n}",
+      "parseOk": true,
+      "valid": true,
+      "errors": []
+    },
+    {
+      "id": "event-loop:B3-T3:30",
+      "kind": "turn",
+      "raw": "{\n  \"narrative\": \"你咬紧牙关，强迫自己继续盯着监控屏幕。屏幕中的倒影嘴角缓缓上扬，露出一个诡异的微笑，然后它抬起手，指了指屏幕右下角——那里显示的时间是凌晨零点零七分。你的san值再次下降，头脑开始发晕，仿佛有无数细语在耳边回响。\",\n  \"stateUpdate\": {\n    \"hp\": 80,\n    \"san\": 48,\n    \"timeline\": \"凌晨零点零七分，你继续直视监控屏幕，san值下降至48。\"\n  },\n  \"triggeredRuleIds\": [1],\n  \"discoveredRuleIds\": [],\n  \"availableActions\": [\n    {\n      \"id\": \"A\",\n      \"text\": \"立刻低头，默数三十秒\"\n    },\n    {\n      \"id\": \"B\",\n      \"text\": \"伸手遮住屏幕，不再看它\"\n    },\n    {\n      \"id\": \"C\",\n      \"text\": \"拿起收银台抽屉里的白色卡片握在手中\"\n    },\n    {\n      \"id\": \"D\",\n      \"text\": \"转身检查店内其他角落\"\n    }\n  ],\n  \"ending\": null\n}",
+      "parseOk": true,
+      "valid": true,
+      "errors": []
+    },
+    {
+      "id": "event-loop:B3-T4:31",
+      "kind": "turn",
+      "raw": "{\n  \"narrative\": \"你颤抖着手拉开收银台抽屉，那张白色卡片静静地躺在角落。你将它握在掌心，一股微凉的感觉传来，仿佛有某种力量抚平了你躁动的神经。耳边细语渐渐消散，监控屏幕上的倒影也恢复了正常。但雨声似乎更大了，窗外一道闪电划过，照亮了玻璃门外一个模糊的红色身影——一个穿着红色雨衣的人正缓缓向便利店走来。\",\n  \"stateUpdate\": {\n    \"hp\": 80,\n    \"san\": 63,\n    \"timeline\": \"凌晨零点十二分，你使用了白色卡片，san值恢复15点。红色雨衣顾客即将进店。\"\n  },\n  \"triggeredRuleIds\": [7],\n  \"discoveredRuleIds\": [7],\n  \"availableActions\": [\n    {\"id\": \"A\", \"text\": \"正常接待红色雨衣顾客，按规则不收现金，建议扫码支付\"},\n    {\"id\": \"B\", \"text\": \"假装没看见，躲进货架后面\"},\n    {\"id\": \"C\", \"text\": \"主动迎接，准备收下他给的现金\"},\n    {\"id\": \"D\", \"text\": \"关掉店内灯光，假装打烊\"}\n  ],\n  \"ending\": null\n}",
+      "parseOk": true,
+      "valid": true,
+      "errors": []
+    },
+    {
+      "id": "event-loop:B3-T5:32",
+      "kind": "turn",
+      "raw": "{\n  \"narrative\": \"你深吸一口气，推开门，冷风和雨点扑面而来。红色雨衣顾客低着头站在门口，雨水从帽檐滴落。他缓缓抬起头，露出一张苍白的中年男人的脸，眼神空洞。他从口袋里掏出一张皱巴巴的百元钞票，递向你。你伸手接过，指尖触碰到钞票的瞬间，一股冰冷刺骨的寒意从指尖窜上手臂——钞票上竟然长满了细密的黑色霉菌，散发出腐臭。你感到一阵恶心，san值下降。\",\n  \"stateUpdate\": {\n    \"hp\": 80,\n    \"san\": 63,\n    \"timeline\": \"凌晨零点十五分，你接过了红色雨衣顾客的现金，san值下降5点。\"\n  },\n  \"triggeredRuleIds\": [2],\n  \"discoveredRuleIds\": [2],\n  \"availableActions\": [\n    {\n      \"id\": \"A\",\n      \"text\": \"赶紧把钞票塞进口袋，假装没事发生。\"\n    },\n    {\n      \"id\": \"B\",\n      \"text\": \"惊恐地丢掉钞票，后退几步。\"\n    },\n    {\n      \"id\": \"C\",\n      \"text\": \"质问他这是什么意思，要求他收回。\"\n    },\n    {\n      \"id\": \"D\",\n      \"text\": \"强装镇定，告诉他本店只接受扫码支付。\"\n    }\n  ],\n  \"ending\": null\n}",
+      "parseOk": true,
+      "valid": true,
+      "errors": []
+    },
+    {
+      "id": "event-loop:B3-T6:33",
+      "kind": "turn",
+      "raw": "{\n  \"narrative\": \"你强忍着恶心，厉声质问那个红色雨衣顾客：“这是什么意思？请你收回！”他空洞的眼睛盯着你，嘴角扯出一个僵硬的弧度，然后缓缓收回钞票。钞票上的霉菌在接触他手指的瞬间消失无踪。他没有说话，转身消失在雨幕中。你关上门，后背冷汗涔涔，但总觉得哪里不对。店内的荧光灯闪了一下，货架深处似乎传来轻微的动静。\",\n  \"stateUpdate\": {\n    \"hp\": 80,\n    \"san\": 58,\n    \"timeline\": \"凌晨零点二十分，你拒绝了红色雨衣顾客的现金，他离开了。\"\n  },\n  \"triggeredRuleIds\": [],\n  \"discoveredRuleIds\": [],\n  \"availableActions\": [\n    {\n      \"id\": \"A\",\n      \"text\": \"去检查一下收银台右侧的监控屏幕，确认时间是否快到一点。\"\n    },\n    {\n      \"id\": \"B\",\n      \"text\": \"走向货架深处，查看刚才声音的来源。\"\n    },\n    {\n      \"id\": \"C\",\n      \"text\": \"拿出白色卡片握在手里，缓解一下紧张的情绪。\"\n    },\n    {\n      \"id\": \"D\",\n      \"text\": \"提前准备，等待凌晨两点的电话。\"\n    }\n  ],\n  \"ending\": null\n}",
+      "parseOk": true,
+      "valid": true,
+      "errors": []
+    },
+    {
+      "id": "event-loop:B3-T7:34",
+      "kind": "turn",
+      "raw": "{\n  \"narrative\": \"你从口袋中取出白色卡片，紧紧握在掌心。卡片传来一阵清凉，仿佛有微弱的电流通过手臂，让你紧绷的神经稍稍放松。你感到san值恢复了一些，但店内的荧光灯突然剧烈闪烁，货架深处传来窸窸窣窣的声音，像是有什么东西在爬动。你瞥了一眼墙上的钟——凌晨零点二十五分。\",\n  \"stateUpdate\": {\n    \"hp\": 80,\n    \"san\": 73,\n    \"timeline\": \"凌晨零点二十五分，你使用了白色卡片，san值恢复。\"\n  },\n  \"triggeredRuleIds\": [],\n  \"discoveredRuleIds\": [],\n  \"availableActions\": [\n    {\n      \"id\": \"A\",\n      \"text\": \"走向货架深处，查看声音来源\"\n    },\n    {\n      \"id\": \"B\",\n      \"text\": \"回到收银台，检查监控屏幕\"\n    },\n    {\n      \"id\": \"C\",\n      \"text\": \"整理货架上的蓝色饮料\"\n    },\n    {\n      \"id\": \"D\",\n      \"text\": \"打开手机录音，以防万一\"\n    }\n  ],\n  \"ending\": null\n}",
+      "parseOk": true,
+      "valid": true,
+      "errors": []
+    },
+    {
+      "id": "event-loop:B3-T8:35",
+      "kind": "turn",
+      "raw": "{\n  \"narrative\": \"你走向冰柜，伸手整理那些蓝色饮料。指尖刚触到冰凉的瓶身，荧光灯猛地熄灭，店内陷入黑暗。紧接着，一阵尖锐的小孩笑声从货架间爆发出来，笑声在黑暗中回荡，令人毛骨悚然。你感到一股冷气从脚底升起，温度骤降。\",\n  \"stateUpdate\": {\n    \"hp\": 80,\n    \"san\": 68,\n    \"timeline\": \"凌晨零点三十分，你触碰了蓝色饮料，引发异常事件。\"\n  },\n  \"triggeredRuleIds\": [3, 5],\n  \"discoveredRuleIds\": [5],\n  \"availableActions\": [\n    {\"id\": \"A\", \"text\": \"立刻打开手机录音并播放，试图驱散笑声\"},\n    {\"id\": \"B\", \"text\": \"关掉所有灯，在黑暗中等待五分钟\"},\n    {\"id\": \"C\", \"text\": \"打开手电筒，循声查看货架\"},\n    {\"id\": \"D\", \"text\": \"跑回收银台，握紧白色卡片\"}\n  ],\n  \"ending\": null\n}",
+      "parseOk": true,
+      "valid": true,
+      "errors": []
+    },
+    {
+      "id": "event-loop:B3-T9:36",
+      "kind": "turn",
+      "raw": "{\n  \"narrative\": \"你颤抖着打开手机手电筒，惨白的光束划破黑暗。笑声似乎从饮料区尽头传来，你慢慢挪动脚步，光束扫过货架——空无一人。但笑声突然在你身后响起，近在咫尺！你猛地转身，光束照到一张惨白的小孩脸，它倒挂在货架顶上，咧嘴笑着，牙齿尖锐。你吓得后退，撞到了冰柜，蓝色饮料滚落一地。小孩发出咯咯的笑声，缓缓向你爬来。\",\n  \"stateUpdate\": {\n    \"hp\": 75,\n    \"san\": 58,\n    \"timeline\": \"凌晨零点三十分，你触发了小孩笑声事件，san值下降。\"\n  },\n  \"triggeredRuleIds\": [5],\n  \"discoveredRuleIds\": [],\n  \"availableActions\": [\n    {\"id\": \"A\", \"text\": \"关掉所有灯，保持安静等待五分钟\"},\n    {\"id\": \"B\", \"text\": \"打开手机录音并播放，试图驱赶它\"},\n    {\"id\": \"C\", \"text\": \"抓起一瓶蓝色饮料砸向小孩\"},\n    {\"id\": \"D\", \"text\": \"冲向门口逃离便利店\"}\n  ],\n  \"ending\": null\n}",
+      "parseOk": true,
+      "valid": true,
+      "errors": []
+    },
+    {
+      "id": "event-loop:B3-T10:37",
+      "kind": "turn",
+      "raw": "{\n  \"narrative\": \"你抓起一瓶蓝色饮料，用尽全力砸向那个小孩。瓶子在空中划过一道弧线，砸在货架上碎裂，蓝色液体四溅。小孩的笑声戛然而止，它歪着头，空洞的眼神盯着你，然后缓缓后退，消失在货架间的阴影中。店内荧光灯重新亮起，但温度似乎又降低了几度。你喘着粗气，发现地上碎裂的瓶子渗出的液体正冒着冷气，你的手指沾到了一些，感到一阵刺骨的寒意。\",\n  \"stateUpdate\": {\n    \"hp\": 73,\n    \"san\": 53,\n    \"timeline\": \"凌晨零点三十五分，你砸出蓝色饮料驱退了小孩，但沾到液体，hp微降。\"\n  },\n  \"triggeredRuleIds\": [3],\n  \"discoveredRuleIds\": [3],\n  \"availableActions\": [\n    {\"id\": \"A\", \"text\": \"用拖把清理地上的蓝色液体\"},\n    {\"id\": \"B\", \"text\": \"检查收银台抽屉里的白色卡片是否还在\"},\n    {\"id\": \"C\", \"text\": \"走到后门，想出去喘口气\"},\n    {\"id\": \"D\", \"text\": \"盯着监控屏幕，看看有没有异常\"}\n  ],\n  \"ending\": null\n}",
+      "parseOk": true,
+      "valid": true,
+      "errors": []
+    }
+  ]
+}

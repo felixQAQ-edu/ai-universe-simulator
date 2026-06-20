@@ -100,18 +100,25 @@ public class Engine {
 		if (log.size() > LOG_KEEP) {
 			compressLog();
 		}
-		// 9. 结局判定:AI 提议命中 → status=ended + 标 endings[id].reached
+		// 9. 结局判定:AI 提议命中 → status=ended + 标 endings[id].reached。
+		//    规格 §4.4:ending.id 须存在于 world endings[]——不存在的 id <b>不接受</b>
+		//    (不 end / 不标,避免前端拿到无对应条目的"幽灵结局";交由步骤 10 或后续回合)。
 		JsonNode ending = parsed.get("ending");
 		boolean aiReached = ending != null && ending.isObject()
 				&& ending.path("reached").asBoolean(false);
+		boolean aiAccepted = false;
 		if (aiReached) {
-			status = "ended";
-			markEndingReached(ending.path("id").asString(null));
+			String id = ending.path("id").asString(null);
+			if (endingExists(id)) {
+				status = "ended";
+				markEndingReached(id);
+				aiAccepted = true;
+			}
 		}
-		// 10. 兜底:数值触底强制 ended;§5 补丁——AI 未给结局则引擎兜一个坏结局 id
+		// 10. 兜底:数值触底强制 ended;§5 补丁——AI 未给(或未被接受)结局则引擎兜一个坏结局 id
 		if (hp <= 0 || san <= 0) {
 			status = "ended";
-			if (!aiReached && !anyEndingReached()) {
+			if (!aiAccepted && !anyEndingReached()) {
 				forceBottomOutEnding();
 			}
 		}
@@ -209,6 +216,18 @@ public class Engine {
 				((ObjectNode) e).put("reached", true);
 			}
 		}
+	}
+
+	private boolean endingExists(String endingId) {
+		if (endingId == null) {
+			return false;
+		}
+		for (JsonNode e : world.path("endings")) {
+			if (endingId.equals(e.path("id").asString(null))) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private boolean anyEndingReached() {
