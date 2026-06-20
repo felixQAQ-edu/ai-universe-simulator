@@ -129,3 +129,20 @@
 - **处置**:`server` 端 `ThinkingAdapter` 注释 DeepSeek 分支 VERIFY 占位 → 已实测(本条交叉引用);
   本条记入 FINDINGS。**未改任何参数值**(冒烟即用现值跑通)。
 - **关联**:ADR-001 §5.2、`server/.../llm/ThinkingAdapter.java`、`OpenAiStreamDecoder`。
+
+---
+
+## F-007 · Boot 4.1 锁 Jackson 3,库选型须 Jackson-3-native(否决 networknt）
+
+- **日期**:2026-06-20 | **步骤**:Phase 1 event-loop 内核移植(第一批,选 JSON-schema 校验实现)
+- **现象**:Spring Boot 4.1 实测带 `tools.jackson.core:jackson-databind:3.1.4`(Jackson 3),依赖树里
+  唯一的 `com.fasterxml` 是 `jackson-annotations`(annotations-only,无 databind/JsonNode)。而
+  networknt json-schema-validator 基于 Jackson 2,其 API 吃 `com.fasterxml.jackson.databind.JsonNode`。
+- **意义**:引入这类「Jackson-2-native」库会造**双 Jackson 世界**(同一份 JSON 要按两套 `JsonNode`
+  各 parse 一次),并直接顶撞本批「event-loop 回灌走单一 `tools.jackson` ObjectNode 层、不卡类型化 DTO」
+  的决策——校验/回灌/引擎本应共用一棵节点树。
+- **影响面**:event-loop 校验器、以及今后任何在 `server` 侧碰 JSON 节点的库选型。
+- **处置**:event-loop 两份 schema(WORLD/TURN)是封闭小集合(required/type/enum/range/minItems/minLength)→
+  **手写校验器**(`GameSchemas`,~120 行,直接吃 `tools.jackson.JsonNode`,零新依赖、单一 Jackson)。
+  约束:今后任何库选型先验 **Jackson-3-native**,否则一票否决。
+- **关联**:`server/.../engine/GameSchemas.java`、ADR-005(单一 ObjectNode 接缝)、Phase 1 event-loop 规格 §4.4/§6。
