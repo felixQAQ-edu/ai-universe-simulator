@@ -125,6 +125,26 @@ public class Engine {
 		return leak;
 	}
 
+	/**
+	 * 保守 no-op 推进(规格 §6.5/§6.6)：修复仍败 / 回灌叙事非法时的优雅降级。
+	 * <b>turn++、记一条 log(已流出的叙事当氛围文字)、绝不脏写</b> hp/san/timeline/triggered/discovered/ending。
+	 * 由 {@code EventLoopService} 在响亮告警后调用;数值/结局逻辑一概不动。
+	 *
+	 * @param narrative      已展示给玩家的叙事(可空;空表示叙事本身也非法)
+	 * @param playerActionId 本回合玩家所选动作 id
+	 */
+	public void applyNoOp(String narrative, String playerActionId) {
+		turn += 1;
+		ObjectNode entry = mapper.createObjectNode();
+		entry.put("turn", turn);
+		entry.put("narrative", narrative == null ? "" : narrative);
+		entry.put("playerAction", playerActionId);
+		log.add(entry);
+		if (log.size() > LOG_KEEP) {
+			compressLog();
+		}
+	}
+
 	/** 回传模型的真理之源(视图 2:含 hiddenLogic,模型需据此裁决真假规则)。 */
 	public String contextJson() {
 		return mapper.writeValueAsString(snapshot());

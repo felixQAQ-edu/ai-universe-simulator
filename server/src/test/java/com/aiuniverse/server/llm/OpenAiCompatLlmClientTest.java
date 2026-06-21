@@ -41,6 +41,17 @@ class OpenAiCompatLlmClientTest {
 	}
 
 	@Test
+	void mainCallOmitsJsonResponseFormatRepairCallOpensIt() throws Exception {
+		OpenAiCompatLlmClient c = client(deepseek(), "sk-fake");
+		// 主调用(jsonObject=false):叙事+哨兵+尾巴非纯 JSON,不能开 json_object(ADR-006 §4.3)。
+		JsonNode main = mapper.readTree(c.buildBody(new ChatRequest("叙事先行")));
+		assertThat(main.has("response_format")).isFalse();
+		// 修复发(jsonObject=true):开回 json_object(规格 §6.4)。
+		JsonNode repair = mapper.readTree(c.buildBody(new ChatRequest("只回尾巴", true)));
+		assertThat(repair.path("response_format").path("type").asText()).isEqualTo("json_object");
+	}
+
+	@Test
 	void missingApiKeyDegradesToLlmExceptionNotNpe() {
 		OpenAiCompatLlmClient c = client(deepseek(), null); // env 返回 null = 未设置
 		assertThatThrownBy(() -> c.streamChat(new ChatRequest("hi"), t -> {}))

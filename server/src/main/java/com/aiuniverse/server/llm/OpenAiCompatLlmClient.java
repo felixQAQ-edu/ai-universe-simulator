@@ -109,6 +109,10 @@ public class OpenAiCompatLlmClient implements LlmClient {
 		root.put("stream", true);
 		root.put("temperature", TEMPERATURE);
 		root.putObject("stream_options").put("include_usage", true);
+		// 修复发开回 json_object(规格 §6.4);主调用 false(叙事+哨兵+尾巴非纯 JSON,ADR-006 §4.3)。
+		if (request.jsonObject()) {
+			root.putObject("response_format").put("type", "json_object");
+		}
 
 		ArrayNode messages = root.putArray("messages");
 		ObjectNode userMsg = messages.addObject();
