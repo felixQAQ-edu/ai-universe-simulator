@@ -82,6 +82,9 @@
 7. **内容安全**:所有生成文本经审核网关通过后再返回前端(方案见 ADR-004)。
 8. **数值权威**:数值由引擎落账,AI 只提议。event-loop 每回合 AI 在 `stateUpdate` 里回传 `hp`/`san` 的**绝对新值**(非增量);`Engine.apply()` 负责校验落账,三道闸门分工——`TURN_SCHEMA` 硬性范围 0–100(越界→修复重试)、单回合跳变 > `JUMP_THRESHOLD`(默认 40)记「需复核」但不拒绝(允许有据恢复,见 FINDINGS F-003)、`clamp(0,100)` 兜底。结局:AI 提议 `ending{id,reached}`,引擎校验 `id` 存在于 `endings[]` 并转 `status`;`hp`/`san`≤0 时引擎强制 `ended` 并兜底指派一个坏结局 id。详见 Phase 1 event-loop 规格 §5。
 9. **state 三视图与消毒边界**:同一真理之源有三个投影——(1) 引擎内部全量(含 `isTrue`/`hiddenLogic`);(2) 喂模型的(也含 `hiddenLogic`,裁决真假规则需要);(3) 客户端消毒投影(绝不含 `isTrue`/`hiddenLogic`)。任何下发前端的 SSE 事件 / state 快照只走 (3)。实时防护 = 提示词硬禁吐隐藏逻辑 + 结构层消毒;`detect_leak` 在流式路径里是事后遥测(只抓逐字照抄 + 字段名,抓不到改写式泄露),非实时拦截。见 ADR-006、规格 §1。
+10. **两套线上口径别混**(回合 vs world-gen):**回合**(event-loop)走 ADR-006——丢 `response_format: json_object` 换逐字流叙事(叙事先行 + 哨兵 `<<<DELTA>>>` + 结构化尾巴 + 叙事回灌),修复发才开回 json_object;**world-gen**(INITIALIZING 胖调用)走 **ADR-007**——**保 `response_format: json_object`、纯 JSON、无哨兵**,把可靠性留在最险的那次生成(world-gen JSON 首次失败是头号失败模式,真 key 冒烟只证回合侧、不外推)。别把回合的哨兵/叙事回灌/保守 no-op 搬到 world-gen 上。
+11. **world-gen 失败 = 整局 ERROR**(非 no-op 降级,异于回合):world-gen 救不回时无前态可守(尚无游戏)→ 干净失败 + 提示「重新生成」,**不进半残 PLAYING**;对照回合修复用尽走保守 no-op(守一局 ongoing)。胖调用 → `LooseJson` → `validateWorld` → 不通过一次修复 → 仍败 ERROR。见 ADR-007、设计稿 §4。
+12. **开场叙事 reveal 不流式**(ADR-007):world-gen 产 `openingNarrative` 作 **transient init 字段**,随 `POST /api/game/init`(plain POST 无 SSE)响应一次性下发,**不进持久化 `state`** → `schemaVersion` 仍 `"0.2"`(无字段变更);逐字 vibe 由前端 client-side reveal 动画补,后端不为它丢 json_object。init 响应的 `world` 走 `toClientState()` 消毒投影(剥 `isTrue`/`hiddenLogic`)。
 
 ## 四、版本历史
 
@@ -90,3 +93,4 @@
 | v0.1 | 2026-06-16 | 初版:术语表 + 统一 JSON Schema v0.1 + 关键约定 |
 | v0.2 | 2026-06-17 | schema 收敛(据 bakeoff 实测 FINDINGS F-001/F-004):明确 `rules[].id` 整数 / `endings[].id` 字符串的刻意差异;endings 增可选 `description`、`title` 改“短名必填”;`character.attributes` 标必填。详见 ADR-001。 |
 | v0.3 | 2026-06-19 | 追加 §三.8 数值权威(绝对值)+ §三.9 state 三视图消毒(据 ADR-006 与 Phase 1 规格);约定层补充,JSON schemaVersion 仍 "0.2"(字段未变),仅 CONTEXT 文档版本升 v0.3 |
+| v0.4 | 2026-06-21 | 追加 §三.10 两套线上口径(回合 ADR-006 丢 json_object vs world-gen ADR-007 保 json_object)+ §三.11 world-gen 失败=整局 ERROR + §三.12 开场叙事 reveal 不流式(`openingNarrative` transient init 字段);据 ADR-007 与 world-gen 设计稿,约定层补充,JSON schemaVersion 仍 "0.2"(字段未变),仅 CONTEXT 文档版本升 v0.4 |

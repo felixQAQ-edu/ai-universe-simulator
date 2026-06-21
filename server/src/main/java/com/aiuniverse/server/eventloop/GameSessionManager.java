@@ -6,7 +6,6 @@ import org.springframework.stereotype.Service;
 
 import com.aiuniverse.server.engine.Engine;
 
-import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
@@ -16,8 +15,9 @@ import tools.jackson.databind.node.ObjectNode;
  * (持有 {@link Engine} 真理之源 + 当前相位 + 当前合法动作集);忙态守卫的并发原语活在会话的
  * {@code AtomicReference<TurnPhase>} 里。
  *
- * <p><b>边界</b>:会话由 world-gen(INITIALIZING,规格 §2)产出的 world 起;本批未起 world-gen,
- * 故 {@link #create} 接受外部传入的 world(供 dev 冒烟 / 后续 world-gen 调用)。
+ * <p><b>边界</b>:会话由 world-gen(INITIALIZING,设计稿 §2/§6)产出的 world 起;播种由
+ * {@link com.aiuniverse.server.worldgen.GameInitService} 编排(提取 transient openingNarrative、
+ * 解析初始动作含 FALLBACK),本类只负责「建 Engine + 存表」,初始合法动作由调用方显式传入。
  */
 @Service
 public class GameSessionManager {
@@ -29,13 +29,13 @@ public class GameSessionManager {
 		this.mapper = mapper;
 	}
 
-	/** 从 world-gen 产出(整局真理之源根对象)新建会话;初始合法动作 = 根的 availableActions。 */
-	public GameSession create(String saveId, ObjectNode world) {
+	/**
+	 * 从 world-gen 产出(整局真理之源根对象)新建会话并存表,置 turn FSM 初相位 {@code AWAITING_ACTION}
+	 * (整局 INITIALIZING→PLAYING)。初始合法动作由播种层显式解析后传入(world 给则用,否则 FALLBACK)。
+	 */
+	public GameSession create(String saveId, ObjectNode world, ArrayNode initialActions) {
 		Engine engine = new Engine(world, mapper);
-		JsonNode actions = world.get("availableActions");
-		ArrayNode initial = actions != null && actions.isArray()
-				? (ArrayNode) actions.deepCopy()
-				: mapper.createArrayNode();
+		ArrayNode initial = initialActions != null ? (ArrayNode) initialActions.deepCopy() : mapper.createArrayNode();
 		GameSession session = new GameSession(saveId, engine, initial);
 		sessions.put(saveId, session);
 		return session;
@@ -43,5 +43,10 @@ public class GameSessionManager {
 
 	public GameSession get(String saveId) {
 		return sessions.get(saveId);
+	}
+
+	/** 当前活跃会话数(ops / 测试用;Phase 1 无淘汰,单调增)。 */
+	public int activeCount() {
+		return sessions.size();
 	}
 }
