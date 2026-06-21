@@ -64,12 +64,38 @@ public final class SentinelSplitter {
 		}
 	}
 
-	/** 流结束:无哨兵 → 残留 pending 全部当叙事吐出({@link #tail()} 仍空,交下游降级)。 */
+	/**
+	 * 流结束:无哨兵 → 残留 pending 当叙事吐出({@link #tail()} 仍空,交下游降级)。
+	 *
+	 * <p><b>半截哨兵不外吐</b>:若 pending 末尾恰是哨兵的<b>严格前缀</b>(如流在 {@code <<<DEL} 处断开),
+	 * 把这段悬挂前缀<b>丢弃</b>、不当叙事发给前端——它从未被确认是哨兵还是正文,罕见无害,但行为在此钉死
+	 * (规格 §6.6 降级路径)。正常无哨兵收尾(末尾非哨兵前缀)时全部照吐。
+	 */
 	public void end() {
 		if (!sentinelSeen && pending.length() > 0) {
-			emitNarrative(pending.toString());
+			int drop = trailingSentinelPrefixLen(pending);
+			emitNarrative(pending.substring(0, pending.length() - drop));
 			pending.setLength(0);
 		}
+	}
+
+	/** pending 末尾与哨兵严格前缀相等的最长长度(0 = 末尾不是任何半截哨兵)。 */
+	private static int trailingSentinelPrefixLen(CharSequence s) {
+		int max = Math.min(s.length(), SENTINEL.length() - 1);
+		for (int k = max; k >= 1; k--) {
+			boolean match = true;
+			int start = s.length() - k;
+			for (int i = 0; i < k; i++) {
+				if (s.charAt(start + i) != SENTINEL.charAt(i)) {
+					match = false;
+					break;
+				}
+			}
+			if (match) {
+				return k;
+			}
+		}
+		return 0;
 	}
 
 	public boolean sentinelSeen() {

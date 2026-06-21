@@ -220,4 +220,51 @@ class EventLoopServiceTest {
 		assertThat(s.engine().hp()).isEqualTo(100); // 不脏写
 		assertThat(sink.order).contains("delta");
 	}
+
+	// ── 7. mid-stream flush 回归:流在哨兵半截(<<<DEL)断开 → 半截哨兵不外吐、保守 no-op ──
+	@Test
+	void streamBreakAtHalfSentinelWithholdsPartialAndDegrades() {
+		LlmClient failing = (req, sink) -> {
+			sink.onToken("镜子开始起雾");
+			sink.onToken("<<<DEL"); // 哨兵半截,流在此断开(hold-back 缓冲里)
+			throw new LlmException("流中断");
+		};
+		GameSession s = session();
+		RecordingSink sink = new RecordingSink();
+
+		TurnResult r = new EventLoopService(failing, prompts, mapper).execute(s, "A", sink);
+
+		assertThat(r.ended()).isFalse();
+		// 半截哨兵 "<<<DEL" 绝不出现在下发前端的叙事里。
+		assertThat(sink.narrative.toString()).isEqualTo("镜子开始起雾");
+		assertThat(sink.narrative.toString()).doesNotContain("<<<DEL");
+		assertThat(s.engine().turn()).isEqualTo(1); // no-op 推进
+		assertThat(s.engine().hp()).isEqualTo(100); // 不脏写
+		assertThat(sink.order).contains("delta");
+	}
+
+	// ── 8. 消毒不变量(专测):含真假规则 + hiddenLogic 的 state 跑一回合,断言出网 delta 干净 ──
+	@Test
+	void deltaPayloadIsSanitizedAndDiscoveredRulesOnlyCarryContent() {
+		ScriptedLlm llm = new ScriptedLlm();
+		llm.script(wire("你看清了墙上的第一条规则。", validTail(88, 77, "null"))); // discoveredRuleIds=[1]
+		GameSession s = session();
+		RecordingSink sink = new RecordingSink();
+
+		new EventLoopService(llm, prompts, mapper).execute(s, "A", sink);
+
+		// 整个 delta payload(序列化)不含任何隐藏字段名。
+		String deltaStr = mapper.writeValueAsString(sink.delta);
+		assertThat(deltaStr)
+				.doesNotContain("hiddenLogic")
+				.doesNotContain("isTrue")
+				.doesNotContain("isCorrect")
+				.doesNotContain("groundTruth");
+		// discovered 规则只带 id + content,别无他物(尤其无 hiddenLogic/isTrue)。
+		ObjectNode rule = (ObjectNode) sink.delta.get("discoveredRules").get(0);
+		assertThat(rule.size()).as("规则仅 2 个字段").isEqualTo(2);
+		assertThat(rule.has("id")).isTrue();
+		assertThat(rule.has("content")).isTrue();
+		assertThat(rule.get("content").asString()).isEqualTo("午夜不可照镜");
+	}
 }

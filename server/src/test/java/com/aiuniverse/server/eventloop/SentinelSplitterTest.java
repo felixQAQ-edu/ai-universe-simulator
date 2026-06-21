@@ -95,6 +95,24 @@ class SentinelSplitterTest {
 	}
 
 	@Test
+	void danglingHalfSentinelAtEndIsWithheldNotEmitted() {
+		// 流在哨兵半截处断开(如 "<<<DEL"):hold-back 缓冲里的半截哨兵在 end() 时被丢弃,
+		// 绝不当叙事吐给前端(罕见无害,行为钉死)。哨兵未命中 → tail 空 → 交下游降级。
+		Result r = run(chars("夜色渐暗<<<DEL"));
+		assertThat(r.narrative()).isEqualTo("夜色渐暗"); // "<<<DEL" 不外吐
+		assertThat(r.tail()).isEmpty();
+		assertThat(r.sentinelSeen()).isFalse();
+	}
+
+	@Test
+	void trailingLoneAngleBracketIsWithheld() {
+		// 末尾单个 "<" 也是哨兵严格前缀 → 同样withhold。
+		Result r = run(chars("一段叙事<"));
+		assertThat(r.narrative()).isEqualTo("一段叙事");
+		assertThat(r.sentinelSeen()).isFalse();
+	}
+
+	@Test
 	void sentinelAtVeryStartGivesEmptyNarrative() {
 		Result r = run(chars("<<<DELTA>>>{\"only\":\"tail\"}"));
 		assertThat(r.narrative()).isEmpty();
