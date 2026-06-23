@@ -164,3 +164,38 @@
 - **取向**:「忠实移植 Python」只是信任 bake-off 验证的**手段**,非目的;**契约说了算**。引擎对齐 §4.4 正确。
 - **备注**:留此条是防将来谁重跑 parity 看到 **Java ≠ Python** 误判为移植 bug——这是有意偏离,非回归。
 - **关联**:`server/.../engine/Engine.java`(apply 第 9–10 步)、`EngineEndingTest`、Phase 1 event-loop 规格 §4.4/§5、commit `4e66056`。
+
+---
+
+## F-009 · world-gen 种子聚集 + 开场雷同(F-005 延伸,真 key 整局冒烟暴露)
+
+- **日期**:2026-06-22 | **provider**:DeepSeek V4-Flash | **步骤**:Phase 1 整局闭环真 key 冒烟(world-gen init ×5)
+- **现象**:5 次 `POST /api/game/init` 产出场景分布 = 民宿 ×2(均 medium)/「永夜病房」×3(均 extreme),
+  便利店、末班地铁各 0;且 3 个「永夜病房」开场散文高度雷同(同为凌晨三点住院部、护士站无人、电子钟秒针倒转)。
+- **根因**:`WorldGenPromptBuilder.SEED_POOL` 仅 4 条场景 + `ThreadLocalRandom` 等概率抽——小样本下扎堆,
+  且单一种子多次生成趋同(正是 F-005 的根因在生产侧复现:不是写不好,是种子空间窄 + 同种子产出同质)。
+- **影响**:纯质量/多样性短板,不涉 schema/工程/闭环正确性(格式完整性 5/5、首次有效率 100%)。**非闭环阻塞项。**
+- **建议处置(挂 Phase 2 打磨,非本轮)**:① 扩 `SEED_POOL`(更多场景/主题/惊吓母题维度);
+  ② 开场 anti-repetition——种子注入「避免与近期已用桥段雷同」负样本,或随机母题维度降同质化(承 F-005 建议 1/2)。
+- **关联**:F-005(同根:重复种子致套路化)、`server/.../worldgen/WorldGenPromptBuilder.java`、`prompts/world-gen.md`、
+  真实录制 `bakeoff/recordings/world-gen-smoke/`(5 world raw)。
+
+---
+
+## F-010 · §5 引擎强制兜底结局:真 key 未命中(诚实曝光缺口,接受不强造)
+
+- **日期**:2026-06-22 | **provider**:DeepSeek V4-Flash | **步骤**:Phase 1 整局闭环真 key 冒烟(危险动作驱 hp/san 触底)
+- **背景**:规格 §5 补丁——数值触底(`hp<=0`/`san<=0`)但 **AI 未提议结局**时,引擎强制 `ended` 并兜一个坏结局 id
+  (`forceBottomOutEnding`,挑 `endings[]` 首个 condition 含 san/hp 的条目;找不到用首条)。
+- **现象**:3 局危险驱动里 2 局触底(init-3 san→0、init-4 san→0),均干净 `ended` + ending 事件带 id/title/description
+  到客户端——但**两局都是 AI 主动提议结局**(`lost_in_mirror` / `lost_mind`),经 §4.4 id 存在性 gate 接受;
+  §5 兜底**未被命中**(判据:§5 会挑首个 cond 含 san 的 `survive_dawn`,实际下发的却是 AI 给的死亡结局 ≠ 兜底会挑的)。
+- **判断**:真实 DeepSeek 在杀死玩家时**稳定地主动提议死亡结局** → §5 这层防御网在「模型不失灵」时本就不点火。
+  即**触底→ended→ending 事件端到端已真 key 验**(经 AI 提议路径),但 §5「AI 给 null 时引擎补一个 id」这一子分支
+  无法按需复现。
+- **取向**:**接受、不强造**——人为逼模型失灵(如篡改提示让它故意不给 ending)属测试污染,不做。§5 是防御网,
+  模型没失灵就不该亮;其正确性已由 golden + `EngineEndingTest`(触底无匹配→约定 fallback / 幽灵 id 不接受)
+  **确定性覆盖**。本条记为**诚实的真实曝光缺口**(real-key coverage gap),非缺陷、非回归。
+- **复现条件(若将来要真 key 验)**:需一局触底且 AI tail `ending:null`——只能靠运气撞,或等接入更弱/更易失灵的 provider 时顺带观测。
+- **关联**:`server/.../engine/Engine.java`(apply 第 10 步 `forceBottomOutEnding`)、`EngineEndingTest`、规格 §5、
+  F-008(同涉 §4.4 ending gate)、真实录制 `bakeoff/recordings/world-gen-smoke/`(game-init3/4-danger.sse)。
