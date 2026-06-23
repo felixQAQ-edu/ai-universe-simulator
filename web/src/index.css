@@ -5,6 +5,9 @@
   --line: #e5e4e7;
   --card: #ffffff;
   --chip: #f3f1f6;
+  /* 「规则已验证为真」的警示色:规则怪谈里,被剧情坐实的规则是真威胁 → 余烬般的琥珀/赭红。 */
+  --accent: #b3541e;
+  --accent-soft: rgba(179, 84, 30, 0.12);
 
   font-family: system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
   line-height: 1.5;
@@ -20,6 +23,8 @@
     --line: #2b2733;
     --card: #1b1722;
     --chip: #242030;
+    --accent: #e0935a;
+    --accent-soft: rgba(224, 147, 90, 0.16);
   }
 }
 

@@ -186,11 +186,47 @@
   font-size: 0.9rem;
   line-height: 1.5;
   color: var(--muted);
+  /* 未验证的规则留白边,验证后才长出左侧警示条 —— 让「坐实的规则」在面板里跳出来。 */
+  border-left: 3px solid transparent;
+  border-radius: 0 8px 8px 0;
+  padding: 0.2rem 0.5rem;
+  margin-left: -0.5rem;
+  transition: color 0.25s ease, background 0.3s ease, border-color 0.3s ease;
 }
 
 .ruleDiscovered {
   color: var(--text);
-  font-weight: 500;
+  font-weight: 600;
+  background: var(--accent-soft);
+  border-left-color: var(--accent);
+}
+
+/* 本回合「刚被坐实」的规则:一次性脉冲,把玩家的视线从剧情瞬间拉到对应规则上(降低「没头绪」)。 */
+.ruleJustDiscovered {
+  animation: ruleFlash 1.8s ease-out 1;
+}
+
+@keyframes ruleFlash {
+  0% {
+    background: var(--accent);
+    color: var(--bg);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  35% {
+    background: var(--accent);
+    color: var(--bg);
+  }
+  100% {
+    background: var(--accent-soft);
+    color: var(--text);
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ruleJustDiscovered {
+    animation: none;
+  }
 }
 
 .ruleTag {
@@ -198,8 +234,10 @@
   margin-left: 0.4rem;
   padding: 0.05rem 0.4rem;
   border-radius: 6px;
-  background: var(--chip);
-  color: var(--muted);
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+  letter-spacing: 0.02em;
 }
 
 /* 通用 / 状态屏 ------------------------------------------------------ */
