@@ -88,9 +88,12 @@ React + Vite + TypeScript(已 scaffold),移动优先 H5。Taro 迁移留 Phase 4
   }
   ```
 
-  H5 实现用 `EventSource` 喂这个接口,映射到已定型的 SSE 事件(ADR-006 §4.2)。
+  H5 实现用 `fetch`+`ReadableStream` 流式读 body 解析 SSE 喂这个接口,映射到已定型的 SSE 事件(ADR-006 §4.2)。**非原生 `EventSource`**——回合端点是 `POST /api/game/{saveId}/turn` 带 JSON body,而浏览器 `EventSource` 只能 GET、不能带 body,接不了这个 wire(实现期校正,见下「实际效果」与 CONTEXT §三.13;边界不受影响,逻辑层依旧只见 `TurnStream`)。
 
-- **预案(记录,不实现)**:小程序无 SSE → Phase 4 改用 **WebSocket**(后端加 WS 端点桥到同一 `TokenStream`,守 ADR-005 再加一层薄 web 适配;前端只新增一个 `TurnStream` 的 WS 实现)。备选 `wx.request` chunked(更轻,兼容性待验)。**现在换 WS 只动适配层**,因为接口已留对。
+- **预案(记录,不实现)**:小程序无原生 SSE → Phase 4 流式回合两条路,**主次序据 H5 实现校正**:
+  - **主预案 `wx.request` + `enableChunked` 分块回调**:与 H5 **同构**——同样是「`POST` 带 body + 流式读 chunk 自解析」的范式(H5 用 `fetch`+`ReadableStream`,小程序用 `wx.request` 的 `onChunkReceived` 分块回调),后端**无需新端点**(复用现有 `POST .../turn` 的 SSE 响应,小程序侧只换 chunk 读取与帧解析的适配实现)。沿用 H5 已跑通的 SSE 帧切分逻辑,迁移税最低。兼容性(基础库版本 / 微信内核)待 Phase 4 真机验。
+  - **备选 WebSocket**:`enableChunked` 若在目标机型/基础库不稳,退回后端加 WS 端点桥到同一 `TokenStream`(守 ADR-005 再加一层薄 web 适配),前端新增一个 `TurnStream` 的 WS 实现。这是**更重的另一套范式**(双向长连、后端新端点),故降为备选。
+  - 两路**都只动适配层**,逻辑层零改——接口已留对。**主次对调的理由**:H5 落地实测确认回合走 `POST`+body+流式读 chunk(非 `EventSource`),`enableChunked` 与之同构、复用最多;原先把 WebSocket 列主、chunked 列备的判断基于「H5 用 EventSource」的假设,该假设已被实现校正,故对调。
 
 ### 4. 状态管理
 
