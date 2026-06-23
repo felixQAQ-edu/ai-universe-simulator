@@ -114,7 +114,6 @@
 
 ### 首批待决策议题
 
-- **ADR-003 · 前端栈与跨端路线**:React + Vite H5 先行 → Taro 移植小程序的取舍与边界
 - **ADR-004 · 内容安全方案**:审核 API 选型 + 兜底过滤策略
 
 ### 已完成 ADR 索引
@@ -122,6 +121,7 @@
 | ADR | 主题 | 状态 | 日期 |
 |-----|------|------|------|
 | [ADR-001](adr/ADR-001-runtime-model-and-provider-abstraction.md) | 运行模型选 DeepSeek V4-Flash 为主力,provider 走 OpenAI 兼容配置表抽象 | 已采纳 | 2026-06-17 |
+| [ADR-003](adr/ADR-003-frontend-stack-and-taro-boundary.md) | 前端栈选 React+Vite H5,以接口纪律(`api/` 薄适配层 + provider-agnostic 流接口)占住 Taro 迁移边界,Phase 1 不写小程序代码 | 已采纳 | 2026-06-23 |
 | [ADR-002](adr/ADR-002-backend-form-factor.md) | 后端形态选 Spring Boot 运行于 CloudBase 云托管(应用层自控 + 微信原生集成,薄适配层缓解锁定) | 已采纳 | 2026-06-18 |
 | [ADR-005](adr/ADR-005-sse-web-stack-mvc-thin-seam.md) | SSE/流式 web 栈选 Spring MVC(SseEmitter)+ 可换 WebFlux 的薄接缝(`TokenStream` 解耦核心与传输) | 已采纳 | 2026-06-18 |
 | [ADR-006](adr/ADR-006-event-loop-streaming-wire-protocol.md) | event-loop 流式线上协议选叙事先行单次调用 + 哨兵 + 结构化尾巴 + 叙事回灌复用(下游校验/引擎零改,守 ADR-005 薄接缝) | 已采纳 | 2026-06-19 |
