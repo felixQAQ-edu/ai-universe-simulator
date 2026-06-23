@@ -1,0 +1,224 @@
+import { describe, expect, it } from 'vitest';
+import type {
+  EndingPayload,
+  GameApi,
+  InitResult,
+  StreamError,
+  TurnDelta,
+  TurnStream,
+} from '../api';
+import { GameApiError } from '../api';
+import { createGameStore } from './gameStore';
+
+// 状态层单测:喂合成事件序列,断言状态推进(含 ending / error 分支)。
+// 用可控的 FakeTurnStream 注入 GameApi —— 不打任何网络,确定性、零成本。
+
+/** 可控回合流:记录注册的回调,测试侧主动 fire。 */
+class FakeTurnStream implements TurnStream {
+  private nar: Array<(t: string) => void> = [];
+  private dlt: Array<(d: TurnDelta) => void> = [];
+  private end: Array<(e: EndingPayload) => void> = [];
+  private err: Array<(e: StreamError) => void> = [];
+  private cls: Array<() => void> = [];
+  closed = false;
+
+  onNarrative(cb: (t: string) => void) {
+    this.nar.push(cb);
+  }
+  onDelta(cb: (d: TurnDelta) => void) {
+    this.dlt.push(cb);
+  }
+  onEnding(cb: (e: EndingPayload) => void) {
+    this.end.push(cb);
+  }
+  onError(cb: (e: StreamError) => void) {
+    this.err.push(cb);
+  }
+  onClose(cb: () => void) {
+    this.cls.push(cb);
+  }
+  close() {
+    this.closed = true;
+  }
+
+  fireNarrative(t: string) {
+    this.nar.forEach((c) => c(t));
+  }
+  fireDelta(d: TurnDelta) {
+    this.dlt.forEach((c) => c(d));
+  }
+  fireEnding(e: EndingPayload) {
+    this.end.forEach((c) => c(e));
+  }
+  fireError(e: StreamError) {
+    this.err.forEach((c) => c(e));
+  }
+  fireClose() {
+    this.cls.forEach((c) => c());
+  }
+}
+
+const INIT_RESULT: InitResult = {
+  saveId: 's1',
+  world: {
+    schemaVersion: '0.2',
+    mode: 'single',
+    archetypes: ['rules_creepy'],
+    world: { title: '雨夜便利店', background: 'bg', dangerLevel: 'high', tone: 'tone' },
+    character: { attributes: { hp: 100, san: 100 }, traits: [], inventory: [] },
+    rules: [{ id: 1, content: '不要回应敲玻璃', discovered: false }],
+    state: { turn: 0, status: 'ongoing', timeline: '', logSummary: '', log: [] },
+    endings: [],
+  },
+  openingNarrative: '午夜两点,你被困在便利店。',
+  availableActions: [
+    { id: 'A', text: '观察', hint: '' },
+    { id: 'B', text: '等待', hint: '' },
+  ],
+};
+
+/** 建一个 mock GameApi;initBehavior 控制成功/失败;openTurnStream 返回可控流。 */
+function makeApi(initBehavior: 'ok' | 'fail' = 'ok') {
+  let lastStream: FakeTurnStream | null = null;
+  const api: GameApi = {
+    async initGame() {
+      if (initBehavior === 'fail') throw new GameApiError('world_gen_failed', '世界生成失败');
+      return INIT_RESULT;
+    },
+    openTurnStream() {
+      lastStream = new FakeTurnStream();
+      return lastStream;
+    },
+  };
+  return { api, stream: () => lastStream! };
+}
+
+describe('startGame', () => {
+  it('成功 → awaiting,world/数值/动作/开场叙事就位', async () => {
+    const { api } = makeApi('ok');
+    const store = createGameStore(api);
+    await store.getState().startGame('rules_creepy');
+
+    const s = store.getState();
+    expect(s.status).toBe('awaiting');
+    expect(s.saveId).toBe('s1');
+    expect(s.hp).toBe(100);
+    expect(s.san).toBe(100);
+    expect(s.narrative).toBe('午夜两点,你被困在便利店。');
+    expect(s.availableActions.map((a) => a.id)).toEqual(['A', 'B']);
+    expect(s.world?.rules[0].content).toBe('不要回应敲玻璃');
+  });
+
+  it('失败 → initError + errorMessage(不进半残 playing)', async () => {
+    const { api } = makeApi('fail');
+    const store = createGameStore(api);
+    await store.getState().startGame('rules_creepy');
+
+    const s = store.getState();
+    expect(s.status).toBe('initError');
+    expect(s.errorMessage).toContain('世界生成失败');
+    expect(s.world).toBeNull();
+  });
+});
+
+describe('chooseAction', () => {
+  it('happy:generating → 叙事累加 → delta 落数值/动作 → close 回 awaiting', async () => {
+    const { api, stream } = makeApi('ok');
+    const store = createGameStore(api);
+    await store.getState().startGame('rules_creepy');
+
+    store.getState().chooseAction('A');
+    expect(store.getState().status).toBe('generating');
+    expect(store.getState().narrative).toBe(''); // 新回合清空散文区
+
+    const st = stream();
+    st.fireNarrative('你伸手');
+    st.fireNarrative('推开门。');
+    expect(store.getState().narrative).toBe('你伸手推开门。');
+
+    st.fireDelta({
+      turn: 1,
+      status: 'ongoing',
+      hp: 80,
+      san: 65,
+      discoveredRules: [{ id: 1, content: '不要回应敲玻璃' }],
+      availableActions: [{ id: 'A', text: '继续', hint: '' }],
+    });
+    expect(store.getState().hp).toBe(80);
+    expect(store.getState().san).toBe(65);
+    expect(store.getState().turn).toBe(1);
+    expect(store.getState().discoveredRuleIds).toEqual([1]);
+    expect(store.getState().availableActions[0].text).toBe('继续');
+
+    st.fireClose();
+    expect(store.getState().status).toBe('awaiting');
+  });
+
+  it('命中结局:delta(ended) + ending → status ended,ending 就位', async () => {
+    const { api, stream } = makeApi('ok');
+    const store = createGameStore(api);
+    await store.getState().startGame('rules_creepy');
+
+    store.getState().chooseAction('A');
+    const st = stream();
+    st.fireDelta({
+      turn: 1,
+      status: 'ended',
+      hp: 0,
+      san: 20,
+      discoveredRules: [],
+      availableActions: [],
+    });
+    st.fireEnding({ id: 'died', title: '殒命便利店', description: '你倒在了货架旁。' });
+    st.fireClose();
+
+    const s = store.getState();
+    expect(s.status).toBe('ended');
+    expect(s.ending).toEqual({ id: 'died', title: '殒命便利店', description: '你倒在了货架旁。' });
+  });
+
+  it('可恢复错误(illegal_action)→ 回 awaiting + notice', async () => {
+    const { api, stream } = makeApi('ok');
+    const store = createGameStore(api);
+    await store.getState().startGame('rules_creepy');
+
+    store.getState().chooseAction('A');
+    stream().fireError({ code: 'illegal_action', message: '该选项不可用' });
+    stream().fireClose();
+
+    const s = store.getState();
+    expect(s.status).toBe('awaiting');
+    expect(s.notice).toBe('该选项不可用');
+  });
+
+  it('守卫:非 awaiting 态不开流', async () => {
+    const { api, stream } = makeApi('ok');
+    const store = createGameStore(api);
+    await store.getState().startGame('rules_creepy');
+    store.getState().chooseAction('A'); // 进 generating
+    store.getState().chooseAction('B'); // 应被忽略
+    // 第二次没开新流(stream() 仍是第一条,未 close)。
+    expect(stream().closed).toBe(false);
+    expect(store.getState().status).toBe('generating');
+  });
+
+  it('守卫:非法 actionId → notice,不开流', async () => {
+    const { api } = makeApi('ok');
+    const store = createGameStore(api);
+    await store.getState().startGame('rules_creepy');
+    store.getState().chooseAction('Z'); // 不在 availableActions
+    expect(store.getState().status).toBe('awaiting');
+    expect(store.getState().notice).toContain('已失效');
+  });
+});
+
+describe('reset', () => {
+  it('回到 idle 初始态', async () => {
+    const { api } = makeApi('ok');
+    const store = createGameStore(api);
+    await store.getState().startGame('rules_creepy');
+    store.getState().reset();
+    expect(store.getState().status).toBe('idle');
+    expect(store.getState().world).toBeNull();
+  });
+});

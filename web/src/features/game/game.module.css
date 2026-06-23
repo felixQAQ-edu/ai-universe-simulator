@@ -1,0 +1,296 @@
+/* 规则怪谈回合循环 UI · 移动优先。视觉方向延续 scaffold 基底(深浅色 / safe-area)。 */
+
+.screen {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 1rem 1rem 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-height: 100dvh;
+}
+
+.header {
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 0.6rem;
+}
+
+.phase {
+  margin: 0;
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.title {
+  margin: 0.25rem 0 0.1rem;
+  font-size: 1.5rem;
+  line-height: 1.25;
+}
+
+.tone {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+/* 数值面板 ------------------------------------------------------------ */
+.stats {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.stat {
+  flex: 1;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.55rem 0.7rem;
+}
+
+.statKey {
+  display: block;
+  font-size: 0.7rem;
+  color: var(--muted);
+  letter-spacing: 0.03em;
+}
+
+.statVal {
+  display: block;
+  font-size: 1.4rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  margin-top: 0.1rem;
+}
+
+.bar {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--chip);
+  margin-top: 0.4rem;
+  overflow: hidden;
+}
+
+.barFill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.5s ease;
+}
+
+.barHp {
+  background: #d8635f;
+}
+
+.barSan {
+  background: #6b8cc4;
+}
+
+/* 散文区 ------------------------------------------------------------- */
+.prose {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 1rem 1.05rem;
+  min-height: 8rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.85;
+  font-size: 1rem;
+}
+
+.caret {
+  display: inline-block;
+  width: 0.5ch;
+  margin-left: 1px;
+  animation: blink 1s steps(2) infinite;
+  color: var(--muted);
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+/* 决策圈 ------------------------------------------------------------- */
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.action {
+  width: 100%;
+  text-align: left;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.85rem 1rem;
+  font-size: 0.98rem;
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color 0.15s ease, transform 0.05s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.action:active {
+  transform: scale(0.99);
+}
+
+.action:hover:not(:disabled) {
+  border-color: var(--muted);
+}
+
+.action:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.actionId {
+  display: inline-block;
+  min-width: 1.4em;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.actionHint {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin-top: 0.2rem;
+}
+
+/* 规则面板 ----------------------------------------------------------- */
+.rules {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.8rem 1rem;
+}
+
+.rulesTitle {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+}
+
+.ruleList {
+  margin: 0;
+  padding-left: 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.rule {
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.ruleDiscovered {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.ruleTag {
+  font-size: 0.68rem;
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 6px;
+  background: var(--chip);
+  color: var(--muted);
+}
+
+/* 通用 / 状态屏 ------------------------------------------------------ */
+.notice {
+  background: #f6e7c8;
+  color: #7a5a13;
+  border-radius: 10px;
+  padding: 0.55rem 0.8rem;
+  font-size: 0.85rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  .notice {
+    background: #3a3115;
+    color: #e7c878;
+  }
+}
+
+.centered {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  text-align: center;
+  padding: 2rem 1rem;
+}
+
+.primaryBtn {
+  background: var(--text);
+  color: var(--bg);
+  border: none;
+  border-radius: 999px;
+  padding: 0.85rem 2rem;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.primaryBtn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.muted {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+.spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--chip);
+  border-top-color: var(--muted);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 结局画面 ----------------------------------------------------------- */
+.ending {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 1.4rem 1.2rem;
+  text-align: center;
+}
+
+.endingLabel {
+  margin: 0;
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.endingTitle {
+  margin: 0.4rem 0 0.7rem;
+  font-size: 1.6rem;
+}
+
+.endingDesc {
+  margin: 0 0 1.2rem;
+  line-height: 1.7;
+  color: var(--text);
+}
