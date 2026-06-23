@@ -85,6 +85,7 @@
 10. **两套线上口径别混**(回合 vs world-gen):**回合**(event-loop)走 ADR-006——丢 `response_format: json_object` 换逐字流叙事(叙事先行 + 哨兵 `<<<DELTA>>>` + 结构化尾巴 + 叙事回灌),修复发才开回 json_object;**world-gen**(INITIALIZING 胖调用)走 **ADR-007**——**保 `response_format: json_object`、纯 JSON、无哨兵**,把可靠性留在最险的那次生成(world-gen JSON 首次失败是头号失败模式,真 key 冒烟只证回合侧、不外推)。别把回合的哨兵/叙事回灌/保守 no-op 搬到 world-gen 上。
 11. **world-gen 失败 = 整局 ERROR**(非 no-op 降级,异于回合):world-gen 救不回时无前态可守(尚无游戏)→ 干净失败 + 提示「重新生成」,**不进半残 PLAYING**;对照回合修复用尽走保守 no-op(守一局 ongoing)。胖调用 → `LooseJson` → `validateWorld` → 不通过一次修复 → 仍败 ERROR。见 ADR-007、设计稿 §4。
 12. **开场叙事 reveal 不流式**(ADR-007):world-gen 产 `openingNarrative` 作 **transient init 字段**,随 `POST /api/game/init`(plain POST 无 SSE)响应一次性下发,**不进持久化 `state`** → `schemaVersion` 仍 `"0.2"`(无字段变更);逐字 vibe 由前端 client-side reveal 动画补,后端不为它丢 json_object。init 响应的 `world` 走 `toClientState()` 消毒投影(剥 `isTrue`/`hiddenLogic`)。
+13. **前端跨端边界(ADR-003)**:`web/` 逻辑/状态/类型/展示层**平台无关**(Taro 直接复用),**禁引用任何平台 IO**(`fetch`/`EventSource`/`WebSocket`/`wx.*`);网络/流 IO **全收进 `web/src/api/` 薄适配层**(迁移时只换它,镜像后端 `LlmClient`/`TokenStream` 接缝哲学)。`api/` 对上暴露 **provider-agnostic 流接口** `TurnStream{onNarrative/onDelta/onEnding/onError}`——逻辑层只见这四类语义事件,**永不见底层传输**;H5 实现用 `fetch`+流式读 body 解析 SSE(**非原生 `EventSource`**:回合端点 `POST` 带 body,`EventSource` 只能 GET 无 body),Phase 4 小程序换 WebSocket 只新增一个 `TurnStream` 实现。硬线**可检查**:逻辑/状态层对 `fetch`/`EventSource`/`wx` 的引用计数 = 0(`web/eslint.config.js` `no-restricted-globals`,`api/` 与测试豁免)。约定层补充,`schemaVersion` 不动。
 
 ## 四、版本历史
 
@@ -94,3 +95,4 @@
 | v0.2 | 2026-06-17 | schema 收敛(据 bakeoff 实测 FINDINGS F-001/F-004):明确 `rules[].id` 整数 / `endings[].id` 字符串的刻意差异;endings 增可选 `description`、`title` 改“短名必填”;`character.attributes` 标必填。详见 ADR-001。 |
 | v0.3 | 2026-06-19 | 追加 §三.8 数值权威(绝对值)+ §三.9 state 三视图消毒(据 ADR-006 与 Phase 1 规格);约定层补充,JSON schemaVersion 仍 "0.2"(字段未变),仅 CONTEXT 文档版本升 v0.3 |
 | v0.4 | 2026-06-21 | 追加 §三.10 两套线上口径(回合 ADR-006 丢 json_object vs world-gen ADR-007 保 json_object)+ §三.11 world-gen 失败=整局 ERROR + §三.12 开场叙事 reveal 不流式(`openingNarrative` transient init 字段);据 ADR-007 与 world-gen 设计稿,约定层补充,JSON schemaVersion 仍 "0.2"(字段未变),仅 CONTEXT 文档版本升 v0.4 |
+| v0.5 | 2026-06-23 | 追加 §三.13 前端跨端边界(ADR-003):`web/` 逻辑/状态/类型/展示层平台无关、禁引用平台 IO,网络/流收进 `api/` 薄适配层并暴露 provider-agnostic `TurnStream` 流接口(H5 用 fetch+SSE,非原生 EventSource;Phase 4 换 WS 只增实现);硬线由 eslint `no-restricted-globals` 守。约定层补充,JSON schemaVersion 仍 "0.2",仅 CONTEXT 文档版本升 v0.5 |
