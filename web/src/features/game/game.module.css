@@ -330,8 +330,20 @@
   gap: 0.85rem;
 }
 
-/* 氛围卡片:渐变 + 阴影 + 左侧色条做层次;质感纯 CSS(不引 GSAP)。 */
+/* ── 氛围卡片:每个世界一套专属主题,卡片自己就是那个世界的「预告片」──────────────
+ * 产品核心卖点 = AI 实时生成的活体世界;统一柔光传达不了。改为每个 archetype 一套 CSS 主题
+ * (色 / 动效 / 纹理随世界走),静止状态就明显看得见、扫一眼就有那个世界的味道。
+ * 纯 CSS @keyframes,不引 GSAP / 任何动画库(对 Taro/小程序支持差、违 ADR-003,已决记 backlog)。
+ *
+ * 【可扩展】加新世界 = ① ArchetypeSelect.tsx 的 vibeClass() 加一个分支映射到新 .cardXxx;
+ *   ② 这里加一个 .cardXxx 主题块(背景调色 + ::before/::after 两层氛围 + :hover + keyframes)。
+ *   克苏鲁 / 修仙日后各配各的,互不影响。已解锁世界都应配一套主题(未配则回落朴素 .card)。
+ *
+ * 【底线】低频、不癫痫式闪烁、不晃到看不清文字、prefers-reduced-motion 关掉运动;
+ *   氛围 > 炫技 —— 传达世界性格,不塞特效。灰显占位卡(.cardLocked)一律静止(死的,反衬解锁卡是活的)。
+ *   分层:卡背景(底)→ ::before/::after 氛围(z-index 0)→ 文字内容(z-index 1,见 .cardTop/.cardTagline)。 */
 .card {
+  position: relative; /* 氛围 pseudo 的定位锚点 */
   display: block;
   width: 100%;
   text-align: left;
@@ -342,39 +354,214 @@
   background: var(--card);
   color: var(--text);
   cursor: pointer;
-  transition: transform 0.12s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  transition: transform 0.12s ease, border-color 0.25s ease, box-shadow 0.25s ease;
   -webkit-tap-highlight-color: transparent;
+}
+
+/* 解锁卡:裁掉溢出的氛围层(漂移/暗角随圆角)+ 入场克制渐显微浮。 */
+.card:not(.cardLocked) {
+  overflow: hidden;
+  animation: cardEnter 0.5s ease backwards; /* 不用 forwards,免占住 transform 妨碍 hover */
 }
 
 .card:hover:not(.cardLocked) {
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px -12px rgba(0, 0, 0, 0.4);
 }
 
 .card:active:not(.cardLocked) {
   transform: translateY(0) scale(0.995);
 }
 
-/* 规则怪谈:冷色诡异。 */
+.cardList .card:nth-child(1) {
+  animation-delay: 0.04s;
+}
+.cardList .card:nth-child(2) {
+  animation-delay: 0.12s;
+}
+
+/* ── 规则怪谈:冷蓝灰 + 暗角 + 偶发冷光闪烁(信号不稳/灯将灭)+ hover 一丝红渗入(危险）── */
 .cardCreepy {
-  border-left-color: #6b8cc4;
-  background: linear-gradient(135deg, var(--card), color-mix(in srgb, #2b3a55 18%, var(--card)));
+  color: #c6d0dd;
+  border-left-color: #5f7fb0;
+  background: linear-gradient(160deg, #1a2230 0%, #121821 55%, #0d1117 100%);
 }
 
-/* 末日生存:荒凉琥珀。 */
+/* 暗角 + 冷调压暗(静态,扫一眼就压抑不安)。 */
+.cardCreepy::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: radial-gradient(130% 110% at 50% 32%, transparent 36%, rgba(0, 0, 0, 0.58) 100%);
+}
+
+/* 顶部冷光,偶发闪烁 —— 像将灭的日光灯。只抖光晕 opacity,不动文字(可读性不受影响)。 */
+.cardCreepy::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: radial-gradient(78% 56% at 50% 0%, rgba(140, 178, 224, 0.22), transparent 70%);
+  animation: creepyFlicker 6.5s linear infinite;
+}
+
+.cardCreepy:hover {
+  border-left-color: #b5392f; /* 危险红渗入 */
+  box-shadow:
+    0 10px 28px -14px rgba(0, 0, 0, 0.65),
+    inset 0 0 28px -4px rgba(190, 45, 40, 0.5),
+    inset 0 0 0 1px rgba(190, 45, 40, 0.32);
+}
+
+.cardCreepy:hover::after {
+  animation-duration: 3.4s; /* 闪得更急,更不安 */
+}
+
+/* ── 末日生存:土黄/锈色 + 粗粝颗粒纹理 + 横向缓慢飘过的沙尘 + hover 尘动更急(荒凉）── */
 .cardApocalypse {
-  border-left-color: #c79a4e;
-  background: linear-gradient(135deg, var(--card), color-mix(in srgb, #6b4e1f 18%, var(--card)));
+  color: #e8dcc0;
+  border-left-color: #b07a3a;
+  /* 颗粒纹理(SVG feTurbulence,纯 CSS data-URI,overlay 混入)+ 锈土底色。 */
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E")
+      repeat,
+    linear-gradient(155deg, #3a2e1a 0%, #2a2012 60%, #211810 100%);
+  background-size: 140px 140px, cover;
+  background-blend-mode: overlay, normal;
 }
 
-/* 未开放占位:灰显、不可点。 */
+/* 沙尘颗粒:一层细小尘点横向漂移(扬尘),静止可见、缓缓飘。 */
+.cardApocalypse::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(1.5px 1.5px at 8% 22%, rgba(235, 215, 170, 0.55), transparent 60%),
+    radial-gradient(1px 1px at 28% 68%, rgba(220, 195, 150, 0.5), transparent 60%),
+    radial-gradient(1.5px 1.5px at 52% 34%, rgba(235, 215, 170, 0.5), transparent 60%),
+    radial-gradient(1px 1px at 70% 80%, rgba(210, 180, 130, 0.5), transparent 60%),
+    radial-gradient(2px 2px at 86% 24%, rgba(235, 215, 170, 0.45), transparent 60%),
+    radial-gradient(1px 1px at 42% 92%, rgba(220, 195, 150, 0.45), transparent 60%);
+  background-size: 200% 100%;
+  background-repeat: repeat-x;
+  animation: dustDrift 16s linear infinite;
+}
+
+/* 暖色尘雾阵风,缓慢横扫(沙尘暴的气口)。 */
+.cardApocalypse::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    100deg,
+    transparent 12%,
+    rgba(176, 122, 58, 0.22) 45%,
+    rgba(150, 100, 50, 0.1) 64%,
+    transparent 88%
+  );
+  background-size: 220% 100%;
+  animation: dustHaze 10s ease-in-out infinite;
+}
+
+.cardApocalypse:hover {
+  box-shadow: 0 10px 30px -14px rgba(0, 0, 0, 0.6);
+}
+
+.cardApocalypse:hover::before {
+  animation-duration: 7s; /* 尘动更急 */
+}
+
+.cardApocalypse:hover::after {
+  animation-duration: 5s;
+}
+
+/* ── 未开放占位:灰显、不可点、零动效(死的,反衬解锁卡是活的)── */
 .cardLocked {
   opacity: 0.5;
   cursor: default;
   border-left-color: var(--line);
 }
 
+@keyframes cardEnter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 偶发闪烁:绝大多数时间稳定,仅两处快速短暂的双闪(灯将灭)—— 不是癫痫式连闪。 */
+@keyframes creepyFlicker {
+  0%,
+  40% {
+    opacity: 1;
+  }
+  41% {
+    opacity: 0.2;
+  }
+  41.8% {
+    opacity: 1;
+  }
+  42.5% {
+    opacity: 0.35;
+  }
+  43.2% {
+    opacity: 1;
+  }
+  77% {
+    opacity: 1;
+  }
+  77.7% {
+    opacity: 0.25;
+  }
+  78.4% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes dustDrift {
+  from {
+    background-position: 0% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@keyframes dustHaze {
+  0% {
+    background-position: 120% 0;
+  }
+  100% {
+    background-position: -40% 0;
+  }
+}
+
+/* 无障碍:减少动态时关掉所有运动,保留静态氛围(暗角/尘点/调色)—— 世界性格仍读得到。 */
+@media (prefers-reduced-motion: reduce) {
+  .cardCreepy::after,
+  .cardApocalypse::before,
+  .cardApocalypse::after,
+  .card:not(.cardLocked) {
+    animation: none;
+  }
+}
+
 .cardTop {
+  position: relative; /* 抬到氛围层(::before/::after)之上,保证文字可读 */
+  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -398,6 +585,17 @@
   white-space: nowrap;
 }
 
+/* 主题卡背景恒为深色氛围 —— 标签/钩子改用各自世界的可读色(不随 app 明暗主题漂移)。 */
+.cardCreepy .cardTag {
+  background: rgba(120, 150, 190, 0.16);
+  color: #a8bdd6;
+}
+
+.cardApocalypse .cardTag {
+  background: rgba(199, 154, 78, 0.18);
+  color: #d8bd86;
+}
+
 .cardSoon {
   flex-shrink: 0;
   font-size: 0.7rem;
@@ -405,10 +603,20 @@
 }
 
 .cardTagline {
+  position: relative; /* 抬到氛围层之上 */
+  z-index: 1;
   margin: 0.5rem 0 0;
   font-size: 0.88rem;
   line-height: 1.55;
   color: var(--muted);
+}
+
+.cardCreepy .cardTagline {
+  color: #93a4b9;
+}
+
+.cardApocalypse .cardTagline {
+  color: #bcaa86;
 }
 
 .linkBtn {
