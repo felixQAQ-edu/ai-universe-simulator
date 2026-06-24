@@ -15,6 +15,9 @@ import java.util.List;
  *
  * @param id          archetype id(∈ CONTEXT §三.4 枚举,snake_case)
  * @param displayName 玩家可见中文名(如「末日生存」「规则怪谈」)
+ * @param tagline     选择屏一句话钩子(玩家可见中文,CONTEXT §三.3)——<b>仅供选择屏卡片展示</b>,
+ *                    不进 world-gen 注入(注入用 {@link #worldview});区别于长 worldview。
+ * @param vibeTag     选择屏氛围/危险短标签(如「诡异 · 高危」「荒凉 · 绝境」),同样仅展示用。
  * @param worldview   世界观描述(喂 world-gen 注入块)
  * @param attributes  数值轴清单(顺序即面板/提示词呈现顺序;至少一条)
  * @param ruleForm    该模式规则形态描述(喂注入块)——末日=生存法则/资源约束,规则怪谈=真假规则
@@ -22,6 +25,8 @@ import java.util.List;
 public record ArchetypeMeta(
 		String id,
 		String displayName,
+		String tagline,
+		String vibeTag,
 		String worldview,
 		List<AttributeAxis> attributes,
 		String ruleForm) {

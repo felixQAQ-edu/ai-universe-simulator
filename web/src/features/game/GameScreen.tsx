@@ -1,4 +1,5 @@
 import { useGameStore } from '../../state/gameStore';
+import { ArchetypeSelect } from './ArchetypeSelect';
 import { DecisionCircle } from './DecisionCircle';
 import { EndingScreen } from './EndingScreen';
 import { Prose } from './Prose';
@@ -6,39 +7,17 @@ import { RulesPanel } from './RulesPanel';
 import { StatsPanel } from './StatsPanel';
 import styles from './game.module.css';
 
-const ARCHETYPE = 'rules_creepy' as const; // Phase 1 固定单模式(规则怪谈)。
-
 /**
- * 整局流程容器(brief 实现切分 4):开局(init→loading→开场 reveal)→ 回合循环 →
+ * 整局流程容器:选择屏(选世界)→ 开局(init→loading→开场 reveal)→ 回合循环 →
  * 结局画面;world-gen ERROR 出「重新生成」。只读 store,不碰 api/ 与平台 IO。
  */
 export function GameScreen() {
   const status = useGameStore((s) => s.status);
-  const startGame = useGameStore((s) => s.startGame);
 
-  if (status === 'idle') return <StartScreen onStart={() => startGame(ARCHETYPE)} />;
+  if (status === 'idle') return <ArchetypeSelect />;
   if (status === 'initializing') return <LoadingScreen />;
-  if (status === 'initError') return <InitErrorScreen onRetry={() => startGame(ARCHETYPE)} />;
+  if (status === 'initError') return <InitErrorScreen />;
   return <PlayingScreen />;
-}
-
-function StartScreen({ onStart }: { onStart: () => void }) {
-  return (
-    <main className={styles.screen}>
-      <div className={styles.centered}>
-        <p className={styles.phase}>AI Universe Simulator</p>
-        <h1 className={styles.title}>规则怪谈</h1>
-        <p className={styles.muted}>
-          午夜降临,你将踏入一个由规则编织、真假难辨的世界。
-          <br />
-          每一次抉择都不可回头。
-        </p>
-        <button type="button" className={styles.primaryBtn} onClick={onStart}>
-          进入世界
-        </button>
-      </div>
-    </main>
-  );
 }
 
 function LoadingScreen() {
@@ -52,15 +31,26 @@ function LoadingScreen() {
   );
 }
 
-function InitErrorScreen({ onRetry }: { onRetry: () => void }) {
+function InitErrorScreen() {
   const errorMessage = useGameStore((s) => s.errorMessage);
+  const lastArchetype = useGameStore((s) => s.lastArchetype);
+  const startGame = useGameStore((s) => s.startGame);
+  const reset = useGameStore((s) => s.reset);
   return (
     <main className={styles.screen}>
       <div className={styles.centered}>
         <h1 className={styles.title}>世界生成失败</h1>
         <p className={styles.muted}>{errorMessage ?? '请重新生成。'}</p>
-        <button type="button" className={styles.primaryBtn} onClick={onRetry}>
+        <button
+          type="button"
+          className={styles.primaryBtn}
+          disabled={!lastArchetype}
+          onClick={() => lastArchetype && startGame(lastArchetype)}
+        >
           重新生成
+        </button>
+        <button type="button" className={styles.linkBtn} onClick={reset}>
+          换个世界
         </button>
       </div>
     </main>

@@ -40,6 +40,20 @@ export interface ClientWorld {
 }
 
 /**
+ * 选择屏一张卡片的摘要(后端 `GET /api/archetypes` 下发,ADR-008 决策 4)。
+ * 已激活(active=true)可选、带钩子/标签;已知未开放(active=false)灰显「敬请期待」、不可点。
+ */
+export interface ArchetypeSummary {
+  archetype: Archetype;
+  displayName: string;
+  /** 一句话钩子(可选;未激活占位为 null/缺省)。 */
+  tagline: string | null;
+  /** 氛围/危险短标签(可选;未激活占位为 null/缺省)。 */
+  vibeTag: string | null;
+  active: boolean;
+}
+
+/**
  * 本模式一个数值轴的展示元数据(ADR-008 决策 1 前端消费方)。后端 init 下发 [{key,displayName}],
  * 前端据此渲染数值面板项 + 中文名(末日 体力/饥饿、规则怪谈 体力/理智);值由 attributes map 提供。
  */
@@ -132,6 +146,12 @@ export class GameApiError extends Error {
  * 逻辑/状态层只依赖本接口,Phase 4 换实现不动它们。
  */
 export interface GameApi {
+  /**
+   * 取可选世界目录(选择屏第一屏,ADR-008 决策 4)。已激活在前 + 已知未开放占位在后。
+   * @throws GameApiError 网络/协议失败(选择屏据此出重试)。
+   */
+  listArchetypes(): Promise<ArchetypeSummary[]>;
+
   /**
    * 起一局新世界(INITIALIZING,ADR-007)。阻塞直到 world-gen 完成。
    * @throws GameApiError world-gen 救不回(502)/ 网络失败 —— 整局 ERROR,前端出「重新生成」。

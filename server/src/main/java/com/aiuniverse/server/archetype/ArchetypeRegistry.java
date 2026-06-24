@@ -1,5 +1,7 @@
 package com.aiuniverse.server.archetype;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,6 +29,19 @@ public class ArchetypeRegistry {
 	/** CONTEXT §三.4 枚举:全部「已知」archetype id(用于 init 非法值判定)。 */
 	private static final Set<String> KNOWN = Set.of(
 			"rules_creepy", "life_sim", "cultivation", "cyberpunk", "apocalypse");
+
+	/**
+	 * 已知但未激活(占位枚举)的玩家可见中文名(CONTEXT §三.4)——选择屏渲染「敬请期待」灰显卡片用。
+	 * 让 registry 成为「选择目录」的单一真理源(前端不硬编码模式清单)。保序 = 选择屏占位排序。
+	 */
+	private static final Map<String, String> INACTIVE_DISPLAY_NAMES;
+	static {
+		Map<String, String> m = new LinkedHashMap<>();
+		m.put("life_sim", "人生模拟");
+		m.put("cultivation", "修仙");
+		m.put("cyberpunk", "赛博朋克");
+		INACTIVE_DISPLAY_NAMES = Collections.unmodifiableMap(m);
+	}
 
 	/** 已激活(有元数据)的 archetype → 元数据。保序便于稳定遍历。 */
 	private final Map<String, ArchetypeMeta> active = new LinkedHashMap<>();
@@ -68,6 +83,22 @@ public class ArchetypeRegistry {
 		return List.copyOf(active.values());
 	}
 
+	/**
+	 * 选择屏目录(ADR-008 决策 4 选择 UI 的数据源):已激活的(全字段、可选)在前,
+	 * 已知但未激活的占位(active=false、tagline/vibeTag 留空,前端渲染「敬请期待」灰显)在后。
+	 * 前端 {@code GET /api/archetypes} 据此渲染世界选择第一屏,不硬编码模式清单。
+	 */
+	public List<ArchetypeSummary> listForSelection() {
+		List<ArchetypeSummary> out = new ArrayList<>();
+		for (ArchetypeMeta m : active.values()) {
+			out.add(new ArchetypeSummary(m.id(), m.displayName(), m.tagline(), m.vibeTag(), true));
+		}
+		for (Map.Entry<String, String> e : INACTIVE_DISPLAY_NAMES.entrySet()) {
+			out.add(new ArchetypeSummary(e.getKey(), e.getValue(), null, null, false));
+		}
+		return List.copyOf(out);
+	}
+
 	// ── 元数据条目(内联;加模式在此加一条)─────────────────────────────
 
 	/** 规则怪谈:hp/san=体力/理智,真假规则形态。补它让两模式走同一元数据驱动路径(不让规则怪谈成特例)。 */
@@ -75,6 +106,8 @@ public class ArchetypeRegistry {
 		return new ArchetypeMeta(
 				"rules_creepy",
 				"规则怪谈",
+				"一纸诡异守则,真假混杂。读懂它,或者付出代价。",
+				"诡异 · 高危",
 				"规则怪谈:玩家身处一个看似日常却暗藏异常的封闭场景(如雨夜便利店、末班地铁、山区民宿),"
 						+ "墙上/纸上贴着一组必须遵守的规则,违反或误读会招致超自然后果。氛围瘆人、逻辑自洽。",
 				List.of(
@@ -90,6 +123,8 @@ public class ArchetypeRegistry {
 		return new ArchetypeMeta(
 				"apocalypse",
 				"末日生存",
+				"废土求生,饥饿是另一个敌人。撑过下一个夜晚。",
+				"荒凉 · 绝境",
 				"末日生存:文明崩塌后的废墟世界(如丧尸蔓延的城市、核冬天的避难所、资源枯竭的末世聚落),"
 						+ "玩家在饥饿、伤病与未知威胁之间求生。氛围荒凉、紧绷、危机四伏,资源永远不够。",
 				List.of(

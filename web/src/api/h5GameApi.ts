@@ -3,6 +3,7 @@
 // 逻辑/状态层只 import contract.ts 的接口与 createH5GameApi 返回的实例,不碰本文件内部。
 
 import type {
+  ArchetypeSummary,
   EndingPayload,
   GameApi,
   InitResult,
@@ -17,6 +18,20 @@ import type { Archetype } from '../types/schema';
 /** 默认基址空串 → 相对路径 `/api/...`,经 Vite dev proxy / 同源部署到后端。 */
 export function createH5GameApi(baseUrl = ''): GameApi {
   return {
+    async listArchetypes(): Promise<ArchetypeSummary[]> {
+      let resp: Response;
+      try {
+        resp = await fetch(`${baseUrl}/api/archetypes`, { method: 'GET' });
+      } catch (e) {
+        throw new GameApiError('network', e instanceof Error ? e.message : '网络错误');
+      }
+      if (!resp.ok) {
+        throw new GameApiError('archetypes_failed', `世界列表加载失败(HTTP ${resp.status})`);
+      }
+      const data = (await safeJson(resp)) as { archetypes?: ArchetypeSummary[] } | null;
+      return Array.isArray(data?.archetypes) ? data.archetypes : [];
+    },
+
     async initGame(archetype: Archetype): Promise<InitResult> {
       let resp: Response;
       try {

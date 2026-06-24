@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type {
+  ArchetypeSummary,
   EndingPayload,
   GameApi,
   InitResult,
@@ -81,10 +82,20 @@ const INIT_RESULT: InitResult = {
   ],
 };
 
+const ARCHETYPE_LIST: ArchetypeSummary[] = [
+  { archetype: 'rules_creepy', displayName: '规则怪谈', tagline: '一纸诡异守则', vibeTag: '诡异 · 高危', active: true },
+  { archetype: 'apocalypse', displayName: '末日生存', tagline: '废土求生', vibeTag: '荒凉 · 绝境', active: true },
+  { archetype: 'cultivation', displayName: '修仙', tagline: null, vibeTag: null, active: false },
+];
+
 /** 建一个 mock GameApi;initBehavior 控制成功/失败;openTurnStream 返回可控流。 */
-function makeApi(initBehavior: 'ok' | 'fail' = 'ok') {
+function makeApi(initBehavior: 'ok' | 'fail' = 'ok', listBehavior: 'ok' | 'fail' = 'ok') {
   let lastStream: FakeTurnStream | null = null;
   const api: GameApi = {
+    async listArchetypes() {
+      if (listBehavior === 'fail') throw new GameApiError('archetypes_failed', '世界列表加载失败');
+      return ARCHETYPE_LIST;
+    },
     async initGame() {
       if (initBehavior === 'fail') throw new GameApiError('world_gen_failed', '世界生成失败');
       return INIT_RESULT;
@@ -212,6 +223,46 @@ describe('chooseAction', () => {
     store.getState().chooseAction('Z'); // 不在 availableActions
     expect(store.getState().status).toBe('awaiting');
     expect(store.getState().notice).toContain('已失效');
+  });
+});
+
+describe('loadArchetypes', () => {
+  it('成功 → 目录就位(可选在前 + 占位在后)', async () => {
+    const { api } = makeApi('ok');
+    const store = createGameStore(api);
+    await store.getState().loadArchetypes();
+    const s = store.getState();
+    expect(s.archetypes.map((a) => a.archetype)).toEqual(['rules_creepy', 'apocalypse', 'cultivation']);
+    expect(s.archetypes.filter((a) => a.active)).toHaveLength(2);
+    expect(s.archetypesError).toBeNull();
+  });
+
+  it('失败 → archetypesError,可重试', async () => {
+    const { api } = makeApi('ok', 'fail');
+    const store = createGameStore(api);
+    await store.getState().loadArchetypes();
+    expect(store.getState().archetypesError).toContain('世界列表');
+    expect(store.getState().archetypes).toHaveLength(0);
+  });
+
+  it('reset 后保留已拉取的目录(回选择屏不重拉)', async () => {
+    const { api } = makeApi('ok');
+    const store = createGameStore(api);
+    await store.getState().loadArchetypes();
+    await store.getState().startGame('apocalypse');
+    store.getState().reset();
+    expect(store.getState().status).toBe('idle');
+    expect(store.getState().archetypes).toHaveLength(3); // 目录未被清
+  });
+});
+
+describe('startGame', () => {
+  it('记录 lastArchetype(供 initError 重试同一模式)', async () => {
+    const { api } = makeApi('fail');
+    const store = createGameStore(api);
+    await store.getState().startGame('apocalypse');
+    expect(store.getState().status).toBe('initError');
+    expect(store.getState().lastArchetype).toBe('apocalypse');
   });
 });
 

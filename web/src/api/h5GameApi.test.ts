@@ -77,6 +77,33 @@ describe('initGame', () => {
   });
 });
 
+describe('listArchetypes', () => {
+  it('解析 {archetypes:[...]} → 数组', async () => {
+    const payload = {
+      archetypes: [
+        { archetype: 'rules_creepy', displayName: '规则怪谈', tagline: 'x', vibeTag: '诡异', active: true },
+        { archetype: 'cultivation', displayName: '修仙', tagline: null, vibeTag: null, active: false },
+      ],
+    };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(200, payload)));
+
+    const list = await api.listArchetypes();
+    expect(list).toHaveLength(2);
+    expect(list[0]).toMatchObject({ archetype: 'rules_creepy', active: true });
+    expect(list[1].active).toBe(false);
+  });
+
+  it('异常响应体 → 空数组兜底', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(200, { nope: 1 })));
+    expect(await api.listArchetypes()).toEqual([]);
+  });
+
+  it('非 2xx → GameApiError', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 500 } as Response));
+    await expect(api.listArchetypes()).rejects.toBeInstanceOf(GameApiError);
+  });
+});
+
 describe('openTurnStream', () => {
   it('按序分发 narrative(多次)→ delta → ending,且跨 chunk 切分正确', async () => {
     const wire =

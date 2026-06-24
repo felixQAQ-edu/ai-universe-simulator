@@ -7,6 +7,7 @@
 
 import { create } from 'zustand';
 import type {
+  ArchetypeSummary,
   AttributeAxisMeta,
   ClientWorld,
   DiscoveredRule,
@@ -36,6 +37,13 @@ export type GameStatus =
 
 export interface GameState {
   status: GameStatus;
+  /** 选择屏目录(可选世界 + 未开放占位);来自 GET /api/archetypes。 */
+  archetypes: ArchetypeSummary[];
+  archetypesLoading: boolean;
+  /** 选择屏目录加载失败提示(可重试)。 */
+  archetypesError: string | null;
+  /** 最近一次选中的 archetype(initError「重新生成」据此重试同一模式)。 */
+  lastArchetype: Archetype | null;
   saveId: string | null;
   world: ClientWorld | null;
   /** 当前散文区文本:开场为整段(前端 reveal 动画演绎),回合为逐字累加的实时流。 */
@@ -56,14 +64,17 @@ export interface GameState {
   /** 可恢复的回合级提示(非法动作 / 忙态),展示后玩家可重选,状态留在 awaiting。 */
   notice: string | null;
 
+  /** 拉取选择屏目录(选择屏 mount 时调用)。失败置 archetypesError,可重试。 */
+  loadArchetypes: () => Promise<void>;
   startGame: (archetype: Archetype) => Promise<void>;
   chooseAction: (actionId: string) => void;
-  /** 离开/重开时清理在途回合流。 */
+  /** 离开/重开时清理在途回合流,回到选择屏(保留已拉取的目录)。 */
   reset: () => void;
 }
 
 const INITIAL = {
   status: 'idle' as GameStatus,
+  lastArchetype: null as Archetype | null,
   saveId: null,
   world: null,
   narrative: '',
@@ -93,12 +104,27 @@ export function createGameStore(api: GameApi) {
 
     return {
       ...INITIAL,
+      // 目录状态在 INITIAL 之外维护 —— reset/startGame 不应清掉已拉取的可选世界列表。
+      archetypes: [] as ArchetypeSummary[],
+      archetypesLoading: false,
+      archetypesError: null,
+
+      async loadArchetypes() {
+        if (get().archetypesLoading || get().archetypes.length > 0) return;
+        set({ archetypesLoading: true, archetypesError: null });
+        try {
+          const list = await api.listArchetypes();
+          set({ archetypes: list, archetypesLoading: false });
+        } catch {
+          set({ archetypesLoading: false, archetypesError: '世界列表加载失败,请重试' });
+        }
+      },
 
       async startGame(archetype) {
         if (get().status === 'initializing') return;
         activeStream?.close();
         activeStream = null;
-        set({ ...INITIAL, status: 'initializing' });
+        set({ ...INITIAL, status: 'initializing', lastArchetype: archetype });
         try {
           const res = await api.initGame(archetype);
           const attrs = res.world.character?.attributes ?? {};

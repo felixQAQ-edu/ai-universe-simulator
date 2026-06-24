@@ -27,6 +27,29 @@ class ArchetypeRegistryTest {
 		assertThat(hunger.decay()).as("hunger 带衰减提示(喂提示词)").isNotNull().contains("衰减");
 		assertThat(m.worldview()).isNotBlank();
 		assertThat(m.ruleForm()).isNotBlank();
+		// 选择屏展示字段(ADR-008 决策 4):钩子 + 氛围标签,玩家可见、非空。
+		assertThat(m.tagline()).as("末日一句话钩子").isNotBlank();
+		assertThat(m.vibeTag()).as("末日氛围标签").isNotBlank();
+	}
+
+	@Test
+	void listForSelectionPutsActiveFirstThenInactivePlaceholders() {
+		List<ArchetypeSummary> list = registry.listForSelection();
+		// 全部 5 个已知枚举各一条。
+		assertThat(list.stream().map(ArchetypeSummary::archetype))
+				.containsExactly("rules_creepy", "apocalypse", "life_sim", "cultivation", "cyberpunk");
+		// 已激活两条在前、可选、钩子/标签齐。
+		for (ArchetypeSummary s : list.subList(0, 2)) {
+			assertThat(s.active()).as("已激活可选:%s", s.archetype()).isTrue();
+			assertThat(s.displayName()).isNotBlank();
+			assertThat(s.tagline()).as("可选卡片有钩子:%s", s.archetype()).isNotBlank();
+			assertThat(s.vibeTag()).as("可选卡片有标签:%s", s.archetype()).isNotBlank();
+		}
+		// 占位三条在后、不可选、仍有中文名(渲染「敬请期待」)。
+		for (ArchetypeSummary s : list.subList(2, 5)) {
+			assertThat(s.active()).as("未开放占位:%s", s.archetype()).isFalse();
+			assertThat(s.displayName()).isNotBlank();
+		}
 	}
 
 	@Test
