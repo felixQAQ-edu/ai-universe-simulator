@@ -50,9 +50,10 @@ public final class GameSchemas {
 
 		if (v.requireObject(w.get("character"), "character")) {
 			JsonNode attrs = w.get("character").get("attributes");
+			// ADR-008 决策 1:attributes 是开放字典——每个已给数值轴硬校验范围 0–100,但 key 集合不硬校验
+			//（不 require hp/san;末日 {hp,hunger} 同走此路)。模型该给哪些轴由 per-archetype 元数据 + 提示词约束。
 			if (v.requireObject(attrs, "character/attributes")) {
-				v.requireNumberRange(attrs, "hp", "character/attributes/hp", 0, 100);
-				v.requireNumberRange(attrs, "san", "character/attributes/san", 0, 100);
+				v.requireEachNumberInRange(attrs, "character/attributes", 0, 100);
 			}
 		}
 
@@ -92,9 +93,9 @@ public final class GameSchemas {
 
 		if (v.requireObject(t.get("stateUpdate"), "stateUpdate")) {
 			JsonNode upd = t.get("stateUpdate");
-			v.requireNumberRange(upd, "hp", "stateUpdate/hp", 0, 100);
-			v.requireNumberRange(upd, "san", "stateUpdate/san", 0, 100);
 			v.optionalString(upd, "timeline", "stateUpdate/timeline");
+			// ADR-008 决策 1:每个已给数值轴硬校验 0–100,key 集合不硬校验({hp,san} / {hp,hunger} 同路);timeline 非数值轴,跳过。
+			v.requireEachNumberInRange(upd, "stateUpdate", 0, 100, "timeline");
 		}
 
 		v.optionalIntegerArray(t, "triggeredRuleIds");
@@ -250,16 +251,30 @@ public final class GameSchemas {
 			}
 		}
 
-		void requireNumberRange(JsonNode parent, String field, String path, double min, double max) {
-			JsonNode n = parent == null ? null : parent.get(field);
-			if (n == null || !n.isNumber()) {
-				add(path, "缺失或非数字");
-				return;
-			}
-			double val = n.asDouble();
-			if (val < min || val > max) {
-				add(path, "超出范围 [" + (int) min + "," + (int) max + "]");
-			}
+		/**
+		 * 遍历 {@code attrs} 的每个属性,对<b>数值轴</b>(值为数字的键)硬校验 ∈ [min,max]
+		 * (path = {@code basePath/<key>});{@code skip} 列出的 key 与<b>非数值值</b>一律忽略
+		 * (不当数值轴、不报错)。ADR-008 决策 1:key 集合不硬校验,只校验已给轴范围(对 key 语义无知)。
+		 *
+		 * <p>忽略非数值值是<b>有意的 parity 行为</b>:真实模型产出常把 {@code traits}/{@code inventory}
+		 * (数组)塞进 {@code character.attributes},Python {@code schema.py} 仅按名校验 hp/san、容忍其余 →
+		 * 此处「只 range-check 数值键」与之同口径(world-gen golden accept-parity 8 条依赖它)。
+		 */
+		void requireEachNumberInRange(JsonNode attrs, String basePath, double min, double max, String... skip) {
+			Set<String> skipSet = Set.of(skip);
+			attrs.properties().forEach(e -> {
+				if (skipSet.contains(e.getKey())) {
+					return;
+				}
+				JsonNode val = e.getValue();
+				if (val == null || !val.isNumber()) {
+					return; // 非数值键(traits/inventory 数组、timeline 等)不当数值轴,容忍(parity)
+				}
+				double d = val.asDouble();
+				if (d < min || d > max) {
+					add(basePath + "/" + e.getKey(), "超出范围 [" + (int) min + "," + (int) max + "]");
+				}
+			});
 		}
 
 		void requireEnum(JsonNode parent, String field, Set<String> allowed) {

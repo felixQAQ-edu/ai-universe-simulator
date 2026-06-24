@@ -1,6 +1,7 @@
 package com.aiuniverse.server.eventloop;
 
 import java.util.List;
+import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -163,8 +164,11 @@ public class EventLoopService implements TurnExecutor {
 		ObjectNode delta = mapper.createObjectNode();
 		delta.put("turn", engine.turn());
 		delta.put("status", engine.status());
-		putNumber(delta, "hp", engine.hp());
-		putNumber(delta, "san", engine.san());
+		// 数值轴按声明顺序逐个作 top-level 字段下发(对 key 无知):规则怪谈 hp/san、末日 hp/hunger。
+		// 前端按返回的 attributes key + 元数据中文名渲染(ADR-008 决策 1 前端消费方)。
+		for (Map.Entry<String, Double> e : engine.attributes().entrySet()) {
+			putNumber(delta, e.getKey(), e.getValue());
+		}
 		// discovered 规则:只带 id + content(消毒后无隐藏字段)。
 		ArrayNode discovered = delta.putArray("discoveredRules");
 		for (JsonNode r : client.path("rules")) {

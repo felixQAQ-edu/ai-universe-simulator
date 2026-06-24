@@ -1,7 +1,9 @@
 package com.aiuniverse.server.engine;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.TreeSet;
 
 import tools.jackson.databind.JsonNode;
@@ -18,9 +20,14 @@ import tools.jackson.databind.node.ObjectNode;
  * 回灌走 {@code ObjectNode} 层(不卡类型化 DTO):{@code world} 是可变 {@link ObjectNode},
  * {@code rules[].discovered} / {@code endings[].reached} 原地标注。
  *
- * <p><b>数值=绝对值</b>:{@code stateUpdate.hp/.san} 是新绝对值(缺省=当前)。三道闸门(规格 §5):
+ * <p><b>数值=绝对值</b>:{@code stateUpdate} 给各数值轴的新绝对值(缺省=当前)。三道闸门(规格 §5):
  * schema 硬范围 0–100(在 {@link GameSchemas#validateTurn} 拦,apply 前)、单回合跳变 &gt;
  * {@link #JUMP_THRESHOLD} 记 issues「需复核」<b>不拒绝</b>(F-003 允许有据恢复)、{@code clamp(0,100)} 兜底。
+ *
+ * <p><b>对数值 key 语义无知(ADR-008 决策 1)</b>:数值轴存于有序 {@link #attributes} map(声明顺序),
+ * 结算遍历该 map——通吃规则怪谈 {@code {hp,san}} 如通吃末日 {@code {hp,hunger}}:加模式只换 attributes 的
+ * key 集合,引擎结算序列/clamp/跳变/兜底逻辑<b>一行不动</b>。引擎不认识任何 key 的语义(包括「饥饿会衰减」——
+ * 衰减由 AI 在 {@code stateUpdate} 落新绝对值,引擎只通用落账)。本泛化由 golden parity 守 {@code {hp,san}} 零回归。
  *
  * <p>本类不涉流式/SSE/动作合法性/忙态守卫(下一批 {@code EventLoopService});它是纯数据面内核,
  * 输入已解析并回灌叙事的 {@code parsed} + 玩家动作 id。
@@ -37,8 +44,8 @@ public class Engine {
 
 	private int turn = 0;
 	private String status = "ongoing";
-	private double hp;
-	private double san;
+	/** 数值轴(key→绝对值),按 world 声明顺序保序(LinkedHashMap);引擎对 key 语义无知。 */
+	private final LinkedHashMap<String, Double> attributes = new LinkedHashMap<>();
 	private String timeline = "";
 	private final List<ObjectNode> log = new ArrayList<>();
 	private String logSummary = "";
@@ -48,9 +55,15 @@ public class Engine {
 	public Engine(ObjectNode world, ObjectMapper mapper) {
 		this.mapper = mapper;
 		this.world = world;
+		// 载入声明的数值轴(保序;只取数值键)。引擎不关心 key 是什么、有什么语义。
 		JsonNode attrs = world.path("character").path("attributes");
-		this.hp = attrs.has("hp") ? attrs.get("hp").asDouble() : 100;
-		this.san = attrs.has("san") ? attrs.get("san").asDouble() : 100;
+		if (attrs.isObject()) {
+			attrs.properties().forEach(e -> {
+				if (e.getValue().isNumber()) {
+					attributes.put(e.getKey(), e.getValue().asDouble());
+				}
+			});
+		}
 	}
 
 	/**
@@ -64,20 +77,18 @@ public class Engine {
 	public List<String> apply(JsonNode parsed, String playerActionId) {
 		// 1. 回合自增
 		turn += 1;
-		// 2. 读绝对新值(缺省=当前)
+		// 2-4. 遍历声明的数值轴:读绝对新值(缺省=当前)→ 跳变核对(不拒绝,F-003)→ clamp 落账。
+		//      对 key 语义无知:hp/san 与 hp/hunger 走同一通用结算(ADR-008 决策 1)。
 		JsonNode upd = parsed.path("stateUpdate");
-		double newHp = upd.has("hp") ? upd.get("hp").asDouble() : hp;
-		double newSan = upd.has("san") ? upd.get("san").asDouble() : san;
-		// 3. 一致性核对:跳变过大记 issues(不拒绝,允许有据恢复 F-003)
-		if (Math.abs(newHp - hp) > JUMP_THRESHOLD) {
-			issues.add("T" + turn + " hp 跳变过大 " + fmt(hp) + "->" + fmt(newHp) + "(需复核)");
+		for (Map.Entry<String, Double> e : attributes.entrySet()) {
+			String key = e.getKey();
+			double old = e.getValue();
+			double nv = upd.has(key) ? upd.get(key).asDouble() : old;
+			if (Math.abs(nv - old) > JUMP_THRESHOLD) {
+				issues.add("T" + turn + " " + key + " 跳变过大 " + fmt(old) + "->" + fmt(nv) + "(需复核)");
+			}
+			e.setValue(clamp(nv));
 		}
-		if (Math.abs(newSan - san) > JUMP_THRESHOLD) {
-			issues.add("T" + turn + " san 跳变过大 " + fmt(san) + "->" + fmt(newSan) + "(需复核)");
-		}
-		// 4. clamp 兜底落账
-		hp = clamp(newHp);
-		san = clamp(newSan);
 		// 5. timeline(缺省保留)
 		if (upd.has("timeline")) {
 			timeline = upd.get("timeline").asString("");
@@ -115,8 +126,9 @@ public class Engine {
 				aiAccepted = true;
 			}
 		}
-		// 10. 兜底:数值触底强制 ended;§5 补丁——AI 未给(或未被接受)结局则引擎兜一个坏结局 id
-		if (hp <= 0 || san <= 0) {
+		// 10. 兜底:任一数值轴触底(≤0)强制 ended;§5 补丁——AI 未给(或未被接受)结局则引擎兜一个坏结局 id。
+		//     对 key 语义无知:任意轴归零即触底({hp,san} 的 hp≤0||san≤0 是其特例),通吃 {hp,hunger}。
+		if (anyAttributeBottomedOut()) {
 			status = "ended";
 			if (!aiAccepted && !anyEndingReached()) {
 				forceBottomOutEnding();
@@ -168,9 +180,10 @@ public class Engine {
 				? (ObjectNode) payload.get("character")
 				: payload.putObject("character");
 		ObjectNode attrs = mapper.createObjectNode();
-		putNumber(attrs, "hp", hp);
-		putNumber(attrs, "san", san);
-		character.set("attributes", attrs); // 复刻 Python:attributes 整体替换为 {hp,san}
+		for (Map.Entry<String, Double> e : attributes.entrySet()) {
+			putNumber(attrs, e.getKey(), e.getValue());
+		}
+		character.set("attributes", attrs); // attributes 整体替换为引擎落账后的各轴绝对值(保序;对 key 无知)
 
 		ObjectNode state = mapper.createObjectNode();
 		state.put("turn", turn);
@@ -259,18 +272,30 @@ public class Engine {
 		return false;
 	}
 
+	/** 任一声明数值轴 ≤ 0(对 key 语义无知;{hp,san} 即 hp≤0||san≤0,通吃 {hp,hunger})。 */
+	private boolean anyAttributeBottomedOut() {
+		for (double v : attributes.values()) {
+			if (v <= 0) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	/**
 	 * §5 补丁(🆕,bake-off 无):数值触底但 AI 未给结局 → 引擎兜一个坏结局 id。
-	 * 优先在 {@code endings[]} 找 condition 提及触底数值(san/hp)的那条(如 {@code lost_mind});
-	 * 找不到则用约定 fallback = {@code endings[]} 首条(确定性,前端总有结局可显)。
+	 * 遍历声明数值轴(保序),对触底(≤0)的轴优先找 condition 提及该轴 key 的那条结局(如 san→{@code lost_mind});
+	 * 找不到则用约定 fallback = {@code endings[]} 首条(确定性,前端总有结局可显)。对 key 语义无知,通吃任意轴。
 	 */
 	private void forceBottomOutEnding() {
 		String pick = null;
-		if (san <= 0) {
-			pick = findEndingByConditionMentioning("san");
-		}
-		if (pick == null && hp <= 0) {
-			pick = findEndingByConditionMentioning("hp");
+		for (Map.Entry<String, Double> e : attributes.entrySet()) {
+			if (e.getValue() <= 0) {
+				pick = findEndingByConditionMentioning(e.getKey());
+				if (pick != null) {
+					break;
+				}
+			}
 		}
 		if (pick == null) {
 			pick = firstEndingId();
@@ -326,12 +351,23 @@ public class Engine {
 		return status;
 	}
 
+	/** 某数值轴当前绝对值(不存在返回 0);key-agnostic 出网/上层读取走它。 */
+	public double attribute(String key) {
+		return attributes.getOrDefault(key, 0.0);
+	}
+
+	/** 所有数值轴(保序拷贝,key→绝对值);buildDelta / 前端面板按它遍历(对 key 无知)。 */
+	public Map<String, Double> attributes() {
+		return new LinkedHashMap<>(attributes);
+	}
+
+	/** 便捷访问器(规则怪谈轴;= {@code attribute("hp")}/{@code attribute("san")}),供既有测试/上层。 */
 	public double hp() {
-		return hp;
+		return attribute("hp");
 	}
 
 	public double san() {
-		return san;
+		return attribute("san");
 	}
 
 	public String timeline() {
