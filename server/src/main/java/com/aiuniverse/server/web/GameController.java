@@ -47,12 +47,18 @@ public class GameController {
 		this.initService = initService;
 	}
 
-	/** 起一局新世界(INITIALIZING,设计稿 §3):plain POST 阻塞返 JSON;world-gen ERROR → 502 + 重生成提示。 */
+	/**
+	 * 起一局新世界(INITIALIZING,设计稿 §3):plain POST 阻塞返 JSON。
+	 * archetype 非法/未开放 → 400(ADR-008 决策 4);world-gen ERROR → 502 + 重生成提示。
+	 */
 	@PostMapping("/api/game/init")
 	public ResponseEntity<?> init(@Valid @RequestBody InitRequest req) {
 		try {
 			InitResponse resp = initService.init(req.archetype());
 			return ResponseEntity.ok(resp);
+		} catch (IllegalArgumentException e) {
+			return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+					.body(Map.of("error", Map.of("code", "invalid_archetype", "message", e.getMessage())));
 		} catch (WorldGenException e) {
 			return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
 					.body(Map.of("error", Map.of("code", "world_gen_failed", "message", e.getMessage())));

@@ -54,9 +54,9 @@ class GameInitServiceTest {
 	}
 
 	private GameInitService initService(LlmClient llm, GameSessionManager sessions, ModerationGateway mod) {
-		WorldGenService worldGen = new WorldGenService(
-				llm, new WorldGenPromptBuilder(new ArchetypeRegistry()), mapper);
-		return new GameInitService(worldGen, sessions, mod, mapper);
+		ArchetypeRegistry registry = new ArchetypeRegistry();
+		WorldGenService worldGen = new WorldGenService(llm, new WorldGenPromptBuilder(registry), mapper);
+		return new GameInitService(worldGen, sessions, mod, registry, mapper);
 	}
 
 	// ── world-gen parity:复用 8 golden world raw ──────────────────────────
@@ -163,7 +163,86 @@ class GameInitServiceTest {
 		assertThat(sessions.get(resp.saveId()).engine().contextJson()).doesNotContain("openingNarrative");
 	}
 
+	// ── 多模式(ADR-008 决策 4):archetype 入参真正接受 + 校验 + 数值轴元数据下发 ──
+
+	@Test
+	void apocalypseInitSeedsHpHungerAndExposesAxisMeta() {
+		String raw = apocalypseWorld();
+		GameSessionManager sessions = new GameSessionManager(mapper);
+		InitResponse resp = initService(fixedLlm(raw), sessions, new CountingModeration()).init("apocalypse");
+
+		// 数值轴由 raw 播种:hp/hunger(非 hp/san),引擎 key-agnostic 通吃。
+		GameSession session = sessions.get(resp.saveId());
+		assertThat(session.engine().attribute("hp")).isEqualTo(90.0);
+		assertThat(session.engine().attribute("hunger")).isEqualTo(60.0);
+
+		// 响应携带本模式数值轴元数据(前端面板渲染:体力/饥饿,顺序对)。
+		List<String> keys = new ArrayList<>();
+		List<String> names = new ArrayList<>();
+		resp.attributes().forEach(a -> {
+			keys.add(a.path("key").asString());
+			names.add(a.path("displayName").asString());
+		});
+		assertThat(keys).containsExactly("hp", "hunger");
+		assertThat(names).containsExactly("体力", "饥饿");
+
+		// 消毒 + 生产形态:无隐藏字段,world 给的初始动作被采用,opening 提取。
+		assertThat(mapper.writeValueAsString(resp)).doesNotContain("hiddenLogic").doesNotContain("isTrue");
+		assertThat(resp.availableActions()).hasSize(2);
+		assertThat(resp.openingNarrative()).isEqualTo("风雪拍打着避难所的铁门。");
+	}
+
+	@Test
+	void rulesCreepyInitExposesHpSanAxisMeta() {
+		InitResponse resp = initService(fixedLlm(productionWorld()), new GameSessionManager(mapper),
+				new CountingModeration()).init("rules_creepy");
+		List<String> names = new ArrayList<>();
+		resp.attributes().forEach(a -> names.add(a.path("displayName").asString()));
+		assertThat(names).containsExactly("体力", "理智");
+	}
+
+	@Test
+	void unknownArchetypeRejectedBeforeWorldGen() {
+		GameSessionManager sessions = new GameSessionManager(mapper);
+		// 校验早于 world-gen → LLM 不被调用(传抛异常的 llm 证之)。
+		LlmClient neverCalled = (req, sink) -> {
+			throw new AssertionError("world-gen 不应被调用");
+		};
+		assertThatThrownBy(() -> initService(neverCalled, sessions, new CountingModeration()).init("not_a_mode"))
+				.isInstanceOf(IllegalArgumentException.class)
+				.hasMessageContaining("非法");
+		assertThat(sessions.activeCount()).isZero();
+	}
+
+	@Test
+	void inactiveButKnownArchetypeRejectedAsNotOpen() {
+		GameSessionManager sessions = new GameSessionManager(mapper);
+		LlmClient neverCalled = (req, sink) -> {
+			throw new AssertionError("未开放模式不应触发 world-gen");
+		};
+		// life_sim ∈ 枚举但本批未激活 → 未开放(仍 400)。
+		assertThatThrownBy(() -> initService(neverCalled, sessions, new CountingModeration()).init("life_sim"))
+				.isInstanceOf(IllegalArgumentException.class)
+				.hasMessageContaining("未开放");
+		assertThat(sessions.activeCount()).isZero();
+	}
+
 	// ── 夹具 / 构造 ──────────────────────────────────────────────────────
+
+	/** 末日生存生产形态 world(attributes={hp,hunger},含 hunger 触底结局 + 初始动作 + openingNarrative)。 */
+	private String apocalypseWorld() {
+		return """
+				{"schemaVersion":"0.2","mode":"single","archetypes":["apocalypse"],
+				 "world":{"title":"末日避难所","background":"核冬天第 30 天,补给将尽。","dangerLevel":"extreme","tone":"荒凉"},
+				 "character":{"attributes":{"hp":90,"hunger":60},"traits":["机警"],"inventory":["罐头"]},
+				 "rules":[{"id":1,"content":"夜间不要点火","isTrue":true,"hiddenLogic":"点火引来感染体 hp-20","discovered":false}],
+				 "endings":[{"id":"rescued","title":"获救","description":"救援抵达。","condition":"撑到第 40 天","reached":false},
+				            {"id":"starved","title":"饿毙","description":"你饿死了。","condition":"hunger 归零","reached":false}],
+				 "availableActions":[{"id":"A","text":"清点物资","hint":""},{"id":"B","text":"加固门窗","hint":""}],
+				 "openingNarrative":"风雪拍打着避难所的铁门。"}
+				""";
+	}
+
 	private JsonNode parityCases() {
 		try (InputStream in = getClass().getResourceAsStream("/golden/validator-parity.json")) {
 			assertThat(in).as("validator-parity 夹具应存在").isNotNull();

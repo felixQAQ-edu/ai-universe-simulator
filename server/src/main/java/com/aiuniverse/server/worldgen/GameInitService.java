@@ -4,6 +4,8 @@ import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 
+import com.aiuniverse.server.archetype.ArchetypeRegistry;
+import com.aiuniverse.server.archetype.AttributeAxis;
 import com.aiuniverse.server.eventloop.GameSession;
 import com.aiuniverse.server.eventloop.GameSessionManager;
 import com.aiuniverse.server.moderation.ModerationGateway;
@@ -31,24 +33,28 @@ public class GameInitService {
 	private final WorldGenService worldGen;
 	private final GameSessionManager sessions;
 	private final ModerationGateway moderation;
+	private final ArchetypeRegistry archetypes;
 	private final ObjectMapper mapper;
 
 	public GameInitService(WorldGenService worldGen, GameSessionManager sessions,
-			ModerationGateway moderation, ObjectMapper mapper) {
+			ModerationGateway moderation, ArchetypeRegistry archetypes, ObjectMapper mapper) {
 		this.worldGen = worldGen;
 		this.sessions = sessions;
 		this.moderation = moderation;
+		this.archetypes = archetypes;
 		this.mapper = mapper;
 	}
 
 	/**
 	 * 起一局新世界。
 	 *
-	 * @param archetype Phase 1 固定 {@code rules_creepy}
-	 * @return 消毒后的 init 响应(saveId + 消毒 world + openingNarrative + 初始动作)
-	 * @throws WorldGenException world-gen 救不回 → 整局 ERROR(无会话残留)
+	 * @param archetype 模式 id(∈ CONTEXT §三.4 枚举且已激活;非法/未开放 → {@link IllegalArgumentException} → 400)
+	 * @return 消毒后的 init 响应(saveId + 消毒 world + openingNarrative + 初始动作 + 数值轴元数据)
+	 * @throws IllegalArgumentException archetype 非已知枚举(非法)或已知但未激活(未开放)→ controller 映 400
+	 * @throws WorldGenException        world-gen 救不回 → 整局 ERROR(无会话残留)
 	 */
 	public InitResponse init(String archetype) {
+		validateArchetype(archetype); // 非法/未开放 → IllegalArgumentException(早于 world-gen,不浪费一次生成)
 		ObjectNode world = worldGen.generate(archetype); // 失败抛 WorldGenException → ERROR
 
 		// 1. 提取 transient openingNarrative(过审核接缝),再从 world 根剥除(不入持久化 state)。
@@ -68,9 +74,28 @@ public class GameInitService {
 		String saveId = UUID.randomUUID().toString();
 		GameSession session = sessions.create(saveId, world, actions);
 
-		// 5. 消毒投影 + 初始动作 + openingNarrative 一次性下发。
+		// 5. 消毒投影 + 初始动作 + openingNarrative + 本模式数值轴元数据(前端面板渲染)一次性下发。
 		ObjectNode clientWorld = session.engine().toClientState();
-		return new InitResponse(saveId, clientWorld, opening, actions);
+		return new InitResponse(saveId, clientWorld, opening, actions, attributeMeta(archetype));
+	}
+
+	/** archetype 入参校验(ADR-008 决策 4):非已知枚举 → 非法;已知但未激活 → 未开放。两者均 → 400。 */
+	private void validateArchetype(String archetype) {
+		if (!archetypes.isKnown(archetype)) {
+			throw new IllegalArgumentException("非法的 archetype:" + archetype);
+		}
+		if (!archetypes.isActive(archetype)) {
+			throw new IllegalArgumentException("该模式尚未开放:" + archetype);
+		}
+	}
+
+	/** 本模式数值轴元数据 {@code [{key,displayName}]}(顺序即面板顺序;decay/range 不下发前端)。 */
+	private ArrayNode attributeMeta(String archetype) {
+		ArrayNode axes = mapper.createArrayNode();
+		for (AttributeAxis a : archetypes.meta(archetype).attributes()) {
+			axes.addObject().put("key", a.key()).put("displayName", a.displayName());
+		}
+		return axes;
 	}
 
 	/** world 给了 2-4 个带 id/text 的动作则采用(深拷),否则用确定性 FALLBACK(沿用 bake-off run_scenario_B)。 */
