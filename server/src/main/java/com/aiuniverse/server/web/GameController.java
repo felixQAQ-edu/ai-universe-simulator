@@ -89,7 +89,7 @@ public class GameController {
 		turnExecutor.shutdown();
 	}
 
-	/** 起局请求(设计稿 §3)。Phase 1 固定单模式 {@code rules_creepy}。 */
+	/** 起局请求(设计稿 §3)。{@code archetype} ∈ §三.4 枚举,init 校验已激活(ADR-008 决策 4)。 */
 	public record InitRequest(@NotBlank String archetype) {
 	}
 
