@@ -199,3 +199,19 @@
 - **复现条件(若将来要真 key 验)**:需一局触底且 AI tail `ending:null`——只能靠运气撞,或等接入更弱/更易失灵的 provider 时顺带观测。
 - **关联**:`server/.../engine/Engine.java`(apply 第 10 步 `forceBottomOutEnding`)、`EngineEndingTest`、规格 §5、
   F-008(同涉 §4.4 ending gate)、真实录制 `bakeoff/recordings/world-gen-smoke/`(game-init3/4-danger.sse)。
+
+## F-011 · 末日真实 raw + SSE 转录接进测试夹具(替换合成数据,backlog 独立小活)
+
+- **日期**:2026-06-24 | **provider**:DeepSeek V4-Flash | **步骤**:Phase 2 第一批·末日生存真 key 冒烟
+- **背景**:Phase 2 第一批的末日测试用的是**合成/构造数据**——`GameInitServiceTest.apocalypseWorld()`(手写末日 raw)、
+  `EngineKeyAgnosticTest`(手搓 `{hp,hunger}` turn)、`StatsPanel.test.tsx`(合成 axes)。规则怪谈侧有 golden /
+  validator-parity 真实录制兜底,末日侧暂无对应的**真实产出夹具**。
+- **现象**:真 key 冒烟跑出了末日真实产出(world-gen raw + 多回合 SSE 转录,Felix 本地 `/tmp/apoc-init-*.json` 等),
+  其中含 AI 落 hunger 衰减(40→0/每回合 -5)、触底 `starved_to_death` 端到端 —— 这些是末日侧**首批真实形态样本**。
+- **取向(backlog,非本批)**:把这几发末日真实 raw + SSE 转录沉淀成测试夹具,替换/补强末日侧的合成数据
+  (仿规则怪谈 golden parity / validator-parity 的做法,给末日也建一份真实-产出 parity),提升末日侧回归护城河的真实性。
+  **独立小活**,与「选择 UI 小批 / 第二个模式 / 衰减率微调」并列待排;不在 Phase 2 第一批范围。
+- **注意**:`bakeoff/recordings/` 是既有真实录制区(规则怪谈),沉淀末日夹具时按既有约定组织;Felix 的 `/tmp` 样本
+  是临时产物,需有意识地挑选/清洗后入库,不直接照搬。
+- **关联**:`server/.../worldgen/GameInitServiceTest.java`(`apocalypseWorld`)、`EngineKeyAgnosticTest`、
+  `web/.../StatsPanel.test.tsx`、规则怪谈对照 `bakeoff/replay_golden.py` / `gen_validator_parity.py`、ADR-008 决策 5。
