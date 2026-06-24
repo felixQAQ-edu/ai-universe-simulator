@@ -12,6 +12,7 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestFactory;
 
+import com.aiuniverse.server.archetype.ArchetypeRegistry;
 import com.aiuniverse.server.eventloop.GameSession;
 import com.aiuniverse.server.eventloop.GameSessionManager;
 import com.aiuniverse.server.eventloop.TurnPhase;
@@ -53,7 +54,8 @@ class GameInitServiceTest {
 	}
 
 	private GameInitService initService(LlmClient llm, GameSessionManager sessions, ModerationGateway mod) {
-		WorldGenService worldGen = new WorldGenService(llm, new WorldGenPromptBuilder(), mapper);
+		WorldGenService worldGen = new WorldGenService(
+				llm, new WorldGenPromptBuilder(new ArchetypeRegistry()), mapper);
 		return new GameInitService(worldGen, sessions, mod, mapper);
 	}
 

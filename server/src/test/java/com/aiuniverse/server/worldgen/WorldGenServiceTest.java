@@ -10,6 +10,7 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
+import com.aiuniverse.server.archetype.ArchetypeRegistry;
 import com.aiuniverse.server.llm.ChatRequest;
 import com.aiuniverse.server.llm.LlmClient;
 import com.aiuniverse.server.llm.LlmException;
@@ -25,7 +26,7 @@ import tools.jackson.databind.node.ObjectNode;
 class WorldGenServiceTest {
 
 	private final ObjectMapper mapper = new ObjectMapper();
-	private final WorldGenPromptBuilder prompts = new WorldGenPromptBuilder();
+	private final WorldGenPromptBuilder prompts = new WorldGenPromptBuilder(new ArchetypeRegistry());
 
 	/** 每次 streamChat 弹出下一段整串喂 sink,并记录请求(断言次数 / json_object)。 */
 	private static final class ScriptedLlm implements LlmClient {

@@ -9,6 +9,7 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
+import com.aiuniverse.server.archetype.ArchetypeRegistry;
 import com.aiuniverse.server.engine.Engine;
 import com.aiuniverse.server.llm.ChatRequest;
 import com.aiuniverse.server.llm.LlmClient;
@@ -26,7 +27,7 @@ import tools.jackson.databind.node.ObjectNode;
 class EventLoopServiceTest {
 
 	private final ObjectMapper mapper = new ObjectMapper();
-	private final TurnPromptBuilder prompts = new TurnPromptBuilder();
+	private final TurnPromptBuilder prompts = new TurnPromptBuilder(new ArchetypeRegistry());
 
 	// ── 脚本化 LLM:每次 streamChat 弹出下一段 token 序列喂 sink,并记录请求(断言次数/json_object/含错误)──
 	private static final class ScriptedLlm implements LlmClient {

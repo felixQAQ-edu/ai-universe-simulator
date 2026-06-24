@@ -64,8 +64,8 @@ public class WorldGenService {
 		}
 
 		// 一次修复(设计稿 §4.3):带校验错误回喂「只回修正后的完整 world JSON」,同样开 json_object。
-		log.warn("[world-gen] 首次产出未过校验({} 条),触发一次修复:{}", errors.size(), errors);
-		String repairPrompt = prompts.buildRepairPrompt(raw, errors);
+		log.warn("[world-gen] archetype={} 首次产出未过校验({} 条),触发一次修复:{}", archetype, errors.size(), errors);
+		String repairPrompt = prompts.buildRepairPrompt(archetype, raw, errors);
 		String raw2 = call(repairPrompt);
 
 		List<String> errors2 = new ArrayList<>();
