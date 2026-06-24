@@ -86,6 +86,14 @@
   background: #6b8cc4;
 }
 
+.barHunger {
+  background: #c79a4e;
+}
+
+.barDefault {
+  background: var(--muted);
+}
+
 /* 散文区 ------------------------------------------------------------- */
 .prose {
   background: var(--card);

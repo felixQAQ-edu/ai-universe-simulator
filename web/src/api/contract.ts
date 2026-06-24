@@ -39,6 +39,15 @@ export interface ClientWorld {
   endings: Ending[];
 }
 
+/**
+ * 本模式一个数值轴的展示元数据(ADR-008 决策 1 前端消费方)。后端 init 下发 [{key,displayName}],
+ * 前端据此渲染数值面板项 + 中文名(末日 体力/饥饿、规则怪谈 体力/理智);值由 attributes map 提供。
+ */
+export interface AttributeAxisMeta {
+  key: string;
+  displayName: string;
+}
+
 /** init 成功结果(ADR-007:plain POST 一次性下发,openingNarrative 是 transient 字段)。 */
 export interface InitResult {
   saveId: string;
@@ -47,6 +56,8 @@ export interface InitResult {
   openingNarrative: string;
   /** 初始决策圈(2–4 个,只能选 id)。 */
   availableActions: AvailableAction[];
+  /** 本模式数值轴元数据(顺序即面板渲染顺序);ADR-008 多模式动态面板。 */
+  attributes: AttributeAxisMeta[];
 }
 
 /** 回合 delta 里随发现规则下发的轻量条目(消毒后只有 id + content)。 */
@@ -57,13 +68,16 @@ export interface DiscoveredRule {
 
 /**
  * 回合流末一次性的消毒状态变化(ADR-006 §4.2 `delta` 事件)。
- * hp/san 是引擎落账后的绝对新值(CONTEXT §三.8),discoveredRules 是当前完整已发现集(非增量)。
+ * `attributes` 是引擎落账后各数值轴的绝对新值(CONTEXT §三.8,key→value;规则怪谈 {hp,san}、末日 {hp,hunger}),
+ * discoveredRules 是当前完整已发现集(非增量)。
+ *
+ * <p>线上 wire 里各数值轴是 top-level 字段(turn/status/discoveredRules/availableActions 之外的数值键);
+ * api 适配层(h5GameApi)负责把它们收进 {@link TurnDelta.attributes} map,逻辑层只见 provider-agnostic 形态。
  */
 export interface TurnDelta {
   turn: number;
   status: GameStatus;
-  hp: number;
-  san: number;
+  attributes: Record<string, number>;
   discoveredRules: DiscoveredRule[];
   availableActions: AvailableAction[];
 }

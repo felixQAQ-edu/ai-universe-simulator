@@ -75,6 +75,10 @@ const INIT_RESULT: InitResult = {
     { id: 'A', text: '观察', hint: '' },
     { id: 'B', text: '等待', hint: '' },
   ],
+  attributes: [
+    { key: 'hp', displayName: '体力' },
+    { key: 'san', displayName: '理智' },
+  ],
 };
 
 /** 建一个 mock GameApi;initBehavior 控制成功/失败;openTurnStream 返回可控流。 */
@@ -102,8 +106,9 @@ describe('startGame', () => {
     const s = store.getState();
     expect(s.status).toBe('awaiting');
     expect(s.saveId).toBe('s1');
-    expect(s.hp).toBe(100);
-    expect(s.san).toBe(100);
+    expect(s.attributeAxes.map((a) => a.displayName)).toEqual(['体力', '理智']);
+    expect(s.attributeValues.hp).toBe(100);
+    expect(s.attributeValues.san).toBe(100);
     expect(s.narrative).toBe('午夜两点,你被困在便利店。');
     expect(s.availableActions.map((a) => a.id)).toEqual(['A', 'B']);
     expect(s.world?.rules[0].content).toBe('不要回应敲玻璃');
@@ -139,13 +144,12 @@ describe('chooseAction', () => {
     st.fireDelta({
       turn: 1,
       status: 'ongoing',
-      hp: 80,
-      san: 65,
+      attributes: { hp: 80, san: 65 },
       discoveredRules: [{ id: 1, content: '不要回应敲玻璃' }],
       availableActions: [{ id: 'A', text: '继续', hint: '' }],
     });
-    expect(store.getState().hp).toBe(80);
-    expect(store.getState().san).toBe(65);
+    expect(store.getState().attributeValues.hp).toBe(80);
+    expect(store.getState().attributeValues.san).toBe(65);
     expect(store.getState().turn).toBe(1);
     expect(store.getState().discoveredRuleIds).toEqual([1]);
     expect(store.getState().availableActions[0].text).toBe('继续');
@@ -164,8 +168,7 @@ describe('chooseAction', () => {
     st.fireDelta({
       turn: 1,
       status: 'ended',
-      hp: 0,
-      san: 20,
+      attributes: { hp: 0, san: 20 },
       discoveredRules: [],
       availableActions: [],
     });

@@ -109,11 +109,30 @@ describe('openTurnStream', () => {
     });
 
     expect(narratives).toEqual(['你听见', '敲玻璃声']);
-    expect(delta).toMatchObject({ turn: 1, hp: 90, san: 70 });
+    // 数值轴(top-level wire 字段)被收进 attributes map(规则怪谈 hp/san)。
+    expect(delta).toMatchObject({ turn: 1, attributes: { hp: 90, san: 70 } });
     expect(delta!.discoveredRules[0]).toEqual({ id: 1, content: '不要回应' });
     expect(ending).toMatchObject({ id: 'survive_dawn', title: '撑到天亮' });
     // 时序:叙事先,delta 后,ending 最后。
     expect(order).toEqual(['n', 'n', 'd', 'e']);
+  });
+
+  it('末日 delta:top-level hp/hunger 收进 attributes(对 key 无知,不写死 hp/san)', async () => {
+    const wire =
+      'event: delta\ndata: {"turn":3,"status":"ongoing","hp":70,"hunger":40,"discoveredRules":[],"availableActions":[{"id":"A","text":"搜寻","hint":""}]}\n\n';
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(sseResponse(wire, 6)));
+
+    let delta: TurnDelta | null = null;
+    await new Promise<void>((resolve) => {
+      const stream = api.openTurnStream('s1', 2, 'A');
+      stream.onDelta((d) => (delta = d));
+      stream.onClose(() => resolve());
+    });
+
+    expect(delta!.attributes).toEqual({ hp: 70, hunger: 40 });
+    // 结构字段不混进 attributes。
+    expect(delta!.attributes).not.toHaveProperty('turn');
+    expect(delta!.turn).toBe(3);
   });
 
   it('error 事件 → onError', async () => {

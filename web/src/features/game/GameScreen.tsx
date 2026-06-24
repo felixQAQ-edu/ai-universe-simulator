@@ -72,8 +72,8 @@ function PlayingScreen() {
   const status = useGameStore((s) => s.status);
   const narrative = useGameStore((s) => s.narrative);
   const turn = useGameStore((s) => s.turn);
-  const hp = useGameStore((s) => s.hp);
-  const san = useGameStore((s) => s.san);
+  const attributeAxes = useGameStore((s) => s.attributeAxes);
+  const attributeValues = useGameStore((s) => s.attributeValues);
   const discoveredRuleIds = useGameStore((s) => s.discoveredRuleIds);
   const availableActions = useGameStore((s) => s.availableActions);
   const ending = useGameStore((s) => s.ending);
@@ -94,7 +94,7 @@ function PlayingScreen() {
         <p className={styles.tone}>{world.world.tone}</p>
       </header>
 
-      <StatsPanel hp={hp} san={san} />
+      <StatsPanel axes={attributeAxes} values={attributeValues} />
 
       <Prose text={narrative} reveal={isOpening} />
 

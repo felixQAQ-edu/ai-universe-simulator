@@ -7,6 +7,7 @@
 
 import { create } from 'zustand';
 import type {
+  AttributeAxisMeta,
   ClientWorld,
   DiscoveredRule,
   EndingPayload,
@@ -42,8 +43,10 @@ export interface GameState {
   /** 开场散文整段(transient,仅供开场 client-side reveal;不随回合改变)。 */
   openingNarrative: string;
   turn: number;
-  hp: number;
-  san: number;
+  /** 本模式数值轴元数据(key + 中文名,顺序即面板顺序);来自 init,静态不随回合变(ADR-008 多模式)。 */
+  attributeAxes: AttributeAxisMeta[];
+  /** 各数值轴当前绝对值(key→value);init 由 world.character.attributes、回合由 delta.attributes 更新。 */
+  attributeValues: Record<string, number>;
   /** 全部玩家可见规则(content),来自消毒 world;discovered 高亮据 discoveredRuleIds。 */
   discoveredRuleIds: number[];
   availableActions: AvailableAction[];
@@ -66,8 +69,8 @@ const INITIAL = {
   narrative: '',
   openingNarrative: '',
   turn: 0,
-  hp: 0,
-  san: 0,
+  attributeAxes: [] as AttributeAxisMeta[],
+  attributeValues: {} as Record<string, number>,
   discoveredRuleIds: [] as number[],
   availableActions: [] as AvailableAction[],
   ending: null,
@@ -106,8 +109,8 @@ export function createGameStore(api: GameApi) {
             openingNarrative: res.openingNarrative,
             narrative: res.openingNarrative,
             turn: res.world.state?.turn ?? 0,
-            hp: Number(attrs.hp ?? 0),
-            san: Number(attrs.san ?? 0),
+            attributeAxes: res.attributes ?? [],
+            attributeValues: { ...attrs },
             discoveredRuleIds: res.world.rules.filter((r) => r.discovered).map((r) => r.id),
             availableActions: res.availableActions,
             ending: null,
@@ -146,8 +149,7 @@ export function createGameStore(api: GameApi) {
           if (stale()) return;
           set({
             turn: delta.turn,
-            hp: delta.hp,
-            san: delta.san,
+            attributeValues: delta.attributes,
             discoveredRuleIds: discoveredIds(delta.discoveredRules),
             availableActions: delta.availableActions,
           });

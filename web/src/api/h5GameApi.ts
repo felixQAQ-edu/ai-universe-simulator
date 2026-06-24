@@ -41,7 +41,8 @@ export function createH5GameApi(baseUrl = ''): GameApi {
       if (!data || !data.saveId || !data.world) {
         throw new GameApiError('bad_response', '世界生成响应格式异常');
       }
-      return data;
+      // 数值轴元数据缺省兜底(老后端 / 异常响应不至于让面板崩)。
+      return { ...data, attributes: Array.isArray(data.attributes) ? data.attributes : [] };
     },
 
     openTurnStream(saveId: string, turn: number, actionId: string): TurnStream {
@@ -62,7 +63,7 @@ export function createH5GameApi(baseUrl = ''): GameApi {
               break;
             }
             case 'delta': {
-              const d = parseField<TurnDelta>(frame.data);
+              const d = parseDelta(frame.data);
               if (d) emit(handlers.delta, d);
               break;
             }
@@ -112,6 +113,29 @@ function parseField<T>(data: string): T | null {
   } catch {
     return null;
   }
+}
+
+/** delta 专用解析:wire 里数值轴是 top-level 字段,收进 attributes map(对 key 无知,通吃 hp/san 与 hp/hunger)。 */
+const DELTA_STRUCTURAL = new Set(['turn', 'status', 'discoveredRules', 'availableActions']);
+
+function parseDelta(data: string): TurnDelta | null {
+  const raw = parseField<Record<string, unknown>>(data);
+  if (!raw) return null;
+  const attributes: Record<string, number> = {};
+  for (const [k, v] of Object.entries(raw)) {
+    if (!DELTA_STRUCTURAL.has(k) && typeof v === 'number') attributes[k] = v;
+  }
+  return {
+    turn: Number(raw.turn ?? 0),
+    status: raw.status === 'ended' ? 'ended' : 'ongoing',
+    attributes,
+    discoveredRules: Array.isArray(raw.discoveredRules)
+      ? (raw.discoveredRules as TurnDelta['discoveredRules'])
+      : [],
+    availableActions: Array.isArray(raw.availableActions)
+      ? (raw.availableActions as TurnDelta['availableActions'])
+      : [],
+  };
 }
 
 async function safeJson(resp: Response): Promise<unknown> {
