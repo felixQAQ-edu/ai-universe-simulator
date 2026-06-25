@@ -1,5 +1,7 @@
 package com.aiuniverse.server.worldgen;
 
+import java.util.LinkedHashSet;
+import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
@@ -71,8 +73,9 @@ public class GameInitService {
 		reviewVisibleText(world);
 
 		// 4. 播种会话(INITIALIZING→PLAYING,turn FSM AWAITING_ACTION)。
+		//    传入本模式累积型轴 key 集合(ADR-009 F-012:这些轴 ≤0 不触底,如克苏鲁 knowledge / 修仙 境界)。
 		String saveId = UUID.randomUUID().toString();
-		GameSession session = sessions.create(saveId, world, actions);
+		GameSession session = sessions.create(saveId, world, actions, accumulationKeys(archetype));
 
 		// 5. 消毒投影 + 初始动作 + openingNarrative + 本模式数值轴元数据(前端面板渲染)一次性下发。
 		ObjectNode clientWorld = session.engine().toClientState();
@@ -87,6 +90,20 @@ public class GameInitService {
 		if (!archetypes.isActive(archetype)) {
 			throw new IllegalArgumentException("该模式尚未开放:" + archetype);
 		}
+	}
+
+	/**
+	 * 本模式累积型数值轴的 key 集合(ADR-009 F-012):喂引擎据此 gate 触底(accumulation 轴 ≤0 不致死)。
+	 * 据 per-archetype 元数据算(轴角色来自元数据,引擎自身不判断);全 depletion 的模式返回空集(= 现状)。
+	 */
+	private Set<String> accumulationKeys(String archetype) {
+		Set<String> keys = new LinkedHashSet<>();
+		for (AttributeAxis a : archetypes.meta(archetype).attributes()) {
+			if (a.isAccumulation()) {
+				keys.add(a.key());
+			}
+		}
+		return keys;
 	}
 
 	/** 本模式数值轴元数据 {@code [{key,displayName}]}(顺序即面板顺序;decay/range 不下发前端)。 */

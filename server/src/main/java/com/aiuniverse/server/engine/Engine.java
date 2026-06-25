@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeSet;
 
 import tools.jackson.databind.JsonNode;
@@ -41,6 +42,12 @@ public class Engine {
 
 	private final ObjectMapper mapper;
 	private final ObjectNode world;
+	/**
+	 * 累积型数值轴的 key 集合(ADR-009 决策 1,F-012 正解):这些轴 {@code ≤0} <b>不触底致死</b>
+	 * (0=安全起点)。其余轴一律视作 depletion(≤0 触底,= 现状)。<b>默认空集 = 全 depletion</b>
+	 * (golden 用 2 参构造走此路 → 触底行为字节级不变)。引擎只读这一个二分,不懂任何具体轴语义。
+	 */
+	private final Set<String> accumulationKeys;
 
 	private int turn = 0;
 	private String status = "ongoing";
@@ -52,9 +59,21 @@ public class Engine {
 	private final TreeSet<Integer> triggered = new TreeSet<>();
 	private final List<String> issues = new ArrayList<>();
 
+	/** 全 depletion 默认构造(= 现状;golden parity 走此路,触底行为字节级不变)。 */
 	public Engine(ObjectNode world, ObjectMapper mapper) {
+		this(world, mapper, Set.of());
+	}
+
+	/**
+	 * 带累积轴角色的构造(ADR-009 F-012 正解)。{@code accumulationKeys} 列出本局的累积型轴 key
+	 * (如克苏鲁 {@code knowledge}、修仙 境界),这些轴 {@code ≤0} 不触底;其余轴 = depletion(现状)。
+	 * 角色由播种层({@code GameInitService}→{@code GameSessionManager})据 per-archetype 元数据传入,
+	 * 引擎自身对「哪个轴是累积」无判断力(守 ADR-008:语义来自元数据,引擎只据集合 gate 触底)。
+	 */
+	public Engine(ObjectNode world, ObjectMapper mapper, Set<String> accumulationKeys) {
 		this.mapper = mapper;
 		this.world = world;
+		this.accumulationKeys = accumulationKeys == null ? Set.of() : Set.copyOf(accumulationKeys);
 		// 载入声明的数值轴(保序;只取数值键)。引擎不关心 key 是什么、有什么语义。
 		JsonNode attrs = world.path("character").path("attributes");
 		if (attrs.isObject()) {
@@ -272,14 +291,23 @@ public class Engine {
 		return false;
 	}
 
-	/** 任一声明数值轴 ≤ 0(对 key 语义无知;{hp,san} 即 hp≤0||san≤0,通吃 {hp,hunger})。 */
+	/**
+	 * 任一 <b>depletion 型</b>数值轴 ≤ 0(ADR-009 F-012 正解:accumulation 轴 0=安全起点,不触底)。
+	 * {hp,san}/{hp,hunger} 全 depletion → 同现状(hp≤0||san≤0 等);克苏鲁 knowledge / 修仙 境界 是
+	 * accumulation,即便 ≤0 也不致死。引擎仍对 key 语义无知——只据 {@link #accumulationKeys} 集合 gate。
+	 */
 	private boolean anyAttributeBottomedOut() {
-		for (double v : attributes.values()) {
-			if (v <= 0) {
+		for (Map.Entry<String, Double> e : attributes.entrySet()) {
+			if (isDepletion(e.getKey()) && e.getValue() <= 0) {
 				return true;
 			}
 		}
 		return false;
+	}
+
+	/** 该轴是否 depletion 型(≤0 触底致死)。不在累积集合里的一律视作 depletion(默认现状)。 */
+	private boolean isDepletion(String key) {
+		return !accumulationKeys.contains(key);
 	}
 
 	/**
@@ -290,7 +318,8 @@ public class Engine {
 	private void forceBottomOutEnding() {
 		String pick = null;
 		for (Map.Entry<String, Double> e : attributes.entrySet()) {
-			if (e.getValue() <= 0) {
+			// 只看触底的 depletion 轴(accumulation 轴 ≤0 不致死,自然也不该用它挑坏结局)。
+			if (isDepletion(e.getKey()) && e.getValue() <= 0) {
 				pick = findEndingByConditionMentioning(e.getKey());
 				if (pick != null) {
 					break;
