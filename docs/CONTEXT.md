@@ -101,6 +101,8 @@
 
     `decay` **只是喂提示词的提示文本,引擎不读它**(决策 2:衰减 AI 落、引擎无知)。规则怪谈也补一条(`rules_creepy`:hp/san=体力/理智,真假规则形态),两模式走同一元数据驱动路径,不让规则怪谈成特例。约定层补充,`schemaVersion` 仍 "0.2"(`attributes` 一直是开放字典,元数据是伴生结构非 schema 字段)。
 
+15. **选择屏目录契约 `GET /api/archetypes`(ADR-008 决策 4,A 计划落地)**:一个轻量只读端点,供前端「选择你的世界」第一屏渲染世界目录(不让前端硬编码模式清单)。响应 `{ "archetypes": [ {archetype, displayName, tagline, vibeTag, active} ] }`——**已激活**(本批可玩:`rules_creepy`/`apocalypse`)在前(全字段),**已知未开放**(§三.4 枚举里 `life_sim`/`cultivation`/`cyberpunk`)在后(`active:false`、`tagline`/`vibeTag` 为 `null`,前端灰显「敬请期待」、不可选)。数据源 = `ArchetypeRegistry.listForSelection()`。为此 **`ArchetypeMeta` 增两个玩家可见文案字段** `tagline`(一句话钩子)/`vibeTag`(氛围/危险短标签)——**仅供选择屏卡片展示,不进 world-gen 注入**(注入仍用长 `worldview`,§三.14);玩家可见文案用中文(§三.3)。前端经 `api/listArchetypes`(平台 IO 只在 `api/` 适配层,守 §三.13)消费。**加新世界**:registry 加一条已激活元数据即自动进目录(未配文案则 `tagline`/`vibeTag` 留空);卡片视觉氛围由前端 per-archetype CSS 主题承载(展示层,不入后端)。约定层补充,JSON `schemaVersion` 仍 "0.2"(端点是只读投影 + registry 伴生字段,非 state schema 字段变更)。
+
 ## 四、版本历史
 
 | 版本 | 日期 | 修订内容 |
@@ -112,3 +114,4 @@
 | v0.5 | 2026-06-23 | 追加 §三.13 前端跨端边界(ADR-003):`web/` 逻辑/状态/类型/展示层平台无关、禁引用平台 IO,网络/流收进 `api/` 薄适配层并暴露 provider-agnostic `TurnStream` 流接口(H5 用 fetch+SSE,非原生 EventSource;Phase 4 换 WS 只增实现);硬线由 eslint `no-restricted-globals` 守。约定层补充,JSON schemaVersion 仍 "0.2",仅 CONTEXT 文档版本升 v0.5 |
 | v0.6 | 2026-06-23 | 校正 §三.13 Phase 4 小程序流式回合预案主次序(随 ADR-003 §3 同步):因 H5 实测确认回合走 `fetch`+`POST` body+流式读 chunk(非原生 `EventSource`),`wx.request`+`enableChunked` 分块回调与之同构(复用最多、后端无需新端点)升为**主预案**,WebSocket(更重范式)降为**备选**;原主次序基于「H5 用 EventSource」的假设、已被实现校正。纯文档校正,无字段/schema 变更,JSON schemaVersion 仍 "0.2" |
 | v0.7 | 2026-06-24 | 多模式扩展架构落档(ADR-008,Phase 2 第一批=末日生存):§三.5 展开为「attributes 开放字典 + 引擎/校验对数值 key 语义无知(遍历 map 通用结算、只校验已给轴范围)+ 衰减 AI 落引擎无知」;新增 §三.14 per-archetype 元数据结构(数值轴中文名/衰减提示/规则形态,非强制校验,消费方=前端面板 + 提示词注入)。**事实订正**:核心实为 key-fixed 到 `{hp,san}`,据 ADR-008 决策 1 一次性泛化为 key-agnostic、golden parity 139 守零回归。约定层补充,JSON `schemaVersion` 仍 "0.2"(`attributes` 一直是开放字典,加 hunger 非字段变更),仅 CONTEXT 文档版本升 v0.7 |
+| v0.8 | 2026-06-25 | 追加 §三.15 选择屏目录契约 `GET /api/archetypes`(ADR-008 决策 4 / A 计划落地):只读端点供前端世界选择第一屏(已激活在前 + 已知未开放占位灰显),数据源 `ArchetypeRegistry.listForSelection()`;`ArchetypeMeta` 增玩家可见文案字段 `tagline`/`vibeTag`(仅选择屏展示、不进 world-gen 注入);卡片视觉氛围由前端 per-archetype CSS 主题承载(展示层)。约定层补充,JSON `schemaVersion` 仍 "0.2"(只读投影 + registry 伴生字段,非 state schema 变更),仅 CONTEXT 文档版本升 v0.8 |
