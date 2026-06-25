@@ -33,9 +33,12 @@ public final class GameSchemas {
 		if (!v.requireObject(w, "<root>")) {
 			return v.errors;
 		}
-		// schemaVersion const "0.2"
-		if (!"0.2".equals(w.path("schemaVersion").asString(null))) {
-			v.add("schemaVersion", "必须为常量 \"0.2\"");
+		// schemaVersion:ADR-009 升 "0.2"→"0.3"(isTrue 由必需改可选,首次真动字段约束)。
+		// 校验<b>接受双版本</b>:golden / validator-parity / init 夹具是录制的真实 "0.2" 产出,硬翻成只认
+		// "0.3" 会让 parity 夹具集体失效;接受双版本 = 老数据仍合法(向后兼容)+ 新产出走 "0.3","0.1" 等仍拒。
+		String sv = w.path("schemaVersion").asString(null);
+		if (!"0.2".equals(sv) && !"0.3".equals(sv)) {
+			v.add("schemaVersion", "必须为 \"0.2\" 或 \"0.3\"");
 		}
 		v.requireEnum(w, "mode", MODES);
 		v.requireStringArray(w, "archetypes", 1);
@@ -63,7 +66,9 @@ public final class GameSchemas {
 				String p = "rules/" + i++;
 				v.requireInteger(r, "id", p + "/id");
 				v.requireNonEmptyString(r, "content", p + "/content");
-				v.requireBoolean(r, "isTrue", p + "/isTrue");
+				// ADR-009 决策 2(F-013):isTrue 从必需改【可选】,校验零分派(不按 archetype 判)。
+				// 真假守则世界(规则怪谈/克苏鲁)给它,心法守则世界(修仙)不给——给了校验布尔类型,不给不报错。
+				v.optionalBoolean(r, "isTrue", p + "/isTrue");
 				v.requireString(r, "hiddenLogic", p + "/hiddenLogic");
 				v.requireBoolean(r, "discovered", p + "/discovered");
 			}
@@ -241,6 +246,14 @@ public final class GameSchemas {
 			JsonNode n = parent == null ? null : parent.get(field);
 			if (n == null || !n.isBoolean()) {
 				add(path, "缺失或非布尔");
+			}
+		}
+
+		/** 可选布尔(ADR-009 isTrue):给了校验布尔类型,缺失/null 容忍(不报错)。 */
+		void optionalBoolean(JsonNode parent, String field, String path) {
+			JsonNode n = parent == null ? null : parent.get(field);
+			if (n != null && !n.isNull() && !n.isBoolean()) {
+				add(path, "应为布尔");
 			}
 		}
 

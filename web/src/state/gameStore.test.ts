@@ -62,7 +62,7 @@ class FakeTurnStream implements TurnStream {
 const INIT_RESULT: InitResult = {
   saveId: 's1',
   world: {
-    schemaVersion: '0.2',
+    schemaVersion: '0.3',
     mode: 'single',
     archetypes: ['rules_creepy'],
     world: { title: '雨夜便利店', background: 'bg', dangerLevel: 'high', tone: 'tone' },

@@ -67,6 +67,40 @@ class GameSchemasTest {
 	}
 
 	@Test
+	void worldSchemaVersion03Passes() {
+		// ADR-009:schemaVersion 升 "0.3",校验接受双版本(新产出走 0.3)。
+		ObjectNode w = validWorld();
+		w.put("schemaVersion", "0.3");
+		assertThat(GameSchemas.validateWorld(w)).isEmpty();
+	}
+
+	@Test
+	void worldRuleWithoutIsTruePasses() {
+		// ADR-009 决策 2(F-013):isTrue 可选——心法守则型世界(修仙)rules 无 isTrue 应过校验。
+		ObjectNode w = validWorld();
+		w.put("schemaVersion", "0.3");
+		w.putArray("archetypes").add("cultivation");
+		ObjectNode rule = (ObjectNode) w.path("rules").get(0);
+		rule.remove("isTrue"); // 修行心法,无真假之分
+		rule.put("content", "心魔不可纵,纵则走火入魔");
+		assertThat(GameSchemas.validateWorld(w)).as("无 isTrue 的修行法则应过").isEmpty();
+	}
+
+	@Test
+	void worldRuleWithIsTrueStillPasses() {
+		// 反向:真假守则型(规则怪谈/克苏鲁)给了 isTrue 仍过(可选不等于禁止)。
+		assertThat(GameSchemas.validateWorld(validWorld())).isEmpty(); // validWorld 带 isTrue
+	}
+
+	@Test
+	void worldRuleIsTrueWrongTypeStillFails() {
+		// 可选不等于不校验:给了就得是布尔。
+		ObjectNode w = validWorld();
+		((ObjectNode) w.path("rules").get(0)).put("isTrue", "yes"); // 字符串非法
+		assertThat(GameSchemas.validateWorld(w)).anyMatch(s -> s.contains("rules/0/isTrue"));
+	}
+
+	@Test
 	void worldRuleIdMustBeInteger() {
 		ObjectNode w = validWorld();
 		((ObjectNode) w.path("rules").get(0)).put("id", "1"); // 字符串非法

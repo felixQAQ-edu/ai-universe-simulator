@@ -44,7 +44,7 @@ describe('initGame', () => {
   it('解析成功响应为 InitResult', async () => {
     const payload = {
       saveId: 's1',
-      world: { schemaVersion: '0.2', world: { title: '雨夜便利店' }, rules: [], character: {} },
+      world: { schemaVersion: '0.3', world: { title: '雨夜便利店' }, rules: [], character: {} },
       openingNarrative: '午夜两点……',
       availableActions: [{ id: 'A', text: '观察', hint: '' }],
     };

@@ -1,11 +1,12 @@
-// 统一 JSON Schema · v0.2 的 TypeScript 类型
+// 统一 JSON Schema · v0.3 的 TypeScript 类型
 // 真理之源是 docs/CONTEXT.md §二。本文件只定义类型,不写任何逻辑。
-// 约定要点(v0.2,见 ADR-001 / bakeoff FINDINGS F-001):
+// 约定要点(v0.3,见 ADR-001 / ADR-009 / bakeoff FINDINGS F-001/F-013):
 //   - rules[].id 是【整数】,endings[].id 是【snake_case 字符串】,两者刻意不同。
 //   - character.attributes 为【必填对象】,至少含该模式核心数值(规则怪谈: hp/san)。
-//   - rules[].isTrue / hiddenLogic 是作者/引擎视角字段,绝不泄露给玩家。
+//   - rules[].isTrue 是【可选】(ADR-009 F-013):真假守则世界(规则怪谈/克苏鲁)给,心法守则世界(修仙)不给。
+//   - rules[].isTrue / hiddenLogic 是作者/引擎视角字段,绝不泄露给玩家(消毒后前端本就收不到)。
 
-export const SCHEMA_VERSION = '0.2' as const;
+export const SCHEMA_VERSION = '0.3' as const;
 
 export type Mode = 'single' | 'hybrid';
 
@@ -42,8 +43,8 @@ export interface Rule {
   /** 整数,便于引擎引用与状态回传。 */
   id: number;
   content: string;
-  /** 作者/引擎视角,绝不泄露给玩家。 */
-  isTrue: boolean;
+  /** 可选(ADR-009 F-013):真假守则世界给,心法守则世界(修仙)不给。作者/引擎视角,绝不泄露给玩家。 */
+  isTrue?: boolean;
   /** 作者/引擎视角,绝不泄露给玩家。 */
   hiddenLogic: string;
   discovered: boolean;
