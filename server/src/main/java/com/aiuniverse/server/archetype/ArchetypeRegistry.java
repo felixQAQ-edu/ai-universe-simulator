@@ -17,8 +17,8 @@ import org.springframework.stereotype.Component;
  * <ul>
  *   <li><b>已知</b> = CONTEXT §三.4 枚举的 5 个 id(rules_creepy/life_sim/cultivation/cyberpunk/apocalypse);
  *       非已知 → init 400(非法 archetype)。</li>
- *   <li><b>已激活</b> = 本批有元数据可生成的(rules_creepy + apocalypse);已知但未激活(life_sim 等)→
- *       init 400「未开放」(占位枚举,等各自独立批 + 独立 world-gen 冒烟)。</li>
+ *   <li><b>已激活</b> = 本批有元数据可生成的(rules_creepy + apocalypse + cthulhu + cultivation);已知但未激活
+ *       (life_sim / cyberpunk)→ init 400「未开放」(占位枚举,等各自独立批 + 独立 world-gen 冒烟)。</li>
  * </ul>
  *
  * <p>本类<b>纯数据</b>(无 IO、无 LLM),元数据内联(便于单测钉结构、零 FS 依赖)。
@@ -42,7 +42,6 @@ public class ArchetypeRegistry {
 	static {
 		Map<String, String> m = new LinkedHashMap<>();
 		m.put("life_sim", "人生模拟");
-		m.put("cultivation", "修仙");
 		m.put("cyberpunk", "赛博朋克");
 		INACTIVE_DISPLAY_NAMES = Collections.unmodifiableMap(m);
 	}
@@ -54,6 +53,7 @@ public class ArchetypeRegistry {
 		register(rulesCreepy());
 		register(apocalypse());
 		register(cthulhu());
+		register(cultivation());
 	}
 
 	private void register(ArchetypeMeta meta) {
@@ -120,7 +120,8 @@ public class ArchetypeRegistry {
 						AttributeAxis.stable("san", "理智")),
 				"真假混合的规则(isTrue 有真有假,至少各一条):content 是贴给玩家看的规则原文(口吻像告示),"
 						+ "hiddenLogic 是只有引擎能看的真实机制(触发条件 + hp/san 后果)。玩家通过试探/观察逐步看清真伪,"
-						+ "discovered 标记已识破的规则。");
+						+ "discovered 标记已识破的规则。",
+				true); // 真假守则型(rules 带 isTrue 有真有假)
 	}
 
 	/** 末日生存(本批首个新模式):hp/hunger=体力/饥饿,饥饿随回合自然衰减(AI 落,引擎无知,决策 2)。 */
@@ -139,7 +140,8 @@ public class ArchetypeRegistry {
 										+ "由你在 stateUpdate 给出衰减后的新绝对值,务必每回合都体现这一自然消耗。")),
 				"生存法则与资源约束(非规则怪谈的真假规则机制,但仍可有「被发现才知道的硬规矩」,复用 discovered 机制):"
 						+ "如某些区域的危险规律、物资使用的代价、势力/感染体的行为底线。content 是玩家可摸索到的生存经验,"
-						+ "hiddenLogic 是只有引擎能看的真实判定(触发条件 + hp/hunger 后果)。");
+						+ "hiddenLogic 是只有引擎能看的真实判定(触发条件 + hp/hunger 后果)。",
+				true); // 真假守则型(rules 带 isTrue 有真有假)
 	}
 
 	/**
@@ -170,6 +172,41 @@ public class ArchetypeRegistry {
 				"禁忌知识在探索中渐揭(非规则怪谈的一纸真假守则):玩家通过行动逐步发现「有些事不该知道、"
 						+ "有些东西不该看」。content 是玩家可摸索到的线索 / 禁忌知识碎片(读起来是代价与警示,不是攻略),"
 						+ "hiddenLogic 是只有引擎能看的真实判定(触发条件 + hp/san/knowledge 后果);discovered 标记已揭示的"
-						+ "禁忌知识(揭示一条 → 点亮,可能涨 knowledge / 解锁洞察,但随之加速 san 流失)。");
+						+ "禁忌知识(揭示一条 → 点亮,可能涨 knowledge / 解锁洞察,但随之加速 san 流失)。",
+				true); // 真假守则型(rules 带 isTrue 有真有假)
+	}
+
+	/**
+	 * 修仙(世界库第二级,backlog 真正压力测试):hp=气血(depletion 复用)+ 灵力(depletion 资源池)
+	 * + 境界(accumulation 主角轴)。境界是<b>第二个累积轴样本</b>(克苏鲁 knowledge 第一个)——ADR-009
+	 * F-012 引擎正解的落地见证:境界纯成长、不参与死亡判定(死于气血触底/渡劫,非境界),引擎据 axisRole
+	 * 不因境界 ≤0 误触底。规则形态=心法/修行法则(<b>非真假守则</b>),rules 不带 isTrue(ADR-009 F-013)。
+	 * 灵根做 character.traits 文字属性(天灵根/废灵根…),影响叙事但不单开数值轴(最小可玩,做厚挂 backlog)。
+	 */
+	private static ArchetypeMeta cultivation() {
+		return new ArchetypeMeta(
+				"cultivation",
+				"修仙",
+				"逆天改命,踏上仙途。一念成圣,一念成魔。",
+				"缥缈 · 仙途",
+				"东方仙侠修真世界:天地灵气氤氲,宗门林立、洞天福地隐于山海;凡人以灵根资质入道,炼气、筑基、"
+						+ "结金丹,逆天夺命、追求长生与飞升。修行路上有心魔横生、渡劫天劫、同道相争与天材地宝的诱惑。"
+						+ "角色入场即带一种灵根资质(如天灵根 / 双灵根 / 废灵根,写进 character.traits),它影响修行快慢与叙事际遇。"
+						+ "氛围缥缈悠远、大道无情,机缘与凶险并存。",
+				List.of(
+						AttributeAxis.stable("hp", "气血"),
+						AttributeAxis.depleting("mana", "灵力",
+								"灵力是施展术法 / 神通 / 御器 / 强行突破的资源池:施为时消耗下降,打坐吐纳 / 服食丹药 / "
+										+ "汲取灵气时回升;由你在 stateUpdate 给消耗或恢复后的新绝对值,体现「法力有限、不可无限施为」。"),
+						AttributeAxis.accumulating("realm", "境界",
+								"境界是修为成长的主轴(累积型):勤修苦练 / 顿悟 / 历练 / 突破瓶颈时上涨(只涨或持平、"
+										+ "不无故回落);境界越高,可施展的手段越强、越能镇压低境界凶险。"
+										+ "【纯成长·不致死】境界是成长轴、不参与死亡判定——生死由气血(hp)触底 / 渡劫失败承载,"
+										+ "境界低或初入修行(数值低)绝不意味失败,是循序渐进的起点。初值给低位(如 10–25,炼气初期),逐步累积。")),
+				"修行法则 / 心法 / 修真禁忌(非真假守则,不要输出 isTrue):如「心魔不可纵,纵则走火入魔」「渡劫忌分心」"
+						+ "「灵力枯竭强行运功者经脉俱断」。content 是玩家可领悟到的修行准则与禁忌(读起来是大道法则与代价,"
+						+ "不是攻略);hiddenLogic 是只有引擎能看的真实判定(触发条件 + hp/灵力/境界 后果);discovered 标记"
+						+ "已顿悟 / 印证的法则(顿悟一条 → 点亮,可能助益突破或避开凶险)。",
+				false); // 心法守则型(rules 不带 isTrue,ADR-009 F-013)
 	}
 }

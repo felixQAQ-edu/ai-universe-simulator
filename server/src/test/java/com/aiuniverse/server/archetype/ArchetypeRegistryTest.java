@@ -57,21 +57,49 @@ class ArchetypeRegistryTest {
 	@Test
 	void listForSelectionPutsActiveFirstThenInactivePlaceholders() {
 		List<ArchetypeSummary> list = registry.listForSelection();
-		// 已激活三条(含克苏鲁,加世界流水线复用)在前 + 已知未开放三条占位在后。
+		// 已激活四条(含克苏鲁 + 修仙)在前 + 已知未开放两条占位在后。
 		assertThat(list.stream().map(ArchetypeSummary::archetype))
-				.containsExactly("rules_creepy", "apocalypse", "cthulhu", "life_sim", "cultivation", "cyberpunk");
-		// 已激活三条在前、可选、钩子/标签齐。
-		for (ArchetypeSummary s : list.subList(0, 3)) {
+				.containsExactly("rules_creepy", "apocalypse", "cthulhu", "cultivation", "life_sim", "cyberpunk");
+		// 已激活四条在前、可选、钩子/标签齐。
+		for (ArchetypeSummary s : list.subList(0, 4)) {
 			assertThat(s.active()).as("已激活可选:%s", s.archetype()).isTrue();
 			assertThat(s.displayName()).isNotBlank();
 			assertThat(s.tagline()).as("可选卡片有钩子:%s", s.archetype()).isNotBlank();
 			assertThat(s.vibeTag()).as("可选卡片有标签:%s", s.archetype()).isNotBlank();
 		}
-		// 占位三条在后、不可选、仍有中文名(渲染「敬请期待」)。
-		for (ArchetypeSummary s : list.subList(3, 6)) {
+		// 占位两条在后、不可选、仍有中文名(渲染「敬请期待」)。
+		for (ArchetypeSummary s : list.subList(4, 6)) {
 			assertThat(s.active()).as("未开放占位:%s", s.archetype()).isFalse();
 			assertThat(s.displayName()).isNotBlank();
 		}
+	}
+
+	@Test
+	void cultivationHasHpManaRealmWithCorrectAxisRolesAndNoTruthRules() {
+		ArchetypeMeta m = registry.meta("cultivation");
+		assertThat(m.displayName()).isEqualTo("修仙");
+		// 三轴:气血(hp)/灵力(mana)/境界(realm),顺序即面板渲染顺序。
+		assertThat(m.attributes().stream().map(AttributeAxis::key)).containsExactly("hp", "mana", "realm");
+		AttributeAxis hp = axis(m, "hp");
+		AttributeAxis mana = axis(m, "mana");
+		AttributeAxis realm = axis(m, "realm");
+		assertThat(hp.displayName()).isEqualTo("气血");
+		assertThat(mana.displayName()).isEqualTo("灵力");
+		assertThat(realm.displayName()).isEqualTo("境界");
+		// ADR-009 F-012 轴角色:hp/灵力=depletion(≤0 触底),境界=accumulation(≤0 不触底)。
+		assertThat(hp.isAccumulation()).as("气血=depletion").isFalse();
+		assertThat(mana.isAccumulation()).as("灵力=depletion").isFalse();
+		assertThat(realm.isAccumulation()).as("境界=accumulation").isTrue();
+		// 灵力带消耗提示、境界带累积提示(喂提示词,引擎不读)。
+		assertThat(mana.behaviorHint()).isNotNull().contains("消耗");
+		assertThat(realm.behaviorHint()).as("境界累积型").isNotNull().contains("累积");
+		// ADR-009 F-013:修仙规则=心法守则型,rules 不带 isTrue。
+		assertThat(m.rulesCarryTruth()).as("修仙=心法守则型,无真假").isFalse();
+		assertThat(m.ruleForm()).contains("不要输出 isTrue");
+		// 灵根做 trait(worldview 提示写进 character.traits),不单开数值轴。
+		assertThat(m.worldview()).contains("灵根").contains("traits");
+		assertThat(m.tagline()).isNotBlank();
+		assertThat(m.vibeTag()).isNotBlank();
 	}
 
 	@Test
@@ -95,17 +123,17 @@ class ArchetypeRegistryTest {
 	}
 
 	@Test
-	void rulesCreepyApocalypseAndCthulhuAreActivated() {
+	void activatedArchetypesIncludeCultivation() {
 		assertThat(registry.isActive("rules_creepy")).isTrue();
 		assertThat(registry.isActive("apocalypse")).isTrue();
-		assertThat(registry.isActive("cthulhu")).as("克苏鲁本批激活可玩").isTrue();
+		assertThat(registry.isActive("cthulhu")).isTrue();
+		assertThat(registry.isActive("cultivation")).as("修仙本批激活可玩").isTrue();
 		// 已知但未激活(占位枚举)→ init 应 400「未开放」。
 		assertThat(registry.isActive("life_sim")).isFalse();
-		assertThat(registry.isActive("cultivation")).isFalse();
 		assertThat(registry.isActive("cyberpunk")).isFalse();
 		// 未知 id 既不已知也不已激活。
 		assertThat(registry.isActive("not_an_archetype")).isFalse();
-		assertThat(registry.activeMetas()).hasSize(3);
+		assertThat(registry.activeMetas()).hasSize(4);
 	}
 
 	@Test

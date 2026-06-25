@@ -37,10 +37,12 @@ public final class TurnPromptBuilder {
 
 	/** 数值轴 key → 叙事中文意象提示(清洁度:数值变化只用意象,不直呼字段名)。缺省回落 displayName。 */
 	private static final Map<String, String> IMAGERY = Map.of(
-			"hp", "身体/伤势/气力(如「伤口又裂开」)",
+			"hp", "身体/伤势/气力/气血(如「伤口又裂开」「气血翻涌」)",
 			"san", "神智/理智/心神(如「神智几近崩断」)",
 			"hunger", "饥饿/腹中空乏/虚脱无力(如「饿得手指发抖」)",
-			"knowledge", "对禁忌真相的洞悉/脑中挥之不去的低语与灼烧(如「那些符号在脑海里反复灼烧」)");
+			"knowledge", "对禁忌真相的洞悉/脑中挥之不去的低语与灼烧(如「那些符号在脑海里反复灼烧」)",
+			"mana", "灵力/法力/真元的充盈或枯竭(如「灵力将尽,真元空乏」「丹田一空」)",
+			"realm", "修为境界/对天地大道的领悟/根基(如「丹田气海又凝实了几分」「隐隐触到了瓶颈」)");
 
 	/** 通用骨架。注入变量:模式名 / 数值轴维护块 / 禁用字段名清单 / stateUpdate 字段格式。 */
 	private static final String SKELETON = """

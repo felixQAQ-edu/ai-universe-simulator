@@ -64,6 +64,23 @@ class WorldGenPromptBuilderTest {
 	}
 
 	@Test
+	void worldPromptInjectsCultivationBlockWithThreeAxesAndNoTruthRules() {
+		String p = builder.buildWorldPrompt("cultivation");
+
+		// 通用骨架照旧(单点维护,加世界不重抄)+ schemaVersion 升 0.3(ADR-009)。
+		assertThat(p).contains("整数").contains("snake_case").contains("纯 JSON").contains("openingNarrative");
+		assertThat(p).contains("\"0.3\""); // schemaVersion 0.2→0.3
+		// 修仙注入块:模式名 + 三轴 气血/灵力/境界。
+		assertThat(p).contains("cultivation").contains("修仙");
+		assertThat(p).contains("hp(气血").contains("mana(灵力").contains("realm(境界");
+		// 境界=累积型主角轴 + 灵力消耗提示注入。
+		assertThat(p).contains("累积").contains("消耗");
+		// ADR-009 F-013:心法守则型 → rules 不输出 isTrue(对照真假守则世界)。
+		assertThat(p).contains("不要输出 isTrue");
+		assertThat(p).doesNotContain("真假混合"); // 修仙不走真假守则口径
+	}
+
+	@Test
 	void repairPromptCarriesErrorsAndFailedRawAndAxes() {
 		String p = builder.buildRepairPrompt("apocalypse", "{\"mode\":\"single\"}", List.of("rules: 缺失或非数组"));
 		assertThat(p).contains("校验错误").contains("rules: 缺失或非数组").contains("{\"mode\":\"single\"}");

@@ -22,8 +22,8 @@ const CTHULHU: ArchetypeSummary = {
   active: true,
 };
 const LOCKED: ArchetypeSummary = {
-  archetype: 'cultivation',
-  displayName: '修仙',
+  archetype: 'life_sim',
+  displayName: '人生模拟',
   tagline: null,
   vibeTag: null,
   active: false,
@@ -53,7 +53,7 @@ describe('ArchetypeCard', () => {
   it('未开放卡:灰显「敬请期待」,无可点按钮', () => {
     const onChoose = vi.fn();
     render(<ArchetypeCard summary={LOCKED} onChoose={onChoose} />);
-    expect(screen.getByText('修仙')).toBeInTheDocument();
+    expect(screen.getByText('人生模拟')).toBeInTheDocument();
     expect(screen.getByText('敬请期待')).toBeInTheDocument();
     // 占位不是 button(不可点)。
     expect(screen.queryByRole('button')).not.toBeInTheDocument();

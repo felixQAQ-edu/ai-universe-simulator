@@ -12,7 +12,7 @@ import com.aiuniverse.server.archetype.ArchetypeSummary;
 
 /**
  * {@code GET /api/archetypes} 薄端点(ADR-008 决策 4 选择 UI 数据源):
- * 包 registry 的选择目录为 {@code {archetypes:[...]}},六条齐(含克苏鲁)、active 标志对。
+ * 包 registry 的选择目录为 {@code {archetypes:[...]}},六条齐(四已激活含修仙 + 两占位)、active 标志对。
  */
 class ArchetypeControllerTest {
 
@@ -24,8 +24,8 @@ class ArchetypeControllerTest {
 		List<ArchetypeSummary> list = body.get("archetypes");
 		assertThat(list).hasSize(6);
 		assertThat(list.stream().map(ArchetypeSummary::archetype))
-				.containsExactly("rules_creepy", "apocalypse", "cthulhu", "life_sim", "cultivation", "cyberpunk");
+				.containsExactly("rules_creepy", "apocalypse", "cthulhu", "cultivation", "life_sim", "cyberpunk");
 		assertThat(list.stream().filter(ArchetypeSummary::active).map(ArchetypeSummary::archetype))
-				.containsExactly("rules_creepy", "apocalypse", "cthulhu");
+				.containsExactly("rules_creepy", "apocalypse", "cthulhu", "cultivation");
 	}
 }

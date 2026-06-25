@@ -38,6 +38,8 @@ function barClass(key: string): string {
   if (key === 'san') return styles.barSan;
   if (key === 'hunger') return styles.barHunger;
   if (key === 'knowledge') return styles.barKnowledge;
+  if (key === 'mana') return styles.barMana;
+  if (key === 'realm') return styles.barRealm;
   return styles.barDefault;
 }
 

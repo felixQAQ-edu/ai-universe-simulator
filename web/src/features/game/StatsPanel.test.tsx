@@ -19,6 +19,11 @@ const CTHULHU: AttributeAxisMeta[] = [
   { key: 'san', displayName: '理智' },
   { key: 'knowledge', displayName: '禁忌知识' },
 ];
+const CULTIVATION: AttributeAxisMeta[] = [
+  { key: 'hp', displayName: '气血' },
+  { key: 'mana', displayName: '灵力' },
+  { key: 'realm', displayName: '境界' },
+];
 
 describe('StatsPanel', () => {
   it('规则怪谈:渲染 体力 / 理智 + 对应值', () => {
@@ -50,6 +55,19 @@ describe('StatsPanel', () => {
     expect(screen.getByText('70')).toBeInTheDocument();
     expect(screen.getByText('25')).toBeInTheDocument();
     // 克苏鲁没有末日的「饥饿」轴。
+    expect(screen.queryByText('饥饿')).not.toBeInTheDocument();
+  });
+
+  it('修仙:渲染 气血 / 灵力 / 境界 三轴(全新数值体系,动态化通吃)', () => {
+    render(<StatsPanel axes={CULTIVATION} values={{ hp: 88, mana: 60, realm: 15 }} />);
+    expect(screen.getByText('气血')).toBeInTheDocument();
+    expect(screen.getByText('灵力')).toBeInTheDocument();
+    expect(screen.getByText('境界')).toBeInTheDocument();
+    expect(screen.getByText('88')).toBeInTheDocument();
+    expect(screen.getByText('60')).toBeInTheDocument();
+    expect(screen.getByText('15')).toBeInTheDocument();
+    // 修仙没有「理智」「饥饿」轴。
+    expect(screen.queryByText('理智')).not.toBeInTheDocument();
     expect(screen.queryByText('饥饿')).not.toBeInTheDocument();
   });
 

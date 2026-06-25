@@ -37,7 +37,7 @@ public final class WorldGenPromptBuilder {
 	/** 通用骨架(模式无关,单点维护)。注入变量:displayName / worldview / 数值轴清单 / ruleForm / archetype id。 */
 	private static final String SKELETON = """
 			你是"通用生成引擎(UG Engine)"的世界生成模块。你一次性产出完整世界:
-			world + character 初值 + rules(真假混合)+ endings + 初始 availableActions + openingNarrative。
+			world + character 初值 + rules(规则/法则,形态见下)+ endings + 初始 availableActions + openingNarrative。
 			你的产出会被程序按 JSON Schema 严格校验。
 
 			【本模式 · %1$s】
@@ -48,10 +48,10 @@ public final class WorldGenPromptBuilder {
 
 			【输出格式 · 严格遵守】只输出一个 JSON 对象,纯 JSON,不要 markdown 围栏(不要 ```),
 			不要任何前后缀解释文字。字段:
-			- schemaVersion:必须为 "0.2";mode:"single";archetypes:["%5$s"]
+			- schemaVersion:必须为 "0.3";mode:"single";archetypes:["%5$s"]
 			- world:{ title, background, tone 用中文;dangerLevel ∈ {low,medium,high,extreme} 取种子给定值 }
 			- character:{ attributes:{ 上述数值轴,各 0-100 }, traits:2-4 个中文, inventory:1-3 件中文 }
-			- rules:6-8 条,真假混合(isTrue 有真有假,至少各一条):
+			- rules:6-8 条,%6$s:
 			  - id 用【整数】,从 1 连续编号;
 			  - content 是给玩家看的规则/生存法则原文(中文,见上方规则形态);
 			  - hiddenLogic 是【只有引擎能看】的真实机制(触发条件 + 上述数值轴的后果),discovered 初始一律 false。
@@ -67,7 +67,7 @@ public final class WorldGenPromptBuilder {
 
 	private static final String REPAIR_HEAD = """
 			你上次产出的世界 JSON 未通过校验。请只回修正后的【完整 world JSON】(纯 JSON 对象,不要 markdown 围栏、
-			不要解释文字),字段与约束同前(schemaVersion "0.2"、rules[].id 整数、endings[].id snake_case 字符串、
+			不要解释文字),字段与约束同前(schemaVersion "0.3"、rules[].id 整数、endings[].id snake_case 字符串、
 			含 availableActions 与 openingNarrative)。本模式 character.attributes 须含数值轴:%s(各 0-100)。
 			""";
 
@@ -87,13 +87,18 @@ public final class WorldGenPromptBuilder {
 					"阿卡姆郊外的古宅,玩家受邀整理已故亲属遗留的藏书,书房深处有一本无名黑皮书;危险等级 high",
 					"雾锁的海边小镇,玩家是路过的旅人,镇民的眼睛与步态都有些不对劲;危险等级 high",
 					"米斯卡托尼克大学图书馆禁阅区,玩家是夜班管理员,有人借走了不该外借的典籍;危险等级 high",
-					"南极考察站,暴雪封路,队友从冰层下挖出一块刻满非人符号的玄武岩;危险等级 extreme"));
+					"南极考察站,暴雪封路,队友从冰层下挖出一块刻满非人符号的玄武岩;危险等级 extreme"),
+			"cultivation", List.of(
+					"青云宗外门弟子,刚入门的炼气期少年,奉命独自看守后山灵药园;危险等级 medium",
+					"散修游历至一座荒废的上古洞府,洞门上残留着未散尽的禁制灵光;危险等级 high",
+					"宗门大比前夜,玩家是被同门排挤的废灵根弟子,意外得了一卷残破心法;危险等级 medium",
+					"渡劫将至,玩家是闭关冲击筑基的修士,洞外却有仇家循着灵气波动逼近;危险等级 high"));
 
 	/** 主调用提示(开 json_object,ADR-007):通用骨架 + archetype 注入块 + 随机种子。 */
 	public String buildWorldPrompt(String archetype) {
 		ArchetypeMeta meta = registry.meta(archetype);
 		String prompt = SKELETON.formatted(
-				meta.displayName(), meta.worldview(), axesSpec(meta), meta.ruleForm(), archetype);
+				meta.displayName(), meta.worldview(), axesSpec(meta), meta.ruleForm(), archetype, rulesDirective(meta));
 		return prompt
 				+ "\n按以下种子生成世界,只回 JSON:\n"
 				+ "模式:" + meta.displayName() + "(单体,archetype=" + archetype + ")\n"
@@ -105,6 +110,17 @@ public final class WorldGenPromptBuilder {
 		return REPAIR_HEAD.formatted(axisKeys(registry.meta(archetype)))
 				+ "\n校验错误:\n- " + String.join("\n- ", errors)
 				+ "\n\n你上次的产出:\n" + failedRaw;
+	}
+
+	/**
+	 * rules 形态指令(ADR-009 F-013,据 {@link ArchetypeMeta#rulesCarryTruth}):真假守则型注入「真假混合 +
+	 * isTrue 有真有假」;心法守则型(修仙)注入「无真假之分、不输出 isTrue」。骨架其余(id 整数/hiddenLogic/
+	 * discovered)模式无关、单点维护。校验器本身零分派(isTrue 全局可选)。
+	 */
+	private static String rulesDirective(ArchetypeMeta meta) {
+		return meta.rulesCarryTruth()
+				? "真假混合(isTrue 有真有假,至少各一条)"
+				: "皆为该模式的法则/心法/守则形态(读起来是准则与代价,无真假之分,【不要输出 isTrue 字段】)";
 	}
 
 	/** 注入块:数值轴逐行「- key(中文名,0-100[,逐回合行为提示])」。 */

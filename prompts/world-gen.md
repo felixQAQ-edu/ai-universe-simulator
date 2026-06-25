@@ -1,14 +1,14 @@
 # world-gen(含 char-gen + rule-gen + 初始决策圈 + 开场叙事)· 多模式 · 单体
 
-> 一次性生成完整世界:`world` + `character` 初值 + `rules`(真假混合)+ `endings` + 初始 `availableActions` + `openingNarrative`。
-> 对齐 docs/CONTEXT.md §二 schema v0.2。**线上口径(ADR-007)**:开 `response_format: json_object`、输出**纯 JSON**、**无哨兵**(与回合的「prose+哨兵+尾巴」刻意不同——world-gen 主体是结构、JSON 首次失败是头号失败模式,故把可靠性留在最险这次生成)。
+> 一次性生成完整世界:`world` + `character` 初值 + `rules`(规则形态按模式注入,真假守则 / 心法守则)+ `endings` + 初始 `availableActions` + `openingNarrative`。
+> 对齐 docs/CONTEXT.md §二 schema v0.3(ADR-009:`rules[].isTrue` 可选 + `schemaVersion` "0.2"→"0.3")。**线上口径(ADR-007)**:开 `response_format: json_object`、输出**纯 JSON**、**无哨兵**(与回合的「prose+哨兵+尾巴」刻意不同——world-gen 主体是结构、JSON 首次失败是头号失败模式,故把可靠性留在最险这次生成)。
 > **多模式结构(ADR-008 决策 3)**:提示词 = **通用骨架(单点维护)+ per-archetype 注入块**。骨架(输出 schema / id 约定 F-001 / 消毒硬化 / json_object / openingNarrative)模式无关、固定;`worldview`/`数值轴`/`ruleForm` 从 `ArchetypeRegistry` 元数据注入。加模式 = 一条元数据 + 一个种子池条目,**不重抄骨架**(消毒/id 这种硬规矩重抄一次错一次)。
 > 运行时同义副本在 `WorldGenPromptBuilder`(便于单测钉格式);本文件为人类可读核心资产(CONTEXT §三.6)。**lockstep:改这里务必同步改 `WorldGenPromptBuilder`,只改 .md 运行时失效。**
 
 ## System(通用骨架 + 注入块)
 
 你是“通用生成引擎(UG Engine)”的世界生成模块。
-你一次性产出完整世界:`world` + `character` 初值 + `rules`(真假混合)+ `endings` + 初始 `availableActions` + `openingNarrative`。
+你一次性产出完整世界:`world` + `character` 初值 + `rules`(规则/法则,形态见下)+ `endings` + 初始 `availableActions` + `openingNarrative`。
 你的产出会被程序按 JSON Schema 严格校验,**只输出一个 JSON 对象,不要 markdown 围栏、不要前后缀文字**。
 
 ### 【本模式 · {{DISPLAY_NAME}}】(注入块,来自元数据)
@@ -22,16 +22,19 @@
 
 > 示例注入(规则怪谈):数值轴 `- hp(体力,0-100)` / `- san(理智,0-100)`;规则形态=真假混合的规则。
 > 示例注入(末日生存):数值轴 `- hp(体力,0-100)` / `- hunger(饥饿,0-100;饥饿值随回合自然衰减…)`;规则形态=生存法则/资源约束。
-> 示例注入(克苏鲁):数值轴 `- hp(体力,0-100)` / `- san(理智,0-100)` / `- knowledge(禁忌知识,0-100;累积型双刃,求知则上涨,且越高 san 流失越快;初值给低正基线如 5–15、绝不给 0…)`;规则形态=禁忌知识在探索中渐揭(非真假守则)。
-> ↑ knowledge **绝不取 0/不降到 0**(累积轴,0 仅是「全然无知」起点,非结局;失败由 san/hp 触底承载)——见 FINDINGS F-012(引擎触底假设只对 depletion 轴成立,本批提示词约定兜、引擎正解留修仙批)。
+> 示例注入(克苏鲁):数值轴 `- hp(体力,0-100)` / `- san(理智,0-100)` / `- knowledge(禁忌知识,0-100;累积型双刃,求知则上涨,且越高 san 流失越快…)`;规则形态=禁忌知识在探索中渐揭(非真假守则)。
+> 示例注入(修仙):数值轴 `- hp(气血,0-100)` / `- mana(灵力,0-100;施法/突破消耗、打坐/丹药回升)` / `- realm(境界,0-100;累积型主角轴,修炼/顿悟/突破则上涨、纯成长不致死,初值低位如 10–25 炼气初期)`;规则形态=心法/修行法则(**非真假守则,不输出 isTrue**)。
+> ↑ 累积轴(knowledge/境界)`axisRole=accumulation`:**引擎据角色不因其 ≤0 触底致死**(0 是安全起点/无知或初入修行)——ADR-009 已根治 F-012(引擎触底按 axisRole 二分,depletion ≤0 致死 / accumulation 不触底),不再需要「绝不给 0」的提示词补丁(仍给合理低正基线只为内容)。
 
 ### 【输出格式 · 严格遵守】(通用骨架,固定)
 
-1. `schemaVersion` 必须是 `"0.2"`,`mode` 为 `"single"`,`archetypes` 为 `["{{ARCHETYPE}}"]`。
+1. `schemaVersion` 必须是 `"0.3"`,`mode` 为 `"single"`,`archetypes` 为 `["{{ARCHETYPE}}"]`。
 2. `world`:`title`/`background`/`tone` 用中文;`dangerLevel ∈ {low,medium,high,extreme}`,取种子给定值。
 3. `character`:`attributes` 含上述数值轴(各 0–100);另给 2–4 个 `traits` 和 1–3 件 `inventory`(中文)。
-4. `rules`:6–8 条,**真假混合**(`isTrue` 有真有假,至少各一条):
-   - `content` 是给玩家看的规则/生存法则原文(中文,口吻贴合上方规则形态);
+4. `rules`:6–8 条,`{{RULES_DIRECTIVE}}`(规则形态指令,**按模式注入**,ADR-009 F-013):
+   - 真假守则型(规则怪谈/末日/克苏鲁):**真假混合**,`isTrue` 有真有假、至少各一条;
+   - 心法守则型(修仙):皆为法则/心法/守则,**无真假之分、不输出 `isTrue` 字段**(`isTrue` 全局可选);
+   - `content` 是给玩家看的规则/法则原文(中文,口吻贴合上方规则形态);
    - `hiddenLogic` 是**只有引擎能看**的真实机制(触发条件 + 上述数值轴的后果);
    - `discovered` 初始一律 `false`;`id` 用**整数**,从 1 连续编号。
 5. `endings`:2–3 个,含至少一个“存活/成功”与一个“失败”结局,`condition` 写成可判定的中文条件,`reached` 初始 `false`。每个 ending **必须同时含**:
@@ -45,7 +48,7 @@
 
 ## User(填入种子)
 
-> 种子池 per-archetype(F-005 多样性):规则怪谈=雨夜便利店/末班地铁/山区民宿/医院走廊…;末日生存=丧尸围城/核冬避难所/幸存营地/末日公路…;克苏鲁=阿卡姆古宅/雾锁海滨小镇/大学禁阅区/南极考察站…(运行时副本 `WorldGenPromptBuilder.SEED_POOLS`)。
+> 种子池 per-archetype(F-005 多样性):规则怪谈=雨夜便利店/末班地铁/山区民宿/医院走廊…;末日生存=丧尸围城/核冬避难所/幸存营地/末日公路…;克苏鲁=阿卡姆古宅/雾锁海滨小镇/大学禁阅区/南极考察站…;修仙=青云宗外门/上古洞府/宗门大比/闭关渡劫…(运行时副本 `WorldGenPromptBuilder.SEED_POOLS`)。
 
 按以下种子生成世界,只回 JSON:
 

@@ -94,6 +94,14 @@
   background: #6fae8e; /* 幽绿:禁忌知识(克苏鲁深渊蠕动色) */
 }
 
+.barMana {
+  background: #6cb6d0; /* 青:灵力(修仙缥缈流光色) */
+}
+
+.barRealm {
+  background: #9ad0c2; /* 缥缈青白:境界(修仙成长主轴) */
+}
+
 .barDefault {
   background: var(--muted);
 }
@@ -530,6 +538,51 @@
   animation-duration: 8s; /* 蠕动更急,深渊更近 */
 }
 
+/* ── 修仙:缥缈仙途——青白/流光 + 缓缓上浮的灵气光点 + 顶部雾霭 ──
+ * 跟克苏鲁「深渊蠕动」、规则怪谈「日常诡异」区分:修仙更「空灵/悠远/向上」——色青白、动向上(灵气升腾)。 */
+.cardCultivation {
+  color: #cfe3da;
+  border-left-color: #5fa9a0;
+  background: radial-gradient(120% 130% at 50% 12%, #11302e 0%, #0c2230 52%, #08161f 100%);
+}
+
+/* 缥缈雾霭:顶部青白柔光向下弥散(静态,扫一眼就空灵)。 */
+.cardCultivation::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: radial-gradient(100% 70% at 50% 0%, rgba(150, 210, 200, 0.16), transparent 70%);
+}
+
+/* 上浮的灵气光点:几粒青白流光自下而上缓缓升腾(灵气升腾,空灵不晃眼)。只动光点,不动文字。 */
+.cardCultivation::after {
+  content: '';
+  position: absolute;
+  inset: -8% 0 -32%;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(2px 2px at 22% 82%, rgba(190, 230, 220, 0.5), transparent 60%),
+    radial-gradient(2px 2px at 58% 90%, rgba(160, 215, 230, 0.45), transparent 60%),
+    radial-gradient(1.5px 1.5px at 78% 86%, rgba(200, 235, 215, 0.4), transparent 60%),
+    radial-gradient(2px 2px at 40% 94%, rgba(175, 225, 225, 0.4), transparent 60%);
+  background-repeat: no-repeat;
+  animation: spiritRise 12s linear infinite;
+}
+
+.cardCultivation:hover {
+  border-left-color: #84cabf;
+  box-shadow:
+    0 10px 30px -14px rgba(0, 0, 0, 0.65),
+    inset 0 0 30px -6px rgba(95, 170, 160, 0.3);
+}
+
+.cardCultivation:hover::after {
+  animation-duration: 8s; /* 灵气升腾更盛 */
+}
+
 /* ── 未开放占位:灰显、不可点、零动效(死的,反衬解锁卡是活的)── */
 .cardLocked {
   opacity: 0.5;
@@ -614,12 +667,28 @@
   }
 }
 
-/* 无障碍:减少动态时关掉所有运动,保留静态氛围(暗角/尘点/调色)—— 世界性格仍读得到。 */
+/* 灵气升腾:青白光点自下而上缓缓飘升(空灵、向上、不晃眼;低强度,文字始终可读)。 */
+@keyframes spiritRise {
+  0% {
+    transform: translateY(0);
+    opacity: 0.8;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-42%);
+    opacity: 0.8;
+  }
+}
+
+/* 无障碍:减少动态时关掉所有运动,保留静态氛围(暗角/尘点/雾霭/调色)—— 世界性格仍读得到。 */
 @media (prefers-reduced-motion: reduce) {
   .cardCreepy::after,
   .cardApocalypse::before,
   .cardApocalypse::after,
   .cardCthulhu::after,
+  .cardCultivation::after,
   .card:not(.cardLocked) {
     animation: none;
   }
@@ -667,6 +736,11 @@
   color: #8fd0b4;
 }
 
+.cardCultivation .cardTag {
+  background: rgba(95, 175, 165, 0.16);
+  color: #93cabf;
+}
+
 .cardSoon {
   flex-shrink: 0;
   font-size: 0.7rem;
@@ -692,6 +766,10 @@
 
 .cardCthulhu .cardTagline {
   color: #9ab8aa;
+}
+
+.cardCultivation .cardTagline {
+  color: #9bc0b6;
 }
 
 .linkBtn {

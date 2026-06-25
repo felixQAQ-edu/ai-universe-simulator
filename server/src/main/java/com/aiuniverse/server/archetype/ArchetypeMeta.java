@@ -21,6 +21,9 @@ import java.util.List;
  * @param worldview   世界观描述(喂 world-gen 注入块)
  * @param attributes  数值轴清单(顺序即面板/提示词呈现顺序;至少一条)
  * @param ruleForm    该模式规则形态描述(喂注入块)——末日=生存法则/资源约束,规则怪谈=真假规则
+ * @param rulesCarryTruth 规则是否「真假守则」型(ADR-009 决策 2 / F-013):{@code true}=真假混合、要 {@code isTrue}
+ *                    有真有假(规则怪谈/末日/克苏鲁);{@code false}=心法/修行法则型、<b>不输出 {@code isTrue}</b>
+ *                    (修仙)。world-gen 骨架据此注入 rules 块的对应措辞;校验器本身零分派(isTrue 全局可选)。
  */
 public record ArchetypeMeta(
 		String id,
@@ -29,7 +32,8 @@ public record ArchetypeMeta(
 		String vibeTag,
 		String worldview,
 		List<AttributeAxis> attributes,
-		String ruleForm) {
+		String ruleForm,
+		boolean rulesCarryTruth) {
 
 	public ArchetypeMeta {
 		attributes = List.copyOf(attributes);
