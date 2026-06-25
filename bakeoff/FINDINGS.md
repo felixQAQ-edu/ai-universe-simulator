@@ -240,3 +240,20 @@
 - **关联**:`server/.../engine/Engine.java`(`anyAttributeBottomedOut`/`forceBottomOutEnding`)、
   `server/.../archetype/ArchetypeRegistry.java`(克苏鲁 `knowledge` `behaviorHint` 承载正基线/不落0约定)、
   ADR-008 决策 1/2 + 「重新审视的触发条件」(非 0–100/非 depletion 语义的轴)、`docs/world-library-expansion-backlog.md`(修仙批)。
+
+## F-013 · world-gen 通用骨架强制 `rules[].isTrue` 与「非真假守则」型世界(克苏鲁)的 ruleForm 打架(backlog,留修仙批)
+
+- **日期**:2026-06-25 | **provider**:DeepSeek V4-Flash | **步骤**:Phase 2 加世界·克苏鲁 world-gen 真 key 冒烟
+- **现象**:克苏鲁首发 init 探针,world-gen **首过未过校验**(8 条 rules **全部缺 `isTrue`**),触发**一次修复后过**
+  (修复产出有效世界,HTTP 200、三轴齐、消毒无泄露——玩家侧无感)。Felix 浏览器整局闭环验通,本条只是首过有效率的一次扣分。
+- **诊断**:克苏鲁 `ruleForm` 写「禁忌知识在探索中渐揭(**非规则怪谈的一纸真假守则**)」,而通用骨架仍强制
+  「rules 6–8 条**真假混合**,`isTrue` 有真有假」——两处口径冲突,模型**跟了 ruleForm 的「非真假」框架、丢了 `isTrue`**。
+- **同类归因(与 F-012 同根)**:这是「**骨架的某个假设对新世界类型不成立**」的第二例——F-012 是引擎「≤0=死」假设对
+  accumulation 轴不成立;F-013 是骨架「rules 必带真假 `isTrue`」假设对**非真假守则型规则世界**不成立。克苏鲁是第一个
+  撞上的世界,**修仙 / SCP 等规则形态非「真假守则」的世界可能也撞**。
+- **处置(Felix 拍板)**:**本批先接受偶发首过修复**(修复后照样出好世界,不影响玩家,不改提示词)。**引擎/骨架正解留修仙批
+  一起做**——给骨架加「`isTrue` 对非真假规则世界**可选**」的口径,或按 `ruleForm` 分派 rules 形态(与 F-012 的轴角色正解
+  同批解决,届时样本更多、设计更稳)。
+- **关联**:`server/.../worldgen/WorldGenPromptBuilder.java`(SKELETON 强制 isTrue)、`prompts/world-gen.md`、
+  `server/.../archetype/ArchetypeRegistry.java`(克苏鲁 `ruleForm`)、`GameSchemas.validateWorld`(isTrue 校验)、
+  F-012(同类:骨架假设对新世界不成立)、`docs/world-library-expansion-backlog.md`(修仙批)。
