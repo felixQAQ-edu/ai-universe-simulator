@@ -89,6 +89,72 @@ class EngineKeyAgnosticTest {
 		assertThat(eng.status()).isEqualTo("ended"); // hunger<=0 触底
 	}
 
+	// ── 克苏鲁三轴 {hp,san,knowledge}:证流水线没逼引擎懂「累积/联动」新轴 ────────────────
+	// knowledge↔san 联动是 AI 落、引擎无知(ADR-008 决策 1/2);引擎对 knowledge 与 hp/san/hunger 一视同仁。
+
+	/** 克苏鲁最小世界:attributes={hp,san,knowledge},结局含 san 触底=疯狂条目。 */
+	private ObjectNode cthulhuWorld(int hp, int san, int knowledge) {
+		ObjectNode w = mapper.createObjectNode();
+		w.put("schemaVersion", "0.2");
+		ObjectNode attrs = w.putObject("character").putObject("attributes");
+		attrs.put("hp", hp).put("san", san).put("knowledge", knowledge);
+		w.putArray("rules");
+		var endings = w.putArray("endings");
+		endings.addObject().put("id", "escaped").put("title", "全身而退")
+				.put("condition", "无知是福,平安脱身").put("reached", false);
+		endings.addObject().put("id", "lost_mind").put("title", "理智崩解")
+				.put("condition", "san 归零、堕入疯狂").put("reached", false);
+		endings.addObject().put("id", "perished").put("title", "丧命")
+				.put("condition", "hp 归零").put("reached", false);
+		return w;
+	}
+
+	private ObjectNode cthulhuTurn(Map<String, Integer> stateUpdate) {
+		ObjectNode t = mapper.createObjectNode();
+		t.put("narrative", "书页间的低语又重了几分。");
+		ObjectNode upd = t.putObject("stateUpdate");
+		stateUpdate.forEach(upd::put);
+		var a = t.putArray("availableActions");
+		a.addObject().put("id", "A").put("text", "继续研读");
+		a.addObject().put("id", "B").put("text", "合上书逃离");
+		return t;
+	}
+
+	@Test
+	void knowledgeAccumulatesAndSanDropsLikeAnyAxis_engineIgnorant() {
+		Engine eng = new Engine(cthulhuWorld(100, 80, 10), mapper);
+		// AI 落:求知 → knowledge 累积上涨(10→35),且 knowledge 偏高 → san 加速流失(80→62)。
+		// 引擎只机械落账三个绝对值,完全不认识 knowledge↔san 联动语义。
+		eng.apply(cthulhuTurn(Map.of("hp", 100, "san", 62, "knowledge", 35)), "A");
+
+		assertThat(eng.attribute("knowledge")).isEqualTo(35.0);
+		assertThat(eng.attribute("san")).isEqualTo(62.0);
+		assertThat(eng.attribute("hp")).isEqualTo(100.0);
+		assertThat(eng.status()).isEqualTo("ongoing");
+		// 消毒投影保 {hp,san,knowledge},证 snapshot 对任意 key 集合无知(非 {hp,san})。
+		JsonNode attrs = eng.toClientState().path("character").path("attributes");
+		assertThat(attrs.has("knowledge")).isTrue();
+		assertThat(attrs.has("hunger")).isFalse();
+		assertThat(attrs.get("knowledge").asInt()).isEqualTo(35);
+	}
+
+	@Test
+	void knowledgeJumpFlaggedLikeAnyAxis() {
+		Engine eng = new Engine(cthulhuWorld(100, 100, 0), mapper);
+		eng.apply(cthulhuTurn(Map.of("hp", 100, "san", 100, "knowledge", 60)), "A"); // 跳变 60 > 40
+		assertThat(eng.issues()).anyMatch(s -> s.contains("knowledge 跳变过大"));
+		assertThat(eng.status()).isEqualTo("ongoing");
+	}
+
+	@Test
+	void sanBottomOutForcesMadnessEndingLikeAnyMode() {
+		Engine eng = new Engine(cthulhuWorld(80, 0, 90), mapper); // san 触底(知道太多→疯)
+		eng.apply(cthulhuTurn(Map.of("hp", 80, "san", 0, "knowledge", 90)), "A");
+		assertThat(eng.status()).isEqualTo("ended");
+		// §5 兜底:找 condition 提及触底轴 key(san)的坏结局 → lost_mind。
+		assertThat(reachedId(eng)).isEqualTo("lost_mind");
+	}
+
 	private String reachedId(Engine eng) {
 		for (JsonNode e : eng.world().path("endings")) {
 			if (e.path("reached").asBoolean(false)) {

@@ -14,6 +14,13 @@ const APOCALYPSE: ArchetypeSummary = {
   vibeTag: '荒凉 · 绝境',
   active: true,
 };
+const CTHULHU: ArchetypeSummary = {
+  archetype: 'cthulhu',
+  displayName: '克苏鲁',
+  tagline: '凝视深渊,深渊回以低语。知道得越多,离疯狂越近。',
+  vibeTag: '深渊 · 疯狂',
+  active: true,
+};
 const LOCKED: ArchetypeSummary = {
   archetype: 'cultivation',
   displayName: '修仙',
@@ -30,6 +37,15 @@ describe('ArchetypeCard', () => {
     expect(screen.getByText('废土求生,饥饿是另一个敌人。')).toBeInTheDocument();
     expect(screen.getByText('荒凉 · 绝境')).toBeInTheDocument();
 
+    fireEvent.click(screen.getByRole('button'));
+    expect(onChoose).toHaveBeenCalledTimes(1);
+  });
+
+  it('克苏鲁可玩卡:加世界自动进目录,渲染钩子/标签 + 点击触发 onChoose', () => {
+    const onChoose = vi.fn();
+    render(<ArchetypeCard summary={CTHULHU} onChoose={onChoose} />);
+    expect(screen.getByText('克苏鲁')).toBeInTheDocument();
+    expect(screen.getByText('深渊 · 疯狂')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button'));
     expect(onChoose).toHaveBeenCalledTimes(1);
   });

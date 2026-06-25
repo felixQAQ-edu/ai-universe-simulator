@@ -26,9 +26,13 @@ import org.springframework.stereotype.Component;
 @Component
 public class ArchetypeRegistry {
 
-	/** CONTEXT §三.4 枚举:全部「已知」archetype id(用于 init 非法值判定)。 */
+	/**
+	 * 全部「已知」archetype id(用于 init 非法值判定)。CONTEXT §三.4 原 5 枚举 + 世界库 backlog 陆续上架的世界。
+	 * {@code cthulhu}(克苏鲁)= 加世界流水线第一次正式复用(backlog 第一级,规则怪谈近亲);
+	 * CONTEXT §三.4 枚举在本批冒烟验通后收口时同步追加。
+	 */
 	private static final Set<String> KNOWN = Set.of(
-			"rules_creepy", "life_sim", "cultivation", "cyberpunk", "apocalypse");
+			"rules_creepy", "life_sim", "cultivation", "cyberpunk", "apocalypse", "cthulhu");
 
 	/**
 	 * 已知但未激活(占位枚举)的玩家可见中文名(CONTEXT §三.4)——选择屏渲染「敬请期待」灰显卡片用。
@@ -49,6 +53,7 @@ public class ArchetypeRegistry {
 	public ArchetypeRegistry() {
 		register(rulesCreepy());
 		register(apocalypse());
+		register(cthulhu());
 	}
 
 	private void register(ArchetypeMeta meta) {
@@ -135,5 +140,36 @@ public class ArchetypeRegistry {
 				"生存法则与资源约束(非规则怪谈的真假规则机制,但仍可有「被发现才知道的硬规矩」,复用 discovered 机制):"
 						+ "如某些区域的危险规律、物资使用的代价、势力/感染体的行为底线。content 是玩家可摸索到的生存经验,"
 						+ "hiddenLogic 是只有引擎能看的真实判定(触发条件 + hp/hunger 后果)。");
+	}
+
+	/**
+	 * 克苏鲁(加世界流水线第一次复用,backlog 第一级):hp/san=体力/理智(复用)+ knowledge=禁忌知识(克苏鲁特有)。
+	 * 核心张力 = 禁忌知识的代价——knowledge 累积型双刃:求知则上涨(力量),但越高 san 流失越快(代价)。
+	 * 这个 knowledge↔san 联动<b>由 AI 落、引擎无知</b>(behaviorHint 喂提示词,守 ADR-008 决策 1/2)。
+	 */
+	private static ArchetypeMeta cthulhu() {
+		return new ArchetypeMeta(
+				"cthulhu",
+				"克苏鲁",
+				"凝视深渊,深渊回以低语。知道得越多,离疯狂越近。",
+				"深渊 · 疯狂",
+				"克苏鲁神话式的不可名状之恐怖:沉睡于宇宙与海渊的旧日支配者、写满禁忌真相的古老典籍、"
+						+ "阴郁的海边小镇 / 偏僻古宅 / 积尘的大学禁阅区。人类一旦窥见宇宙的真实图景,理智便开始崩解。"
+						+ "氛围阴郁、压抑、缓慢逼近,恐惧来自「不该知道的事」而非血腥。",
+				List.of(
+						AttributeAxis.stable("hp", "体力"),
+						AttributeAxis.stable("san", "理智"),
+						AttributeAxis.accumulating("knowledge", "禁忌知识",
+								"累积型双刃:玩家主动钻研典籍 / 窥探禁忌 / 接触旧日之物时上涨(求知与探索使之增长),"
+										+ "平时只涨或持平、不无故回落;knowledge 高则解锁更强的洞察 / 看穿真相(力量)。"
+										+ "【关键联动】knowledge 越高,本回合 san 流失就应越快、越凶——知道得越多越接近真相、"
+										+ "也越接近疯狂,这是禁忌知识的代价;务必在 stateUpdate 让 san 随 knowledge 的高低体现这一加速流失。"
+									+ "【取值约定】初值给一个较低的正基线(如 5–15,表示「隐隐不安但尚未真正窥探」),绝不给 0;"
+									+ "此后也绝不降到 0——knowledge 是累积轴,0 只是「全然无知」的起点意味、不是结局。危险来自 knowledge "
+									+ "过高 →（联动）san 崩;失败由 san/hp 触底承载,不由 knowledge 触底。")),
+				"禁忌知识在探索中渐揭(非规则怪谈的一纸真假守则):玩家通过行动逐步发现「有些事不该知道、"
+						+ "有些东西不该看」。content 是玩家可摸索到的线索 / 禁忌知识碎片(读起来是代价与警示,不是攻略),"
+						+ "hiddenLogic 是只有引擎能看的真实判定(触发条件 + hp/san/knowledge 后果);discovered 标记已揭示的"
+						+ "禁忌知识(揭示一条 → 点亮,可能涨 knowledge / 解锁洞察,但随之加速 san 流失)。");
 	}
 }

@@ -40,6 +40,16 @@ class TurnPromptBuilderTest {
 		return new Engine(world, mapper);
 	}
 
+	/** 克苏鲁引擎:archetypes=["cthulhu"],attributes={hp,san,knowledge}。 */
+	private Engine cthulhuEngine() {
+		ObjectNode world = mapper.createObjectNode();
+		world.putArray("archetypes").add("cthulhu");
+		world.putObject("character").putObject("attributes").put("hp", 100).put("san", 90).put("knowledge", 10);
+		world.putArray("rules");
+		world.putArray("endings");
+		return new Engine(world, mapper);
+	}
+
 	@Test
 	void turnPromptCarriesSentinelContextAndAction() {
 		String p = builder.buildTurnPrompt(engine(), "A", "查看告示");
@@ -62,6 +72,18 @@ class TurnPromptBuilderTest {
 		assertThat(p).contains("衰减").contains("每回合");
 		// 叙事清洁度硬约束保留(禁内部字段名)。
 		assertThat(p).contains("破第四面墙");
+	}
+
+	@Test
+	void turnPromptInjectsCthulhuKnowledgeAxisAndSanLinkageReminder() {
+		String p = builder.buildTurnPrompt(cthulhuEngine(), "A", "继续研读");
+		// 模式名 + 克苏鲁三轴 hp/san/knowledge(stateUpdate 字段),无末日 hunger。
+		assertThat(p).contains("克苏鲁");
+		assertThat(p).contains("\"hp\"").contains("\"san\"").contains("\"knowledge\"").doesNotContain("hunger");
+		// 行为提醒(泛化自衰减):knowledge 累积 + knowledge↔san 联动(本批最关键、AI 须落)。
+		assertThat(p).contains("累积").contains("联动");
+		// 叙事清洁度:knowledge 也进禁用字段名清单(禁直呼内部 key)。
+		assertThat(p).contains("破第四面墙").contains("knowledge");
 	}
 
 	@Test

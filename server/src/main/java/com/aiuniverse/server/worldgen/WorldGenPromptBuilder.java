@@ -82,7 +82,12 @@ public final class WorldGenPromptBuilder {
 					"丧尸围城第七天,玩家困在便利店仓库,补给将尽;危险等级 high",
 					"核冬天的地下避难所,通风系统故障,外面是辐射尘暴;危险等级 extreme",
 					"末世小镇幸存者营地,入夜后围栏外有东西在徘徊;危险等级 high",
-					"资源枯竭的末日公路,玩家驾车寻找下一处补给点,油表见底;危险等级 medium"));
+					"资源枯竭的末日公路,玩家驾车寻找下一处补给点,油表见底;危险等级 medium"),
+			"cthulhu", List.of(
+					"阿卡姆郊外的古宅,玩家受邀整理已故亲属遗留的藏书,书房深处有一本无名黑皮书;危险等级 high",
+					"雾锁的海边小镇,玩家是路过的旅人,镇民的眼睛与步态都有些不对劲;危险等级 high",
+					"米斯卡托尼克大学图书馆禁阅区,玩家是夜班管理员,有人借走了不该外借的典籍;危险等级 high",
+					"南极考察站,暴雪封路,队友从冰层下挖出一块刻满非人符号的玄武岩;危险等级 extreme"));
 
 	/** 主调用提示(开 json_object,ADR-007):通用骨架 + archetype 注入块 + 随机种子。 */
 	public String buildWorldPrompt(String archetype) {
@@ -102,14 +107,14 @@ public final class WorldGenPromptBuilder {
 				+ "\n\n你上次的产出:\n" + failedRaw;
 	}
 
-	/** 注入块:数值轴逐行「- key(中文名,0-100[,衰减提示])」。 */
+	/** 注入块:数值轴逐行「- key(中文名,0-100[,逐回合行为提示])」。 */
 	private static String axesSpec(ArchetypeMeta meta) {
 		StringBuilder sb = new StringBuilder();
 		for (AttributeAxis a : meta.attributes()) {
 			sb.append("- ").append(a.key()).append("(").append(a.displayName())
 					.append(",").append(a.min()).append("-").append(a.max());
-			if (a.decay() != null) {
-				sb.append(";").append(a.decay());
+			if (a.behaviorHint() != null) {
+				sb.append(";").append(a.behaviorHint());
 			}
 			sb.append(")\n");
 		}

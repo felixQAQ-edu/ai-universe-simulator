@@ -215,3 +215,28 @@
   是临时产物,需有意识地挑选/清洗后入库,不直接照搬。
 - **关联**:`server/.../worldgen/GameInitServiceTest.java`(`apocalypseWorld`)、`EngineKeyAgnosticTest`、
   `web/.../StatsPanel.test.tsx`、规则怪谈对照 `bakeoff/replay_golden.py` / `gen_validator_parity.py`、ADR-008 决策 5。
+
+## F-012 · 引擎「≤0 即触底死亡」假设只对 depletion 轴成立——accumulation 轴(克苏鲁 knowledge)需引擎正解(backlog,留修仙批)
+
+- **日期**:2026-06-25 | **步骤**:Phase 2 加世界·克苏鲁(加世界流水线第一次复用,"流水线成色"测试)
+- **背景**:克苏鲁签名轴 `knowledge`(禁忌知识)是**累积型双刃**(求知则上涨、越高 san 流失越快),
+  与末日 `hunger`(衰减型)行为相反——正是用来验「流水线能否容纳不同行为的轴」的样本。
+- **现象(架构信号)**:`Engine.apply` 第 10 步 `anyAttributeBottomedOut()` 对**任一**数值轴 `≤0` 即强制 `ended` +
+  兜坏结局(`server/.../engine/Engine.java:275`)。这对 **depletion 轴**(hp/san/hunger,越低越危,0=死/疯/饿毙)正确;
+  但对 **accumulation 轴**(knowledge,0=「一无所知」是**健康常见的开局态**)是**错的**——若 AI 把 knowledge 落到 0,
+  引擎会**误判触底、把游戏强制 ended 并盖一个坏结局**。引擎对数值 key 语义无知(ADR-008 决策 1)的代价在此第一次具体暴露:
+  「≤0 即死」本身就是一种 depletion 语义,被无差别套到了所有轴上。
+- **影响面(非克苏鲁特有)**:所有**累积/危险来自高位**的轴都会踩——修仙(修为/境界越高越招劫)、AI 觉醒(算力/暴露度)等。
+  这是「轴角色(depletion vs accumulation)」缺失的通病,不是克苏鲁一个模式的坑。
+- **处置(Felix 拍板·两段)**:
+  1. **本批(克苏鲁)= 提示词约定兜,引擎一行不改**:world-gen 给 knowledge **正基线初值**(如 5–15、**绝不给 0**)、
+     event-loop 注明 knowledge **累积只涨/持平、不无故回落、不落到 0**(承载在 `knowledge` 轴的 `behaviorHint`,
+     world-gen/event-loop 两消费方同源读)。引擎/golden parity **零回归**、**不出新 ADR**,保本批"又短又顺"。
+     代价:靠 AI 自律(同 hunger 衰减稳定性的口径,ADR-008 决策 2 哲学)——**列为本批冒烟专门观测项**
+     (AI 有没有把 knowledge 误打到 0 触发误结局)。
+  2. **引擎正解 = 留修仙批一起做 + 出 ADR**:给数值轴加**角色**(depletion vs accumulation,元数据驱动),触底判定**只对
+     depletion 轴**;accumulation 轴的「死亡/失败条件」另设(如 knowledge 过高→疯,而非过低→死)。
+     **推迟到修仙批**——届时有 knowledge + 修为/境界**两个累积轴样本**,设计更稳,不靠单点过度设计。
+- **关联**:`server/.../engine/Engine.java`(`anyAttributeBottomedOut`/`forceBottomOutEnding`)、
+  `server/.../archetype/ArchetypeRegistry.java`(克苏鲁 `knowledge` `behaviorHint` 承载正基线/不落0约定)、
+  ADR-008 决策 1/2 + 「重新审视的触发条件」(非 0–100/非 depletion 语义的轴)、`docs/world-library-expansion-backlog.md`(修仙批)。

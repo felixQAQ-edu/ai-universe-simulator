@@ -90,6 +90,10 @@
   background: #c79a4e;
 }
 
+.barKnowledge {
+  background: #6fae8e; /* 幽绿:禁忌知识(克苏鲁深渊蠕动色) */
+}
+
 .barDefault {
   background: var(--muted);
 }
@@ -378,6 +382,9 @@
 .cardList .card:nth-child(2) {
   animation-delay: 0.12s;
 }
+.cardList .card:nth-child(3) {
+  animation-delay: 0.2s;
+}
 
 /* ── 规则怪谈:冷蓝灰 + 暗角 + 偶发冷光闪烁(信号不稳/灯将灭)+ hover 一丝红渗入(危险）── */
 .cardCreepy {
@@ -481,6 +488,48 @@
   animation-duration: 5s;
 }
 
+/* ── 克苏鲁:幽绿/深渊蓝 + 缓慢扭曲蠕动的触手般暗影 + 不可名状的不安 ──
+ * 跟规则怪谈「日常诡异」区分:克苏鲁更「深海/古老/疯狂」——色更暗绿、动更慢更黏稠(蠕动而非闪烁)。 */
+.cardCthulhu {
+  color: #c2d6c8;
+  border-left-color: #3f7d68;
+  background: radial-gradient(120% 130% at 30% 18%, #122a2a 0%, #0c1c22 50%, #07121a 100%);
+}
+
+/* 深渊暗角:四周向中心压暗,像沉入海渊(静态,扫一眼就压抑)。 */
+.cardCthulhu::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: radial-gradient(115% 100% at 50% 40%, transparent 30%, rgba(0, 8, 10, 0.66) 100%);
+}
+
+/* 触手般的幽绿暗影:两团幽光缓慢扭曲、错相位蠕动(深渊里有东西在动)。只动光团,不动文字。 */
+.cardCthulhu::after {
+  content: '';
+  position: absolute;
+  inset: -20%;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(40% 55% at 28% 32%, rgba(90, 175, 140, 0.2), transparent 64%),
+    radial-gradient(46% 50% at 74% 70%, rgba(60, 120, 150, 0.18), transparent 66%);
+  animation: cthulhuWrithe 13s ease-in-out infinite;
+}
+
+.cardCthulhu:hover {
+  border-left-color: #5fbf9a;
+  box-shadow:
+    0 10px 30px -14px rgba(0, 0, 0, 0.7),
+    inset 0 0 30px -6px rgba(60, 150, 120, 0.32);
+}
+
+.cardCthulhu:hover::after {
+  animation-duration: 8s; /* 蠕动更急,深渊更近 */
+}
+
 /* ── 未开放占位:灰显、不可点、零动效(死的,反衬解锁卡是活的)── */
 .cardLocked {
   opacity: 0.5;
@@ -549,11 +598,28 @@
   }
 }
 
+/* 触手蠕动:幽光团缓慢扭曲 + 错位漂移(不旋转、不闪——黏稠、不安、不可名状)。 */
+@keyframes cthulhuWrithe {
+  0% {
+    transform: translate(0, 0) scale(1);
+  }
+  33% {
+    transform: translate(3%, -2%) scale(1.06);
+  }
+  66% {
+    transform: translate(-2%, 3%) scale(0.97);
+  }
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+}
+
 /* 无障碍:减少动态时关掉所有运动,保留静态氛围(暗角/尘点/调色)—— 世界性格仍读得到。 */
 @media (prefers-reduced-motion: reduce) {
   .cardCreepy::after,
   .cardApocalypse::before,
   .cardApocalypse::after,
+  .cardCthulhu::after,
   .card:not(.cardLocked) {
     animation: none;
   }
@@ -596,6 +662,11 @@
   color: #d8bd86;
 }
 
+.cardCthulhu .cardTag {
+  background: rgba(90, 175, 140, 0.16);
+  color: #8fd0b4;
+}
+
 .cardSoon {
   flex-shrink: 0;
   font-size: 0.7rem;
@@ -617,6 +688,10 @@
 
 .cardApocalypse .cardTagline {
   color: #bcaa86;
+}
+
+.cardCthulhu .cardTagline {
+  color: #9ab8aa;
 }
 
 .linkBtn {

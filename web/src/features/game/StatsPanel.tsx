@@ -37,6 +37,7 @@ function barClass(key: string): string {
   if (key === 'hp') return styles.barHp;
   if (key === 'san') return styles.barSan;
   if (key === 'hunger') return styles.barHunger;
+  if (key === 'knowledge') return styles.barKnowledge;
   return styles.barDefault;
 }
 

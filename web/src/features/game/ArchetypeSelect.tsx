@@ -13,6 +13,7 @@ import styles from './game.module.css';
 function vibeClass(archetype: string): string {
   if (archetype === 'rules_creepy') return styles.cardCreepy;
   if (archetype === 'apocalypse') return styles.cardApocalypse;
+  if (archetype === 'cthulhu') return styles.cardCthulhu;
   return '';
 }
 

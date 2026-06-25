@@ -39,7 +39,8 @@ public final class TurnPromptBuilder {
 	private static final Map<String, String> IMAGERY = Map.of(
 			"hp", "身体/伤势/气力(如「伤口又裂开」)",
 			"san", "神智/理智/心神(如「神智几近崩断」)",
-			"hunger", "饥饿/腹中空乏/虚脱无力(如「饿得手指发抖」)");
+			"hunger", "饥饿/腹中空乏/虚脱无力(如「饿得手指发抖」)",
+			"knowledge", "对禁忌真相的洞悉/脑中挥之不去的低语与灼烧(如「那些符号在脑海里反复灼烧」)");
 
 	/** 通用骨架。注入变量:模式名 / 数值轴维护块 / 禁用字段名清单 / stateUpdate 字段格式。 */
 	private static final String SKELETON = """
@@ -88,7 +89,7 @@ public final class TurnPromptBuilder {
 				exampleForbiddenKey(meta), // %4$s 「XX值」直呼示例 key
 				SentinelSplitter.SENTINEL, // %5$s 哨兵
 				stateUpdateAxes(meta),    // %6$s stateUpdate 数值轴字段
-				decayReminder(meta));     // %7$s 衰减轴维护提醒(无则空)
+				behaviorReminder(meta));  // %7$s 特殊行为轴维护提醒(衰减/累积/联动;无则空)
 		return system
 				+ "\n\n世界设定与当前状态(state 是真理之源):\n"
 				+ engine.contextJson()
@@ -144,19 +145,23 @@ public final class TurnPromptBuilder {
 		return sb.toString();
 	}
 
-	/** 衰减轴维护提醒(末日 hunger 等):列出每回合须落衰减的轴 + 提示;无衰减轴则空串。 */
-	private static String decayReminder(ArchetypeMeta meta) {
+	/**
+	 * 特殊行为轴维护提醒:列出有特殊逐回合行为的轴 + 提示;无则空串。涵盖衰减型(末日 hunger)、
+	 * 累积型/联动型(克苏鲁 knowledge 求知则涨、且越高 san 流失越快)——口径中立,不预设「衰减」单一方向。
+	 */
+	private static String behaviorReminder(ArchetypeMeta meta) {
 		StringBuilder sb = new StringBuilder();
 		for (AttributeAxis a : meta.attributes()) {
-			if (a.decay() != null) {
+			if (a.behaviorHint() != null) {
 				sb.append("  · ").append(a.key()).append("(").append(a.displayName()).append("):")
-						.append(a.decay()).append("\n");
+						.append(a.behaviorHint()).append("\n");
 			}
 		}
 		if (sb.length() == 0) {
 			return "";
 		}
-		return "  注意以下数值轴随回合自然变化,每回合都要在 stateUpdate 体现(给衰减后的新绝对值):\n"
+		return "  注意以下数值轴有特殊的逐回合变化规律,每回合都要在 stateUpdate 严格按提示体现"
+				+ "(给变化后的新绝对值,与历史不矛盾):\n"
 				+ sb.toString().stripTrailing();
 	}
 }

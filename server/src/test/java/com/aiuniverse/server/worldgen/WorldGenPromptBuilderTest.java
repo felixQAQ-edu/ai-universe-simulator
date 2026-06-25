@@ -49,6 +49,21 @@ class WorldGenPromptBuilderTest {
 	}
 
 	@Test
+	void worldPromptInjectsCthulhuBlockWithKnowledgeAxisAndBaselineConvention() {
+		String p = builder.buildWorldPrompt("cthulhu");
+
+		// 通用骨架照旧(单点维护,加世界不重抄)。
+		assertThat(p).contains("整数").contains("snake_case").contains("纯 JSON").contains("openingNarrative");
+		// 克苏鲁注入块:模式名 + 三轴 hp/san/knowledge(复用 hp/san + 特有 knowledge)。
+		assertThat(p).contains("cthulhu").contains("克苏鲁");
+		assertThat(p).contains("hp(体力").contains("san(理智").contains("knowledge(禁忌知识");
+		// knowledge 累积型双刃 + knowledge↔san 联动注入(回合 AI 据此落联动)。
+		assertThat(p).contains("累积").contains("联动");
+		// F-012 约定:正基线、绝不给 0(让 AI 别把 knowledge 落 0 触发引擎误触底)。
+		assertThat(p).contains("绝不给 0");
+	}
+
+	@Test
 	void repairPromptCarriesErrorsAndFailedRawAndAxes() {
 		String p = builder.buildRepairPrompt("apocalypse", "{\"mode\":\"single\"}", List.of("rules: 缺失或非数组"));
 		assertThat(p).contains("校验错误").contains("rules: 缺失或非数组").contains("{\"mode\":\"single\"}");

@@ -14,6 +14,11 @@ const APOCALYPSE: AttributeAxisMeta[] = [
   { key: 'hp', displayName: '体力' },
   { key: 'hunger', displayName: '饥饿' },
 ];
+const CTHULHU: AttributeAxisMeta[] = [
+  { key: 'hp', displayName: '体力' },
+  { key: 'san', displayName: '理智' },
+  { key: 'knowledge', displayName: '禁忌知识' },
+];
 
 describe('StatsPanel', () => {
   it('规则怪谈:渲染 体力 / 理智 + 对应值', () => {
@@ -34,6 +39,18 @@ describe('StatsPanel', () => {
     expect(screen.getByText('40')).toBeInTheDocument();
     // 末日没有「理智」轴。
     expect(screen.queryByText('理智')).not.toBeInTheDocument();
+  });
+
+  it('克苏鲁:渲染 体力 / 理智 / 禁忌知识 三轴(动态化通吃三轴,knowledge 不写死)', () => {
+    render(<StatsPanel axes={CTHULHU} values={{ hp: 90, san: 70, knowledge: 25 }} />);
+    expect(screen.getByText('体力')).toBeInTheDocument();
+    expect(screen.getByText('理智')).toBeInTheDocument();
+    expect(screen.getByText('禁忌知识')).toBeInTheDocument();
+    expect(screen.getByText('90')).toBeInTheDocument();
+    expect(screen.getByText('70')).toBeInTheDocument();
+    expect(screen.getByText('25')).toBeInTheDocument();
+    // 克苏鲁没有末日的「饥饿」轴。
+    expect(screen.queryByText('饥饿')).not.toBeInTheDocument();
   });
 
   it('缺失值回落 0,不崩', () => {

@@ -14,7 +14,8 @@ export type Archetype =
   | 'life_sim' // 人生模拟
   | 'cultivation' // 修仙
   | 'cyberpunk' // 赛博朋克
-  | 'apocalypse'; // 末日生存
+  | 'apocalypse' // 末日生存
+  | 'cthulhu'; // 克苏鲁(加世界流水线复用上架,backlog 第一级)
 
 export type DangerLevel = 'low' | 'medium' | 'high' | 'extreme';
 
