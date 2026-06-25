@@ -143,6 +143,7 @@
 | [ADR-006](adr/ADR-006-event-loop-streaming-wire-protocol.md) | event-loop 流式线上协议选叙事先行单次调用 + 哨兵 + 结构化尾巴 + 叙事回灌复用(下游校验/引擎零改,守 ADR-005 薄接缝) | 已采纳 | 2026-06-19 |
 | [ADR-007](adr/ADR-007-world-gen-wire-protocol.md) | world-gen 线上协议选胖调用 + 保 json_object 纯 JSON 无哨兵 + 开场叙事 reveal 不流式(可靠性留在最险的那次生成,异于 ADR-006 回合口径) | 已采纳 | 2026-06-21 |
 | [ADR-008](adr/ADR-008-multi-mode-extension-architecture.md) | 多模式扩展架构:引擎/校验对数值语义无知 + per-archetype 轻量元数据(C 偏 A),以「加一个模式」的代价结构为设计目标;首个落地模式=末日生存(`apocalypse`,签名轴=饥饿) | 已采纳 | 2026-06-24 |
+| [ADR-009](adr/ADR-009-axis-roles-and-rule-form-flexibility.md) | 数值轴角色(depletion/accumulation,引擎触底按 axisRole 二分)+ 规则形态弹性(isTrue 可选、校验零分派):根治 F-012 累积轴误判触底 + F-013 非真假守则世界骨架冲突;golden parity 字节级守 depletion 零回归,schemaVersion "0.2"→"0.3" | 已采纳 | 2026-06-25 |
 
 ---
 
