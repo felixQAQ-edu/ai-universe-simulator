@@ -1,6 +1,8 @@
 package com.aiuniverse.server.worldgen;
 
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -72,10 +74,11 @@ public class GameInitService {
 		// 3. 玩家可见文本过审核接缝(no-op 占位,ADR-004 落地时此处已在网关后)。
 		reviewVisibleText(world);
 
-		// 4. 播种会话(INITIALIZING→PLAYING,turn FSM AWAITING_ACTION)。
-		//    传入本模式累积型轴 key 集合(ADR-009 F-012:这些轴 ≤0 不触底,如克苏鲁 knowledge / 修仙 境界)。
+		// 4. 播种会话(INITIALIZING→PLAYING,turn FSM AWAITING_ACTION)。传入本模式两份元数据派生信息:
+		//    累积型轴 key 集合(ADR-009 F-012:这些轴 ≤0 不触底)+ 轴 key→中文名(F-014 §5 兜底结局按中文匹配)。
 		String saveId = UUID.randomUUID().toString();
-		GameSession session = sessions.create(saveId, world, actions, accumulationKeys(archetype));
+		GameSession session = sessions.create(saveId, world, actions,
+				accumulationKeys(archetype), axisDisplayNames(archetype));
 
 		// 5. 消毒投影 + 初始动作 + openingNarrative + 本模式数值轴元数据(前端面板渲染)一次性下发。
 		ObjectNode clientWorld = session.engine().toClientState();
@@ -104,6 +107,15 @@ public class GameInitService {
 			}
 		}
 		return keys;
+	}
+
+	/** 本模式轴 key→中文名(F-014 §5:引擎兜底结局按中文 condition 匹配,如 {@code hp→气血});据元数据算。 */
+	private Map<String, String> axisDisplayNames(String archetype) {
+		Map<String, String> names = new LinkedHashMap<>();
+		for (AttributeAxis a : archetypes.meta(archetype).attributes()) {
+			names.put(a.key(), a.displayName());
+		}
+		return names;
 	}
 
 	/** 本模式数值轴元数据 {@code [{key,displayName}]}(顺序即面板顺序;decay/range 不下发前端)。 */

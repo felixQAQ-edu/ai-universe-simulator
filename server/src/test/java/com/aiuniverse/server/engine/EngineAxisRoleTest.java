@@ -98,6 +98,49 @@ class EngineAxisRoleTest {
 		assertThat(eng.status()).as("knowledge=0 不再误触底").isEqualTo("ongoing");
 	}
 
+	// ── F-014 §5 兜底结局确定性修复:按中文名匹配 condition,不再误回落 endings[0] 好结局 ────────────
+
+	@Test
+	void bottomOutEndingMatchesByChineseDisplayName_notFirstEnding_F014() {
+		// world-gen 的 condition 是中文(「气血枯竭」),旧逻辑只用英文 key "hp" 匹配 → 永不命中 →
+		// 回落 endings[0]=「飞升登仙」好结局(F-014 确定性 bug)。传入中文名 {hp:气血} 后按中文命中失败结局。
+		ObjectNode w = mapper.createObjectNode();
+		w.put("schemaVersion", "0.3");
+		w.putObject("character").putObject("attributes").put("hp", 8).put("mana", 0).put("realm", 30);
+		w.putArray("rules");
+		var endings = w.putArray("endings");
+		endings.addObject().put("id", "ascend").put("title", "飞升登仙")
+				.put("condition", "境界圆满、白日飞升").put("reached", false);       // endings[0] = 成功(旧逻辑误选)
+		endings.addObject().put("id", "meridians_shattered").put("title", "经脉俱断")
+				.put("condition", "气血枯竭、经脉寸断身死道消").put("reached", false); // 失败:condition 用中文「气血」非英文 hp
+
+		Engine eng = new Engine(w, mapper, Set.of("realm"), Map.of("hp", "气血", "mana", "灵力", "realm", "境界"));
+		eng.apply(turn(Map.of("hp", 0, "mana", 0, "realm", 30)), "A"); // 气血触底,AI 未提议结局(turn 无 ending)
+
+		assertThat(eng.status()).isEqualTo("ended");
+		assertThat(reachedId(eng)).as("§5 按中文名命中失败结局,不再回落 endings[0] 好结局")
+				.isEqualTo("meridians_shattered");
+	}
+
+	@Test
+	void withoutDisplayNamesFallsBackToFirstEnding_paritySafe_F014() {
+		// 无中文名(2/3 参构造,golden / 录制夹具走此路):condition 不含英文 key "hp" → 仍回落 endings[0]。
+		// 即 F-014 旧行为;保留此回落 = 守 golden parity 字节级零回归(golden 本就不触发 §5,此处钉「无名时不变」)。
+		ObjectNode w = mapper.createObjectNode();
+		w.put("schemaVersion", "0.3");
+		w.putObject("character").putObject("attributes").put("hp", 8).put("realm", 30);
+		w.putArray("rules");
+		var endings = w.putArray("endings");
+		endings.addObject().put("id", "ascend").put("title", "飞升").put("condition", "境界圆满").put("reached", false);
+		endings.addObject().put("id", "dead").put("title", "身死").put("condition", "气血枯竭").put("reached", false);
+
+		Engine eng = new Engine(w, mapper, Set.of("realm")); // 3 参,无中文名
+		eng.apply(turn(Map.of("hp", 0, "realm", 30)), "A");
+
+		assertThat(eng.status()).isEqualTo("ended");
+		assertThat(reachedId(eng)).as("无中文名 → 回落 endings[0](旧行为,parity 安全)").isEqualTo("ascend");
+	}
+
 	private String reachedId(Engine eng) {
 		for (JsonNode e : eng.world().path("endings")) {
 			if (e.path("reached").asBoolean(false)) {

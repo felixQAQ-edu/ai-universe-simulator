@@ -48,6 +48,13 @@ public class Engine {
 	 * (golden 用 2 参构造走此路 → 触底行为字节级不变)。引擎只读这一个二分,不懂任何具体轴语义。
 	 */
 	private final Set<String> accumulationKeys;
+	/**
+	 * 数值轴 key→玩家可见中文名(如 {@code hp→气血}/{@code mana→灵力}),仅 §5 兜底结局匹配用
+	 * (F-014:world-gen 的 {@code endings[].condition} 是中文,英文 key 几乎永不命中 → 优先按中文名匹配,
+	 * 中文名缺失才回落英文 key)。<b>默认空 map</b>(golden / 既有单测走 2/3 参构造 → 回落 key、行为字节级不变)。
+	 * 引擎仍对轴语义无知——中文名只当「在中文 condition 里搜哪个词」的检索串,不解读其含义。
+	 */
+	private final Map<String, String> axisDisplayNames;
 
 	private int turn = 0;
 	private String status = "ongoing";
@@ -61,19 +68,27 @@ public class Engine {
 
 	/** 全 depletion 默认构造(= 现状;golden parity 走此路,触底行为字节级不变)。 */
 	public Engine(ObjectNode world, ObjectMapper mapper) {
-		this(world, mapper, Set.of());
+		this(world, mapper, Set.of(), Map.of());
+	}
+
+	/** 带累积轴角色、无中文名(§5 兜底回落英文 key)。既有 3 参调用方/单测走此路,行为不变。 */
+	public Engine(ObjectNode world, ObjectMapper mapper, Set<String> accumulationKeys) {
+		this(world, mapper, accumulationKeys, Map.of());
 	}
 
 	/**
-	 * 带累积轴角色的构造(ADR-009 F-012 正解)。{@code accumulationKeys} 列出本局的累积型轴 key
+	 * 全参构造(ADR-009 F-012 + F-014 §5 修复)。{@code accumulationKeys} 列出本局累积型轴 key
 	 * (如克苏鲁 {@code knowledge}、修仙 境界),这些轴 {@code ≤0} 不触底;其余轴 = depletion(现状)。
-	 * 角色由播种层({@code GameInitService}→{@code GameSessionManager})据 per-archetype 元数据传入,
-	 * 引擎自身对「哪个轴是累积」无判断力(守 ADR-008:语义来自元数据,引擎只据集合 gate 触底)。
+	 * {@code axisDisplayNames} 给轴的中文名(§5 兜底结局按中文 condition 匹配用,F-014)。两者均由播种层
+	 * ({@code GameInitService}→{@code GameSessionManager})据 per-archetype 元数据传入,引擎自身对
+	 * 「哪个轴累积/叫什么」无判断力(守 ADR-008:语义来自元数据,引擎只据集合 gate 触底、按名搜 condition)。
 	 */
-	public Engine(ObjectNode world, ObjectMapper mapper, Set<String> accumulationKeys) {
+	public Engine(ObjectNode world, ObjectMapper mapper, Set<String> accumulationKeys,
+			Map<String, String> axisDisplayNames) {
 		this.mapper = mapper;
 		this.world = world;
 		this.accumulationKeys = accumulationKeys == null ? Set.of() : Set.copyOf(accumulationKeys);
+		this.axisDisplayNames = axisDisplayNames == null ? Map.of() : Map.copyOf(axisDisplayNames);
 		// 载入声明的数值轴(保序;只取数值键)。引擎不关心 key 是什么、有什么语义。
 		JsonNode attrs = world.path("character").path("attributes");
 		if (attrs.isObject()) {
@@ -334,10 +349,21 @@ public class Engine {
 		}
 	}
 
-	private String findEndingByConditionMentioning(String stat) {
-		String needle = stat.toLowerCase();
+	/**
+	 * 找一条 condition 提及触底轴的结局 id(F-014 §5 确定性修复)。world-gen 的 condition 是<b>中文</b>,
+	 * 故<b>优先按轴中文名</b>(如 {@code 气血}/{@code 灵力})匹配——原先只用英文 key({@code hp}/{@code mana})
+	 * 匹配中文 condition <b>几乎永不命中</b>、一路回落 {@code endings[0]}(常是好结局),这是确定性逻辑错误。
+	 * 中文名缺失(2/3 参构造、录制夹具)才回落英文 key 匹配,守向后兼容 + golden parity 零回归。
+	 */
+	private String findEndingByConditionMentioning(String axisKey) {
+		String displayName = axisDisplayNames.get(axisKey);
+		String keyNeedle = axisKey.toLowerCase();
 		for (JsonNode e : world.path("endings")) {
-			if (e.path("condition").asString("").toLowerCase().contains(needle)) {
+			String cond = e.path("condition").asString("");
+			if (displayName != null && !displayName.isBlank() && cond.contains(displayName)) {
+				return e.path("id").asString(null);
+			}
+			if (cond.toLowerCase().contains(keyNeedle)) {
 				return e.path("id").asString(null);
 			}
 		}

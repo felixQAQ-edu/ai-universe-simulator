@@ -71,7 +71,11 @@ public final class TurnPromptBuilder {
 			- triggeredRuleIds:本回合触发的规则 id 整数数组(没有则 [])
 			- discoveredRuleIds:本回合玩家验证真伪/看清机制的规则 id 整数数组(没有则 [])
 			- availableActions:2-4 个合法行动,id 用大写字母 A/B/C/D,text 中文且各有取舍
-			- ending:命中某 endings[].condition 时为 { "reached": true, "id": "<结局id 字符串>" },否则 null
+			- ending:命中某 endings[].condition 时为 { "reached": true, "id": "<结局id 字符串>" },否则 null。
+			  【结局必须匹配角色死活·硬约束】结局不得与角色当前真实处境矛盾:当代表角色存续的核心数值濒零
+			  (如 hp/气血等 depletion 轴 ≤ 约 10),或叙事中角色已濒死 / 重伤垂危 / 理智崩解 / 油尽灯枯 / 陨落时,
+			  只能命中【失败 / 死亡 / 陨落类】结局,绝不给【成功 / 圆满 / 凯旋类】结局;成功类结局仅当角色确实安然存续
+			  且达成目标时才命中。宁可返回 null(让游戏继续)也不要给与死活状态矛盾的结局。
 			""";
 
 	private static final String REPAIR_SYSTEM = """

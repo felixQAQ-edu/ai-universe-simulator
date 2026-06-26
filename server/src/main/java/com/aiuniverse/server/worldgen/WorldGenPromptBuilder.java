@@ -57,7 +57,11 @@ public final class WorldGenPromptBuilder {
 			  - hiddenLogic 是【只有引擎能看】的真实机制(触发条件 + 上述数值轴的后果),discovered 初始一律 false。
 			- endings:2-3 个,含至少一个"存活/成功"与一个"失败"结局:
 			  - id 用【snake_case 英文字符串】(如 survive_dawn、starved、lost_mind),【不是数字】——注意与 rules[].id(整数)区分;
-			  - title 必填(中文短标题 4-8 字);description 一句中文结局描述;condition 可判定的中文条件;reached 初始 false。
+			  - title 必填(中文短标题 4-8 字);description 一句中文结局描述;condition 可判定的中文条件;reached 初始 false;
+			  - 【condition 须绑定死活前提】失败/死亡/陨落类结局的 condition 要绑定「核心数值触底或角色陨落」
+			    (如「气血归零身死道消」「理智崩解发疯」「饥饿而亡」),且 condition 里**点名对应数值轴的中文名**
+			    (气血/理智/灵力…)以便兜底命中;成功/存活类结局的 condition 要明确要求「角色存活且达成目标」——
+			    别让一个成功结局的 condition 在角色濒死时也可能被判定命中。
 			- availableActions:2-4 个开局行动,id 用大写字母 A/B/C/D,text 中文且各有取舍,hint 可空。
 			- openingNarrative:开场散文整段(中文,把玩家带入场景、营造贴合本模式的氛围),不剧透隐藏机制。
 

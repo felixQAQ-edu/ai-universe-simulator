@@ -1,5 +1,6 @@
 package com.aiuniverse.server.eventloop;
 
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -34,11 +35,13 @@ public class GameSessionManager {
 	 * 从 world-gen 产出(整局真理之源根对象)新建会话并存表,置 turn FSM 初相位 {@code AWAITING_ACTION}
 	 * (整局 INITIALIZING→PLAYING)。初始合法动作由播种层显式解析后传入(world 给则用,否则 FALLBACK)。
 	 *
-	 * @param accumulationKeys 本局的累积型数值轴 key 集合(ADR-009 F-012:这些轴 ≤0 不触底);
-	 *                         由播种层据 per-archetype 元数据算出。空集 = 全 depletion(= 现状)。
+	 * @param accumulationKeys  本局的累积型数值轴 key 集合(ADR-009 F-012:这些轴 ≤0 不触底);
+	 *                          由播种层据 per-archetype 元数据算出。空集 = 全 depletion(= 现状)。
+	 * @param axisDisplayNames  轴 key→中文名(F-014 §5 兜底结局按中文 condition 匹配用);同样据元数据算出。
 	 */
-	public GameSession create(String saveId, ObjectNode world, ArrayNode initialActions, Set<String> accumulationKeys) {
-		Engine engine = new Engine(world, mapper, accumulationKeys);
+	public GameSession create(String saveId, ObjectNode world, ArrayNode initialActions,
+			Set<String> accumulationKeys, Map<String, String> axisDisplayNames) {
+		Engine engine = new Engine(world, mapper, accumulationKeys, axisDisplayNames);
 		ArrayNode initial = initialActions != null ? (ArrayNode) initialActions.deepCopy() : mapper.createArrayNode();
 		GameSession session = new GameSession(saveId, engine, initial);
 		sessions.put(saveId, session);
