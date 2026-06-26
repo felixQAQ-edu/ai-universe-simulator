@@ -240,6 +240,11 @@
 - **关联**:`server/.../engine/Engine.java`(`anyAttributeBottomedOut`/`forceBottomOutEnding`)、
   `server/.../archetype/ArchetypeRegistry.java`(克苏鲁 `knowledge` `behaviorHint` 承载正基线/不落0约定)、
   ADR-008 决策 1/2 + 「重新审视的触发条件」(非 0–100/非 depletion 语义的轴)、`docs/world-library-expansion-backlog.md`(修仙批)。
+- **✅ 已关闭(2026-06-25,ADR-009 根治)**:数值轴增 `axisRole`(depletion/accumulation),引擎触底**按角色二分**——
+  depletion 轴 ≤0 致死、**accumulation 轴 ≤0 不触底**(引擎只据播种层传入的累积轴 key 集合 gate,仍不懂具体轴语义)。
+  现有轴标角色:hp/san/hunger/灵力=depletion,knowledge/境界=accumulation。克苏鲁 knowledge 的「提示词正基线兜」**升级为引擎根治**
+  (此后累积轴零提示词补丁、零误触底)。golden parity 字节级守 depletion 零回归(2 参构造默认全 depletion = 现状)。
+  修仙真 key 冒烟验通:境界 accumulation 累积不误死成立。commit `c8191db`。
 
 ## F-013 · world-gen 通用骨架强制 `rules[].isTrue` 与「非真假守则」型世界(克苏鲁)的 ruleForm 打架(backlog,留修仙批)
 
@@ -257,3 +262,37 @@
 - **关联**:`server/.../worldgen/WorldGenPromptBuilder.java`(SKELETON 强制 isTrue)、`prompts/world-gen.md`、
   `server/.../archetype/ArchetypeRegistry.java`(克苏鲁 `ruleForm`)、`GameSchemas.validateWorld`(isTrue 校验)、
   F-012(同类:骨架假设对新世界不成立)、`docs/world-library-expansion-backlog.md`(修仙批)。
+- **✅ 已关闭(2026-06-25,ADR-009 根治)**:`rules[].isTrue` **全局改可选**(校验器零分派、不按 archetype 判,守 ADR-008 校验无知);
+  world-gen 骨架据元数据 `rulesCarryTruth` 注入 rules 措辞(真假守则型仍要 isTrue / 心法守则型如修仙不输出 isTrue)。
+  `schemaVersion` "0.2"→"0.3"(首次真动字段约束;`WORLD_SCHEMA` 接受双版本守 parity 夹具)。修仙真 key 冒烟验通:
+  心法型 rules 无 isTrue **不再触发首过修复**。commit `ba8c56c`。
+
+## F-014 · 结局判定与数值死活状态不匹配(濒死却给光明结局;诊断完成,修法待 Felix 定)
+
+- **日期**:2026-06-25 | **provider**:DeepSeek V4-Flash | **步骤**:Phase 2 修仙真 key 冒烟(Felix 浏览器,两局复现)
+- **现象**:修仙人物 **气血 8 / 灵力 0、叙事明确濒死**(经脉欲断、丹田枯竭),结局却给「守园有功 / 大比夺魁」这类**光明好结局**——
+  结局与人物当前数值死活状态完全不匹配。世界里明明有「灵力枯竭强行运功→经脉俱断」该导向坏结局。**两局都复现 = 系统性。**
+- **诊断(代码逻辑链,未拿到该两局的 tail raw 故无法 100% 定位是哪一环,但根因明确)**:
+  - **主因(最可能)= AI 提议了不匹配的成功结局,引擎 §4.4 照单全收**。`Engine.apply` 步骤 9:AI 在尾巴给 `ending{reached:true,id}`,
+    引擎**只 gate `id` 是否存在于 `endings[]`**(`endingExists`),**不校验结局是否匹配死活/数值状态** → 接受、`status=ended`、
+    `aiAccepted=true`;步骤 10 的 §5 兜底**因 `aiAccepted=true` 被跳过**。提示词侧:world-gen 造 `condition`、event-loop 说
+    「命中某 `endings[].condition` 时给 ending」,**两处都没把"核心 depletion 数值濒零/濒死 → 只能给失败结局"传导进结局选择**。
+  - **次因(真实潜伏 bug)= §5 兜底 `forceBottomOutEnding` 选错**。若 AI 给 `ending:null`、引擎因 depletion 轴(此处灵力=0)
+    触底而兜底:`findEndingByConditionMentioning(key)` 用**英文轴 key**(`"mana"`)去匹配**中文 `condition`** → 真实世界几乎永不命中 →
+    回落 `firstEndingId()`(`endings[0]`,常是成功结局)。这条在所有模式都在,只是**单轴模式 AI 稳定主动给死亡结局(F-010)故 §5 极少点火**而被掩盖。
+- **为何多轴露馅、单轴没事**:修仙**境界(accumulation)高=「成功/强大」信号**与 hp/灵力 depletion 的「濒死」信号**冲突**,AI 倾向往
+  「故事圆满」解读、给成功结局;规则怪谈/末日单轴 hp/san→0 是**无歧义的死亡信号**,AI 可靠给死亡结局。**根因(§4.4 只 gate id 存在性、
+  不 gate 死活)是通用的**,只是多轴(修仙境界 / 克苏鲁 knowledge 高)更易触发。**注意**:灵力=0(力竭)是否该=死/触底本身也存疑
+  (灵力是 depletion 但「枯竭≠必死」),与轴角色粒度(F-012 家族)相关,一并待定。
+- **修法方向(待 Felix 定,本条仅诊断未改代码)**:
+  - **(A) 提示词强化(便宜·不动核心·无 ADR·可逆)**:event-loop + world-gen 明确「结局必须匹配当前数值死活——任一致命 depletion 轴
+    (hp/灵力等)濒零或叙事中角色濒死/重伤时,只能给失败/陨落类结局,绝不给成功/圆满结局;成功结局仅在角色安然达成目标且核心数值健康时给」。
+    代价:靠 AI 自律(同衰减稳定性口径),冒烟可观测。
+  - **(B) 引擎 gate(健壮·但需结局极性元数据 + 动 event-loop 核心 + ADR)**:给 `endings[]` 加极性(success/failure),引擎 §4.4
+    拒绝「致命轴触底时的成功结局」、§5 确定性挑失败结局。**引擎当前无法判定「守园有功」是好是坏(endings 只有中文 condition、无极性)**,
+    故纯引擎 gate 必须先加极性字段=schema/registry 变更。
+  - 另:次因的 §5 中文 condition vs 英文 key 不匹配,是个**独立的小引擎缺陷**,值得顺手修(但在我刚动过的触底敏感区,需谨慎)。
+- **影响面**:通用(任何多轴且轴间给出冲突成功/死亡信号的世界:修仙境界、克苏鲁 knowledge);单轴模式偶发安全。**会不会动 event-loop 核心**:
+  (A) 不动;(B) 动 + 需 ADR。
+- **关联**:`server/.../engine/Engine.java`(`apply` 步骤 9 §4.4 accept gate / 步骤 10 §5 `forceBottomOutEnding`/`findEndingByConditionMentioning`)、
+  `prompts/event-loop.md` + `prompts/world-gen.md`(ending 生成无死活约束)、`server/.../eventloop/TurnPromptBuilder.java`、F-010(单轴 AI 稳定给死亡结局)、F-012(轴角色粒度)。

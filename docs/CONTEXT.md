@@ -25,7 +25,7 @@
 
 ```json
 {
-  "schemaVersion": "0.2",
+  "schemaVersion": "0.3",
   "mode": "single",                 // single | hybrid
   "archetypes": ["rules_creepy"],   // 1 个 = 单体,2–3 个 = 混合
   "world": {
@@ -35,12 +35,13 @@
     "tone": "..."
   },
   "character": {
-    "attributes": { "hp": 100, "san": 100 },   // 必填对象;字段因模式而异(修仙:灵根/境界…)
+    "attributes": { "hp": 100, "san": 100 },   // 必填对象;字段因模式而异(修仙:hp/mana/realm=气血/灵力/境界…)
     "traits": ["..."],
     "inventory": ["..."]
   },
   "rules": [
     // 注意:rules[].id 是【整数】,与 endings[].id(字符串)刻意不同,详见字段职责。
+    // isTrue【可选】(ADR-009 F-013):真假守则世界(规则怪谈/克苏鲁)给,心法守则世界(修仙)不给。
     { "id": 1, "content": "...", "isTrue": true, "hiddenLogic": "...", "discovered": false }
   ],
   "state": {
@@ -66,7 +67,7 @@
 
 - **AI 生成**:`world` / `character` 初值 / `rules` / `availableActions` / 每回合的 `narrative` 与结局判定。
 - **引擎维护**:`state.turn` / `status` / `log` / `logSummary`、数值结算、行动合法性校验。
-- `rules[].isTrue` 与 `hiddenLogic` 是**作者/引擎视角**字段,任何返回给玩家的文本都不得泄露。
+- `rules[].isTrue` **可选**(v0.3,ADR-009 F-013):真假守则世界(规则怪谈/克苏鲁)给(标每条规则真伪),心法守则世界(修仙)不给;`isTrue` 与 `hiddenLogic` 都是**作者/引擎视角**字段,任何返回给玩家的文本都不得泄露。校验器对 `isTrue` 零分派(给了校验布尔、不给容忍),不按 archetype 判(守 ADR-008 校验无知)。
 - **id 约定(v0.2 收敛,见 ADR-001 / bakeoff FINDINGS F-001)**:`rules[].id` 用**整数**(便于引擎引用、状态回传里轻量);`endings[].id` 用 **snake_case 英文字符串**(作为稳定语义标识,便于命中判定与跨回合引用)。两者刻意不同且**各自固定**——生成时务必按类型产出,勿混用。
 - **endings 字段(v0.2)**:`title` 必填(短标题);`description` 可选(整句结局描述,模型偏好产出,予以承认);`condition` 为可判定的中文条件;`reached` 初始 `false`。
 - `character.attributes` 为**必填对象**,至少含该模式的核心数值(规则怪谈:`hp`/`san`)。
@@ -76,11 +77,11 @@
 1. **状态是真理之源**:LLM 无记忆。每回合把 `state`(必要时含 `logSummary`)回传模型;旧 `log` 超过阈值就摘要压缩进 `logSummary`,控制 token 成本。
 2. **两个模型别混**:build-time = 用 Claude / Claude Code **写代码**;run-time = 用 DeepSeek(provider 可换)**给玩家生成内容**。运行模型选型见 ADR-001。
 3. **命名**:JSON 字段用 camelCase 英文;面向玩家的文案用中文;archetype id 用 snake_case。
-4. **archetype 枚举**:`rules_creepy`(规则怪谈,**已激活**)、`life_sim`(人生模拟)、`cultivation`(修仙)、`cyberpunk`(赛博朋克)、`apocalypse`(末日生存,**已激活**)、`cthulhu`(克苏鲁,**已激活**——加世界流水线第一次复用上架,签名轴=禁忌知识 knowledge 累积型双刃,见世界库 backlog 第一级)。原 5 枚举为初版基线,后续世界经加世界流水线(registry 加一条已激活元数据)陆续上架,本枚举同步追加。
-5. **数值范围与模式特有数值(ADR-008 展开)**:默认 0–100。`character.attributes` 是**开放字典**(§二原 schema 就是 `{hp,san}` 示例、从未限定 key),模式特有数值=换 key:规则怪谈 `{hp,san}` / 末日 `{hp,hunger}` / 修仙日后 `{灵根,境界}`。**引擎/校验对数值 key 语义无知**——`Engine.apply` 遍历 `attributes` map 通用结算(绝对值/clamp 0–100/跳变>40 标记),`validateWorld`/`TURN_SCHEMA` **只硬校验每个已给轴的范围 0–100,不硬校验 key 集合**(不做 per-archetype 硬清单)。「该渲染/生成哪些轴」由 **per-archetype 元数据**(§三.14,非强制校验)告知消费方,不靠 schema 拦。**衰减型数值(如末日饥饿)由 AI 落**(每回合 `stateUpdate` 给新绝对值,衰减提示喂提示词),**引擎不读 `decay`、不认识「会衰减」语义**。加 hunger **不算 schema 字段变更,`schemaVersion` 仍 "0.2"**。详见 ADR-008。
+4. **archetype 枚举**:`rules_creepy`(规则怪谈,**已激活**)、`life_sim`(人生模拟)、`cultivation`(修仙,**已激活**——世界库第二级,全新数值体系 hp/mana/realm=气血/灵力/境界,主角轴=境界 accumulation 累积成长;捆 ADR-009 架构正解落地)、`cyberpunk`(赛博朋克)、`apocalypse`(末日生存,**已激活**)、`cthulhu`(克苏鲁,**已激活**——加世界流水线第一次复用上架,签名轴=禁忌知识 knowledge 累积型双刃,见世界库 backlog 第一级)。原 5 枚举为初版基线,后续世界经加世界流水线(registry 加一条已激活元数据)陆续上架,本枚举同步追加。
+5. **数值范围与模式特有数值(ADR-008 展开)**:默认 0–100。`character.attributes` 是**开放字典**(§二原 schema 就是 `{hp,san}` 示例、从未限定 key),模式特有数值=换 key:规则怪谈 `{hp,san}` / 末日 `{hp,hunger}` / 克苏鲁 `{hp,san,knowledge}` / 修仙 `{hp,mana,realm}`(气血/灵力/境界)。**引擎/校验对数值 key 语义无知**——`Engine.apply` 遍历 `attributes` map 通用结算(绝对值/clamp 0–100/跳变>40 标记),`validateWorld`/`TURN_SCHEMA` **只硬校验每个已给轴的范围 0–100,不硬校验 key 集合**(不做 per-archetype 硬清单)。「该渲染/生成哪些轴」由 **per-archetype 元数据**(§三.14,非强制校验)告知消费方,不靠 schema 拦。**衰减型数值(如末日饥饿)由 AI 落**(每回合 `stateUpdate` 给新绝对值,衰减提示喂提示词),**引擎不读 `decay`、不认识「会衰减」语义**。加 key(hunger/knowledge/mana/realm)**不算 schema 字段变更**。详见 ADR-008。**轴角色 axisRole 见 §三.14 / §三.8(ADR-009 F-012)**。
 6. **提示词是核心资产**:统一放 `prompts/`,按管线步骤组织(`world-gen` / `char-gen` / `rule-gen` / `event-loop` / `ending-gen` / `fusion`),版本化管理。
 7. **内容安全**:所有生成文本经审核网关通过后再返回前端(方案见 ADR-004)。
-8. **数值权威**:数值由引擎落账,AI 只提议。event-loop 每回合 AI 在 `stateUpdate` 里回传 `hp`/`san` 的**绝对新值**(非增量);`Engine.apply()` 负责校验落账,三道闸门分工——`TURN_SCHEMA` 硬性范围 0–100(越界→修复重试)、单回合跳变 > `JUMP_THRESHOLD`(默认 40)记「需复核」但不拒绝(允许有据恢复,见 FINDINGS F-003)、`clamp(0,100)` 兜底。结局:AI 提议 `ending{id,reached}`,引擎校验 `id` 存在于 `endings[]` 并转 `status`;`hp`/`san`≤0 时引擎强制 `ended` 并兜底指派一个坏结局 id。详见 Phase 1 event-loop 规格 §5。
+8. **数值权威**:数值由引擎落账,AI 只提议。event-loop 每回合 AI 在 `stateUpdate` 里回传 `hp`/`san` 的**绝对新值**(非增量);`Engine.apply()` 负责校验落账,三道闸门分工——`TURN_SCHEMA` 硬性范围 0–100(越界→修复重试)、单回合跳变 > `JUMP_THRESHOLD`(默认 40)记「需复核」但不拒绝(允许有据恢复,见 FINDINGS F-003)、`clamp(0,100)` 兜底。结局:AI 提议 `ending{id,reached}`,引擎校验 `id` 存在于 `endings[]` 并转 `status`;**触底按轴角色 `axisRole`(ADR-009 F-012)**——**depletion 轴(hp/san/hunger/灵力)≤0** 时引擎强制 `ended` 并兜底指派一个坏结局 id,**accumulation 轴(knowledge/境界)≤0 不触底**(0 是安全起点/无知或初入修行)。角色由播种层据 per-archetype 元数据传入引擎(累积轴 key 集合),引擎只据集合 gate、不懂任何具体轴语义(守 ADR-008)。详见 Phase 1 event-loop 规格 §5、ADR-009。
 9. **state 三视图与消毒边界**:同一真理之源有三个投影——(1) 引擎内部全量(含 `isTrue`/`hiddenLogic`);(2) 喂模型的(也含 `hiddenLogic`,裁决真假规则需要);(3) 客户端消毒投影(绝不含 `isTrue`/`hiddenLogic`)。任何下发前端的 SSE 事件 / state 快照只走 (3)。实时防护 = 提示词硬禁吐隐藏逻辑 + 结构层消毒;`detect_leak` 在流式路径里是事后遥测(只抓逐字照抄 + 字段名,抓不到改写式泄露),非实时拦截。见 ADR-006、规格 §1。
 10. **两套线上口径别混**(回合 vs world-gen):**回合**(event-loop)走 ADR-006——丢 `response_format: json_object` 换逐字流叙事(叙事先行 + 哨兵 `<<<DELTA>>>` + 结构化尾巴 + 叙事回灌),修复发才开回 json_object;**world-gen**(INITIALIZING 胖调用)走 **ADR-007**——**保 `response_format: json_object`、纯 JSON、无哨兵**,把可靠性留在最险的那次生成(world-gen JSON 首次失败是头号失败模式,真 key 冒烟只证回合侧、不外推)。别把回合的哨兵/叙事回灌/保守 no-op 搬到 world-gen 上。
 11. **world-gen 失败 = 整局 ERROR**(非 no-op 降级,异于回合):world-gen 救不回时无前态可守(尚无游戏)→ 干净失败 + 提示「重新生成」,**不进半残 PLAYING**;对照回合修复用尽走保守 no-op(守一局 ongoing)。胖调用 → `LooseJson` → `validateWorld` → 不通过一次修复 → 仍败 ERROR。见 ADR-007、设计稿 §4。
@@ -94,16 +95,20 @@
     displayName:  "末日生存"              // 玩家可见中文名
     worldview:    "<世界观描述,喂 world-gen 注入块>"
     attributes:                          // 数值轴清单(顺序即面板渲染顺序)
-      - { key: "hp",     displayName: "体力", range: [0,100], decay: null }
-      - { key: "hunger", displayName: "饥饿", range: [0,100], decay: "每回合约 -5~10(AI 落,引擎无知)" }
+      - { key: "hp",     displayName: "体力", range: [0,100], axisRole: depletion,    behaviorHint: null }
+      - { key: "hunger", displayName: "饥饿", range: [0,100], axisRole: depletion,    behaviorHint: "每回合约 -5~10(AI 落,引擎无知)" }
+      // 累积轴示例:- { key: "realm", displayName: "境界", axisRole: accumulation, behaviorHint: "修炼/顿悟则上涨、纯成长不致死" }
     ruleForm:     "<规则形态描述,喂注入块>"  // 末日:生存法则/资源约束(非规则怪谈真假规则,但仍复用 discovered 机制)
+    rulesCarryTruth: true                // 规则是否真假守则型(ADR-009 F-013):true=真假混合带 isTrue;false=心法守则不带 isTrue(修仙)
     ```
 
     `decay` **只是喂提示词的提示文本,引擎不读它**(决策 2:衰减 AI 落、引擎无知)。规则怪谈也补一条(`rules_creepy`:hp/san=体力/理智,真假规则形态),两模式走同一元数据驱动路径,不让规则怪谈成特例。约定层补充,`schemaVersion` 仍 "0.2"(`attributes` 一直是开放字典,元数据是伴生结构非 schema 字段)。
 
-    **轴行为提示字段泛化(克苏鲁批,2026-06-25)**:`decay` 字段泛化为 **`behaviorHint`**——不止「衰减」,而是该轴**任何逐回合特殊行为**的提示文本,涵盖衰减型(末日 `hunger` 每回合下降)、**累积型/联动型**(克苏鲁 `knowledge`:玩家求知则上涨、且 knowledge 越高 `san` 流失越快)。**引擎一概不读**,一切由 AI 在 `stateUpdate` 落新绝对值(守决策 1/2 引擎无知);world-gen / event-loop 两消费方同源读。两条**已知架构缺口**(均「骨架/引擎某假设对新世界类型不成立」,留修仙批一起出引擎正解 + ADR):**F-012** 引擎「任一轴≤0=触底死亡」只对 depletion 轴成立、对 accumulation 轴(`knowledge` 0=无知起点)错,本批提示词约定兜(knowledge 正基线、不落 0);**F-013** 骨架强制 `rules[].isTrue` 与「非真假守则」型规则世界(克苏鲁禁忌知识渐揭)的 ruleForm 打架,本批接受偶发首过修复。
+    **轴行为提示字段泛化(克苏鲁批,2026-06-25)**:`decay` 字段泛化为 **`behaviorHint`**——不止「衰减」,而是该轴**任何逐回合特殊行为**的提示文本,涵盖衰减型(末日 `hunger` 每回合下降)、**累积型/联动型**(克苏鲁 `knowledge`:玩家求知则上涨、且 knowledge 越高 `san` 流失越快;修仙 `realm` 修炼则上涨/纯成长、`mana` 施法消耗)。**引擎一概不读 behaviorHint**,一切由 AI 在 `stateUpdate` 落新绝对值(守决策 1/2 引擎无知);world-gen / event-loop 两消费方同源读。
 
-15. **选择屏目录契约 `GET /api/archetypes`(ADR-008 决策 4,A 计划落地)**:一个轻量只读端点,供前端「选择你的世界」第一屏渲染世界目录(不让前端硬编码模式清单)。响应 `{ "archetypes": [ {archetype, displayName, tagline, vibeTag, active} ] }`——**已激活**(可玩:`rules_creepy`/`apocalypse`/`cthulhu`)在前(全字段),**已知未开放**(§三.4 枚举里 `life_sim`/`cultivation`/`cyberpunk`)在后(`active:false`、`tagline`/`vibeTag` 为 `null`,前端灰显「敬请期待」、不可选)。数据源 = `ArchetypeRegistry.listForSelection()`。为此 **`ArchetypeMeta` 增两个玩家可见文案字段** `tagline`(一句话钩子)/`vibeTag`(氛围/危险短标签)——**仅供选择屏卡片展示,不进 world-gen 注入**(注入仍用长 `worldview`,§三.14);玩家可见文案用中文(§三.3)。前端经 `api/listArchetypes`(平台 IO 只在 `api/` 适配层,守 §三.13)消费。**加新世界**:registry 加一条已激活元数据即自动进目录(未配文案则 `tagline`/`vibeTag` 留空);卡片视觉氛围由前端 per-archetype CSS 主题承载(展示层,不入后端)。约定层补充,JSON `schemaVersion` 仍 "0.2"(端点是只读投影 + registry 伴生字段,非 state schema 字段变更)。
+    **轴角色 `axisRole` + 规则形态弹性(修仙批,ADR-009 根治 F-012/F-013)**:元数据每轴增 **`axisRole: depletion | accumulation`**——这是**引擎唯一会读的轴语义**(刻意最小二分):depletion 轴 `≤0` 触底致死、accumulation 轴 `≤0` 不致死(§三.8)。角色由播种层据元数据算出累积轴 key 集合传入引擎,引擎只据集合 gate、不懂任何具体轴(克苏鲁 `knowledge`「高了拖累 san」、修仙 `realm`「纯成长」的区别继续归 AI 落)。元数据另增 **`rulesCarryTruth`**(规则是否真假守则型,F-013):驱动 world-gen 注入块的 rules 措辞(真假混合带 `isTrue` / 心法守则不带);校验器本身对 `isTrue` 零分派(§二)。**F-012 / F-013 已由 ADR-009 根治、关闭**(克苏鲁批的「提示词兜」升级为引擎/schema 正解)。axisRole/rulesCarryTruth 在元数据(伴生结构)非 state schema 字段,本身不触发 `schemaVersion`;本批 `schemaVersion` 由 `isTrue` 改可选升至 **"0.3"**(§二)。
+
+15. **选择屏目录契约 `GET /api/archetypes`(ADR-008 决策 4,A 计划落地)**:一个轻量只读端点,供前端「选择你的世界」第一屏渲染世界目录(不让前端硬编码模式清单)。响应 `{ "archetypes": [ {archetype, displayName, tagline, vibeTag, active} ] }`——**已激活**(可玩:`rules_creepy`/`apocalypse`/`cthulhu`/`cultivation`)在前(全字段),**已知未开放**(§三.4 枚举里 `life_sim`/`cyberpunk`)在后(`active:false`、`tagline`/`vibeTag` 为 `null`,前端灰显「敬请期待」、不可选)。数据源 = `ArchetypeRegistry.listForSelection()`。为此 **`ArchetypeMeta` 增两个玩家可见文案字段** `tagline`(一句话钩子)/`vibeTag`(氛围/危险短标签)——**仅供选择屏卡片展示,不进 world-gen 注入**(注入仍用长 `worldview`,§三.14);玩家可见文案用中文(§三.3)。前端经 `api/listArchetypes`(平台 IO 只在 `api/` 适配层,守 §三.13)消费。**加新世界**:registry 加一条已激活元数据即自动进目录(未配文案则 `tagline`/`vibeTag` 留空);卡片视觉氛围由前端 per-archetype CSS 主题承载(展示层,不入后端)。约定层补充,JSON `schemaVersion` 仍 "0.2"(端点是只读投影 + registry 伴生字段,非 state schema 字段变更)。
 
 ## 四、版本历史
 
@@ -118,3 +123,4 @@
 | v0.7 | 2026-06-24 | 多模式扩展架构落档(ADR-008,Phase 2 第一批=末日生存):§三.5 展开为「attributes 开放字典 + 引擎/校验对数值 key 语义无知(遍历 map 通用结算、只校验已给轴范围)+ 衰减 AI 落引擎无知」;新增 §三.14 per-archetype 元数据结构(数值轴中文名/衰减提示/规则形态,非强制校验,消费方=前端面板 + 提示词注入)。**事实订正**:核心实为 key-fixed 到 `{hp,san}`,据 ADR-008 决策 1 一次性泛化为 key-agnostic、golden parity 139 守零回归。约定层补充,JSON `schemaVersion` 仍 "0.2"(`attributes` 一直是开放字典,加 hunger 非字段变更),仅 CONTEXT 文档版本升 v0.7 |
 | v0.8 | 2026-06-25 | 追加 §三.15 选择屏目录契约 `GET /api/archetypes`(ADR-008 决策 4 / A 计划落地):只读端点供前端世界选择第一屏(已激活在前 + 已知未开放占位灰显),数据源 `ArchetypeRegistry.listForSelection()`;`ArchetypeMeta` 增玩家可见文案字段 `tagline`/`vibeTag`(仅选择屏展示、不进 world-gen 注入);卡片视觉氛围由前端 per-archetype CSS 主题承载(展示层)。约定层补充,JSON `schemaVersion` 仍 "0.2"(只读投影 + registry 伴生字段,非 state schema 变更),仅 CONTEXT 文档版本升 v0.8 |
 | v0.9 | 2026-06-25 | 加世界流水线第一次复用·克苏鲁(`cthulhu`)落地 + 真 key 冒烟验通:§三.4 archetype 枚举追加 `cthulhu`(已激活,签名轴=禁忌知识 `knowledge` 累积型双刃)、§三.15 已激活示例补 cthulhu;§三.14 轴行为提示字段 `decay` 泛化为 `behaviorHint`(涵盖衰减/累积/联动,引擎仍不读),并记两条架构缺口 F-012(引擎 ≤0 触底假设只对 depletion 轴成立)/ F-013(骨架强制 isTrue 与非真假守则世界冲突)——均本批提示词兜、引擎正解留修仙批。约定层补充,JSON `schemaVersion` 仍 "0.2"(registry 伴生字段 + 元数据提示文本,非 state schema 变更),仅 CONTEXT 文档版本升 v0.9 |
+| **v1.0** | 2026-06-25 | **修仙(`cultivation`)落地 + ADR-009 架构正解(根治 F-012/F-013),真 key 冒烟验通**:§三.4 枚举 `cultivation` 标已激活(全新数值体系 `{hp,mana,realm}`=气血/灵力/境界,主角轴=境界 accumulation)、§三.5/§三.15 同步;**§二 `rules[].isTrue` 改可选**(F-013,校验零分派)+ **JSON `schemaVersion` "0.2"→"0.3"**(首次真动字段约束;`WORLD_SCHEMA` 接受双版本守 parity 夹具,见 ADR-009);**§三.8 触底按轴角色 `axisRole`**(depletion ≤0 致死 / accumulation 不触底,F-012 引擎根治)、**§三.14 元数据增 `axisRole` + `rulesCarryTruth`**。golden parity 字节级守 depletion 零回归(server 173 / web 30 全绿)。F-012/F-013 已关闭。CONTEXT 文档版本升 v1.0(本批是首个真动 JSON `schemaVersion` 的批次)。 |
