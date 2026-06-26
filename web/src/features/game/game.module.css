@@ -394,21 +394,24 @@
   animation-delay: 0.2s;
 }
 
-/* ── 规则怪谈:冷蓝灰 + 暗角 + 偶发冷光闪烁(信号不稳/灯将灭)+ hover 一丝红渗入(危险）── */
+/* ── 规则怪谈:冷蓝灰 + 底部血色渗入 + 暗角 + 偶发冷光闪烁(信号不稳/灯将灭)+ hover 血色更浓(致命）──
+ * 冷蓝保持「日常诡异」基调,叠一层暗血红(底部渗血 + 血色左缘)强化「读错付出代价」的致命感。 */
 .cardCreepy {
   color: #c6d0dd;
-  border-left-color: #5f7fb0;
-  background: linear-gradient(160deg, #1a2230 0%, #121821 55%, #0d1117 100%);
+  border-left-color: #8a4a52; /* 冷蓝带血:左缘暗红,静止即见危险 */
+  background: linear-gradient(160deg, #1a2230 0%, #141a26 50%, #1d1014 100%); /* 冷蓝顶 → 暗血底 */
 }
 
-/* 暗角 + 冷调压暗(静态,扫一眼就压抑不安)。 */
+/* 暗角 + 底部血色渗入(静态,扫一眼就压抑、危险)。 */
 .cardCreepy::before {
   content: '';
   position: absolute;
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  background: radial-gradient(130% 110% at 50% 32%, transparent 36%, rgba(0, 0, 0, 0.58) 100%);
+  background:
+    radial-gradient(95% 60% at 50% 112%, rgba(150, 32, 30, 0.34), transparent 62%),
+    radial-gradient(130% 110% at 50% 30%, transparent 36%, rgba(0, 0, 0, 0.58) 100%);
 }
 
 /* 顶部冷光,偶发闪烁 —— 像将灭的日光灯。只抖光晕 opacity,不动文字(可读性不受影响)。 */
@@ -538,25 +541,32 @@
   animation-duration: 8s; /* 蠕动更急,深渊更近 */
 }
 
-/* ── 修仙:缥缈仙途——青白/流光 + 缓缓上浮的灵气光点 + 顶部雾霭 ──
- * 跟克苏鲁「深渊蠕动」、规则怪谈「日常诡异」区分:修仙更「空灵/悠远/向上」——色青白、动向上(灵气升腾)。 */
+/* ── 修仙:白色仙气——近白底 + 缓缓飘动的云彩 + 微金光点(缥缈仙途,空灵向上)──
+ * 区别克苏鲁「深渊幽绿」、规则怪谈「冷蓝诡异」:修仙是唯一的「亮」卡——白底仙气、金辉、向上,空灵悠远。
+ * 亮底 → 文字用深色(青灰墨绿,不随 app 明暗主题漂移)。 */
 .cardCultivation {
-  color: #cfe3da;
-  border-left-color: #5fa9a0;
-  background: radial-gradient(120% 130% at 50% 12%, #11302e 0%, #0c2230 52%, #08161f 100%);
+  color: #46554e;
+  border-left-color: #c9a84a; /* 金 */
+  background: linear-gradient(165deg, #f6f8f6 0%, #eef3ef 55%, #e6ede8 100%);
 }
 
-/* 缥缈雾霭:顶部青白柔光向下弥散(静态,扫一眼就空灵)。 */
+/* 飘动的云彩:几团柔白云气横向缓缓漂移(仙气缭绕,静止可见)。只动云气,不动文字。 */
 .cardCultivation::before {
   content: '';
   position: absolute;
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  background: radial-gradient(100% 70% at 50% 0%, rgba(150, 210, 200, 0.16), transparent 70%);
+  background-image:
+    radial-gradient(60% 45% at 20% 30%, rgba(255, 255, 255, 0.92), transparent 70%),
+    radial-gradient(52% 40% at 62% 64%, rgba(255, 255, 255, 0.82), transparent 72%),
+    radial-gradient(46% 38% at 90% 26%, rgba(236, 244, 240, 0.85), transparent 72%);
+  background-size: 200% 100%;
+  background-repeat: repeat-x;
+  animation: cloudDrift 24s linear infinite;
 }
 
-/* 上浮的灵气光点:几粒青白流光自下而上缓缓升腾(灵气升腾,空灵不晃眼)。只动光点,不动文字。 */
+/* 微金光点:几粒金色流光自下而上缓缓升腾(灵气金辉,空灵不晃眼)。 */
 .cardCultivation::after {
   content: '';
   position: absolute;
@@ -564,23 +574,23 @@
   z-index: 0;
   pointer-events: none;
   background:
-    radial-gradient(2px 2px at 22% 82%, rgba(190, 230, 220, 0.5), transparent 60%),
-    radial-gradient(2px 2px at 58% 90%, rgba(160, 215, 230, 0.45), transparent 60%),
-    radial-gradient(1.5px 1.5px at 78% 86%, rgba(200, 235, 215, 0.4), transparent 60%),
-    radial-gradient(2px 2px at 40% 94%, rgba(175, 225, 225, 0.4), transparent 60%);
+    radial-gradient(2px 2px at 24% 82%, rgba(214, 178, 84, 0.7), transparent 60%),
+    radial-gradient(1.5px 1.5px at 58% 90%, rgba(228, 196, 110, 0.62), transparent 60%),
+    radial-gradient(2px 2px at 80% 86%, rgba(206, 168, 70, 0.55), transparent 60%),
+    radial-gradient(1.5px 1.5px at 42% 94%, rgba(222, 188, 96, 0.6), transparent 60%);
   background-repeat: no-repeat;
-  animation: spiritRise 12s linear infinite;
+  animation: spiritRise 13s linear infinite;
 }
 
 .cardCultivation:hover {
-  border-left-color: #84cabf;
+  border-left-color: #e0bd5e;
   box-shadow:
-    0 10px 30px -14px rgba(0, 0, 0, 0.65),
-    inset 0 0 30px -6px rgba(95, 170, 160, 0.3);
+    0 10px 30px -14px rgba(120, 100, 40, 0.4),
+    inset 0 0 34px -6px rgba(220, 190, 110, 0.34);
 }
 
-.cardCultivation:hover::after {
-  animation-duration: 8s; /* 灵气升腾更盛 */
+.cardCultivation:hover::before {
+  animation-duration: 16s; /* 云气流动更盛 */
 }
 
 /* ── 未开放占位:灰显、不可点、零动效(死的,反衬解锁卡是活的)── */
@@ -667,7 +677,17 @@
   }
 }
 
-/* 灵气升腾:青白光点自下而上缓缓飘升(空灵、向上、不晃眼;低强度,文字始终可读)。 */
+/* 云气横移:柔白云团缓缓横向漂移(仙气缭绕,慢、不晃眼)。 */
+@keyframes cloudDrift {
+  from {
+    background-position: 0% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* 灵气升腾:光点自下而上缓缓飘升(空灵、向上、不晃眼;低强度,文字始终可读)。 */
 @keyframes spiritRise {
   0% {
     transform: translateY(0);
@@ -688,6 +708,7 @@
   .cardApocalypse::before,
   .cardApocalypse::after,
   .cardCthulhu::after,
+  .cardCultivation::before,
   .cardCultivation::after,
   .card:not(.cardLocked) {
     animation: none;
@@ -736,9 +757,10 @@
   color: #8fd0b4;
 }
 
+/* 修仙是亮底卡 —— 标签/钩子改用深金/墨色,在白底上可读(不随 app 明暗主题漂移)。 */
 .cardCultivation .cardTag {
-  background: rgba(95, 175, 165, 0.16);
-  color: #93cabf;
+  background: rgba(201, 168, 74, 0.2);
+  color: #8a6c1f;
 }
 
 .cardSoon {
@@ -769,7 +791,7 @@
 }
 
 .cardCultivation .cardTagline {
-  color: #9bc0b6;
+  color: #5a6862;
 }
 
 .linkBtn {
