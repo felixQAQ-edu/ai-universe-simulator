@@ -39,6 +39,12 @@ public class Engine {
 	public static final int LOG_KEEP = 4;
 	/** 单回合 hp/san 跳变超过此值才标「需复核」(F-003)。 */
 	public static final double JUMP_THRESHOLD = 40;
+	/**
+	 * 结局极性 gate 的「濒死」阈值(ADR-010 F-014):致命轴 {@code ≤} 此值时,引擎拒绝 AI 提议的
+	 * {@code outcome==success} 结局、确定性改挑失败结局。与触底 0 刻意分开——濒死(≤10)就 gate 成功结局,
+	 * 不必等触底(0)。
+	 */
+	public static final double ENDING_GATE_THRESHOLD = 10;
 
 	private final ObjectMapper mapper;
 	private final ObjectNode world;
@@ -55,6 +61,13 @@ public class Engine {
 	 * 引擎仍对轴语义无知——中文名只当「在中文 condition 里搜哪个词」的检索串,不解读其含义。
 	 */
 	private final Map<String, String> axisDisplayNames;
+	/**
+	 * 非致命 depletion 轴的 key 集合(ADR-010 决策 2,F-015 关闭):这些轴虽是 depletion(≤0 是惩罚),
+	 * 但 {@code ≤0} <b>不触底致死、也不触发结局极性 gate</b>(如修仙灵力——枯竭=力竭非必死)。其余 depletion 轴
+	 * 一律视作致命(= 现状)。<b>默认空集 = 全 depletion 致命</b>(golden 走 2 参构造此路 → 触底行为字节级不变)。
+	 * 角色由播种层据 per-archetype 元数据(轴 {@code lethal=false})算出传入;引擎只据集合判致命,不懂轴语义。
+	 */
+	private final Set<String> nonLethalKeys;
 
 	private int turn = 0;
 	private String status = "ongoing";
@@ -68,27 +81,38 @@ public class Engine {
 
 	/** 全 depletion 默认构造(= 现状;golden parity 走此路,触底行为字节级不变)。 */
 	public Engine(ObjectNode world, ObjectMapper mapper) {
-		this(world, mapper, Set.of(), Map.of());
+		this(world, mapper, Set.of(), Map.of(), Set.of());
 	}
 
 	/** 带累积轴角色、无中文名(§5 兜底回落英文 key)。既有 3 参调用方/单测走此路,行为不变。 */
 	public Engine(ObjectNode world, ObjectMapper mapper, Set<String> accumulationKeys) {
-		this(world, mapper, accumulationKeys, Map.of());
+		this(world, mapper, accumulationKeys, Map.of(), Set.of());
+	}
+
+	/** 带累积轴角色 + 中文名(§5 兜底按中文 condition 匹配)、全 depletion 致命。既有 4 参调用方/单测走此路,行为不变。 */
+	public Engine(ObjectNode world, ObjectMapper mapper, Set<String> accumulationKeys,
+			Map<String, String> axisDisplayNames) {
+		this(world, mapper, accumulationKeys, axisDisplayNames, Set.of());
 	}
 
 	/**
-	 * 全参构造(ADR-009 F-012 + F-014 §5 修复)。{@code accumulationKeys} 列出本局累积型轴 key
-	 * (如克苏鲁 {@code knowledge}、修仙 境界),这些轴 {@code ≤0} 不触底;其余轴 = depletion(现状)。
-	 * {@code axisDisplayNames} 给轴的中文名(§5 兜底结局按中文 condition 匹配用,F-014)。两者均由播种层
+	 * 全参构造(ADR-009 F-012 + F-014 §5 + ADR-010 致命轴 gate)。三份轴语义集均由播种层
 	 * ({@code GameInitService}→{@code GameSessionManager})据 per-archetype 元数据传入,引擎自身对
-	 * 「哪个轴累积/叫什么」无判断力(守 ADR-008:语义来自元数据,引擎只据集合 gate 触底、按名搜 condition)。
+	 * 「哪个轴累积/致命/叫什么」无判断力(守 ADR-008:语义来自元数据,引擎只据集合 gate、按名搜 condition):
+	 * <ul>
+	 *   <li>{@code accumulationKeys} —— 累积型轴 key(克苏鲁 {@code knowledge}、修仙 境界),{@code ≤0} 不触底;</li>
+	 *   <li>{@code axisDisplayNames} —— 轴 key→中文名(§5 兜底结局按中文 condition 匹配用);</li>
+	 *   <li>{@code nonLethalKeys} —— 非致命 depletion 轴 key(修仙灵力),{@code ≤0} 不死、不触发结局极性 gate
+	 *       (ADR-010,关闭 F-015);默认空 = 全 depletion 致命(现状)。</li>
+	 * </ul>
 	 */
 	public Engine(ObjectNode world, ObjectMapper mapper, Set<String> accumulationKeys,
-			Map<String, String> axisDisplayNames) {
+			Map<String, String> axisDisplayNames, Set<String> nonLethalKeys) {
 		this.mapper = mapper;
 		this.world = world;
 		this.accumulationKeys = accumulationKeys == null ? Set.of() : Set.copyOf(accumulationKeys);
 		this.axisDisplayNames = axisDisplayNames == null ? Map.of() : Map.copyOf(axisDisplayNames);
+		this.nonLethalKeys = nonLethalKeys == null ? Set.of() : Set.copyOf(nonLethalKeys);
 		// 载入声明的数值轴(保序;只取数值键)。引擎不关心 key 是什么、有什么语义。
 		JsonNode attrs = world.path("character").path("attributes");
 		if (attrs.isObject()) {
@@ -148,6 +172,10 @@ public class Engine {
 		// 9. 结局判定:AI 提议命中 → status=ended + 标 endings[id].reached。
 		//    规格 §4.4:ending.id 须存在于 world endings[]——不存在的 id <b>不接受</b>
 		//    (不 end / 不标,避免前端拿到无对应条目的"幽灵结局";交由步骤 10 或后续回合)。
+		//    ADR-010 结局极性 gate(F-014):若致命轴濒零(≤ ENDING_GATE_THRESHOLD)且 AI 提议的是
+		//    outcome==success 结局 → <b>拒绝该成功结局</b>,确定性改挑一个失败结局落账(濒死不得圆满)。
+		//    引擎只读 outcome 标签 + 看致命轴值,不懂结局语义(守 ADR-008)。outcome 缺省 neutral → 不 gate
+		//    (向后兼容:老世界无 outcome → 永不 gate,golden 行为零回归)。
 		JsonNode ending = parsed.get("ending");
 		boolean aiReached = ending != null && ending.isObject()
 				&& ending.path("reached").asBoolean(false);
@@ -155,9 +183,19 @@ public class Engine {
 		if (aiReached) {
 			String id = ending.path("id").asString(null);
 			if (endingExists(id)) {
-				status = "ended";
-				markEndingReached(id);
-				aiAccepted = true;
+				List<String> nearZeroLethal = nearZeroLethalAxes();
+				if (!nearZeroLethal.isEmpty() && "success".equals(endingOutcome(id))) {
+					// gate 介入:拒绝濒死时的成功结局,据极性确定性挑失败结局。
+					String failureId = pickFailureEnding(nearZeroLethal);
+					issues.add("T" + turn + " 致命轴濒零拒绝成功结局 " + id + " → 改判 " + failureId + "(ADR-010 gate)");
+					status = "ended";
+					markEndingReached(failureId);
+					aiAccepted = true;
+				} else {
+					status = "ended";
+					markEndingReached(id);
+					aiAccepted = true;
+				}
 			}
 		}
 		// 10. 兜底:任一数值轴触底(≤0)强制 ended;§5 补丁——AI 未给(或未被接受)结局则引擎兜一个坏结局 id。
@@ -307,58 +345,141 @@ public class Engine {
 	}
 
 	/**
-	 * 任一 <b>depletion 型</b>数值轴 ≤ 0(ADR-009 F-012 正解:accumulation 轴 0=安全起点,不触底)。
-	 * {hp,san}/{hp,hunger} 全 depletion → 同现状(hp≤0||san≤0 等);克苏鲁 knowledge / 修仙 境界 是
-	 * accumulation,即便 ≤0 也不致死。引擎仍对 key 语义无知——只据 {@link #accumulationKeys} 集合 gate。
+	 * 任一 <b>致命</b>数值轴 ≤ 0(ADR-009 F-012:accumulation 轴不触底;ADR-010 F-015:非致命 depletion 轴
+	 * 如灵力枯竭=力竭非必死,也不触底)。{hp,san}/{hp,hunger} 全致命 → 同现状(hp≤0||san≤0 等)。引擎仍对
+	 * key 语义无知——只据 {@link #accumulationKeys} / {@link #nonLethalKeys} 集合判致命。
 	 */
 	private boolean anyAttributeBottomedOut() {
 		for (Map.Entry<String, Double> e : attributes.entrySet()) {
-			if (isDepletion(e.getKey()) && e.getValue() <= 0) {
+			if (isLethal(e.getKey()) && e.getValue() <= 0) {
 				return true;
 			}
 		}
 		return false;
 	}
 
-	/** 该轴是否 depletion 型(≤0 触底致死)。不在累积集合里的一律视作 depletion(默认现状)。 */
+	/** 该轴是否 depletion 型(≤0 触底语义)。不在累积集合里的一律视作 depletion(默认现状)。 */
 	private boolean isDepletion(String key) {
 		return !accumulationKeys.contains(key);
 	}
 
 	/**
-	 * §5 补丁(🆕,bake-off 无):数值触底但 AI 未给结局 → 引擎兜一个坏结局 id。
-	 * 遍历声明数值轴(保序),对触底(≤0)的轴优先找 condition 提及该轴 key 的那条结局(如 san→{@code lost_mind});
-	 * 找不到则用约定 fallback = {@code endings[]} 首条(确定性,前端总有结局可显)。对 key 语义无知,通吃任意轴。
+	 * 该轴是否<b>致命</b>(ADR-010:depletion 且非「非致命资源池」→ ≤0 死亡 + 触发结局极性 gate)。
+	 * accumulation 轴非致命;非致命 depletion 轴(灵力,在 {@link #nonLethalKeys})非致命。默认空非致命集 =
+	 * 全 depletion 致命(= 现状,golden 走此路字节级不变)。
 	 */
-	private void forceBottomOutEnding() {
-		String pick = null;
+	private boolean isLethal(String key) {
+		return isDepletion(key) && !nonLethalKeys.contains(key);
+	}
+
+	/** 当前濒零(≤ {@link #ENDING_GATE_THRESHOLD})的致命轴 key 列表(保序;结局极性 gate 据它判濒死)。 */
+	private List<String> nearZeroLethalAxes() {
+		List<String> out = new ArrayList<>();
 		for (Map.Entry<String, Double> e : attributes.entrySet()) {
-			// 只看触底的 depletion 轴(accumulation 轴 ≤0 不致死,自然也不该用它挑坏结局)。
-			if (isDepletion(e.getKey()) && e.getValue() <= 0) {
-				pick = findEndingByConditionMentioning(e.getKey());
-				if (pick != null) {
-					break;
-				}
+			if (isLethal(e.getKey()) && e.getValue() <= ENDING_GATE_THRESHOLD) {
+				out.add(e.getKey());
 			}
 		}
-		if (pick == null) {
-			pick = firstEndingId();
+		return out;
+	}
+
+	/** 当前触底(≤0)的致命轴 key 列表(保序;§10 兜底据它挑坏结局)。 */
+	private List<String> bottomedLethalAxes() {
+		List<String> out = new ArrayList<>();
+		for (Map.Entry<String, Double> e : attributes.entrySet()) {
+			if (isLethal(e.getKey()) && e.getValue() <= 0) {
+				out.add(e.getKey());
+			}
 		}
+		return out;
+	}
+
+	/** ending 的极性 outcome(ADR-010,AI 标;缺省 {@code "neutral"})。引擎只读不解读。 */
+	private String endingOutcome(String endingId) {
+		if (endingId == null) {
+			return "neutral";
+		}
+		for (JsonNode e : world.path("endings")) {
+			if (endingId.equals(e.path("id").asString(null))) {
+				return e.path("outcome").asString("neutral");
+			}
+		}
+		return "neutral";
+	}
+
+	/**
+	 * §5 补丁(🆕,bake-off 无):致命轴触底但 AI 未给结局 → 引擎兜一个坏结局 id。
+	 * 复用 {@link #pickFailureEnding}(据极性 + 中文名确定性挑失败结局);对 key 语义无知,通吃任意轴。
+	 */
+	private void forceBottomOutEnding() {
+		String pick = pickFailureEnding(bottomedLethalAxes());
 		if (pick != null) {
 			markEndingReached(pick);
 		}
 	}
 
 	/**
-	 * 找一条 condition 提及触底轴的结局 id(F-014 §5 确定性修复)。world-gen 的 condition 是<b>中文</b>,
-	 * 故<b>优先按轴中文名</b>(如 {@code 气血}/{@code 灵力})匹配——原先只用英文 key({@code hp}/{@code mana})
-	 * 匹配中文 condition <b>几乎永不命中</b>、一路回落 {@code endings[0]}(常是好结局),这是确定性逻辑错误。
-	 * 中文名缺失(2/3 参构造、录制夹具)才回落英文 key 匹配,守向后兼容 + golden parity 零回归。
+	 * 据极性确定性挑一个失败结局 id(ADR-010,§4.4 gate 与 §5 兜底共用)。逐级退化:
+	 * <ol>
+	 *   <li>condition 提及某致命轴(中文名优先)<b>且 {@code outcome==failure}</b> 的结局;</li>
+	 *   <li>首个 {@code outcome==failure} 结局;</li>
+	 *   <li>condition 提及某致命轴的结局(任意极性,= F-014 §5 修仙批行为);</li>
+	 *   <li>{@code endings[]} 首条(约定 fallback,确定性,前端总有结局可显)。</li>
+	 * </ol>
+	 * <b>无 outcome 字段时</b>(老世界 / golden / 既有单测):步骤 1/2 恒空 → 退化为步骤 3/4 =
+	 * 修仙批 §5 中文名匹配行为,<b>golden parity 字节级零回归</b>。
+	 *
+	 * @param lethalAxisKeys 当前濒零/触底的致命轴 key(按它们的 condition 找匹配失败结局)
 	 */
-	private String findEndingByConditionMentioning(String axisKey) {
+	private String pickFailureEnding(List<String> lethalAxisKeys) {
+		// 1. failure 极性 + condition 提及致命轴(中文名优先)
+		for (String key : lethalAxisKeys) {
+			String id = findEndingByConditionMentioning(key, "failure");
+			if (id != null) {
+				return id;
+			}
+		}
+		// 2. 首个 failure 极性结局
+		String firstFailure = firstEndingIdWithOutcome("failure");
+		if (firstFailure != null) {
+			return firstFailure;
+		}
+		// 3. condition 提及致命轴(任意极性,= 修仙批 §5 行为)
+		for (String key : lethalAxisKeys) {
+			String id = findEndingByConditionMentioning(key, null);
+			if (id != null) {
+				return id;
+			}
+		}
+		// 4. 约定 fallback:首条
+		return firstEndingId();
+	}
+
+	/** 首个指定极性(outcome)的结局 id;无则 null。 */
+	private String firstEndingIdWithOutcome(String outcome) {
+		for (JsonNode e : world.path("endings")) {
+			if (outcome.equals(e.path("outcome").asString(null))) {
+				return e.path("id").asString(null);
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * 找一条 condition 提及某轴的结局 id(F-014 §5 确定性修复 + ADR-010 极性过滤)。world-gen 的 condition 是
+	 * <b>中文</b>,故<b>优先按轴中文名</b>(如 {@code 气血}/{@code 灵力})匹配——原先只用英文 key({@code hp}/
+	 * {@code mana})匹配中文 condition <b>几乎永不命中</b>、一路回落 {@code endings[0]}(常是好结局),这是确定性
+	 * 逻辑错误。中文名缺失(2/3 参构造、录制夹具)才回落英文 key 匹配,守向后兼容 + golden parity 零回归。
+	 *
+	 * @param outcomeFilter 若非 null,只匹配该极性的结局(ADR-010 gate 用 {@code "failure"});null=不限极性(§5 旧行为)
+	 */
+	private String findEndingByConditionMentioning(String axisKey, String outcomeFilter) {
 		String displayName = axisDisplayNames.get(axisKey);
 		String keyNeedle = axisKey.toLowerCase();
 		for (JsonNode e : world.path("endings")) {
+			if (outcomeFilter != null && !outcomeFilter.equals(e.path("outcome").asString(null))) {
+				continue;
+			}
 			String cond = e.path("condition").asString("");
 			if (displayName != null && !displayName.isBlank() && cond.contains(displayName)) {
 				return e.path("id").asString(null);

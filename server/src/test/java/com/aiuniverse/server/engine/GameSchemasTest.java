@@ -93,6 +93,37 @@ class GameSchemasTest {
 	}
 
 	@Test
+	void worldSchemaVersion04Passes() {
+		// ADR-010:schemaVersion 升 "0.4"(endings[].outcome 新增),校验接受 {0.2,0.3,0.4}。
+		ObjectNode w = validWorld();
+		w.put("schemaVersion", "0.4");
+		assertThat(GameSchemas.validateWorld(w)).isEmpty();
+	}
+
+	@Test
+	void worldEndingWithValidOutcomePasses() {
+		// ADR-010:endings[].outcome 可选枚举,给了合法值(success/failure/neutral)过校验。
+		ObjectNode w = validWorld();
+		w.put("schemaVersion", "0.4");
+		((ObjectNode) w.path("endings").get(0)).put("outcome", "success");
+		assertThat(GameSchemas.validateWorld(w)).isEmpty();
+	}
+
+	@Test
+	void worldEndingWithoutOutcomePasses() {
+		// 缺省 outcome(老世界 / neutral)仍过——可选字段,向后兼容。validWorld 的 ending 本就无 outcome。
+		assertThat(GameSchemas.validateWorld(validWorld())).isEmpty();
+	}
+
+	@Test
+	void worldEndingWithBadOutcomeFails() {
+		// 给了非枚举值 → 校验拦(给了就校验 ∈ {success,failure,neutral})。
+		ObjectNode w = validWorld();
+		((ObjectNode) w.path("endings").get(0)).put("outcome", "triumph");
+		assertThat(GameSchemas.validateWorld(w)).anyMatch(s -> s.contains("outcome"));
+	}
+
+	@Test
 	void worldRuleIsTrueWrongTypeStillFails() {
 		// 可选不等于不校验:给了就得是布尔。
 		ObjectNode w = validWorld();
