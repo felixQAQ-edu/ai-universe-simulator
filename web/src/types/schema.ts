@@ -1,12 +1,13 @@
-// 统一 JSON Schema · v0.3 的 TypeScript 类型
+// 统一 JSON Schema · v0.4 的 TypeScript 类型
 // 真理之源是 docs/CONTEXT.md §二。本文件只定义类型,不写任何逻辑。
-// 约定要点(v0.3,见 ADR-001 / ADR-009 / bakeoff FINDINGS F-001/F-013):
+// 约定要点(v0.4,见 ADR-001 / ADR-009 / ADR-010 / bakeoff FINDINGS F-001/F-013/F-014):
 //   - rules[].id 是【整数】,endings[].id 是【snake_case 字符串】,两者刻意不同。
 //   - character.attributes 为【必填对象】,至少含该模式核心数值(规则怪谈: hp/san)。
 //   - rules[].isTrue 是【可选】(ADR-009 F-013):真假守则世界(规则怪谈/克苏鲁)给,心法守则世界(修仙)不给。
 //   - rules[].isTrue / hiddenLogic 是作者/引擎视角字段,绝不泄露给玩家(消毒后前端本就收不到)。
+//   - endings[].outcome 是【可选】极性(ADR-010 F-014):AI 标、引擎据它在致命轴濒零时拒绝成功结局;非隐藏字段,客户端可不显。
 
-export const SCHEMA_VERSION = '0.3' as const;
+export const SCHEMA_VERSION = '0.4' as const;
 
 export type Mode = 'single' | 'hybrid';
 
@@ -82,6 +83,8 @@ export interface Ending {
   description?: string;
   /** 可判定的中文条件。 */
   condition: string;
+  /** 极性(可选,ADR-010 F-014):success | failure | neutral。AI 标、引擎据它在致命轴濒零时拒绝成功结局;非隐藏字段。 */
+  outcome?: 'success' | 'failure' | 'neutral';
   reached: boolean;
 }
 

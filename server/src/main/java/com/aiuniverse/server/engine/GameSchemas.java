@@ -23,6 +23,8 @@ public final class GameSchemas {
 
 	private static final Set<String> MODES = Set.of("single", "hybrid");
 	private static final Set<String> DANGER = Set.of("low", "medium", "high", "extreme");
+	/** 结局极性(ADR-010,可选;缺省视 neutral 不 gate)。AI 标、引擎只读。 */
+	private static final Set<String> OUTCOMES = Set.of("success", "failure", "neutral");
 
 	private GameSchemas() {
 	}
@@ -33,12 +35,12 @@ public final class GameSchemas {
 		if (!v.requireObject(w, "<root>")) {
 			return v.errors;
 		}
-		// schemaVersion:ADR-009 升 "0.2"→"0.3"(isTrue 由必需改可选,首次真动字段约束)。
-		// 校验<b>接受双版本</b>:golden / validator-parity / init 夹具是录制的真实 "0.2" 产出,硬翻成只认
-		// "0.3" 会让 parity 夹具集体失效;接受双版本 = 老数据仍合法(向后兼容)+ 新产出走 "0.3","0.1" 等仍拒。
+		// schemaVersion:ADR-009 "0.2"→"0.3"(isTrue 可选);ADR-010 "0.3"→"0.4"(endings[].outcome 新增)。
+		// 校验<b>接受多版本</b>:golden / validator-parity / init 夹具是录制的真实 "0.2"/"0.3" 产出,硬翻成只认
+		// "0.4" 会让 parity 夹具集体失效;接受 {0.2,0.3,0.4} = 老数据仍合法(向后兼容)+ 新产出走 "0.4","0.1" 等仍拒。
 		String sv = w.path("schemaVersion").asString(null);
-		if (!"0.2".equals(sv) && !"0.3".equals(sv)) {
-			v.add("schemaVersion", "必须为 \"0.2\" 或 \"0.3\"");
+		if (!"0.2".equals(sv) && !"0.3".equals(sv) && !"0.4".equals(sv)) {
+			v.add("schemaVersion", "必须为 \"0.2\"、\"0.3\" 或 \"0.4\"");
 		}
 		v.requireEnum(w, "mode", MODES);
 		v.requireStringArray(w, "archetypes", 1);
@@ -83,6 +85,8 @@ public final class GameSchemas {
 				v.requireNonEmptyString(e, "condition", p + "/condition");
 				v.requireBoolean(e, "reached", p + "/reached");
 				v.optionalString(e, "description", p + "/description");
+				// ADR-010:outcome 极性可选枚举(给了校验 ∈ {success,failure,neutral},不给视 neutral 不 gate)。
+				v.optionalEnum(e, "outcome", p + "/outcome", OUTCOMES);
 			}
 		}
 		return v.errors;
@@ -292,6 +296,17 @@ public final class GameSchemas {
 
 		void requireEnum(JsonNode parent, String field, Set<String> allowed) {
 			requireEnumAt(parent, field, field, allowed);
+		}
+
+		/** 可选枚举(ADR-010 outcome):给了校验 ∈ allowed,缺失/null 容忍(不报错)。 */
+		void optionalEnum(JsonNode parent, String field, String path, Set<String> allowed) {
+			JsonNode n = parent == null ? null : parent.get(field);
+			if (n == null || n.isNull()) {
+				return;
+			}
+			if (!n.isString() || !allowed.contains(n.asString())) {
+				add(path, "必须为枚举之一 " + allowed);
+			}
 		}
 
 		void requireEnumAt(JsonNode parent, String field, String path, Set<String> allowed) {
