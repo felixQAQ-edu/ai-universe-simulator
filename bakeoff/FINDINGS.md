@@ -267,7 +267,7 @@
   `schemaVersion` "0.2"→"0.3"(首次真动字段约束;`WORLD_SCHEMA` 接受双版本守 parity 夹具)。修仙真 key 冒烟验通:
   心法型 rules 无 isTrue **不再触发首过修复**。commit `ba8c56c`。
 
-## F-014 · 结局判定与数值死活状态不匹配(濒死却给光明结局;诊断完成,修法待 Felix 定)
+## F-014 · 结局判定与数值死活状态不匹配(濒死却给光明结局;**缓解中,B(ADR-010)根治**)
 
 - **日期**:2026-06-25 | **provider**:DeepSeek V4-Flash | **步骤**:Phase 2 修仙真 key 冒烟(Felix 浏览器,两局复现)
 - **现象**:修仙人物 **气血 8 / 灵力 0、叙事明确濒死**(经脉欲断、丹田枯竭),结局却给「守园有功 / 大比夺魁」这类**光明好结局**——
@@ -294,20 +294,22 @@
   - 另:次因的 §5 中文 condition vs 英文 key 不匹配,是个**独立的小引擎缺陷**,值得顺手修(但在我刚动过的触底敏感区,需谨慎)。
 - **影响面**:通用(任何多轴且轴间给出冲突成功/死亡信号的世界:修仙境界、克苏鲁 knowledge);单轴模式偶发安全。**会不会动 event-loop 核心**:
   (A) 不动;(B) 动 + 需 ADR。
-- **影响面**:通用(任何多轴且轴间给出冲突成功/死亡信号的世界:修仙境界、克苏鲁 knowledge);单轴模式偶发安全。**会不会动 event-loop 核心**:
-  (A) 不动;(B) 动 + 需 ADR。
 - **关联**:`server/.../engine/Engine.java`(`apply` 步骤 9 §4.4 accept gate / 步骤 10 §5 `forceBottomOutEnding`/`findEndingByConditionMentioning`)、
   `prompts/event-loop.md` + `prompts/world-gen.md`(ending 生成无死活约束)、`server/.../eventloop/TurnPromptBuilder.java`、F-010(单轴 AI 稳定给死亡结局)、F-012(轴角色粒度)。
-- **处置(Felix 拍板 2026-06-26,A + §5 修,并进修仙本批,B 留后路)**:
-  1. **(A) 提示词强化主治【已做】**:event-loop(`TurnPromptBuilder` + `prompts/event-loop.md`)+ world-gen(`WorldGenPromptBuilder` +
-     `prompts/world-gen.md`)的结局生成部分加硬约束——核心 depletion 数值濒零(≤约 10)或叙事濒死/重伤/理智崩解/陨落时,**只能命中失败/陨落类结局,
-     绝不给成功结局**,宁可 null;world-gen 侧并要求 condition 绑定死活前提 + 点名数值轴中文名(配合 §5 兜底)。lockstep `.md` + 运行时副本。
+- **处置(Felix 拍板 2026-06-26,走路 A:修仙批先合并,F-014 由 B 批根治)**:
+  1. **(A) 提示词强化【已做,但仅软引导、不足以根治】**:event-loop(`TurnPromptBuilder` + `prompts/event-loop.md`)+ world-gen
+     (`WorldGenPromptBuilder` + `prompts/world-gen.md`)的结局生成部分加硬约束——核心 depletion 数值濒零(≤约 10)或叙事濒死/重伤/
+     理智崩解/陨落时,**只能命中失败/陨落类结局,绝不给成功结局**,宁可 null;world-gen 侧并要求 condition 绑定死活前提 + 点名数值轴中文名。
+     lockstep `.md` + 运行时副本。**冒烟实测:连三局濒死仍得成功结局 → A(提示词软引导)不够、未根治**(同衰减/联动那类「靠 AI 自律」的稳定性短板)。
   2. **(次因)§5 确定性 bug 顺手修【已做】**:`findEndingByConditionMentioning` 原用**英文 key vs 中文 condition** 永不命中 → 回落 `endings[0]`(常好结局)。
      改为**优先按轴中文名匹配**(播种层经 `GameInitService`→`GameSessionManager`→`Engine` 4 参构造传 `axisDisplayNames` 元数据),中文名缺失才回落英文 key。
      **golden parity 字节级零回归**(2/3 参构造无中文名 → 回落 key,= 旧行为;golden 本就不触发 §5)+ 2 新单测(中文名命中失败结局 / 无名回落 endings[0] parity 安全)。
-  3. **(B) 引擎结局极性 gate = 留后路**:A 不够时(冒烟见 AI 仍给矛盾结局)再升级——给 `endings[]` 加极性(success/failure)元数据,引擎 §4.4 拒绝
-     「致命轴触底时的成功结局」、§5 据极性确定性挑失败结局。**届时出 ADR**(动 event-loop 核心 + schema/registry)。本批不做。
-- **✅ 本批已修(A + §5),待真 key 冒烟验 A 是否生效**(濒死下 AI 是否给对失败结局);commit 待提交。B 留 FINDINGS 当升级方向。
+     这是确定性逻辑修复(真 bug),但**只在 §5 兜底点火时生效**——主路径(AI 主动给成功结局走 §4.4)仍未拦,故 §5 修复**不构成根治**。
+  3. **(B) 引擎结局极性 gate = 根治路径,独立 B 批(ADR-010)做**:给 `endings[]` 加极性(success/failure)元数据,引擎 §4.4 **拒绝
+     「致命轴触底/濒死时的成功结局」**、§5 据极性确定性挑失败结局——把「结局须匹配死活」从 AI 自律升级为引擎硬保证。**动 event-loop 核心 + schema/registry → 出 ADR-010**。
+     B 是独立工作单元(Felix 新窗口起);修仙批不等它、先合并。
+- **状态:缓解中,B 根治**。本批落地的是 **A(提示词软引导)+ §5(确定性兜底修复)= 部分缓解**(commit `52b0cbe`,随修仙批合并 `main`),
+  **未根治**——濒死仍可能得成功结局(A 不拦主路径)。根治由 **B 批(引擎结局极性 gate,ADR-010)** 承担,独立批进行。**本条 F-014 不关闭**(对照 F-012/F-013 已真验通关闭)。
 
 ## F-015 · 灵力轴角色粒度存疑:`mana` 是 depletion 但「枯竭≠必死」(独立待办,本批不碰)
 
