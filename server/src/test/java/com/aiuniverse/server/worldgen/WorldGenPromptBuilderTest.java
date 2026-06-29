@@ -67,9 +67,11 @@ class WorldGenPromptBuilderTest {
 	void worldPromptInjectsCultivationBlockWithThreeAxesAndNoTruthRules() {
 		String p = builder.buildWorldPrompt("cultivation");
 
-		// 通用骨架照旧(单点维护,加世界不重抄)+ schemaVersion 升 0.3(ADR-009)。
+		// 通用骨架照旧(单点维护,加世界不重抄)+ schemaVersion 升 0.4(ADR-010)。
 		assertThat(p).contains("整数").contains("snake_case").contains("纯 JSON").contains("openingNarrative");
-		assertThat(p).contains("\"0.3\""); // schemaVersion 0.2→0.3
+		assertThat(p).contains("\"0.4\""); // schemaVersion 0.3→0.4(ADR-010 outcome 新增)
+		// ADR-010:结局极性 outcome 指引注入(AI 标 success/failure/neutral)。
+		assertThat(p).contains("outcome").contains("failure").contains("success");
 		// 修仙注入块:模式名 + 三轴 气血/灵力/境界。
 		assertThat(p).contains("cultivation").contains("修仙");
 		assertThat(p).contains("hp(气血").contains("mana(灵力").contains("realm(境界");

@@ -48,7 +48,7 @@ public final class WorldGenPromptBuilder {
 
 			【输出格式 · 严格遵守】只输出一个 JSON 对象,纯 JSON,不要 markdown 围栏(不要 ```),
 			不要任何前后缀解释文字。字段:
-			- schemaVersion:必须为 "0.3";mode:"single";archetypes:["%5$s"]
+			- schemaVersion:必须为 "0.4";mode:"single";archetypes:["%5$s"]
 			- world:{ title, background, tone 用中文;dangerLevel ∈ {low,medium,high,extreme} 取种子给定值 }
 			- character:{ attributes:{ 上述数值轴,各 0-100 }, traits:2-4 个中文, inventory:1-3 件中文 }
 			- rules:6-8 条,%6$s:
@@ -58,6 +58,9 @@ public final class WorldGenPromptBuilder {
 			- endings:2-3 个,含至少一个"存活/成功"与一个"失败"结局:
 			  - id 用【snake_case 英文字符串】(如 survive_dawn、starved、lost_mind),【不是数字】——注意与 rules[].id(整数)区分;
 			  - title 必填(中文短标题 4-8 字);description 一句中文结局描述;condition 可判定的中文条件;reached 初始 false;
+			  - 【outcome 必填·结局极性】每个 ending 必须标 outcome ∈ {success, failure, neutral}:
+			    失败 / 死亡 / 陨落 / 发疯 / 身死道消类 = "failure";圆满 / 突破 / 飞升 / 逃生 / 达成目标类 = "success";
+			    既非明确成功也非明确失败的中性收束 = "neutral"。务必如实标——引擎会据它在角色濒死时拒绝错配的成功结局。
 			  - 【condition 须绑定死活前提】失败/死亡/陨落类结局的 condition 要绑定「核心数值触底或角色陨落」
 			    (如「气血归零身死道消」「理智崩解发疯」「饥饿而亡」),且 condition 里**点名对应数值轴的中文名**
 			    (气血/理智/灵力…)以便兜底命中;成功/存活类结局的 condition 要明确要求「角色存活且达成目标」——
@@ -71,8 +74,9 @@ public final class WorldGenPromptBuilder {
 
 	private static final String REPAIR_HEAD = """
 			你上次产出的世界 JSON 未通过校验。请只回修正后的【完整 world JSON】(纯 JSON 对象,不要 markdown 围栏、
-			不要解释文字),字段与约束同前(schemaVersion "0.3"、rules[].id 整数、endings[].id snake_case 字符串、
-			含 availableActions 与 openingNarrative)。本模式 character.attributes 须含数值轴:%s(各 0-100)。
+			不要解释文字),字段与约束同前(schemaVersion "0.4"、rules[].id 整数、endings[].id snake_case 字符串、
+			每个 ending 含 outcome ∈ {success,failure,neutral}、含 availableActions 与 openingNarrative)。
+			本模式 character.attributes 须含数值轴:%s(各 0-100)。
 			""";
 
 	/** per-archetype 场景种子池(F-005 多样性;沿用 bake-off 形态,随机取一条)。 */
