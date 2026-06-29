@@ -90,6 +90,10 @@ class ArchetypeRegistryTest {
 		assertThat(hp.isAccumulation()).as("气血=depletion").isFalse();
 		assertThat(mana.isAccumulation()).as("灵力=depletion").isFalse();
 		assertThat(realm.isAccumulation()).as("境界=accumulation").isTrue();
+		// ADR-010 F-015 致命轴:气血致命(≤0 死),灵力=非致命资源池(枯竭=力竭非必死),境界累积本就非致命。
+		assertThat(hp.isLethal()).as("气血=致命轴").isTrue();
+		assertThat(mana.isLethal()).as("灵力=非致命资源池(F-015 关闭)").isFalse();
+		assertThat(realm.isLethal()).as("境界=accumulation,恒非致命").isFalse();
 		// 灵力带消耗提示、境界带累积提示(喂提示词,引擎不读)。
 		assertThat(mana.behaviorHint()).isNotNull().contains("消耗");
 		assertThat(realm.behaviorHint()).as("境界累积型").isNotNull().contains("累积");
@@ -111,6 +115,19 @@ class ArchetypeRegistryTest {
 		assertThat(axis(m, "san").displayName()).isEqualTo("理智");
 		// 规则怪谈无特殊行为轴(对照末日 hunger / 克苏鲁 knowledge)。
 		assertThat(m.attributes().stream().allMatch(a -> a.behaviorHint() == null)).isTrue();
+		// ADR-010:hp/san 都是生命/致命轴(≤0 死、触发结局极性 gate)。
+		assertThat(axis(m, "hp").isLethal()).isTrue();
+		assertThat(axis(m, "san").isLethal()).isTrue();
+	}
+
+	@Test
+	void apocalypseHungerIsLethalDepletion_ADR010() {
+		// ADR-010:末日饥饿致死 → hunger=致命 depletion 轴(对照修仙灵力非致命)。
+		ArchetypeMeta m = registry.meta("apocalypse");
+		assertThat(axis(m, "hp").isLethal()).as("体力致命").isTrue();
+		AttributeAxis hunger = axis(m, "hunger");
+		assertThat(hunger.isAccumulation()).as("饥饿=depletion").isFalse();
+		assertThat(hunger.isLethal()).as("饥饿而亡 → 致命轴").isTrue();
 	}
 
 	@Test

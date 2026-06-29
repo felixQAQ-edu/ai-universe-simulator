@@ -74,11 +74,12 @@ public class GameInitService {
 		// 3. 玩家可见文本过审核接缝(no-op 占位,ADR-004 落地时此处已在网关后)。
 		reviewVisibleText(world);
 
-		// 4. 播种会话(INITIALIZING→PLAYING,turn FSM AWAITING_ACTION)。传入本模式两份元数据派生信息:
-		//    累积型轴 key 集合(ADR-009 F-012:这些轴 ≤0 不触底)+ 轴 key→中文名(F-014 §5 兜底结局按中文匹配)。
+		// 4. 播种会话(INITIALIZING→PLAYING,turn FSM AWAITING_ACTION)。传入本模式三份元数据派生信息:
+		//    累积型轴 key 集合(ADR-009 F-012:这些轴 ≤0 不触底)+ 轴 key→中文名(F-014 §5 兜底结局按中文匹配)
+		//    + 非致命 depletion 轴 key 集合(ADR-010 F-015:这些轴 ≤0 不致死、不触发结局极性 gate,如修仙灵力)。
 		String saveId = UUID.randomUUID().toString();
 		GameSession session = sessions.create(saveId, world, actions,
-				accumulationKeys(archetype), axisDisplayNames(archetype));
+				accumulationKeys(archetype), axisDisplayNames(archetype), nonLethalKeys(archetype));
 
 		// 5. 消毒投影 + 初始动作 + openingNarrative + 本模式数值轴元数据(前端面板渲染)一次性下发。
 		ObjectNode clientWorld = session.engine().toClientState();
@@ -116,6 +117,21 @@ public class GameInitService {
 			names.put(a.key(), a.displayName());
 		}
 		return names;
+	}
+
+	/**
+	 * 本模式非致命 depletion 轴的 key 集合(ADR-010 F-015):喂引擎据此判致命(这些轴 ≤0 不致死、不触发结局
+	 * 极性 gate,如修仙灵力枯竭=力竭非必死)。据 per-archetype 元数据 {@code lethal=false} 的 depletion 轴算;
+	 * accumulation 轴本就不触底、无须列入。全致命的模式(规则怪谈/末日/克苏鲁)返回空集(= 现状)。
+	 */
+	private Set<String> nonLethalKeys(String archetype) {
+		Set<String> keys = new LinkedHashSet<>();
+		for (AttributeAxis a : archetypes.meta(archetype).attributes()) {
+			if (!a.isAccumulation() && !a.isLethal()) {
+				keys.add(a.key());
+			}
+		}
+		return keys;
 	}
 
 	/** 本模式数值轴元数据 {@code [{key,displayName}]}(顺序即面板顺序;decay/range 不下发前端)。 */

@@ -38,10 +38,12 @@ public class GameSessionManager {
 	 * @param accumulationKeys  本局的累积型数值轴 key 集合(ADR-009 F-012:这些轴 ≤0 不触底);
 	 *                          由播种层据 per-archetype 元数据算出。空集 = 全 depletion(= 现状)。
 	 * @param axisDisplayNames  轴 key→中文名(F-014 §5 兜底结局按中文 condition 匹配用);同样据元数据算出。
+	 * @param nonLethalKeys     非致命 depletion 轴 key 集合(ADR-010 F-015:这些轴 ≤0 不致死、不触发结局极性
+	 *                          gate,如修仙灵力);据元数据 {@code lethal=false} 算出。空集 = 全 depletion 致命。
 	 */
 	public GameSession create(String saveId, ObjectNode world, ArrayNode initialActions,
-			Set<String> accumulationKeys, Map<String, String> axisDisplayNames) {
-		Engine engine = new Engine(world, mapper, accumulationKeys, axisDisplayNames);
+			Set<String> accumulationKeys, Map<String, String> axisDisplayNames, Set<String> nonLethalKeys) {
+		Engine engine = new Engine(world, mapper, accumulationKeys, axisDisplayNames, nonLethalKeys);
 		ArrayNode initial = initialActions != null ? (ArrayNode) initialActions.deepCopy() : mapper.createArrayNode();
 		GameSession session = new GameSession(saveId, engine, initial);
 		sessions.put(saveId, session);

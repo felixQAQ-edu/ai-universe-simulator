@@ -195,9 +195,12 @@ public class ArchetypeRegistry {
 						+ "氛围缥缈悠远、大道无情,机缘与凶险并存。",
 				List.of(
 						AttributeAxis.stable("hp", "气血"),
-						AttributeAxis.depleting("mana", "灵力",
+						// 灵力 = 非致命资源池(ADR-010 决策 2,关闭 F-015):depletion 但 lethal=false,
+						// ≤0=力竭(惩罚/施不出法术)、非必死,引擎不因它触底致死、也不据它 gate 结局。
+						AttributeAxis.resource("mana", "灵力",
 								"灵力是施展术法 / 神通 / 御器 / 强行突破的资源池:施为时消耗下降,打坐吐纳 / 服食丹药 / "
-										+ "汲取灵气时回升;由你在 stateUpdate 给消耗或恢复后的新绝对值,体现「法力有限、不可无限施为」。"),
+										+ "汲取灵气时回升;由你在 stateUpdate 给消耗或恢复后的新绝对值,体现「法力有限、不可无限施为」。"
+										+ "灵力枯竭只是力竭、施不出法术,并不直接致死(致死看气血)。"),
 						AttributeAxis.accumulating("realm", "境界",
 								"境界是修为成长的主轴(累积型):勤修苦练 / 顿悟 / 历练 / 突破瓶颈时上涨(只涨或持平、"
 										+ "不无故回落);境界越高,可施展的手段越强、越能镇压低境界凶险。"
