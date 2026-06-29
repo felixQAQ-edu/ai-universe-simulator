@@ -267,7 +267,7 @@
   `schemaVersion` "0.2"→"0.3"(首次真动字段约束;`WORLD_SCHEMA` 接受双版本守 parity 夹具)。修仙真 key 冒烟验通:
   心法型 rules 无 isTrue **不再触发首过修复**。commit `ba8c56c`。
 
-## F-014 · 结局判定与数值死活状态不匹配(濒死却给光明结局;**缓解中,B(ADR-010)根治**)
+## F-014 · 结局判定与数值死活状态不匹配(濒死却给光明结局;**A+§5+B(ADR-010)根治、✅ 已关闭**)
 
 - **日期**:2026-06-25 | **provider**:DeepSeek V4-Flash | **步骤**:Phase 2 修仙真 key 冒烟(Felix 浏览器,两局复现)
 - **现象**:修仙人物 **气血 8 / 灵力 0、叙事明确濒死**(经脉欲断、丹田枯竭),结局却给「守园有功 / 大比夺魁」这类**光明好结局**——
@@ -308,10 +308,17 @@
   3. **(B) 引擎结局极性 gate = 根治路径,独立 B 批(ADR-010)做**:给 `endings[]` 加极性(success/failure)元数据,引擎 §4.4 **拒绝
      「致命轴触底/濒死时的成功结局」**、§5 据极性确定性挑失败结局——把「结局须匹配死活」从 AI 自律升级为引擎硬保证。**动 event-loop 核心 + schema/registry → 出 ADR-010**。
      B 是独立工作单元(Felix 新窗口起);修仙批不等它、先合并。
-- **状态:缓解中,B 根治**。本批落地的是 **A(提示词软引导)+ §5(确定性兜底修复)= 部分缓解**(commit `52b0cbe`,随修仙批合并 `main`),
-  **未根治**——濒死仍可能得成功结局(A 不拦主路径)。根治由 **B 批(引擎结局极性 gate,ADR-010)** 承担,独立批进行。**本条 F-014 不关闭**(对照 F-012/F-013 已真验通关闭)。
+- **状态:缓解中,B 根治**（修仙批时）。本批落地的是 **A(提示词软引导)+ §5(确定性兜底修复)= 部分缓解**(commit `52b0cbe`,随修仙批合并 `main`),
+  **未根治**——濒死仍可能得成功结局(A 不拦主路径)。根治由 **B 批(引擎结局极性 gate,ADR-010)** 承担。
+- **✅ 已关闭(2026-06-26,ADR-010 根治 = A+§5+B)**:B 批落地引擎结局极性 gate——`endings[].outcome`(success/failure/neutral,**AI 标、引擎只读**)+
+  致命轴 `lethal` 元数据;`Engine.apply` 步骤 9 加 §4.4 gate:**致命轴濒零(≤ `ENDING_GATE_THRESHOLD`=10)且 AI 提议 `outcome==success` → 引擎拒绝该成功结局,
+  确定性改挑失败结局**(`pickFailureEnding`:优先 failure 极性 + 中文名匹配,逐级退);§5/§10 据极性挑失败 + 触底收窄到 lethal 轴。引擎只读 outcome 标 + lethal 轴值、
+  不懂结局语义(守 ADR-008);outcome 缺省 neutral → 不 gate(向后兼容,golden 零回归)。`schemaVersion` "0.3"→"0.4"(`WORLD_SCHEMA` 接受 {0.2,0.3,0.4} 守 parity)。
+  **真 key 冒烟两局验通根治**:① 气血 0(真死)→ gate 拦下成功结局、给「身死道消」失败结局;② 气血 5(濒死未死)→ gate **不矫枉过正**、不强制结束,
+  给继续挣扎选项 + AI 自给的 D「闭目等死」——**该死给失败结局、没死透让继续,两种边界都对**(数值/叙事/选项三者对齐,沉浸感满)。AI 标极性可靠(「标错极性」哨兵未触发)。
+  A 软引导保留作第一层(减否决频率)。golden parity 字节级零回归(默认空非致命集=全 depletion 致命=现状)。commit `ec3c3f8`(schema)/`08ff650`(§4.4 gate)/`2dee42a`(lethal 元数据)/`73e4b68`(world-gen outcome 注入)。详见 [ADR-010](../docs/adr/ADR-010-ending-outcome-polarity-gate.md)。
 
-## F-015 · 灵力轴角色粒度存疑:`mana` 是 depletion 但「枯竭≠必死」(独立待办,本批不碰)
+## F-015 · 灵力轴角色粒度存疑:`mana` 是 depletion 但「枯竭≠必死」(**ADR-010 关闭,灵力非致命轴**)
 
 - **日期**:2026-06-26 | **步骤**:Phase 2 修仙 F-014 诊断旁支(Felix 拍板「一次只解决结局对齐,灵力存疑独立记」)
 - **现象/疑问**:修仙 `mana`(灵力)当前标 `axisRole=depletion` → 引擎对它 `≤0` 即触底强制 `ended`(死)。但修仙语义里
@@ -327,3 +334,8 @@
   (c) 维持现状(mana=0 触底死,接受其语义粗糙)。若选 (a) 则与 ADR-009 轴角色体系一并扩,出 ADR 或补 ADR-009。
 - **关联**:`server/.../archetype/ArchetypeRegistry.java`(修仙 `mana` `axisRole=depletion`)、`AttributeAxis`(角色二分)、
   ADR-009(轴角色 depletion/accumulation 最小二分)、F-012(同源:轴角色粒度)、F-014(正交:结局对齐)。
+- **✅ 已关闭(2026-06-26,ADR-010 顺带关闭 = 选项 (a) 的精简版)**:ADR-010 给元数据 axis 加 **`lethal: true|false`**(非新角色,在 depletion 内部细分
+  「致命生命轴 vs 非致命资源轴」)。**灵力标 `lethal=false`**(`AttributeAxis.resource("mana"…)`)→ 引擎据 lethal 二分:灵力 `≤0` **既不触发 §10 死亡、
+  也不触发 §4.4 结局极性 gate**(播种层把非致命 depletion 轴 key 集合 `{mana}` 传入引擎)。hp/san/hunger/气血 `lethal=true`(≤0 死 + gate)。
+  默认空非致命集 = 全 depletion 致命 = 现状(golden parity 字节级零回归)。**真 key 冒烟两局验通**:灵力两局都到 0 但**均未误触发死亡/失败结局**(F-015 关闭成立)。
+  commit `2dee42a`(元数据标 lethal + 播种非致命集)。详见 [ADR-010](../docs/adr/ADR-010-ending-outcome-polarity-gate.md) 决策 2。
