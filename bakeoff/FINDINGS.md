@@ -202,6 +202,10 @@
 
 ## F-011 · 末日真实 raw + SSE 转录接进测试夹具(替换合成数据,backlog 独立小活)
 
+- **状态更新(2026-06-30)**:**真实录制原料已入库**——末日真实 raw + SSE 转录已沉淀进 `bakeoff/recordings/`
+  (`real-wire-*.txt` / `sse-transcript-*.sse` 等,随历史提交携入,有意识保留不 force-push 改写)。
+  「接进测试夹具替换合成数据」一步仍未做,F-011 维持 backlog 待排;但原料不再只在 `/tmp`,需要时可直接取用。
+  注:`bakeoff/recordings/` 已加进 `.gitignore`,防 `add -A` 误带后续新录制——既有已跟踪文件不受影响。
 - **日期**:2026-06-24 | **provider**:DeepSeek V4-Flash | **步骤**:Phase 2 第一批·末日生存真 key 冒烟
 - **背景**:Phase 2 第一批的末日测试用的是**合成/构造数据**——`GameInitServiceTest.apocalypseWorld()`(手写末日 raw)、
   `EngineKeyAgnosticTest`(手搓 `{hp,hunger}` turn)、`StatsPanel.test.tsx`(合成 axes)。规则怪谈侧有 golden /

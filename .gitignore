@@ -16,4 +16,6 @@ dist/
 __pycache__/
 *.pyc
 bakeoff/out/
+# 真实录制原料(已跟踪的保留,这里只防 add -A 误带后续新录制;见 FINDINGS F-011)
+bakeoff/recordings/
 
