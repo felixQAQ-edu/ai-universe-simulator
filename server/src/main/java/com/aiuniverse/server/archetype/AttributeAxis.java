@@ -1,5 +1,7 @@
 package com.aiuniverse.server.archetype;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -67,6 +69,14 @@ public record AttributeAxis(String key, String displayName, int min, int max, St
 	 * @param narrationHint 叙事提示(喂 event-loop 让 AI 让叙事体现该档状态;<b>不下发前端</b>,仅服务端注入)
 	 */
 	public record Band(int threshold, String label, String narrationHint) {
+	}
+
+	/**
+	 * 行为档的<b>显式值区间投影</b>(下发前端用)。区别于 {@link Band#threshold}(内部按 axisRole 定上/下界):
+	 * {@code [min,max]} 是该档的 inclusive 闭区间,<b>axisRole 无关、自描述</b>——前端只需「{@code min≤value≤max}」
+	 * 即可解析当前档,无须懂 depletion/accumulation(守 ADR-003 展示层语义无关)。各区间连续、不重、覆盖整个值域。
+	 */
+	public record BandRange(int min, int max, String label) {
 	}
 
 	/** 常规 0–100 损耗型【生命/致命】轴,无特殊逐回合行为(如规则怪谈 hp/san、末日/克苏鲁 hp)。lethal=true。 */
@@ -150,6 +160,33 @@ public record AttributeAxis(String key, String displayName, int min, int max, St
 			}
 		}
 		return best;
+	}
+
+	/**
+	 * 行为档的显式值区间投影(下发前端,axisRole 无关)。据 axisRole 把 {@link Band#threshold} 翻成 inclusive
+	 * {@code [min,max]} 闭区间(depletion threshold=上界 → 区间向下展到上一档+1 / 最低档展到 min;accumulation
+	 * threshold=下界 → 区间向上展到下一档-1 / 最高档展到 max),按 min 升序。无档 → 空表。
+	 */
+	public List<BandRange> bandRanges() {
+		if (bands.isEmpty()) {
+			return List.of();
+		}
+		List<Band> sorted = new ArrayList<>(bands);
+		sorted.sort(Comparator.comparingInt(Band::threshold));
+		List<BandRange> out = new ArrayList<>();
+		if (axisRole == AxisRole.DEPLETION) {
+			int lo = min; // threshold = 上界:区间 [上一档上界+1, 本档上界]
+			for (Band b : sorted) {
+				out.add(new BandRange(lo, b.threshold(), b.label()));
+				lo = b.threshold() + 1;
+			}
+		} else {
+			for (int i = 0; i < sorted.size(); i++) { // threshold = 下界:区间 [本档下界, 下一档下界-1]
+				int hi = (i + 1 < sorted.size()) ? sorted.get(i + 1).threshold() - 1 : max;
+				out.add(new BandRange(sorted.get(i).threshold(), hi, sorted.get(i).label()));
+			}
+		}
+		return out;
 	}
 
 	/**

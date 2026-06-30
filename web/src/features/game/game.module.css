@@ -56,12 +56,25 @@
   letter-spacing: 0.03em;
 }
 
+.statValRow {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  margin-top: 0.1rem;
+}
+
 .statVal {
-  display: block;
   font-size: 1.4rem;
   font-variant-numeric: tabular-nums;
   font-weight: 600;
-  margin-top: 0.1rem;
+}
+
+/* #3 数值行为化:当前行为档 label,紧贴数字、弱化(辅助信息不抢主数值)。 */
+.statBand {
+  font-size: 0.72rem;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+  line-height: 1;
 }
 
 .bar {

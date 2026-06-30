@@ -81,6 +81,50 @@ class AttributeAxisBandTest {
 		assertThat(AttributeAxis.stable("hp", "体力").resolveBand(50)).isNull();
 	}
 
+	// ── bandRanges:下发前端的显式区间投影(axisRole 无关、连续覆盖全域)──────────────
+
+	@Test
+	void depletionBandRangesAreContiguousAscending() {
+		var ranges = AttributeAxis.stable("hp", "体力").withBands(
+				new Band(100, "充沛", "h1"), new Band(50, "受创", "h2"), new Band(20, "濒危", "h3")).bandRanges();
+		assertThat(ranges.stream().map(AttributeAxis.BandRange::label)).containsExactly("濒危", "受创", "充沛");
+		assertThat(ranges.get(0)).isEqualTo(new AttributeAxis.BandRange(0, 20, "濒危"));
+		assertThat(ranges.get(1)).isEqualTo(new AttributeAxis.BandRange(21, 50, "受创"));
+		assertThat(ranges.get(2)).isEqualTo(new AttributeAxis.BandRange(51, 100, "充沛"));
+	}
+
+	@Test
+	void accumulationBandRangesAreContiguousAscending() {
+		var ranges = AttributeAxis.accumulating("knowledge", "禁忌知识", "h").withBands(
+				new Band(0, "蒙昧", "h1"), new Band(31, "初窥", "h2"), new Band(61, "深陷", "h3")).bandRanges();
+		assertThat(ranges.get(0)).isEqualTo(new AttributeAxis.BandRange(0, 30, "蒙昧"));
+		assertThat(ranges.get(1)).isEqualTo(new AttributeAxis.BandRange(31, 60, "初窥"));
+		assertThat(ranges.get(2)).isEqualTo(new AttributeAxis.BandRange(61, 100, "深陷"));
+	}
+
+	@Test
+	void bandRangesCoverWholeDomainWithoutGapOrOverlap() {
+		for (ArchetypeMeta m : registry.activeMetas()) {
+			for (AttributeAxis a : m.attributes()) {
+				var ranges = a.bandRanges();
+				if (ranges.isEmpty()) {
+					continue;
+				}
+				assertThat(ranges.get(0).min()).as("%s/%s 起于 min", m.id(), a.key()).isEqualTo(a.min());
+				assertThat(ranges.get(ranges.size() - 1).max()).as("%s/%s 止于 max", m.id(), a.key()).isEqualTo(a.max());
+				for (int i = 1; i < ranges.size(); i++) {
+					assertThat(ranges.get(i).min()).as("%s/%s 区间无缝衔接", m.id(), a.key())
+							.isEqualTo(ranges.get(i - 1).max() + 1);
+				}
+			}
+		}
+	}
+
+	@Test
+	void noBandsRangesEmpty() {
+		assertThat(AttributeAxis.stable("hp", "体力").bandRanges()).isEmpty();
+	}
+
 	// ── 良构校验(构造时即拦)──────────────────────────────────────────
 
 	@Test

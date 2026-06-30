@@ -136,8 +136,9 @@ public class GameInitService {
 
 	/**
 	 * 本模式数值轴元数据 {@code [{key,displayName,bands?}]}(顺序即面板顺序;behaviorHint/range 不下发前端)。
-	 * 有行为档的轴带上 {@code bands:[{threshold,label}]}(#3,前端据值就近解析当前档展示;<b>不下发
-	 * narrationHint</b>——它仅服务端注入 prompt);无档轴省略 {@code bands} 字段(前端只显数字)。
+	 * 有行为档的轴带上 {@code bands:[{min,max,label}]}(#3,显式 inclusive 区间投影,axisRole 无关——前端只需
+	 * 「{@code min≤value≤max}」解析当前档,无须懂 depletion/accumulation;守 ADR-003 展示层语义无关);<b>不下发
+	 * narrationHint</b>(它仅服务端注入 prompt,Slice B)。无档轴省略 {@code bands} 字段(前端只显数字)。
 	 */
 	private ArrayNode attributeMeta(String archetype) {
 		ArrayNode axes = mapper.createArrayNode();
@@ -145,8 +146,8 @@ public class GameInitService {
 			ObjectNode axis = axes.addObject().put("key", a.key()).put("displayName", a.displayName());
 			if (!a.bands().isEmpty()) {
 				ArrayNode bands = axis.putArray("bands");
-				for (AttributeAxis.Band b : a.bands()) {
-					bands.addObject().put("threshold", b.threshold()).put("label", b.label());
+				for (AttributeAxis.BandRange r : a.bandRanges()) {
+					bands.addObject().put("min", r.min()).put("max", r.max()).put("label", r.label());
 				}
 			}
 		}

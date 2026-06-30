@@ -54,12 +54,27 @@ export interface ArchetypeSummary {
 }
 
 /**
- * 本模式一个数值轴的展示元数据(ADR-008 决策 1 前端消费方)。后端 init 下发 [{key,displayName}],
+ * 一个行为档的显式值区间(#3 数值行为化,后端 init 下发)。{@link min}/{@link max} 是 inclusive 闭区间,
+ * axisRole 无关——前端只需 `min ≤ value ≤ max` 即可解析当前档(无须懂 depletion/accumulation);各档连续、
+ * 覆盖整个值域。`narrationHint` 不下发(仅服务端注入 prompt)。
+ */
+export interface AxisBand {
+  min: number;
+  max: number;
+  /** 档名(玩家可见中文短词,如「濒危」「灵力枯竭」「深陷」)。 */
+  label: string;
+}
+
+/**
+ * 本模式一个数值轴的展示元数据(ADR-008 决策 1 前端消费方)。后端 init 下发 [{key,displayName,bands?}],
  * 前端据此渲染数值面板项 + 中文名(末日 体力/饥饿、规则怪谈 体力/理智);值由 attributes map 提供。
+ * {@link bands} 可选(#3):有则前端在数字旁显示当前档 label(如「气血 28 · 气血枯竭」),无则只显数字。
  */
 export interface AttributeAxisMeta {
   key: string;
   displayName: string;
+  /** 行为档区间表(#3,可选);缺省 = 该轴无档,前端只显数字。 */
+  bands?: AxisBand[];
 }
 
 /** init 成功结果(ADR-007:plain POST 一次性下发,openingNarrative 是 transient 字段)。 */
