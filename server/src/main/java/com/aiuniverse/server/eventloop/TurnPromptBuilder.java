@@ -25,6 +25,11 @@ import com.aiuniverse.server.engine.Engine;
  * {@code ending: null | {id<string>,reached<bool>}}。
  *
  * <p>叙事长度约束(A-1)保留:目标 2–4 句/约 120–200 字、硬上限约 280 字。
+ *
+ * <p><b>数值行为档注入(#3,Slice B)</b>:每回合按当前绝对值算各轴所处「行为档」({@link AttributeAxis#resolveBand}),
+ * 把<b>当前档</b>的 {@code label}+{@code narrationHint} 注入 User 段(只送当前档不送整张表,守成本),System 加
+ * 「叙事须贴合当前状态档」指令——叙事跟着状态走,在既有 2–4 句篇幅内化入。<b>只染叙事、绝不据档位 gate 可选行动</b>
+ * (=#4,留状态层)。行为档不含 isTrue/hiddenLogic(守消毒),引擎不读(守 ADR-008)。
  */
 @Component
 public final class TurnPromptBuilder {
@@ -59,6 +64,11 @@ public final class TurnPromptBuilder {
 			(玩家在手机上逐字读完整局,叙事过长则累、反而冲淡紧张感)。以短叙事主体为主(承接玩家行动的直接后果 +
 			一笔氛围),细节点到为止、可选,不堆砌环境描写或心理独白;不为压长度牺牲氛围或逻辑自洽,该交代的后果
 			与该埋的线索仍要给到,只是更凝练(写得紧,不是写得少)。
+
+			【叙事须贴合当前状态档】每回合叙事要自然体现各数值轴当前所处的「状态档」(见下方「各数值轴当前所处的
+			状态档」):如体力濒危档,角色应脚步虚浮、动作迟滞、濒死感弥漫;灵力枯竭档应力竭、施不出像样法术(力竭
+			非伤身);禁忌知识深陷档,真相侵蚀感知。把档位状态化入散文(动作 / 感官 / 处境),不要照搬档名或提示词
+			原文、也不要直呼数值;在上条既有 2-4 句篇幅内体现,不为它额外加长。
 
 			【输出格式 · 严格遵守】先逐字输出本回合中文叙事散文(承接玩家上一步行动的后果,氛围贴合本模式、逻辑自洽),
 			叙事之后另起一行,输出一行哨兵 %5$s,哨兵之后输出本回合的结构化尾巴 JSON。叙事在哨兵前、尾巴在哨兵后,
@@ -99,6 +109,7 @@ public final class TurnPromptBuilder {
 		return system
 				+ "\n\n世界设定与当前状态(state 是真理之源):\n"
 				+ engine.contextJson()
+				+ currentBandBlock(meta, engine)
 				+ "\n\n请推进第 " + (engine.turn() + 1) + " 回合。玩家本回合选择的行动:" + action;
 	}
 
@@ -168,6 +179,31 @@ public final class TurnPromptBuilder {
 		}
 		return "  注意以下数值轴有特殊的逐回合变化规律,每回合都要在 stateUpdate 严格按提示体现"
 				+ "(给变化后的新绝对值,与历史不矛盾):\n"
+				+ sb.toString().stripTrailing();
+	}
+
+	/**
+	 * 各轴当前所处的行为档(#3 数值行为化 Slice B,每回合按当前绝对值算)。<b>只送当前档、不送整张表</b>(守成本):
+	 * 逐轴输出「- key(中文名)当前【label】:narrationHint」,喂模型让本回合叙事跟着状态走。仅对有行为档且当前
+	 * state 含该轴的轴注入;无档/缺值 → 跳过,全无 → 空串(不注入空块)。<b>无泄露</b>:档 label/narrationHint 是
+	 * 我方手写的叙事色彩文本,不含 isTrue/hiddenLogic(守三视图消毒,view #2 模型侧)。
+	 */
+	private static String currentBandBlock(ArchetypeMeta meta, Engine engine) {
+		StringBuilder sb = new StringBuilder();
+		for (AttributeAxis a : meta.attributes()) {
+			if (!engine.attributes().containsKey(a.key())) {
+				continue; // 当前 state 未含该轴 → 不臆造档
+			}
+			AttributeAxis.Band band = a.resolveBand((int) Math.round(engine.attribute(a.key())));
+			if (band != null) {
+				sb.append("- ").append(a.key()).append("(").append(a.displayName()).append(")当前处于【")
+						.append(band.label()).append("】档:").append(band.narrationHint()).append("\n");
+			}
+		}
+		if (sb.length() == 0) {
+			return "";
+		}
+		return "\n\n各数值轴当前所处的状态档(本回合开始时;叙事须自然体现对应状态,化入散文而非照搬档名):\n"
 				+ sb.toString().stripTrailing();
 	}
 }
