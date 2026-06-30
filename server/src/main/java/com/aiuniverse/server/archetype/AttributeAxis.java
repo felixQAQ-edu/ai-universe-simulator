@@ -1,5 +1,7 @@
 package com.aiuniverse.server.archetype;
 
+import java.util.List;
+
 /**
  * 一个数值轴的 per-archetype 元数据(ADR-008 决策 1 / CONTEXT §三.14;ADR-009 加 {@link #axisRole})。
  * <b>非强制校验</b>——它告诉两个消费方「该渲染/生成哪个轴、叫什么、有无特殊逐回合行为、是否会因 ≤0 致死」,
@@ -24,9 +26,27 @@ package com.aiuniverse.server.archetype;
  *                     末日饥饿);<b>灵力(资源池)lethal=false</b>——枯竭=力竭非必死(关闭 F-015)。accumulation
  *                     轴恒非致命({@code ≤0} 本就不触底,lethal 对它无意义、恒 {@code false})。引擎只读这一个
  *                     bool(经播种层算出非致命 depletion 轴 key 集合传入),不懂任何具体轴语义(守 ADR-008)。
+ * @param bands        行为档(#3 数值行为化,纯叙事 legibility):该轴当前数值所处的「状态/叙事色彩」分档。
+ *                     <b>只染叙事、绝不 gate 选项</b>(gating=#4,推迟到状态层)。{@link AxisRole} 感知:
+ *                     depletion 轴 {@code threshold}=该档<b>上界(inclusive)</b>(值越低进越危的档),
+ *                     accumulation 轴 {@code threshold}=该档<b>下界(inclusive)</b>(值越高进越深的档);
+ *                     见 {@link #resolveBand(int)}。<b>引擎绝不读它</b>——两个消费方:event-loop 注入当前档
+ *                     的 {@code label}/{@code narrationHint}(让叙事跟着状态走)+ 前端展示当前档 {@code label}。
+ *                     可空(无档 → 该轴只显数字、不注入)。良构由构造器校验(阈值单调 + 覆盖域 + label 非空)。
  */
 public record AttributeAxis(String key, String displayName, int min, int max, String behaviorHint, AxisRole axisRole,
-		boolean lethal) {
+		boolean lethal, List<Band> bands) {
+
+	public AttributeAxis {
+		bands = bands == null ? List.of() : List.copyOf(bands);
+		validateBands(key, min, max, axisRole, bands);
+	}
+
+	/** 兼容既有 7 参调用(无行为档):bands 默认空。 */
+	public AttributeAxis(String key, String displayName, int min, int max, String behaviorHint, AxisRole axisRole,
+			boolean lethal) {
+		this(key, displayName, min, max, behaviorHint, axisRole, lethal, List.of());
+	}
 
 	/**
 	 * 数值轴角色(ADR-009 决策 1,F-012 正解)。引擎触底判定<b>唯一</b>会读的轴语义:只区分「这轴 {@code ≤0}
@@ -37,6 +57,16 @@ public record AttributeAxis(String key, String displayName, int min, int max, St
 		DEPLETION,
 		/** 累积型:0 是安全起点,引擎绝不因 {@code ≤0} 判死。 */
 		ACCUMULATION
+	}
+
+	/**
+	 * 一个行为档(#3 数值行为化)。纯叙事元数据,引擎不读。
+	 *
+	 * @param threshold     档边界(inclusive):depletion=上界、accumulation=下界(见 {@link AttributeAxis} 注)
+	 * @param label         档名(玩家可见中文短词,如「濒危」「灵力枯竭」「深陷」),前端数值旁展示
+	 * @param narrationHint 叙事提示(喂 event-loop 让 AI 让叙事体现该档状态;<b>不下发前端</b>,仅服务端注入)
+	 */
+	public record Band(int threshold, String label, String narrationHint) {
 	}
 
 	/** 常规 0–100 损耗型【生命/致命】轴,无特殊逐回合行为(如规则怪谈 hp/san、末日/克苏鲁 hp)。lethal=true。 */
@@ -84,5 +114,75 @@ public record AttributeAxis(String key, String displayName, int min, int max, St
 	/** 该轴是否致命(ADR-010:depletion 且 lethal=true → ≤0 死亡 + 触发结局极性 gate)。 */
 	public boolean isLethal() {
 		return lethal;
+	}
+
+	/** 返回挂上行为档的副本(#3:registry 据 per-archetype 草案给各轴配档)。其余字段不变。 */
+	public AttributeAxis withBands(Band... bands) {
+		return new AttributeAxis(key, displayName, min, max, behaviorHint, axisRole, lethal, List.of(bands));
+	}
+
+	/**
+	 * 纯函数:据当前数值解析所处的行为档(#3 数值行为化)。<b>axisRole 感知</b>(ADR-009):
+	 * <ul>
+	 *   <li><b>depletion</b>(值越低越危):{@code threshold}=档上界,取「≥value 的最小 threshold」(降序进带);</li>
+	 *   <li><b>accumulation</b>(值越高越深):{@code threshold}=档下界,取「≤value 的最大 threshold」(升序进带)。</li>
+	 * </ul>
+	 * value 先 clamp 到 {@code [min,max]}。<b>无档 → {@code null}</b>(该轴只显数字、不注入)。
+	 * 与档存储顺序无关(扫全集),良构(覆盖域)由构造器保证故必有命中。
+	 */
+	public Band resolveBand(int value) {
+		if (bands.isEmpty()) {
+			return null;
+		}
+		int v = Math.max(min, Math.min(max, value));
+		Band best = null;
+		if (axisRole == AxisRole.DEPLETION) {
+			for (Band b : bands) { // threshold = 上界 inclusive:命中 ≥v 的最小 threshold
+				if (b.threshold() >= v && (best == null || b.threshold() < best.threshold())) {
+					best = b;
+				}
+			}
+		} else {
+			for (Band b : bands) { // threshold = 下界 inclusive:命中 ≤v 的最大 threshold
+				if (b.threshold() <= v && (best == null || b.threshold() > best.threshold())) {
+					best = b;
+				}
+			}
+		}
+		return best;
+	}
+
+	/**
+	 * 行为档良构校验(构造时即拦,registry 配错档不上线)。空档放过(可选)。要求:label 非空、threshold 在
+	 * {@code [min,max]} 内、阈值两两不同、且<b>覆盖整个值域</b>——depletion 须有 threshold==max(覆盖顶档)、
+	 * accumulation 须有 threshold==min(覆盖底档)。axisRole 为 {@code null} 时(不应发生)跳过覆盖校验。
+	 */
+	private static void validateBands(String key, int min, int max, AxisRole axisRole, List<Band> bands) {
+		if (bands.isEmpty()) {
+			return;
+		}
+		java.util.Set<Integer> seen = new java.util.HashSet<>();
+		boolean hasMin = false;
+		boolean hasMax = false;
+		for (Band b : bands) {
+			if (b.label() == null || b.label().isBlank()) {
+				throw new IllegalArgumentException("行为档 label 不可空(轴 " + key + ")");
+			}
+			if (b.threshold() < min || b.threshold() > max) {
+				throw new IllegalArgumentException(
+						"行为档 threshold " + b.threshold() + " 越界 [" + min + "," + max + "](轴 " + key + ")");
+			}
+			if (!seen.add(b.threshold())) {
+				throw new IllegalArgumentException("行为档 threshold 重复:" + b.threshold() + "(轴 " + key + ")");
+			}
+			hasMin |= b.threshold() == min;
+			hasMax |= b.threshold() == max;
+		}
+		if (axisRole == AxisRole.DEPLETION && !hasMax) {
+			throw new IllegalArgumentException("depletion 轴行为档须含 threshold==" + max + " 覆盖顶档(轴 " + key + ")");
+		}
+		if (axisRole == AxisRole.ACCUMULATION && !hasMin) {
+			throw new IllegalArgumentException("accumulation 轴行为档须含 threshold==" + min + " 覆盖底档(轴 " + key + ")");
+		}
 	}
 }

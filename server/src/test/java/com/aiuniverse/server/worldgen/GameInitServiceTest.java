@@ -186,6 +186,21 @@ class GameInitServiceTest {
 		assertThat(keys).containsExactly("hp", "hunger");
 		assertThat(names).containsExactly("体力", "饥饿");
 
+		// #3 行为档下发(DTO 扩展,非 wire schema):每轴带 bands:[{threshold,label}],含顶/底档边界。
+		var hungerMeta = resp.attributes().get(1);
+		assertThat(hungerMeta.path("key").asString()).isEqualTo("hunger");
+		var bands = hungerMeta.path("bands");
+		assertThat(bands.isArray()).isTrue();
+		assertThat(bands.size()).isEqualTo(3);
+		List<String> bandLabels = new ArrayList<>();
+		bands.forEach(b -> bandLabels.add(b.path("label").asString()));
+		assertThat(bandLabels).containsExactly("饱足", "饥肠辘辘", "濒临饿毙");
+		// 下发只带 threshold/label,绝不带 narrationHint(它仅服务端注入 prompt)。
+		bands.forEach(b -> {
+			assertThat(b.has("threshold")).isTrue();
+			assertThat(b.has("narrationHint")).as("narrationHint 不下发前端").isFalse();
+		});
+
 		// 消毒 + 生产形态:无隐藏字段,world 给的初始动作被采用,opening 提取。
 		assertThat(mapper.writeValueAsString(resp)).doesNotContain("hiddenLogic").doesNotContain("isTrue");
 		assertThat(resp.availableActions()).hasSize(2);

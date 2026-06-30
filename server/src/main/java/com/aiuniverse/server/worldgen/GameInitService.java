@@ -134,11 +134,21 @@ public class GameInitService {
 		return keys;
 	}
 
-	/** 本模式数值轴元数据 {@code [{key,displayName}]}(顺序即面板顺序;decay/range 不下发前端)。 */
+	/**
+	 * 本模式数值轴元数据 {@code [{key,displayName,bands?}]}(顺序即面板顺序;behaviorHint/range 不下发前端)。
+	 * 有行为档的轴带上 {@code bands:[{threshold,label}]}(#3,前端据值就近解析当前档展示;<b>不下发
+	 * narrationHint</b>——它仅服务端注入 prompt);无档轴省略 {@code bands} 字段(前端只显数字)。
+	 */
 	private ArrayNode attributeMeta(String archetype) {
 		ArrayNode axes = mapper.createArrayNode();
 		for (AttributeAxis a : archetypes.meta(archetype).attributes()) {
-			axes.addObject().put("key", a.key()).put("displayName", a.displayName());
+			ObjectNode axis = axes.addObject().put("key", a.key()).put("displayName", a.displayName());
+			if (!a.bands().isEmpty()) {
+				ArrayNode bands = axis.putArray("bands");
+				for (AttributeAxis.Band b : a.bands()) {
+					bands.addObject().put("threshold", b.threshold()).put("label", b.label());
+				}
+			}
 		}
 		return axes;
 	}

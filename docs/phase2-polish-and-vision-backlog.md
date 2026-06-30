@@ -88,3 +88,21 @@
 
 - **#3 阈值档位**:只染叙事 vs 真开关选项(后者滑向机制层、与 #4 重叠)。
 - **#8 本轮深度**:第 1 档(静态)收口 vs 允许点到 1.5(AI 选图)。
+
+---
+
+## 6. 独立小单元 · 末日「饥饿」轴改名(legibility,从 #3 拆出)
+
+**问题**:末日 `hunger` 轴是 depletion 轴(高值=温饱、`≤0`=饿死),但 displayName 叫「**饥饿**」——高值=不饿,语义与值方向反直觉(面板「饥饿 80」其实是吃饱)。理想改成「温饱」/「满足度」(高=好,与值方向自洽)。
+
+**为何拆出(#3 数值行为化 Slice A enumerate 时验)**:「饥饿」一词不止 registry 显示名,已**织进 prompt / 规则 / 事件文案**,改 displayName 不连带改这些会造成「面板名 vs 叙事名」两套叫法。引用面:
+- `prompts/world-gen.md`(示例注入 `hunger(饥饿,…)`、condition 示例「饥饿而亡」)
+- `prompts/event-loop.md`(AXIS_IMAGERY:`末日 hunger→饥饿/腹中空乏/虚脱无力`)
+- `server/.../eventloop/TurnPromptBuilder.java`(运行时 AXIS_IMAGERY 副本 `"hunger" → "饥饿/腹中空乏/虚脱无力…"`)
+- `server/.../worldgen/WorldGenPromptBuilder.java`(condition 示例「饥饿而亡」)
+- registry `worldview`/`tagline`/`behaviorHint` 散文(「废土求生,饥饿是另一个敌人」「饥饿值随回合自然衰减」)
+- `docs/CONTEXT.md` §三.14 元数据示例 + 多处 `{hp,hunger}` 叙述
+
+**范围**:真正改名要一并改上述 prompt/imagery/condition 措辞(否则 UI↔叙事错位 / 一名两叫),属 prompt 改动,有触碰 A-1 叙事约束与 world-gen 行为的回归面 → **不在 #3 本单元做**,留作独立小单元(改名 + lockstep `.md`/运行时副本 + 真 key 冒烟)。
+
+**本轮(#3)结论**:displayName 保留「饥饿」;band label(饱足 / 饥肠辘辘 / 濒临饿毙)与值方向(高=温饱)自洽,**不依赖改名**也读得通。

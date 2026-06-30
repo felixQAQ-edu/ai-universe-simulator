@@ -60,6 +60,15 @@ public class ArchetypeRegistry {
 		active.put(meta.id(), meta);
 	}
 
+	/**
+	 * 行为档草案(#3,Felix 2026-06-30 签字;文案=草稿,真机冒烟再调)。阈值全轴统一:
+	 * depletion 切 50/20(threshold=上界 → 充沛 100 / 受创 50 / 濒危 20)、accumulation 切 30/60
+	 * (threshold=下界 → 0 / 31 / 61)。{@link AttributeAxis#resolveBand(int)} axisRole 感知。
+	 */
+	private static AttributeAxis.Band band(int threshold, String label, String narrationHint) {
+		return new AttributeAxis.Band(threshold, label, narrationHint);
+	}
+
 	/** id ∈ CONTEXT §三.4 枚举(已知)。非已知 → init 视为非法 400。 */
 	public boolean isKnown(String archetype) {
 		return KNOWN.contains(archetype);
@@ -116,8 +125,14 @@ public class ArchetypeRegistry {
 				"规则怪谈:玩家身处一个看似日常却暗藏异常的封闭场景(如雨夜便利店、末班地铁、山区民宿),"
 						+ "墙上/纸上贴着一组必须遵守的规则,违反或误读会招致超自然后果。氛围瘆人、逻辑自洽。",
 				List.of(
-						AttributeAxis.stable("hp", "体力"),
-						AttributeAxis.stable("san", "理智")),
+						AttributeAxis.stable("hp", "体力").withBands(
+								band(100, "充沛", "行动自如、气力充盈"),
+								band(50, "受创", "带伤行动,动作迟滞、隐隐作痛,体力不支"),
+								band(20, "濒危", "重伤濒死,视野模糊、每个动作都伴着剧痛,随时可能倒下")),
+						AttributeAxis.stable("san", "理智").withBands(
+								band(100, "清明", "神志清明、判断冷静"),
+								band(50, "动摇", "精神紧绷、手指发抖,理智开始动摇,疑神疑鬼"),
+								band(20, "崩溃边缘", "幻觉与低语缠绕、分不清虚实,理智即将断裂"))),
 				"真假混合的规则(isTrue 有真有假,至少各一条):content 是贴给玩家看的规则原文(口吻像告示),"
 						+ "hiddenLogic 是只有引擎能看的真实机制(触发条件 + hp/san 后果)。玩家通过试探/观察逐步看清真伪,"
 						+ "discovered 标记已识破的规则。",
@@ -134,10 +149,17 @@ public class ArchetypeRegistry {
 				"末日生存:文明崩塌后的废墟世界(如丧尸蔓延的城市、核冬天的避难所、资源枯竭的末世聚落),"
 						+ "玩家在饥饿、伤病与未知威胁之间求生。氛围荒凉、紧绷、危机四伏,资源永远不够。",
 				List.of(
-						AttributeAxis.stable("hp", "体力"),
+						AttributeAxis.stable("hp", "体力").withBands(
+								band(100, "充沛", "行动自如、气力充盈"),
+								band(50, "受创", "带伤行动,动作迟滞、隐隐作痛,体力不支"),
+								band(20, "濒危", "重伤濒死,视野模糊、每个动作都伴着剧痛,随时可能倒下")),
 						AttributeAxis.decaying("hunger", "饥饿",
 								"饥饿值随回合自然衰减,每回合约下降 5~10(找到并食用补给才回升);"
-										+ "由你在 stateUpdate 给出衰减后的新绝对值,务必每回合都体现这一自然消耗。")),
+										+ "由你在 stateUpdate 给出衰减后的新绝对值,务必每回合都体现这一自然消耗。")
+								.withBands(
+										band(100, "饱足", "进食充足、体力有支撑"),
+										band(50, "饥肠辘辘", "饥饿啃噬、手脚发软,注意力难以集中"),
+										band(20, "濒临饿毙", "眼前发黑,身体开始消耗自身,濒临饿死"))),
 				"生存法则与资源约束(非规则怪谈的真假规则机制,但仍可有「被发现才知道的硬规矩」,复用 discovered 机制):"
 						+ "如某些区域的危险规律、物资使用的代价、势力/感染体的行为底线。content 是玩家可摸索到的生存经验,"
 						+ "hiddenLogic 是只有引擎能看的真实判定(触发条件 + hp/hunger 后果)。",
@@ -159,8 +181,14 @@ public class ArchetypeRegistry {
 						+ "阴郁的海边小镇 / 偏僻古宅 / 积尘的大学禁阅区。人类一旦窥见宇宙的真实图景,理智便开始崩解。"
 						+ "氛围阴郁、压抑、缓慢逼近,恐惧来自「不该知道的事」而非血腥。",
 				List.of(
-						AttributeAxis.stable("hp", "体力"),
-						AttributeAxis.stable("san", "理智"),
+						AttributeAxis.stable("hp", "体力").withBands(
+								band(100, "充沛", "行动自如、气力充盈"),
+								band(50, "受创", "带伤行动,动作迟滞、隐隐作痛,体力不支"),
+								band(20, "濒危", "重伤濒死,视野模糊、每个动作都伴着剧痛,随时可能倒下")),
+						AttributeAxis.stable("san", "理智").withBands(
+								band(100, "清明", "神志清明、判断冷静"),
+								band(50, "动摇", "精神紧绷、手指发抖,理智开始动摇,疑神疑鬼"),
+								band(20, "崩溃边缘", "幻觉与低语缠绕、分不清虚实,理智即将断裂")),
 						AttributeAxis.accumulating("knowledge", "禁忌知识",
 								"累积型双刃:玩家主动钻研典籍 / 窥探禁忌 / 接触旧日之物时上涨(求知与探索使之增长),"
 										+ "平时只涨或持平、不无故回落;knowledge 高则解锁更强的洞察 / 看穿真相(力量)。"
@@ -168,7 +196,11 @@ public class ArchetypeRegistry {
 										+ "也越接近疯狂,这是禁忌知识的代价;务必在 stateUpdate 让 san 随 knowledge 的高低体现这一加速流失。"
 									+ "【取值约定】初值给一个较低的正基线(如 5–15,表示「隐隐不安但尚未真正窥探」),绝不给 0;"
 									+ "此后也绝不降到 0——knowledge 是累积轴,0 只是「全然无知」的起点意味、不是结局。危险来自 knowledge "
-									+ "过高 →（联动）san 崩;失败由 san/hp 触底承载,不由 knowledge 触底。")),
+									+ "过高 →（联动）san 崩;失败由 san/hp 触底承载,不由 knowledge 触底。")
+							.withBands(
+									band(0, "蒙昧", "尚见世界的寻常表象,异样只是模糊不安"),
+									band(31, "初窥", "窥见真相的裂隙,异样开始显形,理智隐隐承压"),
+									band(61, "深陷", "深陷不可名状的真知,真相侵蚀感知、知与疯狂同涨"))),
 				"禁忌知识在探索中渐揭(非规则怪谈的一纸真假守则):玩家通过行动逐步发现「有些事不该知道、"
 						+ "有些东西不该看」。content 是玩家可摸索到的线索 / 禁忌知识碎片(读起来是代价与警示,不是攻略),"
 						+ "hiddenLogic 是只有引擎能看的真实判定(触发条件 + hp/san/knowledge 后果);discovered 标记已揭示的"
@@ -194,18 +226,29 @@ public class ArchetypeRegistry {
 						+ "角色入场即带一种灵根资质(如天灵根 / 双灵根 / 废灵根,写进 character.traits),它影响修行快慢与叙事际遇。"
 						+ "氛围缥缈悠远、大道无情,机缘与凶险并存。",
 				List.of(
-						AttributeAxis.stable("hp", "气血"),
+						AttributeAxis.stable("hp", "气血").withBands(
+								band(100, "气血充盈", "真元周流,出手有力"),
+								band(50, "气血亏损", "经脉滞涩、面色发白,运功略显吃力"),
+								band(20, "气血枯竭", "五脏俱损、口溢鲜血,神魂动摇、命悬一线")),
 						// 灵力 = 非致命资源池(ADR-010 决策 2,关闭 F-015):depletion 但 lethal=false,
 						// ≤0=力竭(惩罚/施不出法术)、非必死,引擎不因它触底致死、也不据它 gate 结局。
 						AttributeAxis.resource("mana", "灵力",
 								"灵力是施展术法 / 神通 / 御器 / 强行突破的资源池:施为时消耗下降,打坐吐纳 / 服食丹药 / "
 										+ "汲取灵气时回升;由你在 stateUpdate 给消耗或恢复后的新绝对值,体现「法力有限、不可无限施为」。"
-										+ "灵力枯竭只是力竭、施不出法术,并不直接致死(致死看气血)。"),
+										+ "灵力枯竭只是力竭、施不出法术,并不直接致死(致死看气血)。")
+								.withBands(
+										band(100, "灵力充裕", "法术信手拈来"),
+										band(50, "灵力见底", "施法滞涩、御器吃力,需省着用"),
+										band(20, "灵力枯竭", "施不出像样的法术、只能凭肉身硬撑(力竭而非伤身)")),
 						AttributeAxis.accumulating("realm", "境界",
 								"境界是修为成长的主轴(累积型):勤修苦练 / 顿悟 / 历练 / 突破瓶颈时上涨(只涨或持平、"
 										+ "不无故回落);境界越高,可施展的手段越强、越能镇压低境界凶险。"
 										+ "【纯成长·不致死】境界是成长轴、不参与死亡判定——生死由气血(hp)触底 / 渡劫失败承载,"
-										+ "境界低或初入修行(数值低)绝不意味失败,是循序渐进的起点。初值给低位(如 10–25,炼气初期),逐步累积。")),
+										+ "境界低或初入修行(数值低)绝不意味失败,是循序渐进的起点。初值给低位(如 10–25,炼气初期),逐步累积。")
+								.withBands(
+										band(0, "初境", "修为尚浅(炼气期),只能调动微末灵力,凶险当前多靠机变求生"),
+										band(31, "小成", "修为小成(筑基前后),法术渐成、可镇压寻常凶险"),
+										band(61, "高深", "修为高深(金丹气象),言出法随、气势迫人,低境者难撄其锋"))),
 				"修行法则 / 心法 / 修真禁忌(非真假守则,不要输出 isTrue):如「心魔不可纵,纵则走火入魔」「渡劫忌分心」"
 						+ "「灵力枯竭强行运功者经脉俱断」。content 是玩家可领悟到的修行准则与禁忌(读起来是大道法则与代价,"
 						+ "不是攻略);hiddenLogic 是只有引擎能看的真实判定(触发条件 + hp/灵力/境界 后果);discovered 标记"
