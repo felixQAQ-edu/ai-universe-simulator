@@ -34,7 +34,9 @@
   z-index: 0;
 }
 
-/* 图底渐变:上半透明露图、下半融进正文背景(var(--bg)),盖住占位图右下角水印、托住文字。 */
+/* 图底渐变:上半透明露图、下半融进正文背景(var(--bg)),托住文字 + 盖住右下角水印。
+ * 底部 ~14%(≥86%)恒为纯 var(--bg):覆盖锚图右下角约 8–12% 高的四角星水印(留一点余量);
+ * 上方 ramp 保持平缓,尽量少吃图片主体。若水印更高、加厚仍盖不住 → 改走「单张裁右下角」。 */
 .bannerScrim {
   position: absolute;
   inset: 0;
@@ -43,9 +45,9 @@
   background: linear-gradient(
     to bottom,
     transparent 0%,
-    transparent 34%,
-    color-mix(in srgb, var(--bg) 55%, transparent) 60%,
-    var(--bg) 94%
+    transparent 40%,
+    color-mix(in srgb, var(--bg) 50%, transparent) 66%,
+    var(--bg) 86%
   );
 }
 
