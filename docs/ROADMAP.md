@@ -159,6 +159,7 @@
 | [ADR-008](adr/ADR-008-multi-mode-extension-architecture.md) | 多模式扩展架构:引擎/校验对数值语义无知 + per-archetype 轻量元数据(C 偏 A),以「加一个模式」的代价结构为设计目标;首个落地模式=末日生存(`apocalypse`,签名轴=饥饿) | 已采纳 | 2026-06-24 |
 | [ADR-009](adr/ADR-009-axis-roles-and-rule-form-flexibility.md) | 数值轴角色(depletion/accumulation,引擎触底按 axisRole 二分)+ 规则形态弹性(isTrue 可选、校验零分派):根治 F-012 累积轴误判触底 + F-013 非真假守则世界骨架冲突;golden parity 字节级守 depletion 零回归,schemaVersion "0.2"→"0.3" | 已采纳 | 2026-06-25 |
 | [ADR-010](adr/ADR-010-ending-outcome-polarity-gate.md) | 结局极性 gate:结局加 AI 标注极性 `outcome`(引擎只读)+ 致命轴 `lethal` 元数据,引擎在致命轴濒零时拒绝成功结局、据极性确定性挑失败结局(根治 F-014 濒死得光明结局,A 提示词软引导压不住);顺带关闭 F-015(灵力非致命轴),golden parity 字节级守零回归,schemaVersion "0.3"→"0.4" | 已采纳 | 2026-06-26 |
+| [ADR-011](adr/ADR-011-action-hint-narrative-metadata.md) | 选项风险提示为叙事元数据(#1 选择反馈定性版):`availableActions[].hint` = 一句定性风险/代价/张力提示、不含精确成功率数字,引擎只读透传永不 gate/掷骰(守 ADR-008 无知);纯提示词引导(world-gen + event-loop lockstep)+ 前端样式,不动 schema/引擎/`schemaVersion`(保 "0.4");真概率掷骰=#1.5 独立未来项冻结入 backlog | 已采纳 | 2026-07-01 |
 
 ---
 
