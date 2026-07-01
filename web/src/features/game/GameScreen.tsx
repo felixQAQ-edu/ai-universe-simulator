@@ -4,6 +4,7 @@ import { DecisionCircle } from './DecisionCircle';
 import { EndingScreen } from './EndingScreen';
 import { Prose } from './Prose';
 import { RulesPanel } from './RulesPanel';
+import { SceneBanner } from './SceneBanner';
 import { StatsPanel } from './StatsPanel';
 import styles from './game.module.css';
 
@@ -78,11 +79,13 @@ function PlayingScreen() {
 
   return (
     <main className={styles.screen}>
-      <header className={styles.header}>
-        <p className={styles.phase}>第 {turn} 回合 · 危险度 {world.world.dangerLevel}</p>
-        <h1 className={styles.title}>{world.world.title}</h1>
-        <p className={styles.tone}>{world.world.tone}</p>
-      </header>
+      <SceneBanner
+        archetype={world.archetypes[0]}
+        turn={turn}
+        dangerLevel={world.world.dangerLevel}
+        title={world.world.title}
+        tone={world.world.tone}
+      />
 
       <StatsPanel axes={attributeAxes} values={attributeValues} />
 

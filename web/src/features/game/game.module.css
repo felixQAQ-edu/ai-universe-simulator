@@ -10,9 +10,49 @@
   min-height: 100dvh;
 }
 
-.header {
-  border-bottom: 1px solid var(--line);
-  padding-bottom: 0.6rem;
+/* #8 顶部 establishing-shot 氛围带 -------------------------------------
+ * 静态底图铺顶(据 archetype 选图)+ 图底渐变融进正文背景 + 其上叠现成状态字段。
+ * 全出血(负 margin 逃出 .screen 的上/左右 padding)贴到列顶,读作「氛围横幅」;
+ * 图缺失时 .bannerImg 不渲染 → 只余氛围底色 + 渐变,固定高度保证布局不塌。 */
+.banner {
+  position: relative;
+  margin: -1rem -1rem 0; /* 逃出 .screen 顶部与两侧 padding,全出血到列边 */
+  height: clamp(300px, 42vh, 380px);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end; /* 状态文字落在底部(渐变已融进 bg 处,保证可读) */
+  overflow: hidden;
+  background: var(--chip); /* 图缺失/加载前的氛围底色兜底 */
+}
+
+/* 底图层:CSS background(非 <img>),cover 铺满;404 时浏览器静默不显、布局不受影响。 */
+.bannerImg {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  z-index: 0;
+}
+
+/* 图底渐变:上半透明露图、下半融进正文背景(var(--bg)),盖住占位图右下角水印、托住文字。 */
+.bannerScrim {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    transparent 34%,
+    color-mix(in srgb, var(--bg) 55%, transparent) 60%,
+    var(--bg) 94%
+  );
+}
+
+.bannerText {
+  position: relative;
+  z-index: 2; /* 抬到图/渐变之上 */
+  padding: 0 1rem 0.7rem;
 }
 
 .phase {
