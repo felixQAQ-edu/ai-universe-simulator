@@ -19,3 +19,6 @@ bakeoff/out/
 # 真实录制原料(已跟踪的保留,这里只防 add -A 误带后续新录制;见 FINDINGS F-011)
 bakeoff/recordings/
 
+# 本地 preview 私有配置(各人机器/端口不同,不进仓库;.claude/skills 仍跟踪)
+.claude/launch.json
+
