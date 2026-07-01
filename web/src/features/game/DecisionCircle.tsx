@@ -21,8 +21,11 @@ export function DecisionCircle({
           disabled={disabled}
           onClick={() => onChoose(a.id)}
         >
-          <span className={styles.actionId}>{a.id}.</span>
-          {a.text}
+          <span className={styles.actionMain}>
+            <span className={styles.actionId}>{a.id}.</span>
+            <span className={styles.actionText}>{a.text}</span>
+          </span>
+          {/* 定性风险提示(ADR-011):选项文字下方独立小字,缺失时不渲染、不占位。纯叙事元数据,非成功率。 */}
           {a.hint && <span className={styles.actionHint}>{a.hint}</span>}
         </button>
       ))}

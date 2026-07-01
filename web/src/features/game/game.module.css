@@ -222,6 +222,10 @@
   cursor: default;
 }
 
+.actionMain {
+  display: block;
+}
+
 .actionId {
   display: inline-block;
   min-width: 1.4em;
@@ -229,11 +233,15 @@
   color: var(--muted);
 }
 
+/* 定性风险提示(ADR-011):选项文字下方独立小字,muted、次级层级,缩进对齐正文起点;缺失时不渲染、不占位。 */
 .actionHint {
   display: block;
-  font-size: 0.78rem;
+  margin-top: 0.28rem;
+  padding-left: 1.4em; /* 对齐 actionId 宽度,让提示落在正文起点下方 */
+  font-size: 0.76rem;
+  line-height: 1.4;
   color: var(--muted);
-  margin-top: 0.2rem;
+  opacity: 0.85;
 }
 
 /* 规则面板 ----------------------------------------------------------- */
