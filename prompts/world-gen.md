@@ -4,6 +4,8 @@
 > 对齐 docs/CONTEXT.md §二 schema v0.4(ADR-009:`rules[].isTrue` 可选;ADR-010:`endings[].outcome` 极性 + `schemaVersion` "0.3"→"0.4")。**线上口径(ADR-007)**:开 `response_format: json_object`、输出**纯 JSON**、**无哨兵**(与回合的「prose+哨兵+尾巴」刻意不同——world-gen 主体是结构、JSON 首次失败是头号失败模式,故把可靠性留在最险这次生成)。
 > **多模式结构(ADR-008 决策 3)**:提示词 = **通用骨架(单点维护)+ per-archetype 注入块**。骨架(输出 schema / id 约定 F-001 / 消毒硬化 / json_object / openingNarrative)模式无关、固定;`worldview`/`数值轴`/`ruleForm` 从 `ArchetypeRegistry` 元数据注入。加模式 = 一条元数据 + 一个种子池条目,**不重抄骨架**(消毒/id 这种硬规矩重抄一次错一次)。
 > 运行时同义副本在 `WorldGenPromptBuilder`(便于单测钉格式);本文件为人类可读核心资产(CONTEXT §三.6)。**lockstep:改这里务必同步改 `WorldGenPromptBuilder`,只改 .md 运行时失效。**
+>
+> 版本:v0.5(2026-07-01,#1 选择反馈定性版 · ADR-011:`availableActions[].hint` 由「可空」升为「必给」——每个选项一句定性风险/代价/张力提示、不写精确成功率数字;明写「hint 是叙事提示,不代表引擎会据此判定」呼应引擎只读透传不掷骰边界)。
 
 ## System(通用骨架 + 注入块)
 
@@ -43,7 +45,7 @@
    - `description`:一句中文结局描述(整句叙述);
    - **`outcome` 必填·结局极性**(ADR-010):`outcome ∈ {success, failure, neutral}`——失败/死亡/陨落/发疯/身死道消类=`"failure"`,圆满/突破/飞升/逃生/达成目标类=`"success"`,中性收束=`"neutral"`。**务必如实标**:引擎会据它在角色濒死(致命轴濒零)时**拒绝错配的成功结局**、改判失败结局(根治 F-014)。
    - **`condition` 须绑定死活前提**(F-014):失败/死亡/陨落类结局的 `condition` 绑定「核心数值触底或角色陨落」(如「气血归零身死道消」「理智崩解发疯」「饥饿而亡」),且**点名对应数值轴的中文名**(气血/理智/灵力…)以便引擎兜底命中;成功/存活类结局的 `condition` 明确要求「角色存活且达成目标」——别让成功结局的 `condition` 在角色濒死时也可能被判定命中。
-6. `availableActions`:2–4 个**开局行动**,`id` 用大写字母 A/B/C/D,`text` 中文且各有取舍,`hint` 可空。
+6. `availableActions`:2–4 个**开局行动**,`id` 用大写字母 A/B/C/D,`text` 中文且各有取舍;`hint` **必给**——为每个选项写**一句定性的风险/代价/张力提示**(如「天劫已锁定你」「损道基」「可能引来镇民」),点出选它可能付出的代价 / 面临的风险 / 有什么取舍,氛围化、贴合本模式口吻,**不写精确成功率数字 / 百分比**(ADR-011)。**hint 是叙事提示,不代表引擎会据此判定**——引擎只读透传、不据 hint 掷骰 / 裁决;hint 与其它玩家可见字段同守泄露约束,**绝不带 `isTrue` / `hiddenLogic` 或正确解法**。
 7. `openingNarrative`:**开场散文整段**(中文,把玩家带入场景、营造贴合本模式的氛围),**不剧透隐藏机制**。
 
 **绝不**把 `isTrue` / `hiddenLogic` 的内容,或规则真伪 / 正确解法,写进 `content`、`background`、`tone`、`openingNarrative`、`availableActions` 等任何**玩家可见字段**。隐藏逻辑只进 `hiddenLogic`。

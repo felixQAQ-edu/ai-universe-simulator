@@ -83,6 +83,19 @@ class WorldGenPromptBuilderTest {
 	}
 
 	@Test
+	void worldPromptCarriesQualitativeActionHintDirective() {
+		// #1 选择反馈定性版(ADR-011):hint 由「可空」升为「必给」——每选项一句定性风险/代价/张力提示。
+		String p = builder.buildWorldPrompt("rules_creepy");
+		assertThat(p).contains("hint 必给");
+		assertThat(p).contains("一句定性的风险/代价/张力提示");
+		// 不掷骰边界:不写精确成功率数字 + hint 是叙事提示不据此判定(呼应引擎只读透传)。
+		assertThat(p).contains("不写精确成功率数字");
+		assertThat(p).contains("hint 是叙事提示,不代表引擎会据此判定");
+		// 骨架里已不再是旧的「hint 可空」措辞。
+		assertThat(p).doesNotContain("hint 可空");
+	}
+
+	@Test
 	void repairPromptCarriesErrorsAndFailedRawAndAxes() {
 		String p = builder.buildRepairPrompt("apocalypse", "{\"mode\":\"single\"}", List.of("rules: 缺失或非数组"));
 		assertThat(p).contains("校验错误").contains("rules: 缺失或非数组").contains("{\"mode\":\"single\"}");

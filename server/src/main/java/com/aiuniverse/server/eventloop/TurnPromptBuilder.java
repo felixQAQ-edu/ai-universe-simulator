@@ -80,7 +80,11 @@ public final class TurnPromptBuilder {
 			%7$s
 			- triggeredRuleIds:本回合触发的规则 id 整数数组(没有则 [])
 			- discoveredRuleIds:本回合玩家验证真伪/看清机制的规则 id 整数数组(没有则 [])
-			- availableActions:2-4 个合法行动,id 用大写字母 A/B/C/D,text 中文且各有取舍
+			- availableActions:2-4 个合法行动,id 用大写字母 A/B/C/D,text 中文且各有取舍;每个选项 hint 必给——
+			  写一句定性的风险/代价/张力提示(如「越靠近,那低语越清晰」「恐引来它注意」「拼一把,但气血撑不住几下」),
+			  点出选它可能付出的代价 / 面临的风险,氛围化、贴合本模式与当前处境,不写精确成功率数字 / 百分比(ADR-011)。
+			  hint 是叙事提示,不代表引擎会据此判定——引擎只读透传、不据 hint 掷骰 / 裁决;hint 与叙事同守泄露约束,
+			  绝不带 isTrue / hiddenLogic 或正确解法。
 			- ending:命中某 endings[].condition 时为 { "reached": true, "id": "<结局id 字符串>" },否则 null。
 			  【结局必须匹配角色死活·硬约束】结局不得与角色当前真实处境矛盾:当代表角色存续的核心数值濒零
 			  (如 hp/气血等 depletion 轴 ≤ 约 10),或叙事中角色已濒死 / 重伤垂危 / 理智崩解 / 油尽灯枯 / 陨落时,

@@ -65,7 +65,11 @@ public final class WorldGenPromptBuilder {
 			    (如「气血归零身死道消」「理智崩解发疯」「饥饿而亡」),且 condition 里**点名对应数值轴的中文名**
 			    (气血/理智/灵力…)以便兜底命中;成功/存活类结局的 condition 要明确要求「角色存活且达成目标」——
 			    别让一个成功结局的 condition 在角色濒死时也可能被判定命中。
-			- availableActions:2-4 个开局行动,id 用大写字母 A/B/C/D,text 中文且各有取舍,hint 可空。
+			- availableActions:2-4 个开局行动,id 用大写字母 A/B/C/D,text 中文且各有取舍;hint 必给——
+			  为每个选项写一句定性的风险/代价/张力提示(如「天劫已锁定你」「损道基」「可能引来镇民」),点出选它
+			  可能付出的代价 / 面临的风险,氛围化、贴合本模式口吻,不写精确成功率数字 / 百分比(ADR-011)。
+			  hint 是叙事提示,不代表引擎会据此判定——引擎只读透传、不据 hint 掷骰 / 裁决;hint 与其它玩家可见字段
+			  同守泄露约束,绝不带 isTrue / hiddenLogic 或正确解法。
 			- openingNarrative:开场散文整段(中文,把玩家带入场景、营造贴合本模式的氛围),不剧透隐藏机制。
 
 			【泄露硬约束】绝不把 isTrue / hiddenLogic 的内容,或规则真伪/正确解法,写进 background / tone /

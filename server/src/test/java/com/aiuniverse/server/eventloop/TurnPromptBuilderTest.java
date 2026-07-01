@@ -87,6 +87,19 @@ class TurnPromptBuilderTest {
 	}
 
 	@Test
+	void turnPromptCarriesQualitativeActionHintDirective() {
+		// #1 选择反馈定性版(ADR-011):event-loop 此前完全没提 hint,本版补齐每选项一句定性提示。
+		String p = builder.buildTurnPrompt(engine(), "A", "查看告示");
+		assertThat(p).contains("hint 必给");
+		assertThat(p).contains("一句定性的风险/代价/张力提示");
+		// 不掷骰边界:不写精确成功率数字 + hint 是叙事提示不据此判定(呼应引擎只读透传)。
+		assertThat(p).contains("不写精确成功率数字");
+		assertThat(p).contains("hint 是叙事提示,不代表引擎会据此判定");
+		// A-1 叙事长度约束仍在(加 hint 指令不顶掉正文长度约束)。
+		assertThat(p).contains("2-4 句").contains("280 字");
+	}
+
+	@Test
 	void repairPromptIncludesErrorsAndAsksJsonOnly() {
 		String p = builder.buildRepairPrompt("{坏的}", List.of("stateUpdate/hp: 超出范围 [0,100]"));
 		assertThat(p).contains("超出范围");
