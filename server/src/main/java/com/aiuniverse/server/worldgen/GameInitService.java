@@ -1,7 +1,5 @@
 package com.aiuniverse.server.worldgen;
 
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -98,40 +96,23 @@ public class GameInitService {
 
 	/**
 	 * 本模式累积型数值轴的 key 集合(ADR-009 F-012):喂引擎据此 gate 触底(accumulation 轴 ≤0 不致死)。
-	 * 据 per-archetype 元数据算(轴角色来自元数据,引擎自身不判断);全 depletion 的模式返回空集(= 现状)。
+	 * 委托 {@link ArchetypeRegistry#accumulationKeys(List)}(单一真理源;ADR-012 混合模式融合轴集共用此派生)。
 	 */
 	private Set<String> accumulationKeys(String archetype) {
-		Set<String> keys = new LinkedHashSet<>();
-		for (AttributeAxis a : archetypes.meta(archetype).attributes()) {
-			if (a.isAccumulation()) {
-				keys.add(a.key());
-			}
-		}
-		return keys;
+		return ArchetypeRegistry.accumulationKeys(archetypes.meta(archetype).attributes());
 	}
 
-	/** 本模式轴 key→中文名(F-014 §5:引擎兜底结局按中文 condition 匹配,如 {@code hp→气血});据元数据算。 */
+	/** 本模式轴 key→中文名(F-014 §5:引擎兜底结局按中文 condition 匹配)。委托 {@link ArchetypeRegistry#axisDisplayNames(List)}。 */
 	private Map<String, String> axisDisplayNames(String archetype) {
-		Map<String, String> names = new LinkedHashMap<>();
-		for (AttributeAxis a : archetypes.meta(archetype).attributes()) {
-			names.put(a.key(), a.displayName());
-		}
-		return names;
+		return ArchetypeRegistry.axisDisplayNames(archetypes.meta(archetype).attributes());
 	}
 
 	/**
 	 * 本模式非致命 depletion 轴的 key 集合(ADR-010 F-015):喂引擎据此判致命(这些轴 ≤0 不致死、不触发结局
-	 * 极性 gate,如修仙灵力枯竭=力竭非必死)。据 per-archetype 元数据 {@code lethal=false} 的 depletion 轴算;
-	 * accumulation 轴本就不触底、无须列入。全致命的模式(规则怪谈/末日/克苏鲁)返回空集(= 现状)。
+	 * 极性 gate,如修仙灵力枯竭=力竭非必死)。委托 {@link ArchetypeRegistry#nonLethalKeys(List)}(单一真理源)。
 	 */
 	private Set<String> nonLethalKeys(String archetype) {
-		Set<String> keys = new LinkedHashSet<>();
-		for (AttributeAxis a : archetypes.meta(archetype).attributes()) {
-			if (!a.isAccumulation() && !a.isLethal()) {
-				keys.add(a.key());
-			}
-		}
-		return keys;
+		return ArchetypeRegistry.nonLethalKeys(archetypes.meta(archetype).attributes());
 	}
 
 	/**

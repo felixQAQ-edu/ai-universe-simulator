@@ -3,6 +3,7 @@ package com.aiuniverse.server.archetype;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -95,6 +96,115 @@ public class ArchetypeRegistry {
 	/** 全部已激活元数据(ops / 测试用)。 */
 	public List<ArchetypeMeta> activeMetas() {
 		return List.copyOf(active.values());
+	}
+
+	// ── 轴合并(ADR-012 混合模式 round 1;纯函数、暂未接线的休眠件)──────────────
+
+	/**
+	 * 一个外来轴的<b>显示层换皮 override</b>(ADR-012 决策 2「语义换皮」)。合并时把外来轴并入 host 世界观:
+	 * <b>{@code key} / {@code axisRole} / {@code lethal} / {@code min}/{@code max} / {@code behaviorHint} 一律不换</b>
+	 * (引擎无感,守 ADR-008),<b>仅换</b> {@code displayName} 与 {@code bands}。
+	 *
+	 * @param displayName 换皮后的玩家可见中文名(如规则怪谈 san 的「理智」→修仙「道心」)
+	 * @param bands       换皮后的行为档(host 世界观口吻重写;可空=不带档)
+	 */
+	public record AxisSkin(String displayName, List<AttributeAxis.Band> bands) {
+		public AxisSkin {
+			bands = bands == null ? List.of() : List.copyOf(bands);
+		}
+	}
+
+	/** 修仙 × 规则怪谈(host=修仙)round 1 彩蛋:规则怪谈 san 换皮为修仙「道心」(见不可名状→掉道心,崩=走火入魔)。 */
+	private static final Map<String, AxisSkin> CULTIVATION_RULES_CREEPY_SKINS = Map.of(
+			"san", new AxisSkin("道心", List.of(
+					band(100, "清明", "道心澄澈、心念通明,纵见异象亦不为所动"),
+					band(50, "动摇", "窥见了不该见之物,道念浮动、杂念丛生,心神难安"),
+					band(20, "崩缺", "道基已裂、心魔滋生,识海翻涌、几近走火入魔"))));
+
+	/**
+	 * 融合两 archetype 的数值轴集(ADR-012 决策,混合模式 round 1;<b>纯函数、确定性、暂未接线</b>)。合并三规则:
+	 * <ol>
+	 *   <li>按 {@code key} 并集,<b>host 轴全保留、保序</b>;</li>
+	 *   <li>foreign 轴按 key 追加,<b>撞 host key 则 host 赢</b>、foreign 同 key 轴并掉(host 的
+	 *       displayName/bands/behaviorHint 赢);</li>
+	 *   <li>存活的 foreign 轴可带 per-key 显示层 {@link AxisSkin} override(换皮 displayName + bands,
+	 *       {@code key}/{@code axisRole}/{@code lethal} 不变,引擎无感)。</li>
+	 * </ol>
+	 * <b>只合并轴</b>——ruleForm / rulesCarryTruth / worldview 的融合属融合协议 ADR / 规则形态 ADR,本函数不处理。
+	 *
+	 * @param host    host archetype 元数据(撞键时其轴赢)
+	 * @param foreign 外来 archetype 元数据(撞键时其同 key 轴并掉)
+	 * @param skins   per-key 显示层换皮 override({@code null}/缺键=不换皮,原样并入)
+	 * @return 融合后的轴集(host 轴在前保序,存活 foreign 轴按其原顺序追加)
+	 */
+	public static List<AttributeAxis> mergeAxes(ArchetypeMeta host, ArchetypeMeta foreign,
+			Map<String, AxisSkin> skins) {
+		Map<String, AttributeAxis> byKey = new LinkedHashMap<>();
+		for (AttributeAxis a : host.attributes()) {
+			byKey.put(a.key(), a); // host 全保留、保序
+		}
+		for (AttributeAxis a : foreign.attributes()) {
+			if (byKey.containsKey(a.key())) {
+				continue; // 撞键:host 赢、foreign 同 key 轴并掉
+			}
+			AxisSkin skin = skins == null ? null : skins.get(a.key());
+			byKey.put(a.key(), skin == null ? a : applySkin(a, skin));
+		}
+		return List.copyOf(byKey.values());
+	}
+
+	/** 显示层换皮:仅换 displayName + bands,其余(key/min/max/behaviorHint/axisRole/lethal)全保留 → 引擎无感。 */
+	private static AttributeAxis applySkin(AttributeAxis axis, AxisSkin skin) {
+		return new AttributeAxis(axis.key(), skin.displayName(), axis.min(), axis.max(),
+				axis.behaviorHint(), axis.axisRole(), axis.lethal(), skin.bands());
+	}
+
+	/**
+	 * 修仙 × 规则怪谈(host=修仙)round 1 彩蛋的融合轴集(ADR-012):
+	 * {气血(hp)、灵力(mana)、境界(realm)、道心(san)}——hp 撞键取修仙气血、san 换皮为道心。
+	 * <b>已实现、已测、暂未接线</b>(让两 archetype 真正走进 init 是融合协议 ADR 的事)。
+	 */
+	public List<AttributeAxis> cultivationRulesCreepyAxes() {
+		return mergeAxes(meta("cultivation"), meta("rules_creepy"), CULTIVATION_RULES_CREEPY_SKINS);
+	}
+
+	// ── 轴集 → 播种派生(单一真理源;GameInitService 与合并结果共用,守「复用现有派生、别新造」)───
+
+	/**
+	 * 累积型轴 key 集合(ADR-009 F-012):喂引擎据此 gate 触底(accumulation 轴 {@code ≤0} 不致死)。
+	 * 据轴 {@link AttributeAxis#isAccumulation()} 算;全 depletion 的轴集返回空集(=现状)。保序。
+	 */
+	public static Set<String> accumulationKeys(List<AttributeAxis> axes) {
+		Set<String> keys = new LinkedHashSet<>();
+		for (AttributeAxis a : axes) {
+			if (a.isAccumulation()) {
+				keys.add(a.key());
+			}
+		}
+		return keys;
+	}
+
+	/**
+	 * 非致命 depletion 轴 key 集合(ADR-010 F-015):喂引擎据此判致命(这些轴 {@code ≤0} 不致死、不触发结局
+	 * 极性 gate,如修仙灵力)。据 {@code depletion && lethal=false} 算;accumulation 轴本就不触底、不列入。保序。
+	 */
+	public static Set<String> nonLethalKeys(List<AttributeAxis> axes) {
+		Set<String> keys = new LinkedHashSet<>();
+		for (AttributeAxis a : axes) {
+			if (!a.isAccumulation() && !a.isLethal()) {
+				keys.add(a.key());
+			}
+		}
+		return keys;
+	}
+
+	/** 轴 key→中文名(F-014 §5:引擎兜底结局按中文 condition 匹配,如 {@code hp→气血})。保序。 */
+	public static Map<String, String> axisDisplayNames(List<AttributeAxis> axes) {
+		Map<String, String> names = new LinkedHashMap<>();
+		for (AttributeAxis a : axes) {
+			names.put(a.key(), a.displayName());
+		}
+		return names;
 	}
 
 	/**

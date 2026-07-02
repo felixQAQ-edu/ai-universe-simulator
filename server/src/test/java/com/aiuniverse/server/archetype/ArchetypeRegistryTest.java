@@ -1,6 +1,7 @@
 package com.aiuniverse.server.archetype;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.entry;
 
 import java.util.List;
 
@@ -161,6 +162,78 @@ class ArchetypeRegistryTest {
 		} catch (IllegalArgumentException expected) {
 			assertThat(expected.getMessage()).contains("life_sim");
 		}
+	}
+
+	// ── ADR-012 混合模式轴合并(修仙 × 规则怪谈,host=修仙;纯函数、暂未接线)────────
+
+	@Test
+	void mergeUnionsAxesHostFirstThenSurvivingForeign() {
+		List<AttributeAxis> fused = registry.cultivationRulesCreepyAxes();
+		// 并集 = 修仙 {hp,mana,realm} + 规则怪谈存活的 san;host 轴在前保序,san 追加。
+		assertThat(fused.stream().map(AttributeAxis::key)).containsExactly("hp", "mana", "realm", "san");
+	}
+
+	@Test
+	void hpKeyCollisionHostWins() {
+		List<AttributeAxis> fused = registry.cultivationRulesCreepyAxes();
+		AttributeAxis hp = fused(fused, "hp");
+		// 撞键 hp:host=修仙赢 → 取「气血」(非规则怪谈「体力」),bands 也是修仙的气血档。
+		assertThat(hp.displayName()).as("hp 撞键 host 优先取气血").isEqualTo("气血");
+		assertThat(hp.bands().stream().map(AttributeAxis.Band::label)).contains("气血充盈");
+	}
+
+	@Test
+	void sanReSkinnedToDaoxinKeepingKeyAndAxisRole() {
+		List<AttributeAxis> fused = registry.cultivationRulesCreepyAxes();
+		AttributeAxis san = fused(fused, "san");
+		// 换皮:displayName「理智」→「道心」+ 新 bands(修仙口吻),但 key/axisRole/lethal 不变(引擎无感)。
+		assertThat(san.key()).as("换皮 key 不变").isEqualTo("san");
+		assertThat(san.displayName()).as("理智→道心").isEqualTo("道心");
+		assertThat(san.bands().stream().map(AttributeAxis.Band::label)).containsExactly("清明", "动摇", "崩缺");
+		assertThat(san.isAccumulation()).as("san 仍 depletion").isFalse();
+		assertThat(san.isLethal()).as("san 仍致命(道心崩=走火入魔)").isTrue();
+		// 对照:原规则怪谈 san 是「理智」——确认换皮真生效、非取到 host 未有的原轴。
+		assertThat(axis(registry.meta("rules_creepy"), "san").displayName()).isEqualTo("理智");
+	}
+
+	@Test
+	void fusedAxisRolesAndLethalityPreserved() {
+		List<AttributeAxis> fused = registry.cultivationRulesCreepyAxes();
+		// realm 仍 accumulation、mana 仍非致命资源池、hp/san 仍致命(引擎据这些 gate 触底/结局极性)。
+		assertThat(fused(fused, "realm").isAccumulation()).as("境界=accumulation").isTrue();
+		assertThat(fused(fused, "mana").isAccumulation()).isFalse();
+		assertThat(fused(fused, "mana").isLethal()).as("灵力=非致命资源池").isFalse();
+		assertThat(fused(fused, "hp").isLethal()).as("气血致命").isTrue();
+		assertThat(fused(fused, "san").isLethal()).as("道心致命").isTrue();
+	}
+
+	@Test
+	void fusedAxesFeedExistingSeedingDerivationCorrectly() {
+		List<AttributeAxis> fused = registry.cultivationRulesCreepyAxes();
+		// 融合轴集喂现有播种派生(与单模式 GameInitService 共用同一真理源,别新造)。
+		assertThat(ArchetypeRegistry.accumulationKeys(fused)).containsExactly("realm");
+		assertThat(ArchetypeRegistry.nonLethalKeys(fused)).containsExactly("mana");
+		assertThat(ArchetypeRegistry.axisDisplayNames(fused))
+				.containsExactly(entry("hp", "气血"), entry("mana", "灵力"), entry("realm", "境界"), entry("san", "道心"));
+		// 致命 depletion 轴 = 非累积 && 致命 = {hp, san}(引擎据此在濒零时 gate 结局)。
+		assertThat(fused.stream().filter(a -> !a.isAccumulation() && a.isLethal()).map(AttributeAxis::key))
+				.containsExactlyInAnyOrder("hp", "san");
+	}
+
+	@Test
+	void mergeIsPureAndDoesNotMutateSourceMetas() {
+		// 合并前后 host/foreign 元数据轴集不变(纯函数、无副作用)。
+		registry.cultivationRulesCreepyAxes();
+		assertThat(registry.meta("cultivation").attributes().stream().map(AttributeAxis::key))
+				.containsExactly("hp", "mana", "realm");
+		assertThat(axis(registry.meta("cultivation"), "hp").displayName()).isEqualTo("气血");
+		assertThat(registry.meta("rules_creepy").attributes().stream().map(AttributeAxis::key))
+				.containsExactly("hp", "san");
+		assertThat(axis(registry.meta("rules_creepy"), "san").displayName()).isEqualTo("理智");
+	}
+
+	private AttributeAxis fused(List<AttributeAxis> axes, String key) {
+		return axes.stream().filter(a -> a.key().equals(key)).findFirst().orElseThrow();
 	}
 
 	private AttributeAxis axis(ArchetypeMeta m, String key) {
