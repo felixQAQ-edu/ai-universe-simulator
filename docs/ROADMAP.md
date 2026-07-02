@@ -161,6 +161,7 @@
 | [ADR-009](adr/ADR-009-axis-roles-and-rule-form-flexibility.md) | 数值轴角色(depletion/accumulation,引擎触底按 axisRole 二分)+ 规则形态弹性(isTrue 可选、校验零分派):根治 F-012 累积轴误判触底 + F-013 非真假守则世界骨架冲突;golden parity 字节级守 depletion 零回归,schemaVersion "0.2"→"0.3" | 已采纳 | 2026-06-25 |
 | [ADR-010](adr/ADR-010-ending-outcome-polarity-gate.md) | 结局极性 gate:结局加 AI 标注极性 `outcome`(引擎只读)+ 致命轴 `lethal` 元数据,引擎在致命轴濒零时拒绝成功结局、据极性确定性挑失败结局(根治 F-014 濒死得光明结局,A 提示词软引导压不住);顺带关闭 F-015(灵力非致命轴),golden parity 字节级守零回归,schemaVersion "0.3"→"0.4" | 已采纳 | 2026-06-26 |
 | [ADR-011](adr/ADR-011-action-hint-narrative-metadata.md) | 选项风险提示为叙事元数据(#1 选择反馈定性版):`availableActions[].hint` = 一句定性风险/代价/张力提示、不含精确成功率数字,引擎只读透传永不 gate/掷骰(守 ADR-008 无知);纯提示词引导(world-gen + event-loop lockstep)+ 前端样式,不动 schema/引擎/`schemaVersion`(保 "0.4");真概率掷骰=#1.5 独立未来项冻结入 backlog | 已采纳 | 2026-07-01 |
+| [ADR-012](adr/ADR-012-hybrid-axis-merge-strategy.md) | 混合模式轴合并策略(host 优先 + 语义换皮,引擎不动):融合轴=按 key 并集,撞键 host 优先(修仙×规则怪谈 host=修仙、hp 取气血),外来轴带显示层换皮 override(规则怪谈 san→道心、key/axisRole/lethal 不变引擎无感),播种层据合并结果算 accumulationKeys={realm}/nonLethalKeys={mana}/致命集={hp,san} 喂现有引擎;合并只在 ArchetypeRegistry + GameInitService 派生,不动引擎/校验/`schemaVersion`(保 "0.4");round 1 只产一组彩蛋,通用换皮引擎/ruleForm 融合留后续 ADR | 已采纳 | 2026-07-02 |
 
 ---
 
