@@ -1,5 +1,6 @@
 package com.aiuniverse.server.web;
 
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -54,7 +55,7 @@ public class GameController {
 	@PostMapping("/api/game/init")
 	public ResponseEntity<?> init(@Valid @RequestBody InitRequest req) {
 		try {
-			InitResponse resp = initService.init(req.archetype());
+			InitResponse resp = initService.init(req.resolved());
 			return ResponseEntity.ok(resp);
 		} catch (IllegalArgumentException e) {
 			return ResponseEntity.status(HttpStatus.BAD_REQUEST)
@@ -89,8 +90,27 @@ public class GameController {
 		turnExecutor.shutdown();
 	}
 
-	/** 起局请求(设计稿 §3)。{@code archetype} ∈ §三.4 枚举,init 校验已激活(ADR-008 决策 4)。 */
-	public record InitRequest(@NotBlank String archetype) {
+	/**
+	 * 起局请求(设计稿 §3;ADR-013 扩为收有序双值)。<b>两形态并存、向后兼容</b>:
+	 * <ul>
+	 *   <li>单体:{@code {"archetype":"rules_creepy"}}(旧前端 / 单模式);</li>
+	 *   <li>融合:{@code {"archetypes":["cultivation","rules_creepy"]}}(host 在前,ADR-013)。</li>
+	 * </ul>
+	 * {@link #resolved()} 规范化为有序列表(archetypes 优先,否则 archetype 单元素);空 → init 抛非法 → 400。
+	 * archetype 合法性 / 已激活 / 融合组合登记均由 {@code GameInitService} 校验(ADR-008 决策 4 / ADR-013)。
+	 */
+	public record InitRequest(String archetype, List<String> archetypes) {
+
+		/** 规范化为有序 archetype 列表(host 在前):archetypes 非空则用它,否则单 archetype 包成单元素,均空 → 空表。 */
+		public List<String> resolved() {
+			if (archetypes != null && !archetypes.isEmpty()) {
+				return List.copyOf(archetypes);
+			}
+			if (archetype != null && !archetype.isBlank()) {
+				return List.of(archetype);
+			}
+			return List.of();
+		}
 	}
 
 	/** 玩家 → server 回合请求(规格 §4.1)。Phase 1 只允许选 id。 */

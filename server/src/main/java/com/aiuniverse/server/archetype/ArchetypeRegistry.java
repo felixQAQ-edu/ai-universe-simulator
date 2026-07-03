@@ -122,6 +122,37 @@ public class ArchetypeRegistry {
 					band(20, "崩缺", "道基已裂、心魔滋生,识海翻涌、几近走火入魔"))));
 
 	/**
+	 * 已登记的融合组合(ADR-013 融合协议,round 1 只一组;key = {@code host×foreign} 有序,host 在前)。
+	 * <b>方向敏感</b>——换皮 override 是 per-combo per-direction 手写(道心换皮只在 host=修仙 时成立);
+	 * 未登记的有序组合(含反向 host)→ init 视为非法 400。加一组融合 = 加一条本表项 + 一段融合 meta-prompt。
+	 */
+	private static final Map<String, Map<String, AxisSkin>> FUSION_COMBOS = Map.of(
+			fusionKey("cultivation", "rules_creepy"), CULTIVATION_RULES_CREEPY_SKINS);
+
+	private static String fusionKey(String host, String foreign) {
+		return host + "×" + foreign;
+	}
+
+	/** 该有序组合(host 在前)是否已登记可融合(ADR-013);未登记 → init 400。 */
+	public boolean isFusionSupported(String host, String foreign) {
+		return FUSION_COMBOS.containsKey(fusionKey(host, foreign));
+	}
+
+	/**
+	 * 融合两 archetype 的轴集(ADR-013 接活 ADR-012 休眠 {@link #mergeAxes};host 在前)。委托 combo 登记表取
+	 * per-combo 换皮,未登记组合 → {@link IllegalArgumentException}(→ init 400)。
+	 *
+	 * @throws IllegalArgumentException host 或 foreign 未激活,或该有序组合未登记
+	 */
+	public List<AttributeAxis> fusedAxes(String host, String foreign) {
+		Map<String, AxisSkin> skins = FUSION_COMBOS.get(fusionKey(host, foreign));
+		if (skins == null) {
+			throw new IllegalArgumentException("不支持的融合组合:" + host + " × " + foreign);
+		}
+		return mergeAxes(meta(host), meta(foreign), skins);
+	}
+
+	/**
 	 * 融合两 archetype 的数值轴集(ADR-012 决策,混合模式 round 1;<b>纯函数、确定性、暂未接线</b>)。合并三规则:
 	 * <ol>
 	 *   <li>按 {@code key} 并集,<b>host 轴全保留、保序</b>;</li>
@@ -165,7 +196,7 @@ public class ArchetypeRegistry {
 	 * <b>已实现、已测、暂未接线</b>(让两 archetype 真正走进 init 是融合协议 ADR 的事)。
 	 */
 	public List<AttributeAxis> cultivationRulesCreepyAxes() {
-		return mergeAxes(meta("cultivation"), meta("rules_creepy"), CULTIVATION_RULES_CREEPY_SKINS);
+		return fusedAxes("cultivation", "rules_creepy");
 	}
 
 	// ── 轴集 → 播种派生(单一真理源;GameInitService 与合并结果共用,守「复用现有派生、别新造」)───

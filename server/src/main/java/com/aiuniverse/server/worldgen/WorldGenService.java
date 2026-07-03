@@ -54,7 +54,16 @@ public class WorldGenService {
 	 * @throws WorldGenException 调用失败,或一次修复后仍未过校验(整局 ERROR)
 	 */
 	public ObjectNode generate(String archetype) {
-		String prompt = prompts.buildWorldPrompt(archetype);
+		return generate(List.of(archetype));
+	}
+
+	/**
+	 * 跑一发 world-gen 胖调用(ADR-013:<b>有序 archetype 列表,host 在前</b>)。长度 1 → 单体、
+	 * 长度 2 → 融合世界({@code mode:"hybrid"} + {@code archetypes:[两个]},内联融合、保 json_object 无哨兵)。
+	 * 校验/修复/ERROR 管线与单体完全一致(融合不加失败面,守 ADR-007)。
+	 */
+	public ObjectNode generate(List<String> archetypes) {
+		String prompt = prompts.buildWorldPrompt(archetypes);
 		String raw = call(prompt); // 主调用(开 json_object)
 
 		List<String> errors = new ArrayList<>();
@@ -64,8 +73,8 @@ public class WorldGenService {
 		}
 
 		// 一次修复(设计稿 §4.3):带校验错误回喂「只回修正后的完整 world JSON」,同样开 json_object。
-		log.warn("[world-gen] archetype={} 首次产出未过校验({} 条),触发一次修复:{}", archetype, errors.size(), errors);
-		String repairPrompt = prompts.buildRepairPrompt(archetype, raw, errors);
+		log.warn("[world-gen] archetypes={} 首次产出未过校验({} 条),触发一次修复:{}", archetypes, errors.size(), errors);
+		String repairPrompt = prompts.buildRepairPrompt(archetypes, raw, errors);
 		String raw2 = call(repairPrompt);
 
 		List<String> errors2 = new ArrayList<>();

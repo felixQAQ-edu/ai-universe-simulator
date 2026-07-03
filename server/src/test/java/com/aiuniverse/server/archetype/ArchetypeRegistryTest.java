@@ -232,6 +232,35 @@ class ArchetypeRegistryTest {
 		assertThat(axis(registry.meta("rules_creepy"), "san").displayName()).isEqualTo("理智");
 	}
 
+	// ── ADR-013 融合组合登记(fusedAxes 接活 mergeAxes;有序、方向敏感)──────────
+
+	@Test
+	void fusionSupportedOnlyForRegisteredOrderedCombo() {
+		// round 1 只登记「修仙×规则怪谈(host=修仙)」一组、方向敏感。
+		assertThat(registry.isFusionSupported("cultivation", "rules_creepy")).isTrue();
+		// 反向(host=规则怪谈)未登记 —— 换皮方向不成立。
+		assertThat(registry.isFusionSupported("rules_creepy", "cultivation")).isFalse();
+		// 两个已激活但未登记为融合组合。
+		assertThat(registry.isFusionSupported("apocalypse", "cthulhu")).isFalse();
+	}
+
+	@Test
+	void fusedAxesMatchesCulcivationRulesCreepyCombo() {
+		// fusedAxes(host,foreign) 与命名 combo 便捷方法同结果(单一真理源)。
+		assertThat(registry.fusedAxes("cultivation", "rules_creepy").stream().map(AttributeAxis::key))
+				.containsExactly("hp", "mana", "realm", "san");
+	}
+
+	@Test
+	void fusedAxesThrowsForUnregisteredCombo() {
+		try {
+			registry.fusedAxes("rules_creepy", "cultivation"); // 反向未登记
+			assertThat(false).as("未登记融合组合应抛异常").isTrue();
+		} catch (IllegalArgumentException expected) {
+			assertThat(expected.getMessage()).contains("不支持的融合组合");
+		}
+	}
+
 	private AttributeAxis fused(List<AttributeAxis> axes, String key) {
 		return axes.stream().filter(a -> a.key().equals(key)).findFirst().orElseThrow();
 	}

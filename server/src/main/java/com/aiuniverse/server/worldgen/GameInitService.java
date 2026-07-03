@@ -1,7 +1,6 @@
 package com.aiuniverse.server.worldgen;
 
-import java.util.Map;
-import java.util.Set;
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
@@ -56,8 +55,18 @@ public class GameInitService {
 	 * @throws WorldGenException        world-gen 救不回 → 整局 ERROR(无会话残留)
 	 */
 	public InitResponse init(String archetype) {
-		validateArchetype(archetype); // 非法/未开放 → IllegalArgumentException(早于 world-gen,不浪费一次生成)
-		ObjectNode world = worldGen.generate(archetype); // 失败抛 WorldGenException → ERROR
+		return init(List.of(archetype));
+	}
+
+	/**
+	 * 起一局新世界(ADR-013:<b>有序 archetype 列表,host 在前</b>)。长度 1 → 单体(行为不变);
+	 * 长度 2 → 融合世界(host=第一个,{@code mode:"hybrid"});非法组合(未知/未激活/长度>2/未登记融合)→
+	 * {@link IllegalArgumentException} → 400(早于 world-gen,不浪费一次生成)。
+	 */
+	public InitResponse init(List<String> archetypeIds) {
+		// 校验入参并解析数值轴集(单体=该模式轴;融合=host 在前的融合轴集,ADR-013 接活 ADR-012 mergeAxes)。
+		List<AttributeAxis> axes = validateAndResolveAxes(archetypeIds);
+		ObjectNode world = worldGen.generate(archetypeIds); // 失败抛 WorldGenException → ERROR
 
 		// 1. 提取 transient openingNarrative(过审核接缝),再从 world 根剥除(不入持久化 state)。
 		String opening = moderation.review(world.path("openingNarrative").asString(""));
@@ -72,19 +81,41 @@ public class GameInitService {
 		// 3. 玩家可见文本过审核接缝(no-op 占位,ADR-004 落地时此处已在网关后)。
 		reviewVisibleText(world);
 
-		// 4. 播种会话(INITIALIZING→PLAYING,turn FSM AWAITING_ACTION)。传入本模式三份元数据派生信息:
-		//    累积型轴 key 集合(ADR-009 F-012:这些轴 ≤0 不触底)+ 轴 key→中文名(F-014 §5 兜底结局按中文匹配)
-		//    + 非致命 depletion 轴 key 集合(ADR-010 F-015:这些轴 ≤0 不致死、不触发结局极性 gate,如修仙灵力)。
+		// 4. 播种会话(INITIALIZING→PLAYING,turn FSM AWAITING_ACTION)。三份元数据派生信息据解析出的轴集算
+		//    (单体/融合共用 ArchetypeRegistry 静态派生,单一真理源):累积型轴 key(ADR-009 F-012:≤0 不触底)
+		//    + 轴 key→中文名(F-014 §5 兜底结局按中文匹配)+ 非致命 depletion 轴 key(ADR-010 F-015:≤0 不致死)。
 		String saveId = UUID.randomUUID().toString();
 		GameSession session = sessions.create(saveId, world, actions,
-				accumulationKeys(archetype), axisDisplayNames(archetype), nonLethalKeys(archetype));
+				ArchetypeRegistry.accumulationKeys(axes), ArchetypeRegistry.axisDisplayNames(axes),
+				ArchetypeRegistry.nonLethalKeys(axes));
 
-		// 5. 消毒投影 + 初始动作 + openingNarrative + 本模式数值轴元数据(前端面板渲染)一次性下发。
+		// 5. 消毒投影 + 初始动作 + openingNarrative + 本局数值轴元数据(前端面板渲染)一次性下发。
 		ObjectNode clientWorld = session.engine().toClientState();
-		return new InitResponse(saveId, clientWorld, opening, actions, attributeMeta(archetype));
+		return new InitResponse(saveId, clientWorld, opening, actions, attributeMeta(axes));
 	}
 
-	/** archetype 入参校验(ADR-008 决策 4):非已知枚举 → 非法;已知但未激活 → 未开放。两者均 → 400。 */
+	/**
+	 * 校验有序 archetype 列表并解析其数值轴集(ADR-013)。非已知/未激活/长度>2/未登记融合组合 → 非法(→400)。
+	 *
+	 * @return 单体=该模式轴;融合=host(第一个)在前的融合轴集(委托 {@link ArchetypeRegistry#fusedAxes})
+	 */
+	private List<AttributeAxis> validateAndResolveAxes(List<String> ids) {
+		if (ids == null || ids.isEmpty()) {
+			throw new IllegalArgumentException("未指定 archetype");
+		}
+		if (ids.size() > 2) {
+			throw new IllegalArgumentException("混合模式 round 1 仅支持 2 个 archetype:" + ids);
+		}
+		for (String id : ids) {
+			validateArchetype(id); // 非已知/未激活 → IllegalArgumentException
+		}
+		if (ids.size() == 1) {
+			return archetypes.meta(ids.get(0)).attributes();
+		}
+		return archetypes.fusedAxes(ids.get(0), ids.get(1)); // 未登记组合 → IllegalArgumentException
+	}
+
+	/** 单个 archetype 入参校验(ADR-008 决策 4):非已知枚举 → 非法;已知但未激活 → 未开放。两者均 → 400。 */
 	private void validateArchetype(String archetype) {
 		if (!archetypes.isKnown(archetype)) {
 			throw new IllegalArgumentException("非法的 archetype:" + archetype);
@@ -95,36 +126,16 @@ public class GameInitService {
 	}
 
 	/**
-	 * 本模式累积型数值轴的 key 集合(ADR-009 F-012):喂引擎据此 gate 触底(accumulation 轴 ≤0 不致死)。
-	 * 委托 {@link ArchetypeRegistry#accumulationKeys(List)}(单一真理源;ADR-012 混合模式融合轴集共用此派生)。
-	 */
-	private Set<String> accumulationKeys(String archetype) {
-		return ArchetypeRegistry.accumulationKeys(archetypes.meta(archetype).attributes());
-	}
-
-	/** 本模式轴 key→中文名(F-014 §5:引擎兜底结局按中文 condition 匹配)。委托 {@link ArchetypeRegistry#axisDisplayNames(List)}。 */
-	private Map<String, String> axisDisplayNames(String archetype) {
-		return ArchetypeRegistry.axisDisplayNames(archetypes.meta(archetype).attributes());
-	}
-
-	/**
-	 * 本模式非致命 depletion 轴的 key 集合(ADR-010 F-015):喂引擎据此判致命(这些轴 ≤0 不致死、不触发结局
-	 * 极性 gate,如修仙灵力枯竭=力竭非必死)。委托 {@link ArchetypeRegistry#nonLethalKeys(List)}(单一真理源)。
-	 */
-	private Set<String> nonLethalKeys(String archetype) {
-		return ArchetypeRegistry.nonLethalKeys(archetypes.meta(archetype).attributes());
-	}
-
-	/**
-	 * 本模式数值轴元数据 {@code [{key,displayName,bands?}]}(顺序即面板顺序;behaviorHint/range 不下发前端)。
+	 * 本局数值轴元数据 {@code [{key,displayName,bands?}]}(顺序即面板顺序;behaviorHint/range 不下发前端)。
 	 * 有行为档的轴带上 {@code bands:[{min,max,label}]}(#3,显式 inclusive 区间投影,axisRole 无关——前端只需
 	 * 「{@code min≤value≤max}」解析当前档,无须懂 depletion/accumulation;守 ADR-003 展示层语义无关);<b>不下发
-	 * narrationHint</b>(它仅服务端注入 prompt,Slice B)。无档轴省略 {@code bands} 字段(前端只显数字)。
+	 * narrationHint</b>(它仅服务端注入 prompt)。无档轴省略 {@code bands} 字段(前端只显数字)。融合世界据融合轴集
+	 * 渲染(道心换皮 displayName / bands 直接生效,前端无感,ADR-013)。
 	 */
-	private ArrayNode attributeMeta(String archetype) {
-		ArrayNode axes = mapper.createArrayNode();
-		for (AttributeAxis a : archetypes.meta(archetype).attributes()) {
-			ObjectNode axis = axes.addObject().put("key", a.key()).put("displayName", a.displayName());
+	private ArrayNode attributeMeta(List<AttributeAxis> axes) {
+		ArrayNode out = mapper.createArrayNode();
+		for (AttributeAxis a : axes) {
+			ObjectNode axis = out.addObject().put("key", a.key()).put("displayName", a.displayName());
 			if (!a.bands().isEmpty()) {
 				ArrayNode bands = axis.putArray("bands");
 				for (AttributeAxis.BandRange r : a.bandRanges()) {
@@ -132,7 +143,7 @@ public class GameInitService {
 				}
 			}
 		}
-		return axes;
+		return out;
 	}
 
 	/** world 给了 2-4 个带 id/text 的动作则采用(深拷),否则用确定性 FALLBACK(沿用 bake-off run_scenario_B)。 */
