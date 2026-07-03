@@ -1,11 +1,12 @@
-# world-gen(含 char-gen + rule-gen + 初始决策圈 + 开场叙事)· 多模式 · 单体
+# world-gen(含 char-gen + rule-gen + 初始决策圈 + 开场叙事)· 多模式 · 单体 / 混合
 
 > 一次性生成完整世界:`world` + `character` 初值 + `rules`(规则形态按模式注入,真假守则 / 心法守则)+ `endings` + 初始 `availableActions` + `openingNarrative`。
 > 对齐 docs/CONTEXT.md §二 schema v0.4(ADR-009:`rules[].isTrue` 可选;ADR-010:`endings[].outcome` 极性 + `schemaVersion` "0.3"→"0.4")。**线上口径(ADR-007)**:开 `response_format: json_object`、输出**纯 JSON**、**无哨兵**(与回合的「prose+哨兵+尾巴」刻意不同——world-gen 主体是结构、JSON 首次失败是头号失败模式,故把可靠性留在最险这次生成)。
 > **多模式结构(ADR-008 决策 3)**:提示词 = **通用骨架(单点维护)+ per-archetype 注入块**。骨架(输出 schema / id 约定 F-001 / 消毒硬化 / json_object / openingNarrative)模式无关、固定;`worldview`/`数值轴`/`ruleForm` 从 `ArchetypeRegistry` 元数据注入。加模式 = 一条元数据 + 一个种子池条目,**不重抄骨架**(消毒/id 这种硬规矩重抄一次错一次)。
 > 运行时同义副本在 `WorldGenPromptBuilder`(便于单测钉格式);本文件为人类可读核心资产(CONTEXT §三.6)。**lockstep:改这里务必同步改 `WorldGenPromptBuilder`,只改 .md 运行时失效。**
 >
-> 版本:v0.5(2026-07-01,#1 选择反馈定性版 · ADR-011:`availableActions[].hint` 由「可空」升为「必给」——每个选项一句定性风险/代价/张力提示、不写精确成功率数字;明写「hint 是叙事提示,不代表引擎会据此判定」呼应引擎只读透传不掷骰边界)。
+> 版本:v0.6(2026-07-04,ADR-013 混合模式融合协议 · round 1:新增「## 混合模式 · 世界融合」段——`mode:"hybrid"` + `archetypes:[两个]` + 双注入块 + 一段 per-combo 融合 meta-prompt(内联融合、单次胖调用、保 json_object 无哨兵,守 ADR-007 不加预调用),round 1 手写修仙×规则怪谈=识海遗蜕;运行时副本 `WorldGenPromptBuilder.FUSION_SKELETON` + `FUSION_META_PROMPTS`)。
+> 上一版:v0.5(2026-07-01,#1 选择反馈定性版 · ADR-011:`availableActions[].hint` 由「可空」升为「必给」——每个选项一句定性风险/代价/张力提示、不写精确成功率数字;明写「hint 是叙事提示,不代表引擎会据此判定」呼应引擎只读透传不掷骰边界)。
 
 ## System(通用骨架 + 注入块)
 
@@ -59,4 +60,54 @@
 ```
 模式:{{DISPLAY_NAME}}(单体,archetype={{ARCHETYPE}})
 场景种子:{{SEED}}
+```
+
+## 混合模式 · 世界融合(ADR-013,round 1)
+
+> 混合模式(`mode:"hybrid"`、`archetypes` 2 个,host 在前)走**内联融合**:同一次胖调用里并列注入**两个 archetype 的注入块**(worldview/ruleForm/轴)+ **一段 per-combo 融合 meta-prompt**,一次性产出**一个自洽的融合世界**(不是轮流播、不是拼接)。**线上口径同单体(ADR-007)**:保 `response_format: json_object`、纯 JSON、无哨兵、**不加预调用**——把可靠性留在最险的这次生成。校验/修复/ERROR 管线与单体完全一致(融合不加失败面)。
+> 输出格式骨架(schema / id 约定 / outcome / hint / 泄露硬化)与上文单体**完全相同**,唯 `mode:"hybrid"`、`archetypes:[两个]`、`rules` 走真假混合(见下);运行时副本在 `WorldGenPromptBuilder.FUSION_SKELETON`。轴合并(host 优先 + 语义换皮,ADR-012)只在播种层,提示词只据合并后的融合轴清单注入。
+> **lockstep:改下方融合 meta-prompt 务必同步改 `WorldGenPromptBuilder.FUSION_META_PROMPTS`,由 `FusionMetaPromptLockstepTest` 守护。**
+
+### round 1 彩蛋:修仙 × 规则怪谈(host=修仙 · 场景③识海遗蜕)
+
+融合轴集 = {`hp` 气血、`mana` 灵力、`realm` 境界、`san` 道心}(规则怪谈 `san` 换皮为「道心」,ADR-012);致命轴={hp,san},累积轴={realm},非致命资源轴={mana}。融合 meta-prompt(注入在「世界融合 · 要求」之后):
+
+```
+【本局融合内核 · 识海遗蜕】(以第二人称低语的腔调渲染)
+你——一缕误入的神识——坠进了一位走火入魔大能残留的识海遗蜕。这方天地以其残魂为壁垒:
+一堵望不到尽头的石壁上,他生前的【真传心法】与入魔后的【心魔伪笔】层层叠叠、同墙杂书;
+墙上【不标注哪句是真、哪句是假,也不标它属于哪一门】。修行体系与诡秘守则在同一堵墙上彼此渗透——
+这不是两个世界轮流出现,而是一个识海里真假交织的【一体世界】:玩家既是修士、又身陷规则怪谈。
+
+【守则融合 · 真假同墙】
+- rules[] 混写两类,真假各若干条(至少各两条):
+  · 【真传心法】=真守则(不带 isTrue,照它修行可养道心、稳神魂、助长境界);
+  · 【心魔伪笔】=假守则(带 isTrue:false + hiddenLogic,是入魔残念留下的诱饵,应之则道心/气血受损)。
+- content 一律写成识海石壁上古朴刻文的口吻,【绝不在 content 里暗示自己是真是假、属于哪一门】。
+
+【三根融合杠杆 · 务必写进守则与机制】
+(a) 数值入守则:守则明确牵动融合数值轴——引用【气血 / 灵力 / 境界 / 道心】,把修仙资源与怪谈代价缝进同一条守则。
+(b) 先辨体系、再辨真假:一条守则先判断它【属于哪个体系】——心法则照做即修行(养道心/长境界);
+    怪谈守则则须像规则怪谈那样【验它真假】。两步都要,墙上都不标类别。
+(c) 真假对射、以修仙常识裁:真伪互相指涉、彼此矛盾,设计成【可用修仙常识推断】——
+    合乎大道正理者多为真传,悖逆心性、诱人行险者多为心魔伪笔。(线索藏进氛围与矛盾,绝不直接给判定规则/答案。)
+
+【结局池 · 含护道结局(碑文/偈语腔)】
+- 至少一个成功结局=【护道功成】:玩家看破真伪、稳住道心,助残魂了结未竟之劫;残魂渡劫化形,
+  向你【行礼相谢「多谢道友护道」】,基调由阴森转为缥缈超脱(outcome=success)。
+- 至少一个失败结局=【走火入魔 / 被夺舍】:道心崩缺或气血枯竭,神魂被识海旧念吞没(outcome=failure)。
+
+【承重接缝 · 务必遵守(守 ADR-011:引擎只读透传、绝不据守则判定 / 掷骰)】
+- 守则只描述【风险 / 代价 / 氛围】,绝不写精确成功率数字、百分比,也不写「达到 X 值即触发 Y」这类判定规则。
+- 守则可叙事化提及门槛感(如「破境元婴以上者所书,皆非此壁真传」),但这【只是叙事毒饵 / 氛围】——
+  不得承诺、也不代表引擎会据境界数值拦截破境或改变判定;引擎不认识守则、更不据它掷骰。
+- 若某条守则诱导玩家「回想 / 确信某条旧守则」,它【只作纯叙事毒饵】,不要求任何跨回合追踪或记忆判定——
+  一切后果由你在当回合的 hiddenLogic 就地结算。
+```
+
+融合 User 种子(`WorldGenPromptBuilder.FUSION_SEED_POOLS`):
+
+```
+融合:修仙 × 规则怪谈(host=cultivation,archetypes=[cultivation,rules_creepy])
+场景种子:玩家神识误坠一位走火入魔大能的【识海遗蜕】……真传心法与心魔伪笔同墙杂书、无分界(危险等级 extreme)
 ```

@@ -95,6 +95,49 @@ class WorldGenPromptBuilderTest {
 		assertThat(p).doesNotContain("hint 可空");
 	}
 
+	// ── ADR-013 混合模式融合分支(修仙×规则怪谈,host=修仙)──────────────
+
+	@Test
+	void fusionPromptCarriesBothBlocksHybridModeAndFusedAxes() {
+		String p = builder.buildFusionPrompt("cultivation", "rules_creepy");
+
+		// 通用输出格式骨架照旧(id 类型/纯 JSON/openingNarrative/schemaVersion 0.4),不重抄错。
+		assertThat(p).contains("整数").contains("snake_case").contains("纯 JSON").contains("openingNarrative");
+		assertThat(p).contains("\"0.4\"").doesNotContain("<<<DELTA>>>"); // 保 json_object 无哨兵(守 ADR-007)
+		// mode:hybrid + archetypes 两个(host 在前)。
+		assertThat(p).contains("\"hybrid\"").contains("\"cultivation\",\"rules_creepy\"");
+		// 双注入块:两个 archetype 的 displayName + worldview 片段都在(不是轮流、是并列注入一次融合)。
+		assertThat(p).contains("修仙").contains("规则怪谈").contains("识海");
+		// 融合轴清单:host 气血/灵力/境界 + 换皮道心(san 换皮为道心,前端/提示词都用道心)。
+		assertThat(p).contains("hp(气血").contains("mana(灵力").contains("realm(境界").contains("san(道心");
+	}
+
+	@Test
+	void fusionPromptCarriesThreeLeversProtectiveEndingAndAdr011Guardrails() {
+		String p = builder.buildFusionPrompt("cultivation", "rules_creepy");
+
+		// 三根杠杆:数值入守则 / 先辨体系再辨真假 / 真假对射用修仙常识裁。
+		assertThat(p).contains("数值入守则");
+		assertThat(p).contains("先辨体系、再辨真假");
+		assertThat(p).contains("真假对射、以修仙常识裁");
+		// 守则真假同墙:真传心法(不带 isTrue)+ 心魔伪笔(带 isTrue:false + hiddenLogic)。
+		assertThat(p).contains("真传心法").contains("心魔伪笔");
+		// 护道结局位(success)+ 走火入魔(failure)。
+		assertThat(p).contains("护道功成").contains("多谢道友护道").contains("走火入魔");
+		// 承重接缝(守 ADR-011):守则不写精确成功率/判定规则、门槛只作叙事毒饵、回溯守则无跨回合追踪。
+		assertThat(p).contains("绝不写精确成功率数字");
+		assertThat(p).contains("不得承诺、也不代表引擎会据境界数值拦截破境或改变判定");
+		assertThat(p).contains("不要求任何跨回合追踪");
+	}
+
+	@Test
+	void fusionRepairPromptPointsFusedAxisKeys() {
+		String p = builder.buildRepairPrompt(List.of("cultivation", "rules_creepy"), "{\"mode\":\"hybrid\"}",
+				List.of("rules: 缺失或非数组"));
+		assertThat(p).contains("完整 world JSON").contains("rules: 缺失或非数组");
+		assertThat(p).contains("hp/mana/realm/san"); // 修复点名融合轴集
+	}
+
 	@Test
 	void repairPromptCarriesErrorsAndFailedRawAndAxes() {
 		String p = builder.buildRepairPrompt("apocalypse", "{\"mode\":\"single\"}", List.of("rules: 缺失或非数组"));
