@@ -17,6 +17,24 @@ describe('sceneImageUrl(archetype→图路径)', () => {
     expect(sceneImageUrl('totally_unknown')).toBeNull();
     expect(sceneImageUrl(undefined)).toBeNull();
   });
+
+  // ── ADR-013:放开单键假设 —— 数组入参(单体单元素 / 融合双元素)──
+  it('单元素数组 → 与单键同结果(单体零回归)', () => {
+    expect(sceneImageUrl(['cultivation'])).toBe('/scenes/cultivation.webp');
+    expect(sceneImageUrl(['rules_creepy'])).toBe('/scenes/rules_creepy.webp');
+    expect(sceneImageUrl([])).toBeNull();
+  });
+
+  it('融合世界(修仙×规则怪谈,host 在前)→ 融合专属封面 识海遗蜕', () => {
+    expect(sceneImageUrl(['cultivation', 'rules_creepy'])).toBe('/scenes/fusion-shihai.webp');
+  });
+
+  it('未登记融合组合 → 回落 host([0])的单体图,不盲取错图', () => {
+    // 反向(host=规则怪谈)未登记融合封面 → 回落规则怪谈图。
+    expect(sceneImageUrl(['rules_creepy', 'cultivation'])).toBe('/scenes/rules_creepy.webp');
+    // host 也未配图 → null 优雅降级。
+    expect(sceneImageUrl(['life_sim', 'cyberpunk'])).toBeNull();
+  });
 });
 
 describe('dangerLabel(危险度中英映射)', () => {

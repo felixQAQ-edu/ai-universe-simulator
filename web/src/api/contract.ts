@@ -169,9 +169,12 @@ export interface GameApi {
 
   /**
    * 起一局新世界(INITIALIZING,ADR-007)。阻塞直到 world-gen 完成。
+   * <p>ADR-013 混合模式:入参可为单 archetype(单体,行为不变)或<b>有序数组(host 在前)</b>——
+   * 长度 2 = 融合世界(round 1 彩蛋 修仙×规则怪谈)。wire 形态由实现归一(单值 {archetype} /
+   * 双值 {archetypes:[...]}),逻辑层只见本签名。
    * @throws GameApiError world-gen 救不回(502)/ 网络失败 —— 整局 ERROR,前端出「重新生成」。
    */
-  initGame(archetype: Archetype): Promise<InitResult>;
+  initGame(archetypes: Archetype | readonly Archetype[]): Promise<InitResult>;
 
   /**
    * 开一条回合流(ADR-006)。立即返回 TurnStream(请求在 microtask 后发起),

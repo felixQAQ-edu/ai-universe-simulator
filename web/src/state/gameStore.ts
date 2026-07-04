@@ -42,8 +42,11 @@ export interface GameState {
   archetypesLoading: boolean;
   /** 选择屏目录加载失败提示(可重试)。 */
   archetypesError: string | null;
-  /** 最近一次选中的 archetype(initError「重新生成」据此重试同一模式)。 */
-  lastArchetype: Archetype | null;
+  /**
+   * 最近一次选中的 archetype(initError「重新生成」据此重试同一模式)。
+   * ADR-013 混合模式:融合世界为有序数组(host 在前),重试原样重发双值。
+   */
+  lastArchetype: Archetype | Archetype[] | null;
   saveId: string | null;
   world: ClientWorld | null;
   /** 当前散文区文本:开场为整段(前端 reveal 动画演绎),回合为逐字累加的实时流。 */
@@ -66,7 +69,8 @@ export interface GameState {
 
   /** 拉取选择屏目录(选择屏 mount 时调用)。失败置 archetypesError,可重试。 */
   loadArchetypes: () => Promise<void>;
-  startGame: (archetype: Archetype) => Promise<void>;
+  /** 开局:单 archetype = 单体;有序数组(host 在前)= 融合世界(ADR-013)。 */
+  startGame: (archetypes: Archetype | Archetype[]) => Promise<void>;
   chooseAction: (actionId: string) => void;
   /** 离开/重开时清理在途回合流,回到选择屏(保留已拉取的目录)。 */
   reset: () => void;
@@ -74,7 +78,7 @@ export interface GameState {
 
 const INITIAL = {
   status: 'idle' as GameStatus,
-  lastArchetype: null as Archetype | null,
+  lastArchetype: null as Archetype | Archetype[] | null,
   saveId: null,
   world: null,
   narrative: '',
@@ -120,13 +124,13 @@ export function createGameStore(api: GameApi) {
         }
       },
 
-      async startGame(archetype) {
+      async startGame(archetypes) {
         if (get().status === 'initializing') return;
         activeStream?.close();
         activeStream = null;
-        set({ ...INITIAL, status: 'initializing', lastArchetype: archetype });
+        set({ ...INITIAL, status: 'initializing', lastArchetype: archetypes });
         try {
-          const res = await api.initGame(archetype);
+          const res = await api.initGame(archetypes);
           const attrs = res.world.character?.attributes ?? {};
           set({
             status: 'awaiting',

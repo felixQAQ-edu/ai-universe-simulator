@@ -80,7 +80,7 @@ function PlayingScreen() {
   return (
     <main className={styles.screen}>
       <SceneBanner
-        archetype={world.archetypes[0]}
+        archetypes={world.archetypes}
         turn={turn}
         dangerLevel={world.world.dangerLevel}
         title={world.world.title}

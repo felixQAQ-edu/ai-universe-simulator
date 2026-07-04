@@ -656,6 +656,88 @@
   animation-duration: 16s; /* 云气流动更盛 */
 }
 
+/* ── 渗漏卡(融合入口,ADR-013):修仙青白仙气 × 规则怪谈冷蓝诡异【互噬】——
+ * 两种氛围在同一张卡上抢地盘:左上是修仙的近白青光,右下是怪谈的冷蓝暗渊,中间一道撕裂接缝。
+ * 初始不显,误入手势后从卡列「渗」出(fusionSeep:自中缝裂开渗现)。纯 CSS,不引动画库。 */
+.cardFusion {
+  color: #cdd6d2;
+  border-left-color: #7ea9a0; /* 青金与冷蓝之间的病态青 */
+  background:
+    linear-gradient(135deg, rgba(238, 244, 240, 0.16) 0%, rgba(180, 210, 196, 0.08) 34%, transparent 52%),
+    linear-gradient(315deg, rgba(26, 34, 48, 0.9) 0%, rgba(20, 26, 38, 0.72) 40%, transparent 62%),
+    linear-gradient(160deg, #22302c 0%, #16202a 55%, #131a26 100%);
+  transform-origin: 50% 50%;
+}
+
+/* 渗出入场:两类特异性(压过 .card:not(.cardLocked) 的 cardEnter),只跑一次。 */
+.card.cardFusion {
+  animation: fusionSeep 0.9s ease-out backwards;
+}
+
+/* 互噬氛围层:修仙云气(左上)与怪谈冷光(右下)缓慢拉锯、彼此渗透。 */
+.cardFusion::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(55% 48% at 18% 22%, rgba(236, 244, 240, 0.30), transparent 68%),
+    radial-gradient(60% 52% at 84% 82%, rgba(96, 138, 190, 0.26), transparent 70%),
+    radial-gradient(2px 2px at 30% 78%, rgba(214, 178, 84, 0.55), transparent 60%),
+    radial-gradient(1.5px 1.5px at 72% 30%, rgba(140, 178, 224, 0.5), transparent 60%);
+  background-size: 180% 180%;
+  animation: fusionClash 9s ease-in-out infinite alternate;
+}
+
+/* 撕裂接缝:一道斜贯的裂隙微光(两个世界的边界渗漏处),偶发抽搐。 */
+.cardFusion::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    115deg,
+    transparent 46%,
+    rgba(190, 226, 214, 0.28) 49%,
+    rgba(120, 170, 210, 0.34) 51%,
+    transparent 54%
+  );
+  animation: fusionSeam 7s linear infinite;
+}
+
+.cardFusion:hover {
+  border-left-color: #9ecfc0;
+  box-shadow:
+    0 10px 30px -14px rgba(0, 0, 0, 0.7),
+    inset 0 0 30px -6px rgba(120, 190, 170, 0.28),
+    inset 0 0 18px -4px rgba(96, 138, 190, 0.3);
+}
+
+/* 融合卡标题:三层(修仙/规则怪谈/识海遗蜕)叠放同一格,CSS 轮换撕裂浮现。 */
+.fusionTitle {
+  display: inline-grid;
+}
+
+.fusionTitle > span {
+  grid-area: 1 / 1;
+  white-space: nowrap;
+  opacity: 0;
+}
+
+.fusionTitleA {
+  animation: fusionFlickerA 5.2s steps(1, end) infinite;
+}
+.fusionTitleB {
+  animation: fusionFlickerB 5.2s steps(1, end) infinite;
+}
+.fusionTitleC {
+  color: #d9e6df;
+  text-shadow: 0 0 12px rgba(150, 210, 190, 0.35);
+  animation: fusionFlickerC 5.2s steps(1, end) infinite;
+}
+
 /* ── 未开放占位:灰显、不可点、零动效(死的,反衬解锁卡是活的)── */
 .cardLocked {
   opacity: 0.5;
@@ -765,6 +847,119 @@
   }
 }
 
+/* 渗出:自中缝裂开渗现(误入手势触发时的入场;backwards 起始态,只跑一次)。 */
+@keyframes fusionSeep {
+  0% {
+    opacity: 0;
+    transform: scaleY(0.05);
+    filter: blur(6px);
+  }
+  55% {
+    opacity: 1;
+    transform: scaleY(1.02);
+    filter: blur(1.5px);
+  }
+  100% {
+    opacity: 1;
+    transform: scaleY(1);
+    filter: blur(0);
+  }
+}
+
+/* 互噬拉锯:两团氛围缓慢彼此挤压渗透(alternate 往复,黏着、不安)。 */
+@keyframes fusionClash {
+  from {
+    background-position: 0% 0%;
+  }
+  to {
+    background-position: 100% 100%;
+  }
+}
+
+/* 裂隙抽搐:接缝微光绝大多数时间稳定,偶发两次错位抽动(边界不稳)。 */
+@keyframes fusionSeam {
+  0%,
+  46% {
+    opacity: 0.8;
+    transform: translateX(0);
+  }
+  47% {
+    opacity: 0.3;
+    transform: translateX(2%);
+  }
+  48.2% {
+    opacity: 0.9;
+    transform: translateX(-1.5%);
+  }
+  49.4%,
+  100% {
+    opacity: 0.8;
+    transform: translateX(0);
+  }
+}
+
+/* 标题撕裂轮换:修仙(短暂)→ 规则怪谈(短暂)→ 识海遗蜕(驻留)—— 像信号夺台,最终真名占上风。 */
+@keyframes fusionFlickerA {
+  0%,
+  7% {
+    opacity: 1;
+  }
+  8%,
+  55% {
+    opacity: 0;
+  }
+  56%,
+  58% {
+    opacity: 1;
+  }
+  59%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes fusionFlickerB {
+  0%,
+  8% {
+    opacity: 0;
+  }
+  9%,
+  15% {
+    opacity: 1;
+  }
+  16%,
+  61% {
+    opacity: 0;
+  }
+  62%,
+  64% {
+    opacity: 1;
+  }
+  65%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes fusionFlickerC {
+  0%,
+  15% {
+    opacity: 0;
+  }
+  16%,
+  55% {
+    opacity: 1;
+  }
+  56%,
+  64% {
+    opacity: 0;
+  }
+  65%,
+  100% {
+    opacity: 1;
+  }
+}
+
 /* 无障碍:减少动态时关掉所有运动,保留静态氛围(暗角/尘点/雾霭/调色)—— 世界性格仍读得到。 */
 @media (prefers-reduced-motion: reduce) {
   .cardCreepy::after,
@@ -773,8 +968,19 @@
   .cardCthulhu::after,
   .cardCultivation::before,
   .cardCultivation::after,
+  .cardFusion,
+  .cardFusion::before,
+  .cardFusion::after,
+  .fusionTitleA,
+  .fusionTitleB,
   .card:not(.cardLocked) {
     animation: none;
+  }
+
+  /* 融合卡标题静态收在真名「识海遗蜕」(A/B 关闭动画后保持初始 opacity:0,C 静态可见)。 */
+  .fusionTitleC {
+    animation: none;
+    opacity: 1;
   }
 }
 
@@ -824,6 +1030,12 @@
 .cardCultivation .cardTag {
   background: rgba(201, 168, 74, 0.2);
   color: #8a6c1f;
+}
+
+/* 渗漏卡标签:病态青(两世界之间的颜色)。 */
+.cardFusion .cardTag {
+  background: rgba(126, 169, 160, 0.16);
+  color: #9ecfc0;
 }
 
 .cardSoon {

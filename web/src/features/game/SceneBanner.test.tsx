@@ -8,7 +8,7 @@ describe('SceneBanner', () => {
   it('渲染顶部状态栏:回合 / 危险度中文 / 标题 / tone', () => {
     render(
       <SceneBanner
-        archetype="rules_creepy"
+        archetypes={['rules_creepy']}
         turn={3}
         dangerLevel="high"
         title="雨夜便利店"
@@ -23,7 +23,7 @@ describe('SceneBanner', () => {
   it('已配图世界:渲染底图层(background-image 指向对应 webp)', () => {
     const { container } = render(
       <SceneBanner
-        archetype="cthulhu"
+        archetypes={['cthulhu']}
         turn={1}
         dangerLevel="extreme"
         title="旧日低语"
@@ -40,7 +40,7 @@ describe('SceneBanner', () => {
   it('未配图 / 未知 archetype:不渲染底图层,但状态栏照常渲染(降级不塌)', () => {
     const { container } = render(
       <SceneBanner
-        archetype={undefined}
+        archetypes={undefined}
         turn={0}
         dangerLevel="low"
         title="无名之地"
@@ -53,5 +53,22 @@ describe('SceneBanner', () => {
     // 状态栏仍在,布局不塌。
     expect(screen.getByText('第 0 回合 · 危险度 低')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '无名之地' })).toBeInTheDocument();
+  });
+
+  it('融合世界(ADR-013,archetypes 双元素 host 在前):取融合专属封面 识海遗蜕', () => {
+    const { container } = render(
+      <SceneBanner
+        archetypes={['cultivation', 'rules_creepy']}
+        turn={0}
+        dangerLevel="extreme"
+        title="识海遗蜕"
+        tone="阴森而缥缈"
+      />,
+    );
+    const img = container.querySelector('[aria-hidden="true"][style]') as HTMLElement | null;
+    expect(img).not.toBeNull();
+    // 融合专键,不盲取 [0](修仙图)。
+    expect(img!.style.backgroundImage).toContain('/scenes/fusion-shihai.webp');
+    expect(img!.style.backgroundImage).not.toContain('/scenes/cultivation.webp');
   });
 });

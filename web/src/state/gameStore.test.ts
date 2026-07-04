@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type {
   ArchetypeSummary,
   EndingPayload,
@@ -134,6 +134,19 @@ describe('startGame', () => {
     expect(s.status).toBe('initError');
     expect(s.errorMessage).toContain('世界生成失败');
     expect(s.world).toBeNull();
+  });
+
+  it('融合双值(ADR-013):有序数组原样传给 api,lastArchetype 记数组供重试', async () => {
+    const { api } = makeApi('ok');
+    const initSpy = vi.spyOn(api, 'initGame');
+    const store = createGameStore(api);
+    await store.getState().startGame(['cultivation', 'rules_creepy']);
+
+    // api 收到的就是有序双值(host 在前),不被拆散/重排。
+    expect(initSpy).toHaveBeenCalledWith(['cultivation', 'rules_creepy']);
+    // lastArchetype 记数组 —— initError「重新生成」原样重发双值。
+    expect(store.getState().lastArchetype).toEqual(['cultivation', 'rules_creepy']);
+    expect(store.getState().status).toBe('awaiting');
   });
 });
 

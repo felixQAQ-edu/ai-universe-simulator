@@ -54,6 +54,26 @@ describe('initGame', () => {
     expect(res.saveId).toBe('s1');
     expect(res.openingNarrative).toBe('午夜两点……');
     expect(res.availableActions[0].id).toBe('A');
+    // 单值走旧 wire {archetype}(向后兼容,ADR-013)。
+    const fetchMock = vi.mocked(fetch);
+    const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
+    expect(body).toEqual({ archetype: 'rules_creepy' });
+  });
+
+  it('双值(有序,host 在前)→ wire 发 {archetypes:[...]}(ADR-013 融合)', async () => {
+    const payload = {
+      saveId: 's2',
+      world: { schemaVersion: '0.4', world: { title: '识海遗蜕' }, rules: [], character: {} },
+      openingNarrative: '识海无垠……',
+      availableActions: [{ id: 'A', text: '辨读刻文', hint: '' }],
+    };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(200, payload)));
+
+    const res = await api.initGame(['cultivation', 'rules_creepy']);
+    expect(res.saveId).toBe('s2');
+    const fetchMock = vi.mocked(fetch);
+    const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
+    expect(body).toEqual({ archetypes: ['cultivation', 'rules_creepy'] }); // 顺序保持 host 在前
   });
 
   it('502 → GameApiError,code 取自 body.error.code', async () => {

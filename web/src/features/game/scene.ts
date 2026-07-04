@@ -13,14 +13,31 @@ const SCENE_ARCHETYPES: ReadonlySet<string> = new Set<Archetype>([
 ]);
 
 /**
- * 据 world.archetypes[0] 解析氛围底图路径(#8)。已配图世界 → `/scenes/<archetype>.webp`;
- * 未配图(未来新世界暂缺图)→ null,顶部带优雅降级为纯氛围色、不显图、布局不塌。
+ * 融合世界(ADR-013,mode=hybrid)的专属封面:key = `host×foreign`(有序,host 在前)。
+ * round 1 只一组(修仙×规则怪谈=识海遗蜕);加融合组合 = 放一张图 + 加一条映射。
  */
-export function sceneImageUrl(archetype: string | undefined): string | null {
-  if (archetype && SCENE_ARCHETYPES.has(archetype)) {
-    return `/scenes/${archetype}.webp`;
+const FUSION_SCENES: Readonly<Record<string, string>> = {
+  'cultivation×rules_creepy': '/scenes/fusion-shihai.webp',
+};
+
+/**
+ * 据 world.archetypes 解析氛围底图路径(#8;ADR-013 放开单键假设)。
+ * - 单体(单 key / 单元素数组)→ 已配图世界 `/scenes/<archetype>.webp`;
+ * - 融合(数组 ≥2,host 在前)→ 融合专属封面(识海遗蜕);未登记组合回落 host([0])的图——
+ *   绝不盲取 `[0]` 当单体键错认融合世界。
+ * 未配图 → null,顶部优雅降级为纯氛围色、不显图、布局不塌。
+ */
+export function sceneImageUrl(archetypes: string | readonly string[] | undefined): string | null {
+  if (!archetypes) return null;
+  const list = typeof archetypes === 'string' ? [archetypes] : archetypes;
+  if (list.length === 0) return null;
+  if (list.length >= 2) {
+    const fusion = FUSION_SCENES[`${list[0]}×${list[1]}`];
+    if (fusion) return fusion;
+    // 未登记融合组合:回落 host 的单体图(仍优雅降级)。
   }
-  return null;
+  const host = list[0];
+  return SCENE_ARCHETYPES.has(host) ? `/scenes/${host}.webp` : null;
 }
 
 /** 危险度英文枚举 → 中文短词(顶部状态栏展示,纯前端常量表)。 */

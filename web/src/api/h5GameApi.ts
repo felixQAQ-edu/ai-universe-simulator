@@ -32,13 +32,16 @@ export function createH5GameApi(baseUrl = ''): GameApi {
       return Array.isArray(data?.archetypes) ? data.archetypes : [];
     },
 
-    async initGame(archetype: Archetype): Promise<InitResult> {
+    async initGame(archetypes: Archetype | readonly Archetype[]): Promise<InitResult> {
+      // ADR-013:单值走旧 wire {archetype}(向后兼容),有序多值(host 在前)走 {archetypes:[...]}。
+      const list = Array.isArray(archetypes) ? archetypes : [archetypes];
+      const body = list.length > 1 ? { archetypes: list } : { archetype: list[0] };
       let resp: Response;
       try {
         resp = await fetch(`${baseUrl}/api/game/init`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ archetype }),
+          body: JSON.stringify(body),
         });
       } catch (e) {
         throw new GameApiError('network', e instanceof Error ? e.message : '网络错误');
