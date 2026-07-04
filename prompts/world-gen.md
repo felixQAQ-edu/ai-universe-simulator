@@ -5,7 +5,8 @@
 > **多模式结构(ADR-008 决策 3)**:提示词 = **通用骨架(单点维护)+ per-archetype 注入块**。骨架(输出 schema / id 约定 F-001 / 消毒硬化 / json_object / openingNarrative)模式无关、固定;`worldview`/`数值轴`/`ruleForm` 从 `ArchetypeRegistry` 元数据注入。加模式 = 一条元数据 + 一个种子池条目,**不重抄骨架**(消毒/id 这种硬规矩重抄一次错一次)。
 > 运行时同义副本在 `WorldGenPromptBuilder`(便于单测钉格式);本文件为人类可读核心资产(CONTEXT §三.6)。**lockstep:改这里务必同步改 `WorldGenPromptBuilder`,只改 .md 运行时失效。**
 >
-> 版本:v0.6(2026-07-04,ADR-013 混合模式融合协议 · round 1:新增「## 混合模式 · 世界融合」段——`mode:"hybrid"` + `archetypes:[两个]` + 双注入块 + 一段 per-combo 融合 meta-prompt(内联融合、单次胖调用、保 json_object 无哨兵,守 ADR-007 不加预调用),round 1 手写修仙×规则怪谈=识海遗蜕;运行时副本 `WorldGenPromptBuilder.FUSION_SKELETON` + `FUSION_META_PROMPTS`)。
+> 版本:v0.6.1(2026-07-04,ADR-013 融合冒烟修正:守则融合硬性配比——`hiddenLogic + discovered` 与真假解绑(每条 rule 无论真心法/心魔伪笔都必须带 hiddenLogic)+ 强制心魔伪笔 ≥3 / 真传心法 ≥3,锁死真假同墙不塌回单一体系;根因=旧措辞把 hiddenLogic 绑死在「假守则」上,某发偏全真心法即连带漏 hiddenLogic 且无伪笔)。
+> 上一版:v0.6(2026-07-04,ADR-013 混合模式融合协议 · round 1:新增「## 混合模式 · 世界融合」段——`mode:"hybrid"` + `archetypes:[两个]` + 双注入块 + 一段 per-combo 融合 meta-prompt(内联融合、单次胖调用、保 json_object 无哨兵,守 ADR-007 不加预调用),round 1 手写修仙×规则怪谈=识海遗蜕;运行时副本 `WorldGenPromptBuilder.FUSION_SKELETON` + `FUSION_META_PROMPTS`)。
 > 上一版:v0.5(2026-07-01,#1 选择反馈定性版 · ADR-011:`availableActions[].hint` 由「可空」升为「必给」——每个选项一句定性风险/代价/张力提示、不写精确成功率数字;明写「hint 是叙事提示,不代表引擎会据此判定」呼应引擎只读透传不掷骰边界)。
 
 ## System(通用骨架 + 注入块)
@@ -79,10 +80,13 @@
 墙上【不标注哪句是真、哪句是假,也不标它属于哪一门】。修行体系与诡秘守则在同一堵墙上彼此渗透——
 这不是两个世界轮流出现,而是一个识海里真假交织的【一体世界】:玩家既是修士、又身陷规则怪谈。
 
-【守则融合 · 真假同墙】
-- rules[] 混写两类,真假各若干条(至少各两条):
+【守则融合 · 真假同墙(硬性配比,不许塌回单一体系)】
+- rules[] 总数 6–8 条,混写两类,【心魔伪笔(isTrue:false)至少 3 条、真传心法(不带 isTrue)至少 3 条】——
+  务必真假同墙、势均力敌,绝不允许某一类为零或只有一两条(那会塌回「就是修仙」、丢掉规则怪谈的验真假张力):
   · 【真传心法】=真守则(不带 isTrue,照它修行可养道心、稳神魂、助长境界);
-  · 【心魔伪笔】=假守则(带 isTrue:false + hiddenLogic,是入魔残念留下的诱饵,应之则道心/气血受损)。
+  · 【心魔伪笔】=假守则(带 isTrue:false,是入魔残念留下的诱饵,应之则道心/气血受损)。
+- 【每条 rule 无论真假都必须带 hiddenLogic + discovered:false】(hiddenLogic 不是假守则专属):
+  · 真传心法的 hiddenLogic = 照它做的【真实后果 / 机缘】;心魔伪笔的 hiddenLogic = 照它做的【隐藏代价 / 陷阱】。
 - content 一律写成识海石壁上古朴刻文的口吻,【绝不在 content 里暗示自己是真是假、属于哪一门】。
 
 【三根融合杠杆 · 务必写进守则与机制】

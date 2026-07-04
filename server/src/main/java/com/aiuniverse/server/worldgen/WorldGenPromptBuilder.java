@@ -108,10 +108,11 @@ public final class WorldGenPromptBuilder {
 			- schemaVersion:必须为 "0.4";mode:"hybrid";archetypes:[%8$s]
 			- world:{ title, background, tone 用中文;dangerLevel ∈ {low,medium,high,extreme} }
 			- character:{ attributes:{ 上述数值轴,各 0-100 }, traits:2-4 个中文, inventory:1-3 件中文 }
-			- rules:6-8 条,真假混合的守则:
+			- rules:6-8 条,真假混合的守则,【心魔伪笔(isTrue:false)至少 3 条、真传心法(不带 isTrue)至少 3 条】:
 			  - id 用【整数】,从 1 连续编号;
 			  - content 是给玩家看的守则原文(中文);
-			  - 【真守则不带 isTrue;假守则带 isTrue:false + hiddenLogic】,真假各若干条(至少各两条);
+			  - 真守则(真传心法)不带 isTrue;假守则(心魔伪笔)带 isTrue:false;
+			  - 【每条 rule 无论真假都必须带 hiddenLogic + discovered】(hiddenLogic 不是假守则专属);
 			  - hiddenLogic 是【只有引擎能看】的真实机制(触发条件 + 上述数值轴的后果),discovered 初始一律 false。
 			- endings:2-3 个,含至少一个"成功"与一个"失败"结局:
 			  - id 用【snake_case 英文字符串】(如 ascend、possessed、body_destroyed),【不是数字】——与 rules[].id(整数)区分;
@@ -234,10 +235,14 @@ public final class WorldGenPromptBuilder {
 					诡秘守则(读错一句便招异变)在同一堵墙上彼此渗透——这不是两个世界轮流出现,而是一个识海里
 					真假交织的【一体世界】:玩家既是修士、又身陷规则怪谈,两种质感始终同时在场。
 
-					【守则融合 · 真假同墙】
-					- rules[] 混写两类,真假各若干条(至少各两条):
+					【守则融合 · 真假同墙(硬性配比,不许塌回单一体系)】
+					- rules[] 总数 6–8 条,混写两类,【心魔伪笔(isTrue:false)至少 3 条、真传心法(不带 isTrue)至少 3 条】——
+					  务必真假同墙、势均力敌,绝不允许某一类为零或只有一两条(那会塌回「就是修仙」、丢掉规则怪谈的验真假张力):
 					  · 【真传心法】=真守则(不带 isTrue,照它修行可养道心、稳神魂、助长境界);
-					  · 【心魔伪笔】=假守则(带 isTrue:false + hiddenLogic,是入魔残念留下的诱饵,应之则道心/气血受损)。
+					  · 【心魔伪笔】=假守则(带 isTrue:false,是入魔残念留下的诱饵,应之则道心/气血受损)。
+					- 【每条 rule 无论真假都必须带 hiddenLogic + discovered:false】(hiddenLogic 不是假守则专属):
+					  · 真传心法的 hiddenLogic = 照它做的【真实后果 / 机缘】(如稳道心、长境界、得助益);
+					  · 心魔伪笔的 hiddenLogic = 照它做的【隐藏代价 / 陷阱】(如掉道心、损气血、引残念)。
 					- content 一律写成识海石壁上古朴刻文的口吻,【绝不在 content 里暗示自己是真是假、属于哪一门】。
 
 					【三根融合杠杆 · 务必写进守则与机制】
