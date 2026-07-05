@@ -5,7 +5,11 @@
 > **多模式结构(ADR-008 决策 3)**:提示词 = **通用骨架(单点维护)+ per-archetype 注入块**。骨架(输出 schema / id 约定 F-001 / 消毒硬化 / json_object / openingNarrative)模式无关、固定;`worldview`/`数值轴`/`ruleForm` 从 `ArchetypeRegistry` 元数据注入。加模式 = 一条元数据 + 一个种子池条目,**不重抄骨架**(消毒/id 这种硬规矩重抄一次错一次)。
 > 运行时同义副本在 `WorldGenPromptBuilder`(便于单测钉格式);本文件为人类可读核心资产(CONTEXT §三.6)。**lockstep:改这里务必同步改 `WorldGenPromptBuilder`,只改 .md 运行时失效。**
 >
-> 版本:v0.6.1(2026-07-04,ADR-013 融合冒烟修正:守则融合硬性配比——`hiddenLogic + discovered` 与真假解绑(每条 rule 无论真心法/心魔伪笔都必须带 hiddenLogic)+ 强制心魔伪笔 ≥3 / 真传心法 ≥3,锁死真假同墙不塌回单一体系;根因=旧措辞把 hiddenLogic 绑死在「假守则」上,某发偏全真心法即连带漏 hiddenLogic 且无伪笔)。
+> 版本:v0.6.2(2026-07-05,ADR-013 Slice D-3 · 治整局冒烟症状③「气血死给道心结局」:融合骨架 endings 约束升级——
+> endings 3–4 个,【每个致命轴(气血/道心)各配至少一条独立失败结局】+【condition 单轴绑定硬约束】(每条失败结局的
+> condition 只绑定单一致命轴并点名其中文名,禁止「道心≤0或气血≤0」这类"或"混轴条件;title/description 与绑定轴一致,
+> 气血死写气血、道心崩写道心)。根因=混轴 or-condition 让引擎 contains 中文名匹配必错配;引擎匹配逻辑不动。)
+> v0.6.1(2026-07-04,ADR-013 融合冒烟修正:守则融合硬性配比——`hiddenLogic + discovered` 与真假解绑(每条 rule 无论真心法/心魔伪笔都必须带 hiddenLogic)+ 强制心魔伪笔 ≥3 / 真传心法 ≥3,锁死真假同墙不塌回单一体系;根因=旧措辞把 hiddenLogic 绑死在「假守则」上,某发偏全真心法即连带漏 hiddenLogic 且无伪笔)。
 > 上一版:v0.6(2026-07-04,ADR-013 混合模式融合协议 · round 1:新增「## 混合模式 · 世界融合」段——`mode:"hybrid"` + `archetypes:[两个]` + 双注入块 + 一段 per-combo 融合 meta-prompt(内联融合、单次胖调用、保 json_object 无哨兵,守 ADR-007 不加预调用),round 1 手写修仙×规则怪谈=识海遗蜕;运行时副本 `WorldGenPromptBuilder.FUSION_SKELETON` + `FUSION_META_PROMPTS`)。
 > 上一版:v0.5(2026-07-01,#1 选择反馈定性版 · ADR-011:`availableActions[].hint` 由「可空」升为「必给」——每个选项一句定性风险/代价/张力提示、不写精确成功率数字;明写「hint 是叙事提示,不代表引擎会据此判定」呼应引擎只读透传不掷骰边界)。
 
@@ -99,7 +103,11 @@
 【结局池 · 含护道结局(碑文/偈语腔)】
 - 至少一个成功结局=【护道功成】:玩家看破真伪、稳住道心,助残魂了结未竟之劫;残魂渡劫化形,
   向你【行礼相谢「多谢道友护道」】,基调由阴森转为缥缈超脱(outcome=success)。
-- 至少一个失败结局=【走火入魔 / 被夺舍】:道心崩缺或气血枯竭,神魂被识海旧念吞没(outcome=failure)。
+- 每个致命轴各配一条独立失败结局(D-3 单轴绑定,与骨架 endings 约束 lockstep):
+  · 气血线=【身死道消类】:气血归零,肉身/神识溃散(condition 只绑气血,description 写气血枯竭);
+  · 道心线=【走火入魔 / 被夺舍类】:道心崩缺,神魂被识海旧念吞没(condition 只绑道心,description 写道心失守)。
+  【禁止用"或"把气血/道心混进同一条 condition】——结局文本与触发轴必须对得上。
+  【condition 全部用中文写、点名轴的中文名(气血/道心),绝不用 hp/san 等英文字段名】(「hp归零」是错的,要写「气血归零」)。
 
 【承重接缝 · 务必遵守(守 ADR-011:引擎只读透传、绝不据守则判定 / 掷骰)】
 - 守则只描述【风险 / 代价 / 氛围】,绝不写精确成功率数字、百分比,也不写「达到 X 值即触发 Y」这类判定规则。

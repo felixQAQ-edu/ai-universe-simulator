@@ -114,14 +114,18 @@ public final class WorldGenPromptBuilder {
 			  - 真守则(真传心法)不带 isTrue;假守则(心魔伪笔)带 isTrue:false;
 			  - 【每条 rule 无论真假都必须带 hiddenLogic + discovered】(hiddenLogic 不是假守则专属);
 			  - hiddenLogic 是【只有引擎能看】的真实机制(触发条件 + 上述数值轴的后果),discovered 初始一律 false。
-			- endings:2-3 个,含至少一个"成功"与一个"失败"结局:
+			- endings:3-4 个,含至少一个"成功"结局,且【每个致命数值轴(气血/道心)各配至少一条独立的失败结局】:
 			  - id 用【snake_case 英文字符串】(如 ascend、possessed、body_destroyed),【不是数字】——与 rules[].id(整数)区分;
 			  - title 必填(中文短标题 4-8 字);description 一句中文结局描述;condition 可判定的中文条件;reached 初始 false;
 			  - 【outcome 必填·结局极性】∈ {success,failure,neutral}:失败/死亡/走火入魔/身死道消/被夺舍=failure;
 			    圆满/证道/脱困/护道功成=success;中性收束=neutral。务必如实标——引擎会据它在角色濒死时拒绝错配的成功结局。
-			  - 【condition 须绑定死活前提】失败/死亡类结局的 condition 要绑定「核心数值触底或角色陨落」,且**点名对应
-			    致命数值轴的中文名**(气血/道心)以便兜底命中;成功类结局要明确要求「角色存活且达成目标」——
-			    别让一个成功结局的 condition 在角色濒死时也可能被判定命中。
+			  - 【condition 单轴绑定 · 硬约束】每条失败结局的 condition 只绑定【单一】致命轴、并点名其中文名
+			    (如「气血归零,肉身溃散而亡」/「道心崩缺,神魂入魔」),【禁止用"或"把多个致命轴混进同一条 condition】
+			    (如「道心归零或气血归零」这类混轴条件是错的);【condition 全部用中文写、点名轴的中文名(气血/道心),
+			    绝不用 hp/san/mana/realm 等英文字段名】(「hp归零」是错的,要写「气血归零」);结局的 title 与
+			    description 也须与所绑定的轴一致——气血死写气血枯竭、道心崩写道心失守,不得混写两轴。
+			    成功类结局的 condition 要明确要求「角色存活且达成目标」,别让一个成功结局的 condition 在角色濒死时
+			    也可能被判定命中。
 			- availableActions:2-4 个开局行动,id 用大写字母 A/B/C/D,text 中文且各有取舍;hint 必给——
 			  为每个选项写一句定性的风险/代价/张力提示(如「恐损道基」「或引出识海旧主残念」),点出选它可能付出的
 			  代价/风险,氛围化、贴合融合世界口吻,不写精确成功率数字/百分比(ADR-011)。hint 是叙事提示,
@@ -258,7 +262,10 @@ public final class WorldGenPromptBuilder {
 					- 至少含一个成功结局=【护道功成】:玩家看破真伪、稳住道心,助这缕残魂了结未竟之劫;残魂渡劫化形,
 					  向你【行礼相谢「多谢道友护道」】,基调由阴森转为缥缈超脱(outcome=success)。
 					  ——玩家本该是这残魂的一场心魔劫,却反成了它的护道之人。
-					- 至少含一个失败结局=【走火入魔 / 被夺舍】:道心崩缺或气血枯竭,神魂被识海旧念吞没(outcome=failure)。
+					- 每个致命轴各配一条独立失败结局(condition 单轴绑定,见上方 endings 约束):
+					  · 气血线=【身死道消类】:气血归零,肉身/神识溃散(condition 只绑气血,description 写气血枯竭);
+					  · 道心线=【走火入魔 / 被夺舍类】:道心崩缺,神魂被识海旧念吞没(condition 只绑道心,description 写道心失守)。
+					  【禁止用"或"把气血/道心混进同一条 condition】——结局文本与触发轴必须对得上。
 
 					【承重接缝 · 务必遵守(守 ADR-011:引擎只读透传、绝不据守则判定 / 掷骰)】
 					- 守则只描述【风险 / 代价 / 氛围】,【绝不写精确成功率数字、百分比,也不写「达到 X 值即触发 Y」这类判定规则】。
