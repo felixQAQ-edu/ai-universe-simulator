@@ -5,7 +5,12 @@
 > **多模式结构(ADR-008 决策 3)**:提示词 = **通用骨架(单点维护)+ per-archetype 注入块**。骨架(输出 schema / id 约定 F-001 / 消毒硬化 / json_object / openingNarrative)模式无关、固定;`worldview`/`数值轴`/`ruleForm` 从 `ArchetypeRegistry` 元数据注入。加模式 = 一条元数据 + 一个种子池条目,**不重抄骨架**(消毒/id 这种硬规矩重抄一次错一次)。
 > 运行时同义副本在 `WorldGenPromptBuilder`(便于单测钉格式);本文件为人类可读核心资产(CONTEXT §三.6)。**lockstep:改这里务必同步改 `WorldGenPromptBuilder`,只改 .md 运行时失效。**
 >
-> 版本:v0.6.2(2026-07-05,ADR-013 Slice D-3 · 治整局冒烟症状③「气血死给道心结局」:融合骨架 endings 约束升级——
+> 版本:v0.6.3(2026-07-06,ADR-013 Slice E-1 · 治「赢着被磨死」:融合骨架两处收紧——【资源经济必须内生】
+> (融合世界必须内生 2-3 处有代价的恢复手段(参悟真传回灵力但耗时辰 / 静室调息回气血但异响渐近 / 丹药稳道心但
+> 存量有限),写进 background/rules/openingNarrative 让后续回合有据可用;无恢复手段=把玩家磨死在漫长消耗里的
+> 设计缺陷)+【成功结局 condition 必须可判定】(具体数值门槛 + 中文轴名 + 可数事件,如「道心≥70 且识破伪笔≥3」,
+> 禁「看破真伪」类模糊措辞;门槛适度让一局十几回合可达成)。配套 event-loop v1.1 通关判定(E-2)。)
+> v0.6.2(2026-07-05,ADR-013 Slice D-3 · 治整局冒烟症状③「气血死给道心结局」:融合骨架 endings 约束升级——
 > endings 3–4 个,【每个致命轴(气血/道心)各配至少一条独立失败结局】+【condition 单轴绑定硬约束】(每条失败结局的
 > condition 只绑定单一致命轴并点名其中文名,禁止「道心≤0或气血≤0」这类"或"混轴条件;title/description 与绑定轴一致,
 > 气血死写气血、道心崩写道心)。根因=混轴 or-condition 让引擎 contains 中文名匹配必错配;引擎匹配逻辑不动。)
@@ -71,6 +76,22 @@
 
 > 混合模式(`mode:"hybrid"`、`archetypes` 2 个,host 在前)走**内联融合**:同一次胖调用里并列注入**两个 archetype 的注入块**(worldview/ruleForm/轴)+ **一段 per-combo 融合 meta-prompt**,一次性产出**一个自洽的融合世界**(不是轮流播、不是拼接)。**线上口径同单体(ADR-007)**:保 `response_format: json_object`、纯 JSON、无哨兵、**不加预调用**——把可靠性留在最险的这次生成。校验/修复/ERROR 管线与单体完全一致(融合不加失败面)。
 > 输出格式骨架(schema / id 约定 / outcome / hint / 泄露硬化)与上文单体**完全相同**,唯 `mode:"hybrid"`、`archetypes:[两个]`、`rules` 走真假混合(见下);运行时副本在 `WorldGenPromptBuilder.FUSION_SKELETON`。轴合并(host 优先 + 语义换皮,ADR-012)只在播种层,提示词只据合并后的融合轴清单注入。
+>
+> **融合骨架两块追加约束(E-1,与运行时 FUSION_SKELETON lockstep)**:
+>
+> ```
+> 【资源经济 · 必须内生】这个世界必须内生 2-3 处【有代价的恢复手段】(如:参悟真传心法可回灵力但耗费时辰、
+> 静室调息可回气血但墙上异响渐近、服食随身丹药可稳道心但存量有限)——把它们写进 world.background / rules 的
+> content / openingNarrative 里,让后续回合与玩家都【有据可用】;每种恢复都要有代价或风险(耗时辰 / 引来
+> 注意 / 消耗存量),绝不是无限回复。没有恢复手段的世界会把玩家磨死在漫长消耗里,这是设计缺陷。
+> ```
+>
+> ```
+> 【成功结局 condition 必须可判定 · 硬约束】成功类结局的 condition 用【具体数值门槛 + 中文轴名 +
+> 可数事件】写(如「角色存活,道心≥70,且识破心魔伪笔≥3 条」),【禁止模糊措辞】(「看破真伪」「稳住道心」
+> 「了结心愿」这类无法逐项核对的写法是错的);【门槛适度】(识破伪笔 3 条即可、不要 5 条,数值门槛贴近
+> 合理局面),让一局在十几回合内可以达成;并明确要求「角色存活」,别让成功结局在角色濒死时也可能被判定命中。
+> ```
 > **lockstep:改下方融合 meta-prompt 务必同步改 `WorldGenPromptBuilder.FUSION_META_PROMPTS`,由 `FusionMetaPromptLockstepTest` 守护。**
 
 ### round 1 彩蛋:修仙 × 规则怪谈(host=修仙 · 场景③识海遗蜕)
