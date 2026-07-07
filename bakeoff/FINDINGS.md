@@ -343,3 +343,39 @@
   也不触发 §4.4 结局极性 gate**(播种层把非致命 depletion 轴 key 集合 `{mana}` 传入引擎)。hp/san/hunger/气血 `lethal=true`(≤0 死 + gate)。
   默认空非致命集 = 全 depletion 致命 = 现状(golden parity 字节级零回归)。**真 key 冒烟两局验通**:灵力两局都到 0 但**均未误触发死亡/失败结局**(F-015 关闭成立)。
   commit `2dee42a`(元数据标 lethal + 播种非致命集)。详见 [ADR-010](../docs/adr/ADR-010-ending-outcome-polarity-gate.md) 决策 2。
+
+## F-016 · event-loop 对融合世界失明:回合提示词盲取 `archetypes[0]` 按单体注入(**Slice D/E 提示词层根治、✅ 已关闭**)
+
+- **日期**:2026-07-08 | **步骤**:Phase 3 混合模式 round 1(修仙×规则怪谈「识海遗蜕」)整局真 key 冒烟
+- **现象(整局实测三症状)**:融合世界整局玩下来——① **签名换皮轴冻死**:道心(`san`)全程 51+ 回合纹丝不动,AI 从不回传;
+  ② **无收敛**:剧情反复回环、拖到 51/99 回合靠气血磨 0 才结束(单体局通常 6–19 回合);③ **结局错配**:气血归 0 触发,
+  却给「道心崩缺」结局、而道心=70(数值与结局文本打架)。另有变体:胜利线达成(道心 90/境界 62)却 99 回合无人提议 ending。
+- **根因(勘察定位,引擎侧全对、失明在提示词消费端)**:`TurnPromptBuilder.resolveMeta` **盲取 `engine.world().archetypes[0]`**
+  取单 id 的 `ArchetypeMeta`——ADR-013 只接活了 init/world-gen/播种,event-loop 的取元数据路径还活在单体时代。hybrid 局
+  `archetypes=["cultivation","rules_creepy"]` → 拿**单体修仙**元数据(3 轴 hp/mana/realm),**换皮轴 `san`(道心)整条缺席**:
+  `stateUpdate` 规格明说只三轴 → AI 顺从地永不回传 `san` → 引擎「缺 key=不变」→ 道心冻死(症状①)。连带:意象/状态档/禁名单
+  都缺道心。而**结局错配(症状③)**是另一根:world-gen 融合结局允许**混轴 or-condition**(「道心≤0 或 气血≤0」),引擎
+  `pickFailureEnding` 按中文名 `contains` 匹配 → 气血触底时命中这条混轴失败结局、其 description 却以「道心崩缺」开头。
+  **无收敛(症状②)**:骨架**无任何推进/收敛/裁决指令**(单体时代通用骨架,融合三杠杆只写进 world-gen),加上唯一会动的轴
+  是 hp/mana/realm → 依赖冻结 `san` 的成功/失败 condition 都不可达、唯一活路=磨 hp。
+- **同类归因**:F-012/F-013 家族的**第三例**——「**某处对 archetype 的假设对融合世界不成立**」。前两例在引擎/骨架(轴角色、rules 形态),
+  本例在 **event-loop 取元数据的消费端**(单 id 假设)。引擎侧融合派生(`fusedAxes`→accumulation/nonLethal/致命集/中文名)**全对**,
+  只有提示词侧失明 → 修法归**提示词层、引擎零动**。
+- **修法(Slice D/E,提示词层根治,引擎/schema/`schemaVersion` 一行未动,单体 prompt 逐字零回归)**:
+  - **D-1**(治①):`resolveMeta`→`resolveContext` 融合感知——hybrid 局改用 `fusedAxes`(与播种同一真理源),四注入点自动含道心;
+    模式名改融合语境;`san` 意象 per-combo 换皮为道心口吻。
+  - **D-2**(治②):`TurnPromptBuilder` SKELETON 加 `%8$s` 融合指令槽(单体=空串,逐字不变)——「每回合裁决(误信伪笔伤道心 /
+    识破有回报进循环)+ 张力收敛(不回环、condition 接近达成主动给 ending)」。
+  - **D-3**(治③):world-gen 融合结局约束——每致命轴各配独立失败结局、`condition` 单轴绑定 + 中文轴名(禁"或"混轴、禁英文 key)。
+  - **E**(治变体「赢着被磨死 / 达成不给通关」):world-gen 融合世界**内生 2–3 处有代价的恢复手段** + 成功结局 condition **可判定**;
+    event-loop 加**通关判定**(成功 condition 逐项齐 → 本回合必须提议 ending)+ **有据恢复**(用恢复手段 `stateUpdate` 真上调,守 F-003 口径)。
+- **验证**:lockstep 双向守护(`TurnFusionLockstepTest`/`FusionMetaPromptLockstepTest`);单体回合 prompt **byte-diff 零回归**
+  (worktree@pre-D 与工作树各 dump 5 份 prompt 全等);`EngineGoldenTest` 字节零回归;`mvn test` 241 绿。真 key 抽查:道心四注入点在场、
+  结局单轴绑定 5/5、恢复手段内生 3/3、成功 condition 可判定 3/3。**Felix 整局终验通过**:识海遗蜕 51 回合通关护道功成——道心全程动态、
+  恢复可用未被磨死、条件凑齐当回合主动给 ending、结局对轴、「多谢道友护道」如约触发。
+- **关联**:`server/.../eventloop/TurnPromptBuilder.java`(`resolveContext`/`FUSION_TURN_DIRECTIVE`/`FUSION_IMAGERY`)、
+  `prompts/event-loop.md`(v1.0→v1.1 融合段)、`prompts/world-gen.md`(v0.6.2/0.6.3 结局单轴 + 资源经济)、
+  [ADR-012](../docs/adr/ADR-012-hybrid-axis-merge-strategy.md)/[ADR-013](../docs/adr/ADR-013-hybrid-fusion-protocol.md)、
+  F-012/F-013(同类:某假设对新世界不成立)、F-003(有据恢复口径)、CONTEXT §三.16。
+- **✅ 已关闭(2026-07-08,Slice D/E)**:commit `22154a9`(Slice D)+ `a7cfbb6`(Slice E)。**供后续组合复用**:加融合组合时,event-loop
+  自动走 `fusedAxes`(无需再动 `resolveContext`);per-combo 只需补换皮意象 + 结局/资源经济文案。

@@ -17,7 +17,7 @@
 | 规则 rule | 规则怪谈核心,真假混合 | `isTrue` / `hiddenLogic` 仅引擎可见,**绝不泄露给玩家** |
 | 数值 | hp / san / 灵根 等,因模式而异 | 默认 0–100,模式特殊说明除外 |
 | UG Engine | 通用生成引擎,所有模式共用的生成管线 | world-gen → char-gen → rule-gen → event-loop → ending-gen |
-| 世界融合 fusion | 混合模式下把多套设定调和成一套自洽规则的 meta-prompt 步骤 | 见 ROADMAP Phase 3 |
+| 世界融合 fusion | 混合模式下把多套设定调和成**一个自洽世界**的 world-gen 内联步骤(非轮流播/拼接)。round 1 已落地=修仙×规则怪谈「识海遗蜕」:单次胖调用内联注入两 archetype 块 + 一段融合 meta-prompt(守 ADR-007 无预调用),host 优先 + 语义换皮(ADR-012)、init 双值(host 在前)、event-loop 按融合轴集感知(ADR-013)。 | §三.16、ADR-012/013 |
 
 ## 二、核心数据结构(统一 JSON Schema · v0.1)
 
@@ -116,6 +116,22 @@
 
 15. **选择屏目录契约 `GET /api/archetypes`(ADR-008 决策 4,A 计划落地)**:一个轻量只读端点,供前端「选择你的世界」第一屏渲染世界目录(不让前端硬编码模式清单)。响应 `{ "archetypes": [ {archetype, displayName, tagline, vibeTag, active} ] }`——**已激活**(可玩:`rules_creepy`/`apocalypse`/`cthulhu`/`cultivation`)在前(全字段),**已知未开放**(§三.4 枚举里 `life_sim`/`cyberpunk`)在后(`active:false`、`tagline`/`vibeTag` 为 `null`,前端灰显「敬请期待」、不可选)。数据源 = `ArchetypeRegistry.listForSelection()`。为此 **`ArchetypeMeta` 增两个玩家可见文案字段** `tagline`(一句话钩子)/`vibeTag`(氛围/危险短标签)——**仅供选择屏卡片展示,不进 world-gen 注入**(注入仍用长 `worldview`,§三.14);玩家可见文案用中文(§三.3)。前端经 `api/listArchetypes`(平台 IO 只在 `api/` 适配层,守 §三.13)消费。**加新世界**:registry 加一条已激活元数据即自动进目录(未配文案则 `tagline`/`vibeTag` 留空);卡片视觉氛围由前端 per-archetype CSS 主题承载(展示层,不入后端)。约定层补充,JSON `schemaVersion` 仍 "0.2"(端点是只读投影 + registry 伴生字段,非 state schema 字段变更)。
 
+16. **混合模式融合协议(ADR-012 轴合并 + ADR-013 融合协议,round 1 端到端验通 2026-07-08)**:混合模式(`mode:"hybrid"`、`archetypes` 2–3)把多套设定调和成**一个自洽世界**(非轮流播/拼接)。round 1 彩蛋=**修仙 × 规则怪谈「识海遗蜕」**(host=修仙)。**引擎/校验/`schemaVersion`(保 "0.4")一律不动**——融合只在**播种层 + 提示词 + 前端**三处;引擎侧融合世界只是「一个有 4 轴、2 致命轴、1 累积轴的普通世界」,照旧遍历 attributes(守 §三.5 引擎数值无知)。六条约定:
+
+    **(1) 轴合并 = host 优先 + 语义换皮(ADR-012)**:融合轴 = 两 archetype 轴按 **key 并集**,撞键 **host 赢**(修仙×规则怪谈:`hp` 两边都有 → 取修仙气血);外来轴可带 **per-combo 显示层换皮 override**(规则怪谈 `san` → 「道心」,**`key`/`axisRole`/`lethal` 不变、引擎无感**,只换 `displayName` + `bands`)。结果轴集 = {气血 hp、灵力 mana、境界 realm、道心 san},致命轴={hp,san}、累积轴={realm}、非致命资源轴={mana}。合并函数 `ArchetypeRegistry.mergeAxes` + per-combo 登记表 `FUSION_COMBOS`(方向敏感,未登记组合 → 400)。
+
+    **(2) init 收有序双值(host 在前,ADR-013)**:`InitRequest` 收单值 `{archetype}`(向后兼容单体)或有序 `{archetypes:[host, foreign]}`(融合);`GameInitService.init(List)` 据长度分派——1=单体、2=融合(host=第一个,调 `fusedAxes` 得融合轴集喂**现有派生** `accumulationKeys`/`nonLethalKeys`/`axisDisplayNames` → 现有引擎);非法组合(未知/未激活/长度>2/未登记融合)→ `IllegalArgumentException` → 400。
+
+    **(3) world-gen 内联融合(守 ADR-007)**:单次胖调用,提示词并列注入**两 archetype 注入块**(worldview/ruleForm/轴)+ 一段 per-combo **融合 meta-prompt**,产 `mode:"hybrid"` + `archetypes:[两个]` 的融合世界。**保 `response_format: json_object`、纯 JSON、无哨兵、不加预调用**(把可靠性留在最险这次生成,校验/修复/ERROR 管线与单体一致)。守则**真假同墙混合**(真=真传心法不带 `isTrue` / 假=心魔伪笔带 `isTrue:false`+`hiddenLogic`,ADR-009 `isTrue` 可选故合法),**每类各 ≥3 条**、每条都须带 `hiddenLogic`。三根杠杆:数值入守则 / 先辨体系再辨真假 / 真假对射用修仙常识裁(守则守 ADR-011:只作定性叙事、不写精确成功率、不承诺引擎据守则判定)。
+
+    **(4) event-loop 按融合轴集感知(ADR-013 Slice D,治「融合失明」)**:`TurnPromptBuilder` 解析 `archetypes`,hybrid(长度 2 且组合已登记)**改用 `fusedAxes`**(与播种同一真理源),`stateUpdate` 规格 / 中文意象 / 状态档 / 禁名单四注入点自动含**换皮轴**(道心),模式名改融合语境;并注入「每回合裁决(误信伪笔伤道心 / 识破有回报进循环)+ 张力收敛」段。**单体路径逐字不变**(parity 线,byte-diff 守零回归);未登记组合/单元素回落 `[0]` 单体。
+
+    **(5) 结局单轴绑定(ADR-013 Slice D-3,治「结局错配」)**:融合世界**每个致命轴(气血/道心)各配一条独立失败结局**,`condition` **单轴绑定 + 中文轴名**(禁「道心≤0 或 气血≤0」这类"或"混轴条件、禁英文 key)——因引擎 `pickFailureEnding` 按中文名 `contains` 匹配,混轴 condition 必错配。成功结局 `condition` **可判定**(数值门槛 + 中文轴名 + 可数事件,禁模糊措辞)。引擎匹配逻辑不动。
+
+    **(6) 资源经济 + 通关判定(ADR-013 Slice E,治「赢着被磨死 / 达成不给通关」)**:world-gen 融合世界必须**内生 2–3 处有代价的恢复手段**(参悟/调息/丹药,写进 background/rules/开场,让后续回合有据可用);event-loop 融合段加**通关判定**(每回合逐项核对成功结局 condition,齐则本回合必须提议该 ending、不得再拖)+ **有据恢复**(玩家用恢复手段时 `stateUpdate` 真的上调对应轴,守 §三.8 FINDINGS F-003 口径)。
+
+    **不做(留后续)**:通用换皮引擎 / 任意 N archetype 自动融合 / ruleForm-worldview 自动融合算法(自由勾选 round 2)、轴数上限裁剪、回合侧融合态感知、`logSummary` 剧情摘要折叠(动 Engine 需重录 golden,归主题 A/成本控制线,候补)。约定层补充,JSON `schemaVersion` 仍 "0.4"(融合只在播种层/提示词/前端,无 state schema 字段变更)。
+
 ## 四、版本历史
 
 | 版本 | 日期 | 修订内容 |
@@ -131,4 +147,5 @@
 | v0.9 | 2026-06-25 | 加世界流水线第一次复用·克苏鲁(`cthulhu`)落地 + 真 key 冒烟验通:§三.4 archetype 枚举追加 `cthulhu`(已激活,签名轴=禁忌知识 `knowledge` 累积型双刃)、§三.15 已激活示例补 cthulhu;§三.14 轴行为提示字段 `decay` 泛化为 `behaviorHint`(涵盖衰减/累积/联动,引擎仍不读),并记两条架构缺口 F-012(引擎 ≤0 触底假设只对 depletion 轴成立)/ F-013(骨架强制 isTrue 与非真假守则世界冲突)——均本批提示词兜、引擎正解留修仙批。约定层补充,JSON `schemaVersion` 仍 "0.2"(registry 伴生字段 + 元数据提示文本,非 state schema 变更),仅 CONTEXT 文档版本升 v0.9 |
 | **v1.0** | 2026-06-25 | **修仙(`cultivation`)落地 + ADR-009 架构正解(根治 F-012/F-013),真 key 冒烟验通**:§三.4 枚举 `cultivation` 标已激活(全新数值体系 `{hp,mana,realm}`=气血/灵力/境界,主角轴=境界 accumulation)、§三.5/§三.15 同步;**§二 `rules[].isTrue` 改可选**(F-013,校验零分派)+ **JSON `schemaVersion` "0.2"→"0.3"**(首次真动字段约束;`WORLD_SCHEMA` 接受双版本守 parity 夹具,见 ADR-009);**§三.8 触底按轴角色 `axisRole`**(depletion ≤0 致死 / accumulation 不触底,F-012 引擎根治)、**§三.14 元数据增 `axisRole` + `rulesCarryTruth`**。golden parity 字节级守 depletion 零回归(server 173 / web 30 全绿)。F-012/F-013 已关闭。CONTEXT 文档版本升 v1.0(本批是首个真动 JSON `schemaVersion` 的批次)。 |
 | **v1.1** | 2026-06-26 | **结局极性 gate(ADR-010 根治 F-014 + 关闭 F-015),真 key 冒烟验通**:**§二 `endings[].outcome` 新增**(可选极性 `success|failure|neutral`,AI 标、引擎只读;`toClientState` 不剥)+ **JSON `schemaVersion` "0.3"→"0.4"**(`WORLD_SCHEMA` 接受 `{0.2,0.3,0.4}` 三版本守 parity);**§三.8 结局极性 gate**(致命轴濒零 ≤`ENDING_GATE_THRESHOLD`(10)时引擎拒绝 AI `outcome==success` 结局、据极性确定性挑 failure;触底/gate 收窄到致命轴)+ **§三.14 元数据增 `lethal`**(depletion 内部细分致命生命轴/非致命资源轴;灵力 `lethal=false` 关闭 F-015)。引擎只读 outcome 标 + lethal 轴值、不懂结局语义(守 ADR-008);golden parity 字节级零回归(server 188 / web 30 全绿)。真 key 冒烟两局验通:气血 0→拦成功结局给「身死道消」、气血 5 濒死未死→不强制结束给挣扎选项(两边界都对);灵力两局 0 未误死。F-014/F-015 已关闭。CONTEXT 文档版本升 v1.1。 |
+| **v1.3** | 2026-07-08 | **混合模式融合协议(ADR-012 轴合并 + ADR-013 融合协议)round 1 端到端验通**:新增 **§三.16 混合模式融合协议**(六条:host 优先+语义换皮 / init 双值 host 在前 / world-gen 内联融合守 ADR-007 无预调用+真假同墙 / event-loop 按 `fusedAxes` 感知治融合失明 / 结局单轴绑定治错配 / 资源经济+通关判定治「赢着被磨死」);§一「世界融合 fusion」术语更新为已落地形态(修仙×规则怪谈「识海遗蜕」)。**引擎/校验/`schemaVersion`(仍 "0.4")一律不动**——融合只在播种层+提示词+前端。真 key 整局通关验通(51 回合护道功成:道心动态/伪笔裁决进循环/恢复可用未磨死/条件齐当回合给 ending/结局对轴/基调阴森收缥缈)。server 241 / web 57 全绿、golden 字节零回归、单体 prompt 逐字零回归。FINDINGS **F-016 关闭**(event-loop 融合失明,Slice D/E 提示词层根治)。仅 CONTEXT 文档版本升 v1.3。 |
 | **v1.2** | 2026-06-30 | **数值行为档 `bands`(#3 数值行为化,Phase 2 打磨期,descriptive 只染叙事),真 key 冒烟验通**:**§三.14 元数据每轴可选增 `bands`**——0–100 切三档 `{threshold,label,narrationHint}`,`axisRole` 感知(depletion=上界/降序进带、accumulation=下界/升序进带),阈值 depletion 50/20、accumulation 30/60(Felix 签字);纯函数 `resolveBand` 解析当前档,构造器校验良构。**只染叙事、绝不 gate 选项**(gating=#4 推迟状态层)。引擎一行不动、不读 `bands`(守 ADR-008);两消费方=event-loop 每回合注入**当前档** label+narrationHint(只送当前档守成本,叙事跟着状态走)+ 前端数字旁显示当前档 label。**走 API DTO(`InitResponse.attributes`)非校验 wire schema**,投影为显式区间 `{min,max,label}`(前端 role-agnostic);`narrationHint` 不下发前端(守消毒)。**JSON `schemaVersion` 不动(仍 "0.4")**——`bands` 是元数据伴生结构非 state schema 字段。golden parity 字节级零回归(server 212 / web 36 全绿)。真 key 冒烟验通(克苏鲁档位随值切换 + 叙事贴合 + 未顶爆 A-1 + 无泄露)。末日「饥饿」改名因 woven-in 拆独立 backlog 单元(本批未动)。仅 CONTEXT 文档版本升 v1.2。 |
