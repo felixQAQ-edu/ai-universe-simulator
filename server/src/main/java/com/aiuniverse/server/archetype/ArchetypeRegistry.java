@@ -101,16 +101,25 @@ public class ArchetypeRegistry {
 	// ── 轴合并(ADR-012 混合模式 round 1;纯函数、暂未接线的休眠件)──────────────
 
 	/**
-	 * 一个外来轴的<b>显示层换皮 override</b>(ADR-012 决策 2「语义换皮」)。合并时把外来轴并入 host 世界观:
-	 * <b>{@code key} / {@code axisRole} / {@code lethal} / {@code min}/{@code max} / {@code behaviorHint} 一律不换</b>
-	 * (引擎无感,守 ADR-008),<b>仅换</b> {@code displayName} 与 {@code bands}。
+	 * 一个外来轴的<b>显示层换皮 override</b>(ADR-012 决策 2「语义换皮」+ ADR-014 决策 4 微扩)。合并时把外来轴
+	 * 并入 host 世界观:<b>{@code key} / {@code axisRole} / {@code lethal} / {@code min}/{@code max} 一律不换</b>
+	 * (引擎无感,守 ADR-008),换 {@code displayName} 与 {@code bands};{@code behaviorHint} <b>可选换</b>
+	 * (ADR-014 修订 ADR-012 不换清单:原 hint 若含旧轴名(如「饥饿值」)与换皮名打架 → 给 override;
+	 * 缺省 {@code null} = 沿用原 hint,round-1 换皮零变化。behaviorHint 本就是引擎一概不读的提示文本,
+	 * 换它不触引擎语义)。
 	 *
-	 * @param displayName 换皮后的玩家可见中文名(如规则怪谈 san 的「理智」→修仙「道心」)
-	 * @param bands       换皮后的行为档(host 世界观口吻重写;可空=不带档)
+	 * @param displayName  换皮后的玩家可见中文名(如规则怪谈 san 的「理智」→修仙「道心」)
+	 * @param bands        换皮后的行为档(host 世界观口吻重写;可空=不带档)
+	 * @param behaviorHint 换皮后的逐回合行为提示({@code null}=沿用外来轴原 hint;引擎不读,仅喂提示词)
 	 */
-	public record AxisSkin(String displayName, List<AttributeAxis.Band> bands) {
+	public record AxisSkin(String displayName, List<AttributeAxis.Band> bands, String behaviorHint) {
 		public AxisSkin {
 			bands = bands == null ? List.of() : List.copyOf(bands);
+		}
+
+		/** 不换 behaviorHint 的换皮(ADR-012 原形态,round-1 道心走此构造)。 */
+		public AxisSkin(String displayName, List<AttributeAxis.Band> bands) {
+			this(displayName, bands, null);
 		}
 	}
 
@@ -122,12 +131,28 @@ public class ArchetypeRegistry {
 					band(20, "崩缺", "道基已裂、心魔滋生,识海翻涌、几近走火入魔"))));
 
 	/**
-	 * 已登记的融合组合(ADR-013 融合协议,round 1 只一组;key = {@code host×foreign} 有序,host 在前)。
+	 * 规则怪谈 × 末日生存(host=规则怪谈)round 1.5「守则即补给」(ADR-014):末日 hunger 换皮为「补给」
+	 * (缺页人防工程的口粮账;bands 充足/紧缺/断粮,阈值沿用 depletion 50/20)。<b>behaviorHint override</b>
+	 * (ADR-014 决策 4):原 hint 含「饥饿值」与换皮名打架 → 换成补给口吻(仍是 AI 落、引擎无知)。
+	 * key/axisRole/lethal 不变 → 三轴全致命 {hp,san,hunger}(首例三致命轴,引擎天然支持)。
+	 */
+	private static final Map<String, AxisSkin> RULES_CREEPY_APOCALYPSE_SKINS = Map.of(
+			"hunger", new AxisSkin("补给", List.of(
+					band(100, "充足", "口粮尚有着落,数得出下一顿在哪"),
+					band(50, "紧缺", "配给见底、口粮减半,饥饿开始啃噬判断"),
+					band(20, "断粮", "断顿数日,眼前发黑,看什么都像吃的")),
+					"补给随回合自然消耗,每回合约下降 5~10(配给日领取 / 外出搜刮 / 以物易物才回升);"
+							+ "由你在 stateUpdate 给出消耗后的新绝对值,务必每回合都体现这一自然消耗。"));
+
+	/**
+	 * 已登记的融合组合(ADR-013 融合协议 + ADR-014 第二组合;key = {@code host×foreign} 有序,host 在前)。
 	 * <b>方向敏感</b>——换皮 override 是 per-combo per-direction 手写(道心换皮只在 host=修仙 时成立);
-	 * 未登记的有序组合(含反向 host)→ init 视为非法 400。加一组融合 = 加一条本表项 + 一段融合 meta-prompt。
+	 * 未登记的有序组合(含反向 host)→ init 视为非法 400。加一组融合 = 本表项 + world-gen/event-loop 文案槽
+	 * + 融合 meta-prompt + 种子池(骨架零改,ADR-014)。
 	 */
 	private static final Map<String, Map<String, AxisSkin>> FUSION_COMBOS = Map.of(
-			fusionKey("cultivation", "rules_creepy"), CULTIVATION_RULES_CREEPY_SKINS);
+			fusionKey("cultivation", "rules_creepy"), CULTIVATION_RULES_CREEPY_SKINS,
+			fusionKey("rules_creepy", "apocalypse"), RULES_CREEPY_APOCALYPSE_SKINS);
 
 	private static String fusionKey(String host, String foreign) {
 		return host + "×" + foreign;
@@ -184,10 +209,14 @@ public class ArchetypeRegistry {
 		return List.copyOf(byKey.values());
 	}
 
-	/** 显示层换皮:仅换 displayName + bands,其余(key/min/max/behaviorHint/axisRole/lethal)全保留 → 引擎无感。 */
+	/**
+	 * 显示层换皮:换 displayName + bands,behaviorHint 仅当 skin 给了 override 才换(ADR-014,缺省沿用原 hint);
+	 * 其余(key/min/max/axisRole/lethal)全保留 → 引擎无感。
+	 */
 	private static AttributeAxis applySkin(AttributeAxis axis, AxisSkin skin) {
+		String hint = skin.behaviorHint() != null ? skin.behaviorHint() : axis.behaviorHint();
 		return new AttributeAxis(axis.key(), skin.displayName(), axis.min(), axis.max(),
-				axis.behaviorHint(), axis.axisRole(), axis.lethal(), skin.bands());
+				hint, axis.axisRole(), axis.lethal(), skin.bands());
 	}
 
 	/**

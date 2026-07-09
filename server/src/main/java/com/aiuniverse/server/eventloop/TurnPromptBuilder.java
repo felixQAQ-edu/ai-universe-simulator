@@ -56,7 +56,10 @@ public final class TurnPromptBuilder {
 	 */
 	private static final Map<String, Map<String, String>> FUSION_IMAGERY = Map.of(
 			"cultivation×rules_creepy", Map.of(
-					"san", "道心/心神/道基的清明或动摇(如「道心一颤,险些失守」「道基隐隐生裂,心魔趁隙低语」)"));
+					"san", "道心/心神/道基的清明或动摇(如「道心一颤,险些失守」「道基隐隐生裂,心魔趁隙低语」)"),
+			// 守则即补给(ADR-014):hunger 换皮「补给」→ 意象改配给/口粮口吻;san 是 host 轴不换皮,照旧理智原味。
+			"rules_creepy×apocalypse", Map.of(
+					"hunger", "补给/口粮/断粮的匮乏与眩晕(如「配给见底,数罐头的手在抖」「断顿第二天,眼前发黑」)"));
 
 	/** 通用骨架。注入变量:模式名 / 数值轴维护块 / 禁用字段名清单 / stateUpdate 字段格式。 */
 	private static final String SKELETON = """
@@ -146,7 +149,13 @@ public final class TurnPromptBuilder {
 					"识破伪笔或印证真传\n    心法,给出叙事与数值的正向回报(稳道心 / 长境界 / 得线索)",
 					"如还差识破一条伪笔,就给出试探某条可疑守则的行动",
 					"参悟心法 / 调息 / 丹药等",
-					"耗时辰 / 引来注意 / 消耗存量"));
+					"耗时辰 / 引来注意 / 消耗存量"),
+			"rules_creepy×apocalypse", new FusionTurnCopy(
+					"误信假页\n    (isTrue:false)应付出代价(首当其冲是理智,亦可波及体力与补给)",
+					"识破假页或印证真页,\n    给出叙事与数值的正向回报(保住补给 / 稳住理智 / 得物证线索)",
+					"如还差识破一条假页,就给出比对物证或查验尸体的行动",
+					"配给日 / 搜刮 / 以页换粮等",
+					"排队核脸 / 夜路遇险 / 庇护松动"));
 
 	/** 融合回合指令(骨架 + per-combo 文案槽)。缺文案槽 = 组合登记不完整(程序性错误)。 */
 	private static String fusionTurnDirective(String comboKey) {
