@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 
@@ -15,19 +17,22 @@ import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * ADR-013 Slice D · event-loop 融合指令 lockstep 守护:「融合世界 · 每回合裁决与收敛」段的核心短语在两处
- * ({@code prompts/event-loop.md} 融合段 / 运行时 {@code TurnPromptBuilder.FUSION_TURN_DIRECTIVE})逐条一致
+ * ADR-013 Slice D / ADR-014 · event-loop 融合指令 lockstep 守护(按 combo 分组):「融合世界 · 每回合裁决与收敛」
+ * 段的核心短语在两处({@code prompts/event-loop.md} 融合段 / 运行时 {@code TurnPromptBuilder} 融合指令)逐条一致
  * ——防止只改 .md 运行时失效、或只改一边漂移;并钉「只在 hybrid 局注入,单体 prompt 无此段」。
+ *
+ * <p><b>分组(ADR-014 骨架参数化)</b>:结构指令短语(收敛/通关判定/有据恢复的规矩本体)对每个已登记 combo 的
+ * hybrid prompt 都必须在;per-combo 短语(裁决口吻文案槽)只对本 combo 在。
  */
 class TurnFusionLockstepTest {
 
 	private final ObjectMapper mapper = new ObjectMapper();
-	private final TurnPromptBuilder builder = new TurnPromptBuilder(new ArchetypeRegistry());
+	private final ArchetypeRegistry registry = new ArchetypeRegistry();
+	private final TurnPromptBuilder builder = new TurnPromptBuilder(registry);
 
-	/** 融合回合指令的共享核心短语(裁决 + 收敛),.md 与运行时都必须含。 */
-	private static final String[] LOCKSTEP_PHRASES = {
+	/** 骨架结构短语(裁决进循环 + 收敛 + 通关判定 + 有据恢复):每个 combo 的 hybrid prompt 与 .md 都必须含。 */
+	private static final String[] SKELETON_PHRASES = {
 			"【融合世界 · 每回合裁决与收敛】",
-			"误信心魔伪笔",                     // 裁决:伪笔应伤道心
 			"把「辨真伪」做进每一回合的循环",    // 裁决:进循环、守则墙不作背景板
 			"不得原地回环",                     // 收敛:不回环
 			"每回合至少推进一点",                // 收敛:强制推进
@@ -39,14 +44,33 @@ class TurnFusionLockstepTest {
 			"别让恢复手段沦为口头叙事",          // E-2:治「恢复只在嘴上、数值不动」
 	};
 
-	@Test
-	void fusionDirectiveStaysLockstepBetweenMdAndRuntime() throws IOException {
-		String eventMd = readMd("event-loop.md");
-		String hybridRuntime = builder.buildTurnPrompt(hybridEngine(), "A", "辨读刻文");
+	/** per-combo 短语(文案槽,key = host×foreign):只对本 combo 的 hybrid prompt(与 .md)必须含。 */
+	private static final Map<String, String[]> COMBO_PHRASES = new LinkedHashMap<>();
+	static {
+		COMBO_PHRASES.put("cultivation×rules_creepy", new String[] {
+				"误信心魔伪笔",                 // 裁决:伪笔应伤道心
+				"稳道心 / 长境界 / 得线索",      // 裁决回报口吻
+				"如还差识破一条伪笔",            // 通关判定「仅差一项」示例
+				"参悟心法 / 调息 / 丹药等",      // 有据恢复手段示例
+		});
+	}
 
-		for (String phrase : LOCKSTEP_PHRASES) {
-			assertThat(eventMd).as("event-loop.md 融合段含 lockstep 短语:%s", phrase).contains(phrase);
-			assertThat(hybridRuntime).as("TurnPromptBuilder 融合指令含:%s", phrase).contains(phrase);
+	@Test
+	void fusionDirectiveStaysLockstepBetweenMdAndRuntimePerCombo() throws IOException {
+		String eventMd = readMd("event-loop.md");
+
+		for (Map.Entry<String, String[]> combo : COMBO_PHRASES.entrySet()) {
+			String[] hostForeign = combo.getKey().split("×");
+			String hybridRuntime = builder.buildTurnPrompt(hybridEngine(hostForeign[0], hostForeign[1]), "A", "行动");
+
+			for (String phrase : SKELETON_PHRASES) {
+				assertThat(eventMd).as("event-loop.md 融合段含 lockstep 短语:%s", phrase).contains(phrase);
+				assertThat(hybridRuntime).as("%s 融合指令含骨架短语:%s", combo.getKey(), phrase).contains(phrase);
+			}
+			for (String phrase : combo.getValue()) {
+				assertThat(eventMd).as("event-loop.md 融合段含 %s 短语:%s", combo.getKey(), phrase).contains(phrase);
+				assertThat(hybridRuntime).as("%s 融合指令含本组合短语:%s", combo.getKey(), phrase).contains(phrase);
+			}
 		}
 	}
 
@@ -65,11 +89,14 @@ class TurnFusionLockstepTest {
 		}
 	}
 
-	private Engine hybridEngine() {
+	/** 构造该 combo 的 hybrid 局引擎(attributes 按融合轴集给初值)。 */
+	private Engine hybridEngine(String host, String foreign) {
 		ObjectNode world = mapper.createObjectNode();
-		world.putArray("archetypes").add("cultivation").add("rules_creepy");
-		world.putObject("character").putObject("attributes")
-				.put("hp", 80).put("mana", 50).put("realm", 15).put("san", 70);
+		world.putArray("archetypes").add(host).add(foreign);
+		ObjectNode attrs = world.putObject("character").putObject("attributes");
+		for (var axis : registry.fusedAxes(host, foreign)) {
+			attrs.put(axis.key(), 66);
+		}
 		world.putArray("rules");
 		world.putArray("endings");
 		return new Engine(world, mapper);

@@ -103,17 +103,18 @@ public final class TurnPromptBuilder {
 
 	/**
 	 * 融合局专属回合指令(ADR-013 Slice D;只在 hybrid 局注入 {@code %8$s},单体局注入空串 → 单体 prompt
-	 * 逐字不变)。两件事:(1) 守则裁决——把「辨真伪」做进每回合循环(误信伪笔伤道心 / 识破有回报);
+	 * 逐字不变)。两件事:(1) 守则裁决——把「辨真伪」做进每回合循环(误信伪笔有代价 / 识破有回报);
 	 * (2) 张力收敛——剧情升级、向结局池收敛、不得原地回环(不写死回合数上限,硬上限是引擎层决策不混入)。
-	 * 与 {@code prompts/event-loop.md} 融合段 lockstep(TurnFusionLockstepTest 守护)。
+	 *
+	 * <p><b>ADR-014 参数化</b>:裁决口吻/恢复手段等 per-combo 文案抽成槽(%1–%5,{@link FusionTurnCopy}),
+	 * 结构指令(收敛/通关判定/有据恢复的规矩本体)单点维护。与 {@code prompts/event-loop.md} 融合段
+	 * lockstep(TurnFusionLockstepTest 守护)。
 	 */
 	private static final String FUSION_TURN_DIRECTIVE = """
 
 
 			【融合世界 · 每回合裁决与收敛】本局是融合世界(两套世界观真假交织在同一逻辑框架里),每回合守好两件事:
-			(1)【守则裁决】玩家行动触及某条守则时,按该守则的 isTrue / hiddenLogic 就地裁决——误信心魔伪笔
-			    (isTrue:false)应付出代价(首当其冲是道心,亦可波及气血),把代价化入叙事;识破伪笔或印证真传
-			    心法,给出叙事与数值的正向回报(稳道心 / 长境界 / 得线索),并记入 discoveredRuleIds。
+			(1)【守则裁决】玩家行动触及某条守则时,按该守则的 isTrue / hiddenLogic 就地裁决——%1$s,把代价化入叙事;%2$s,并记入 discoveredRuleIds。
 			    把「辨真伪」做进每一回合的循环,不要让守则墙沦为背景板。
 			(2)【张力收敛】剧情须随回合推进升级张力、向 endings 池收敛,不得原地回环(不要反复出现同质事件 /
 			    同样的选项组合);每回合至少推进一点:新线索 / 新威胁 / 某条守则真伪坐实,三者取其一。
@@ -121,10 +122,42 @@ public final class TurnPromptBuilder {
 			(3)【通关判定】每回合给出结构化尾巴前,对照 endings 里【成功结局的 condition 逐项核对当前 state】:
 			    各项【均已满足】→ 本回合【必须】提议该 ending({reached:true, id}),不得再拖("还能再演几回合"
 			    是错的——条件齐了就通关);【仅差一项】→ 本回合叙事应向补齐那一项引导,并在 availableActions 里
-			    给出至少一个通往它的选项(如还差识破一条伪笔,就给出试探某条可疑守则的行动)。
-			(4)【有据恢复】玩家使用世界内生的恢复手段(参悟心法 / 调息 / 丹药等)时,应在 stateUpdate 里【真的
-			    上调对应轴】——有据恢复不算无故回升,但须同时体现其代价(耗时辰 / 引来注意 / 消耗存量);
+			    给出至少一个通往它的选项(%3$s)。
+			(4)【有据恢复】玩家使用世界内生的恢复手段(%4$s)时,应在 stateUpdate 里【真的
+			    上调对应轴】——有据恢复不算无故回升,但须同时体现其代价(%5$s);
 			    别让恢复手段沦为口头叙事、数值却纹丝不动。""";
+
+	/**
+	 * per-combo 融合回合<b>文案槽</b>(ADR-014):裁决代价/回报口吻、差一项引导示例、恢复手段与代价示例。
+	 * round 1 槽值 = Slice D/E 原文逐字迁移(含原换行,parity 线:参数化前后融合段逐字节不变)。
+	 */
+	record FusionTurnCopy(
+			String penaltyClause,   // 误信假守则的代价口吻
+			String rewardClause,    // 识破/印证的回报口吻
+			String nearMissExample, // 通关判定「仅差一项」引导示例
+			String recoveryMeans,   // 世界内生恢复手段示例
+			String recoveryCosts) { // 恢复代价示例
+	}
+
+	/** per-combo 融合回合文案槽(key = {@code host×foreign})。 */
+	private static final Map<String, FusionTurnCopy> FUSION_TURN_COPY = Map.of(
+			"cultivation×rules_creepy", new FusionTurnCopy(
+					"误信心魔伪笔\n    (isTrue:false)应付出代价(首当其冲是道心,亦可波及气血)",
+					"识破伪笔或印证真传\n    心法,给出叙事与数值的正向回报(稳道心 / 长境界 / 得线索)",
+					"如还差识破一条伪笔,就给出试探某条可疑守则的行动",
+					"参悟心法 / 调息 / 丹药等",
+					"耗时辰 / 引来注意 / 消耗存量"));
+
+	/** 融合回合指令(骨架 + per-combo 文案槽)。缺文案槽 = 组合登记不完整(程序性错误)。 */
+	private static String fusionTurnDirective(String comboKey) {
+		FusionTurnCopy copy = FUSION_TURN_COPY.get(comboKey);
+		if (copy == null) {
+			throw new IllegalArgumentException("融合组合缺 event-loop 文案槽配置:" + comboKey);
+		}
+		return FUSION_TURN_DIRECTIVE.formatted(
+				copy.penaltyClause(), copy.rewardClause(),
+				copy.nearMissExample(), copy.recoveryMeans(), copy.recoveryCosts());
+	}
 
 	private static final String REPAIR_SYSTEM = """
 			你上一回合输出的结构化尾巴 JSON 未通过校验。请只回修正后的结构化尾巴 JSON(纯 JSON 对象,
@@ -138,7 +171,7 @@ public final class TurnPromptBuilder {
 	 * {@link ArchetypeRegistry#fusedAxes})+ 融合模式名 + per-combo 意象换皮 + 融合回合指令。
 	 */
 	private record TurnContext(String modeName, List<AttributeAxis> axes, Map<String, String> imageryOverrides,
-			boolean fused) {
+			boolean fused, String comboKey) {
 	}
 
 	/** 主调用提示(不开 json_object):prose 先行 + 哨兵 + 尾巴。按本局 archetype(单体/融合)注入数值轴/模式名。 */
@@ -153,7 +186,7 @@ public final class TurnPromptBuilder {
 				SentinelSplitter.SENTINEL, // %5$s 哨兵
 				stateUpdateAxes(ctx.axes()), // %6$s stateUpdate 数值轴字段(融合局含全部融合轴)
 				behaviorReminder(ctx.axes()), // %7$s 特殊行为轴维护提醒(衰减/累积/联动;无则空)
-				ctx.fused() ? FUSION_TURN_DIRECTIVE : ""); // %8$s 融合裁决+收敛指令(单体=空串,逐字不变)
+				ctx.fused() ? fusionTurnDirective(ctx.comboKey()) : ""); // %8$s 融合裁决+收敛指令(单体=空串,逐字不变)
 		return system
 				+ "\n\n世界设定与当前状态(state 是真理之源):\n"
 				+ engine.contextJson()
@@ -184,14 +217,15 @@ public final class TurnPromptBuilder {
 		if (archeNode.size() == 2) {
 			String second = archeNode.path(1).asString("");
 			if (registry.isFusionSupported(first, second)) {
+				String comboKey = first + "×" + second;
 				String modeName = registry.meta(first).displayName() + " × " + registry.meta(second).displayName()
 						+ "(融合世界)";
 				return new TurnContext(modeName, registry.fusedAxes(first, second),
-						FUSION_IMAGERY.getOrDefault(first + "×" + second, Map.of()), true);
+						FUSION_IMAGERY.getOrDefault(comboKey, Map.of()), true, comboKey);
 			}
 		}
 		ArchetypeMeta meta = registry.isActive(first) ? registry.meta(first) : registry.meta("rules_creepy");
-		return new TurnContext(meta.displayName(), meta.attributes(), Map.of(), false);
+		return new TurnContext(meta.displayName(), meta.attributes(), Map.of(), false, null);
 	}
 
 	/** 「- key(中文名):意象」逐轴。融合局的换皮轴用 per-combo override 口吻(如 san=道心)。 */

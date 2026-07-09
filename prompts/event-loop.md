@@ -9,7 +9,13 @@
 > 元数据注入——回合里 AI 据此持续维护该模式数值(末日每回合落 `hunger` 自然衰减;克苏鲁让 `knowledge` 随求知累积、
 > 且越高 `san` 流失越快,决策 2)。骨架(线上格式 / 清洁度 / 长度约束)模式无关。**lockstep:改这里务必同步改 `TurnPromptBuilder`,只改 .md 运行时失效。**
 >
-> 版本:v1.1(2026-07-06,ADR-013 Slice E-2 · 治「达成不给通关」(整局实测:道心 90/境界 62 胜利线达成却 99 回合
+> 版本:v1.2(2026-07-08,ADR-014 融合骨架参数化:FUSION_TURN_DIRECTIVE 抽 per-combo 文案槽——(1) 守则裁决的
+> 代价/回报口吻(round1=误信心魔伪笔伤道心 / 识破稳道心长境界)、(3) 通关判定「仅差一项」引导示例(如还差识破
+> 一条伪笔)、(4) 有据恢复的手段与代价示例(参悟心法/调息/丹药;耗时辰/引来注意/消耗存量),槽值 per-combo
+> (运行时 `TurnPromptBuilder.FUSION_TURN_COPY`);结构指令(收敛/通关判定/有据恢复的规矩本体)骨架单点维护。
+> round-1 文案逐字迁回槽位,**parity 线:参数化前后融合段逐字节不变**;单体 prompt 照旧逐字不变。lockstep 守护
+> 改按 combo 分组(`TurnFusionLockstepTest`)。下方融合段示例文字 = round-1 槽值。)
+> v1.1(2026-07-06,ADR-013 Slice E-2 · 治「达成不给通关」(整局实测:道心 90/境界 62 胜利线达成却 99 回合
 > 无人提议 ending、气血磨 0 死):融合段追加 (3)【通关判定】——每回合给尾巴前对照成功结局 condition 逐项核对当前
 > state,各项均满足 → 本回合【必须】提议该 ending 不得再拖;仅差一项 → 叙事向补齐引导 + availableActions 给出通往
 > 它的选项;(4)【有据恢复】——玩家使用世界内生恢复手段时 stateUpdate 真的上调对应轴(有据恢复不算无故回升,F-003
@@ -84,7 +90,9 @@
 
 > 注入条件:`archetypes` 长度 2 且组合已登记(运行时 `TurnPromptBuilder.FUSION_TURN_DIRECTIVE`,`{{DISPLAY_NAME}}`
 > 同时改为融合语境「A × B(融合世界)」,数值轴四注入点改用融合轴集含换皮轴)。
-> **lockstep:改这里务必同步改 `TurnPromptBuilder.FUSION_TURN_DIRECTIVE`,由 `TurnFusionLockstepTest` 守护。**
+> **参数化(ADR-014)**:(1) 的裁决代价/回报口吻、(3) 的「仅差一项」示例、(4) 的恢复手段/代价示例为 per-combo
+> 文案槽(`FUSION_TURN_COPY`),下文示例文字 = round-1 槽值;结构指令本体骨架单点维护、组合零重抄。
+> **lockstep:改这里务必同步改 `TurnPromptBuilder.FUSION_TURN_DIRECTIVE` 与 `FUSION_TURN_COPY`,由 `TurnFusionLockstepTest` 守护。**
 
 【融合世界 · 每回合裁决与收敛】本局是融合世界(两套世界观真假交织在同一逻辑框架里),每回合守好两件事:
 (1)【守则裁决】玩家行动触及某条守则时,按该守则的 isTrue / hiddenLogic 就地裁决——误信心魔伪笔

@@ -5,7 +5,14 @@
 > **多模式结构(ADR-008 决策 3)**:提示词 = **通用骨架(单点维护)+ per-archetype 注入块**。骨架(输出 schema / id 约定 F-001 / 消毒硬化 / json_object / openingNarrative)模式无关、固定;`worldview`/`数值轴`/`ruleForm` 从 `ArchetypeRegistry` 元数据注入。加模式 = 一条元数据 + 一个种子池条目,**不重抄骨架**(消毒/id 这种硬规矩重抄一次错一次)。
 > 运行时同义副本在 `WorldGenPromptBuilder`(便于单测钉格式);本文件为人类可读核心资产(CONTEXT §三.6)。**lockstep:改这里务必同步改 `WorldGenPromptBuilder`,只改 .md 运行时失效。**
 >
-> 版本:v0.6.3(2026-07-06,ADR-013 Slice E-1 · 治「赢着被磨死」:融合骨架两处收紧——【资源经济必须内生】
+> 版本:v0.7(2026-07-08,ADR-014 融合骨架参数化:FUSION_SKELETON 抽 per-combo 注入槽——【派生槽】致命轴
+> 中文名清单 + 结局条数(失败=每致命轴各 1 条单轴绑定 + 成功 ≥1,从 `fusedAxes` 派生、与播种同一真理源)、
+> 【文案槽】真/假守则两类称呼(round1=真传心法/心魔伪笔)、资源经济示例、恢复代价示例、结局 id/outcome/condition
+> 正反例、hint 示例(per-combo `FusionWorldCopy`);安全规矩(泄露硬化/id 类型/outcome 必填/单轴绑定/可判定
+> condition)全在骨架单点维护、绝不 per-combo 重抄(守 ADR-008)。round-1 识海遗蜕文案逐字迁回槽位,
+> **parity 线:参数化前后融合 prompt 逐字节不变**(byte-diff 全空);单体骨架零动。lockstep 守护改按 combo 分组
+> (`FusionMetaPromptLockstepTest`)。加一组融合 = registry 登记 + 文案槽一条 + meta-prompt 一段 + 种子池,骨架零改。)
+> v0.6.3(2026-07-06,ADR-013 Slice E-1 · 治「赢着被磨死」:融合骨架两处收紧——【资源经济必须内生】
 > (融合世界必须内生 2-3 处有代价的恢复手段(参悟真传回灵力但耗时辰 / 静室调息回气血但异响渐近 / 丹药稳道心但
 > 存量有限),写进 background/rules/openingNarrative 让后续回合有据可用;无恢复手段=把玩家磨死在漫长消耗里的
 > 设计缺陷)+【成功结局 condition 必须可判定】(具体数值门槛 + 中文轴名 + 可数事件,如「道心≥70 且识破伪笔≥3」,
@@ -72,12 +79,26 @@
 场景种子:{{SEED}}
 ```
 
-## 混合模式 · 世界融合(ADR-013,round 1)
+## 混合模式 · 世界融合(ADR-013 round 1 + ADR-014 参数化)
 
 > 混合模式(`mode:"hybrid"`、`archetypes` 2 个,host 在前)走**内联融合**:同一次胖调用里并列注入**两个 archetype 的注入块**(worldview/ruleForm/轴)+ **一段 per-combo 融合 meta-prompt**,一次性产出**一个自洽的融合世界**(不是轮流播、不是拼接)。**线上口径同单体(ADR-007)**:保 `response_format: json_object`、纯 JSON、无哨兵、**不加预调用**——把可靠性留在最险的这次生成。校验/修复/ERROR 管线与单体完全一致(融合不加失败面)。
 > 输出格式骨架(schema / id 约定 / outcome / hint / 泄露硬化)与上文单体**完全相同**,唯 `mode:"hybrid"`、`archetypes:[两个]`、`rules` 走真假混合(见下);运行时副本在 `WorldGenPromptBuilder.FUSION_SKELETON`。轴合并(host 优先 + 语义换皮,ADR-012)只在播种层,提示词只据合并后的融合轴清单注入。
 >
-> **融合骨架两块追加约束(E-1,与运行时 FUSION_SKELETON lockstep)**:
+> **骨架参数化(ADR-014)**:骨架里的 round 专属文案抽成 per-combo 槽——**派生槽**(致命轴中文名清单 `{{LETHAL_AXES}}`、结局条数 `{{ENDING_COUNT}}`=失败每致命轴各 1 条单轴绑定 + 成功 ≥1,从 `fusedAxes` 派生)+ **文案槽**(真守则称呼 `{{TRUE_NAME}}` / 假守则称呼 `{{FAKE_NAME}}`、资源经济示例、结局 id/outcome/condition 正反例、hint 示例,运行时 `WorldGenPromptBuilder.FUSION_WORLD_COPY`)。下面引用块中的示例文字(参悟真传/道心≥70/恐损道基…)= round-1 的槽值,第二组合另配一套槽值、骨架文本不变。
+>
+> **融合骨架 endings 约束(D-3 单轴绑定 + 可判定,与运行时 FUSION_SKELETON lockstep;〔〕内为槽)**:
+>
+> ```
+> - endings:〔3-4〕个,含至少一个"成功"结局,且【每个致命数值轴(〔气血/道心〕)各配至少一条独立的失败结局】:
+>   - 【outcome 必填·结局极性】∈ {success,failure,neutral}:〔失败/死亡/走火入魔/身死道消/被夺舍〕=failure;…
+>   - 【condition 单轴绑定 · 硬约束】每条失败结局的 condition 只绑定【单一】致命轴、并点名其中文名
+>     (如〔「气血归零,肉身溃散而亡」/「道心崩缺,神魂入魔」〕),【禁止用"或"把多个致命轴混进同一条 condition】
+>     (如〔「道心归零或气血归零」〕这类混轴条件是错的);【condition 全部用中文写、点名轴的中文名(〔气血/道心〕),
+>     绝不用 〔hp/san/mana/realm〕 等英文字段名】(〔「hp归零」是错的,要写「气血归零」〕);结局的 title 与
+>     description 也须与所绑定的轴一致——〔气血死写气血枯竭、道心崩写道心失守,不得混写两轴〕。
+> ```
+>
+> **融合骨架两块追加约束(E-1,与运行时 FUSION_SKELETON lockstep;示例文字为 round-1 槽值)**:
 >
 > ```
 > 【资源经济 · 必须内生】这个世界必须内生 2-3 处【有代价的恢复手段】(如:参悟真传心法可回灵力但耗费时辰、

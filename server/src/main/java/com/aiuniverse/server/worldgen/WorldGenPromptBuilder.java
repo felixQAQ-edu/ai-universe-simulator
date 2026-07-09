@@ -77,10 +77,18 @@ public final class WorldGenPromptBuilder {
 			""";
 
 	/**
-	 * 融合骨架(ADR-013 内联融合,round 1;<b>结构骨架单点维护</b>)。单次胖调用产融合世界,保 json_object 无哨兵
-	 * (守 ADR-007,别加预调用/哨兵)。注入变量:host/foreign displayName + worldview + ruleForm、融合轴清单、
-	 * archetypes 数组、以及一段 per-combo <b>融合 meta-prompt</b>(%9$s,Slice A 为空占位,Slice B lockstep 填入
-	 * 场景③设定内核/三根杠杆/护道结局)。守 ADR-011:守则只作定性风险/氛围,不写精确成功率、不定判定规则。
+	 * 融合骨架(ADR-013 内联融合;<b>结构骨架单点维护,ADR-014 参数化</b>)。单次胖调用产融合世界,保 json_object
+	 * 无哨兵(守 ADR-007,别加预调用/哨兵)。注入变量三类:
+	 * <ul>
+	 *   <li><b>结构注入</b>(%1–%9):host/foreign displayName + worldview + ruleForm、融合轴清单、archetypes 数组、
+	 *       per-combo <b>融合 meta-prompt</b>(%9$s);</li>
+	 *   <li><b>派生槽</b>(ADR-014,与播种同一真理源 {@code fusedAxes} 算出):%14$s 结局条数(失败=每致命轴各 1 条
+	 *       单轴绑定 + 成功 ≥1)、%15$s 致命轴中文名清单;</li>
+	 *   <li><b>文案槽</b>(ADR-014,per-combo {@link FusionWorldCopy}):真/假守则称呼、资源经济示例、结局/hint
+	 *       示例等(%10–%13、%16–%27)。</li>
+	 * </ul>
+	 * 安全规矩(泄露硬化 / id 类型 / outcome 必填 / 单轴绑定 / 可判定 condition)全在骨架、绝不 per-combo 重抄
+	 * (守 ADR-008)。守 ADR-011:守则只作定性风险/氛围,不写精确成功率、不定判定规则。
 	 */
 	private static final String FUSION_SKELETON = """
 			你是"通用生成引擎(UG Engine)"的【世界融合】模块。本局是混合模式:把两套世界观
@@ -103,38 +111,35 @@ public final class WorldGenPromptBuilder {
 			数值轴(character.attributes 含且仅含下列数值键,范围 0-100,按处境合理给定初值):
 			%7$s
 
-			【资源经济 · 必须内生】这个世界必须内生 2-3 处【有代价的恢复手段】(如:参悟真传心法可回灵力但耗费时辰、
-			静室调息可回气血但墙上异响渐近、服食随身丹药可稳道心但存量有限)——把它们写进 world.background / rules 的
-			content / openingNarrative 里,让后续回合与玩家都【有据可用】;每种恢复都要有代价或风险(耗时辰 / 引来
-			注意 / 消耗存量),绝不是无限回复。没有恢复手段的世界会把玩家磨死在漫长消耗里,这是设计缺陷。
+			【资源经济 · 必须内生】这个世界必须内生 2-3 处【有代价的恢复手段】(如:%12$s)——把它们写进 world.background / rules 的
+			content / openingNarrative 里,让后续回合与玩家都【有据可用】;每种恢复都要有代价或风险(%13$s),绝不是无限回复。没有恢复手段的世界会把玩家磨死在漫长消耗里,这是设计缺陷。
 
 			【输出格式 · 严格遵守】只输出一个 JSON 对象,纯 JSON,不要 markdown 围栏(不要 ```),
 			不要任何前后缀解释文字。字段:
 			- schemaVersion:必须为 "0.4";mode:"hybrid";archetypes:[%8$s]
 			- world:{ title, background, tone 用中文;dangerLevel ∈ {low,medium,high,extreme} }
 			- character:{ attributes:{ 上述数值轴,各 0-100 }, traits:2-4 个中文, inventory:1-3 件中文 }
-			- rules:6-8 条,真假混合的守则,【心魔伪笔(isTrue:false)至少 3 条、真传心法(不带 isTrue)至少 3 条】:
+			- rules:6-8 条,真假混合的守则,【%10$s(isTrue:false)至少 3 条、%11$s(不带 isTrue)至少 3 条】:
 			  - id 用【整数】,从 1 连续编号;
 			  - content 是给玩家看的守则原文(中文);
-			  - 真守则(真传心法)不带 isTrue;假守则(心魔伪笔)带 isTrue:false;
+			  - 真守则(%11$s)不带 isTrue;假守则(%10$s)带 isTrue:false;
 			  - 【每条 rule 无论真假都必须带 hiddenLogic + discovered】(hiddenLogic 不是假守则专属);
 			  - hiddenLogic 是【只有引擎能看】的真实机制(触发条件 + 上述数值轴的后果),discovered 初始一律 false。
-			- endings:3-4 个,含至少一个"成功"结局,且【每个致命数值轴(气血/道心)各配至少一条独立的失败结局】:
-			  - id 用【snake_case 英文字符串】(如 ascend、possessed、body_destroyed),【不是数字】——与 rules[].id(整数)区分;
+			- endings:%14$s 个,含至少一个"成功"结局,且【每个致命数值轴(%15$s)各配至少一条独立的失败结局】:
+			  - id 用【snake_case 英文字符串】(如 %16$s),【不是数字】——与 rules[].id(整数)区分;
 			  - title 必填(中文短标题 4-8 字);description 一句中文结局描述;condition 可判定的中文条件;reached 初始 false;
-			  - 【outcome 必填·结局极性】∈ {success,failure,neutral}:失败/死亡/走火入魔/身死道消/被夺舍=failure;
-			    圆满/证道/脱困/护道功成=success;中性收束=neutral。务必如实标——引擎会据它在角色濒死时拒绝错配的成功结局。
+			  - 【outcome 必填·结局极性】∈ {success,failure,neutral}:%17$s=failure;
+			    %18$s=success;中性收束=neutral。务必如实标——引擎会据它在角色濒死时拒绝错配的成功结局。
 			  - 【condition 单轴绑定 · 硬约束】每条失败结局的 condition 只绑定【单一】致命轴、并点名其中文名
-			    (如「气血归零,肉身溃散而亡」/「道心崩缺,神魂入魔」),【禁止用"或"把多个致命轴混进同一条 condition】
-			    (如「道心归零或气血归零」这类混轴条件是错的);【condition 全部用中文写、点名轴的中文名(气血/道心),
-			    绝不用 hp/san/mana/realm 等英文字段名】(「hp归零」是错的,要写「气血归零」);结局的 title 与
-			    description 也须与所绑定的轴一致——气血死写气血枯竭、道心崩写道心失守,不得混写两轴。
+			    (如%19$s),【禁止用"或"把多个致命轴混进同一条 condition】
+			    (如%20$s这类混轴条件是错的);【condition 全部用中文写、点名轴的中文名(%15$s),
+			    绝不用 %21$s 等英文字段名】(%22$s);结局的 title 与
+			    description 也须与所绑定的轴一致——%23$s。
 			  - 【成功结局 condition 必须可判定 · 硬约束】成功类结局的 condition 用【具体数值门槛 + 中文轴名 +
-			    可数事件】写(如「角色存活,道心≥70,且识破心魔伪笔≥3 条」),【禁止模糊措辞】(「看破真伪」「稳住道心」
-			    「了结心愿」这类无法逐项核对的写法是错的);【门槛适度】(识破伪笔 3 条即可、不要 5 条,数值门槛贴近
+			    可数事件】写(如%24$s),【禁止模糊措辞】(%25$s这类无法逐项核对的写法是错的);【门槛适度】(%26$s,数值门槛贴近
 			    合理局面),让一局在十几回合内可以达成;并明确要求「角色存活」,别让成功结局在角色濒死时也可能被判定命中。
 			- availableActions:2-4 个开局行动,id 用大写字母 A/B/C/D,text 中文且各有取舍;hint 必给——
-			  为每个选项写一句定性的风险/代价/张力提示(如「恐损道基」「或引出识海旧主残念」),点出选它可能付出的
+			  为每个选项写一句定性的风险/代价/张力提示(如%27$s),点出选它可能付出的
 			  代价/风险,氛围化、贴合融合世界口吻,不写精确成功率数字/百分比(ADR-011)。hint 是叙事提示,
 			  不代表引擎会据此判定——引擎只读透传、不据 hint 掷骰/裁决;hint 同守泄露约束,绝不带 isTrue/hiddenLogic 或正确解法。
 			- openingNarrative:开场散文整段(中文,把玩家带入这个融合世界的氛围),不剧透隐藏机制。
@@ -203,20 +208,95 @@ public final class WorldGenPromptBuilder {
 	}
 
 	/**
-	 * 融合主调用提示(ADR-013 内联融合,host 在前)。融合骨架 + host/foreign 双注入块 + 融合轴清单
-	 * + per-combo 融合 meta-prompt({@link #fusionMetaPrompt};Slice A 为空占位,Slice B 填场景③内核)+ 随机种子。
+	 * per-combo 融合<b>文案槽</b>配置(ADR-014 决策 1):骨架单点维护,组合只带文案;致命轴中文名清单与
+	 * 结局条数<b>不在此</b>——从 {@code fusedAxes} 派生(与播种同一真理源,写不漂)。加一组融合 = 本 record
+	 * 一条 + 一段融合 meta-prompt + registry 登记 + 种子池,骨架零改。
+	 */
+	record FusionWorldCopy(
+			String trueName,                 // 真守则称呼(round1=真传心法)
+			String fakeName,                 // 假守则称呼(round1=心魔伪笔)
+			String recoveryExamples,         // 资源经济·有代价恢复手段示例
+			String recoveryCosts,            // 恢复的代价/风险示例
+			String endingIdExamples,         // endings[].id snake_case 示例
+			String failureOutcomeExamples,   // outcome=failure 语例
+			String successOutcomeExamples,   // outcome=success 语例
+			String failureConditionExamples, // 失败结局单轴 condition 正例
+			String mixedConditionExample,    // "或"混轴 condition 反例
+			String axisKeysBan,              // 禁用英文字段名清单
+			String englishKeyExample,        // 英文 key 写法反例→中文正写
+			String axisConsistency,          // 结局文本与绑定轴一致示例
+			String successConditionExample,  // 成功结局可判定 condition 正例
+			String vagueExamples,            // 模糊措辞反例
+			String thresholdModeration,      // 门槛适度示例
+			String hintExamples) {           // 开局行动 hint 示例
+	}
+
+	/**
+	 * per-combo 融合文案槽(key = {@code host×foreign})。round 1 识海遗蜕的槽值 = ADR-013 原文<b>逐字迁移</b>
+	 * (含原换行,ADR-014 parity 线:参数化前后 prompt 逐字节不变)。
+	 */
+	private static final Map<String, FusionWorldCopy> FUSION_WORLD_COPY = Map.of(
+			"cultivation×rules_creepy", new FusionWorldCopy(
+					"真传心法",
+					"心魔伪笔",
+					"参悟真传心法可回灵力但耗费时辰、\n静室调息可回气血但墙上异响渐近、服食随身丹药可稳道心但存量有限",
+					"耗时辰 / 引来\n注意 / 消耗存量",
+					"ascend、possessed、body_destroyed",
+					"失败/死亡/走火入魔/身死道消/被夺舍",
+					"圆满/证道/脱困/护道功成",
+					"「气血归零,肉身溃散而亡」/「道心崩缺,神魂入魔」",
+					"「道心归零或气血归零」",
+					"hp/san/mana/realm",
+					"「hp归零」是错的,要写「气血归零」",
+					"气血死写气血枯竭、道心崩写道心失守,不得混写两轴",
+					"「角色存活,道心≥70,且识破心魔伪笔≥3 条」",
+					"「看破真伪」「稳住道心」\n    「了结心愿」",
+					"识破伪笔 3 条即可、不要 5 条",
+					"「恐损道基」「或引出识海旧主残念」"));
+
+	/** 派生槽:致命轴中文名清单(如「气血/道心」),从融合轴集算(depletion 且 lethal)。 */
+	private static String lethalAxisNames(List<AttributeAxis> axes) {
+		return axes.stream()
+				.filter(a -> !a.isAccumulation() && a.isLethal())
+				.map(AttributeAxis::displayName)
+				.reduce((a, b) -> a + "/" + b).orElse("");
+	}
+
+	/** 派生槽:结局条数区间(失败=每致命轴各 1 条单轴绑定 + 成功 ≥1 → n+1 到 n+2;2 致命轴="3-4")。 */
+	private static String endingCountRange(List<AttributeAxis> axes) {
+		long n = axes.stream().filter(a -> !a.isAccumulation() && a.isLethal()).count();
+		return (n + 1) + "-" + (n + 2);
+	}
+
+	/**
+	 * 融合主调用提示(ADR-013 内联融合,host 在前;ADR-014 参数化)。融合骨架 + host/foreign 双注入块
+	 * + 融合轴清单 + per-combo 融合 meta-prompt({@link #fusionMetaPrompt})+ 派生槽/文案槽 + 随机种子。
 	 */
 	public String buildFusionPrompt(String host, String foreign) {
 		ArchetypeMeta h = registry.meta(host);
 		ArchetypeMeta f = registry.meta(foreign);
 		List<AttributeAxis> axes = registry.fusedAxes(host, foreign); // 未登记组合 → IllegalArgumentException
+		FusionWorldCopy copy = FUSION_WORLD_COPY.get(host + "×" + foreign);
+		if (copy == null) {
+			// registry 已登记但缺文案槽 = 组合登记不完整(程序性错误,登记齐 5 处再上)。
+			throw new IllegalArgumentException("融合组合缺 world-gen 文案槽配置:" + host + " × " + foreign);
+		}
 		String prompt = FUSION_SKELETON.formatted(
 				h.displayName(), f.displayName(),         // %1$s %2$s
 				h.worldview(), f.worldview(),             // %3$s %4$s
 				h.ruleForm(), f.ruleForm(),               // %5$s %6$s
 				axesSpec(axes),                           // %7$s
 				archetypesArray(host, foreign),           // %8$s
-				fusionMetaPrompt(host, foreign));         // %9$s(Slice B 填入)
+				fusionMetaPrompt(host, foreign),          // %9$s per-combo 融合内核
+				copy.fakeName(), copy.trueName(),         // %10$s %11$s
+				copy.recoveryExamples(), copy.recoveryCosts(), // %12$s %13$s
+				endingCountRange(axes), lethalAxisNames(axes), // %14$s %15$s(派生,与播种同源)
+				copy.endingIdExamples(),                  // %16$s
+				copy.failureOutcomeExamples(), copy.successOutcomeExamples(), // %17$s %18$s
+				copy.failureConditionExamples(), copy.mixedConditionExample(), // %19$s %20$s
+				copy.axisKeysBan(), copy.englishKeyExample(), copy.axisConsistency(), // %21$s %22$s %23$s
+				copy.successConditionExample(), copy.vagueExamples(), copy.thresholdModeration(), // %24$s %25$s %26$s
+				copy.hintExamples());                     // %27$s
 		return prompt
 				+ "\n按以下种子生成融合世界,只回 JSON:\n"
 				+ "融合:" + h.displayName() + " × " + f.displayName() + "(host=" + host + ",archetypes=[" + host + ","
