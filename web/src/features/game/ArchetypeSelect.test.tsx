@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { ArchetypeSummary } from '../../api';
 import { ArchetypeCard, FusionCard } from './ArchetypeSelect';
-import { nextFusionStage } from './fusion';
+import { INITIAL_FUSION_STAGES, nextFusionStages, type FusionStages } from './fusion';
 
 // 选择屏卡片(ADR-008 决策 4):可玩卡渲染钩子/标签 + 点击触发 onChoose(→ startGame);
 // 未开放卡灰显「敬请期待」、不可点。store 接线(loadArchetypes/startGame/lastArchetype)
@@ -106,24 +106,55 @@ describe('误入手势(长按)', () => {
     vi.useRealTimers();
   });
 
-  it('状态机:依次长按 修仙 → 规则怪谈 才渗出;顺序不对不推进;渗出后保持', () => {
-    // 正序:idle --修仙--> armed --规则怪谈--> revealed。
-    expect(nextFusionStage('idle', 'cultivation')).toBe('armed');
-    expect(nextFusionStage('armed', 'rules_creepy')).toBe('revealed');
-    // 顺序不对:先规则怪谈不推进;armed 后按其它卡不推进(修仙重按保持 armed)。
-    expect(nextFusionStage('idle', 'rules_creepy')).toBe('idle');
-    expect(nextFusionStage('armed', 'cthulhu')).toBe('armed');
-    expect(nextFusionStage('armed', 'cultivation')).toBe('armed');
+  // 组合表状态机(ADR-014):per-combo 独立,一次长按推进全部机。
+  const SHIHAI = 'cultivation×rules_creepy';
+  const RENFANG = 'rules_creepy×apocalypse';
+  const press = (stages: FusionStages, ...archetypes: string[]) =>
+    archetypes.reduce((s, a) => nextFusionStages(s, a), stages);
+
+  it('状态机(识海):依次长按 修仙 → 规则怪谈 才渗出;顺序不对不推进;渗出后保持', () => {
+    // 正序:修仙 → 规则怪谈 → 识海 revealed。
+    let s = press(INITIAL_FUSION_STAGES, 'cultivation', 'rules_creepy');
+    expect(s[SHIHAI]).toBe('revealed');
+    // 顺序不对:先规则怪谈、再修仙 → 识海不渗出(修仙重 armed)。
+    s = press(INITIAL_FUSION_STAGES, 'rules_creepy', 'cultivation');
+    expect(s[SHIHAI]).toBe('armed');
+    // armed 后按无关卡不推进。
+    s = press(INITIAL_FUSION_STAGES, 'cultivation', 'cthulhu');
+    expect(s[SHIHAI]).toBe('armed');
     // 渗出后保持(不因再长按回退)。
-    expect(nextFusionStage('revealed', 'cultivation')).toBe('revealed');
-    expect(nextFusionStage('revealed', 'apocalypse')).toBe('revealed');
+    s = press(INITIAL_FUSION_STAGES, 'cultivation', 'rules_creepy', 'cultivation', 'apocalypse');
+    expect(s[SHIHAI]).toBe('revealed');
+  });
+
+  it('状态机(守则即补给):依次长按 规则怪谈 → 末日 才渗出', () => {
+    let s = press(INITIAL_FUSION_STAGES, 'rules_creepy', 'apocalypse');
+    expect(s[RENFANG]).toBe('revealed');
+    // 顺序不对:先末日不推进。
+    s = press(INITIAL_FUSION_STAGES, 'apocalypse', 'cthulhu');
+    expect(s[RENFANG]).toBe('idle');
+  });
+
+  it('交叉序列:「长按规则怪谈」在两台机语义不同,各自匹配、互不误触发', () => {
+    // 修仙 → 末日:两台机都不渗出(识海差第二步、本对差第一步)。
+    let s = press(INITIAL_FUSION_STAGES, 'cultivation', 'apocalypse');
+    expect(s[SHIHAI]).toBe('armed');
+    expect(s[RENFANG]).toBe('idle');
+    // 规则怪谈 → 末日:只渗出「守则即补给」,识海不受影响(规则怪谈对识海是第二步、需先修仙)。
+    s = press(INITIAL_FUSION_STAGES, 'rules_creepy', 'apocalypse');
+    expect(s[RENFANG]).toBe('revealed');
+    expect(s[SHIHAI]).toBe('idle');
+    // 修仙 → 规则怪谈:渗出识海;同一按规则怪谈同时是本对第一步(armed)——独立推进、互不干扰。
+    s = press(INITIAL_FUSION_STAGES, 'cultivation', 'rules_creepy');
+    expect(s[SHIHAI]).toBe('revealed');
+    expect(s[RENFANG]).toBe('armed');
   });
 });
 
-describe('FusionCard(渗漏卡)', () => {
-  it('渲染三层撕裂标题(修仙/规则怪谈/识海遗蜕)+ 渗漏标签,点击触发 onChoose(→ 双值 init)', () => {
+describe('FusionCard(渗漏卡,ADR-014 参数化)', () => {
+  it('识海卡:渲染三层撕裂标题(修仙/规则怪谈/识海遗蜕)+ 渗漏标签,点击触发 onChoose(→ 双值 init)', () => {
     const onChoose = vi.fn();
-    render(<FusionCard onChoose={onChoose} />);
+    render(<FusionCard combo="cultivation×rules_creepy" onChoose={onChoose} />);
     // 三层标题都在(CSS 轮换浮现;可及名是「识海遗蜕(融合世界)」)。
     expect(screen.getByText('修仙')).toBeInTheDocument();
     expect(screen.getByText('规则怪谈')).toBeInTheDocument();
@@ -132,5 +163,21 @@ describe('FusionCard(渗漏卡)', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '识海遗蜕(融合世界)' }));
     expect(onChoose).toHaveBeenCalledTimes(1);
+  });
+
+  it('守则即补给卡:渲染三层撕裂标题(规则怪谈/末日生存/缺页的人防工程),点击触发 onChoose', () => {
+    const onChoose = vi.fn();
+    render(<FusionCard combo="rules_creepy×apocalypse" onChoose={onChoose} />);
+    expect(screen.getByText('规则怪谈')).toBeInTheDocument();
+    expect(screen.getByText('末日生存')).toBeInTheDocument();
+    expect(screen.getByText('缺页的人防工程')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '缺页的人防工程(融合世界)' }));
+    expect(onChoose).toHaveBeenCalledTimes(1);
+  });
+
+  it('未配文案的组合不渲染(登记齐再上)', () => {
+    const { container } = render(<FusionCard combo="cthulhu×life_sim" onChoose={vi.fn()} />);
+    expect(container).toBeEmptyDOMElement();
   });
 });

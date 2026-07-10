@@ -738,6 +738,71 @@
   animation: fusionFlickerC 5.2s steps(1, end) infinite;
 }
 
+/* ── 第二渗漏卡(守则即补给,ADR-014):规则怪谈冷蓝 × 末日锈土【互噬】——
+ * 左上是怪谈的冷蓝灯光(灯将灭的走廊),右下是废土的锈尘(烂在锈里的世界),中缝一道撕裂接缝。
+ * 复用 fusionSeep 渗出入场与 fusionTitle 三层撕裂标题机制,只换配色氛围。纯 CSS,不引动画库。 */
+.cardFusionRenfang {
+  color: #d3cec6;
+  border-left-color: #8a7a68; /* 冷蓝与锈土之间的灰褐 */
+  background:
+    linear-gradient(135deg, rgba(140, 178, 224, 0.15) 0%, rgba(96, 130, 172, 0.08) 34%, transparent 52%),
+    linear-gradient(315deg, rgba(58, 42, 28, 0.9) 0%, rgba(46, 34, 24, 0.72) 40%, transparent 62%),
+    linear-gradient(160deg, #222a36 0%, #29221c 55%, #241d17 100%);
+  transform-origin: 50% 50%;
+}
+
+/* 渗出入场:两类特异性(压过 .card:not(.cardLocked) 的 cardEnter),只跑一次。 */
+.card.cardFusionRenfang {
+  animation: fusionSeep 0.9s ease-out backwards;
+}
+
+/* 互噬氛围层:怪谈冷光(左上)与末日锈尘(右下)缓慢拉锯、彼此渗透。 */
+.cardFusionRenfang::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(55% 48% at 18% 22%, rgba(140, 178, 224, 0.28), transparent 68%),
+    radial-gradient(60% 52% at 84% 82%, rgba(168, 118, 72, 0.28), transparent 70%),
+    radial-gradient(2px 2px at 30% 78%, rgba(196, 150, 92, 0.5), transparent 60%),
+    radial-gradient(1.5px 1.5px at 72% 30%, rgba(140, 178, 224, 0.5), transparent 60%);
+  background-size: 180% 180%;
+  animation: fusionClash 9s ease-in-out infinite alternate;
+}
+
+/* 撕裂接缝:冷蓝与锈金在裂隙处渗漏(缺页的边界),偶发抽搐。 */
+.cardFusionRenfang::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    115deg,
+    transparent 46%,
+    rgba(150, 190, 230, 0.28) 49%,
+    rgba(196, 150, 92, 0.3) 51%,
+    transparent 54%
+  );
+  animation: fusionSeam 7s linear infinite;
+}
+
+.cardFusionRenfang:hover {
+  border-left-color: #b09578;
+  box-shadow:
+    0 10px 30px -14px rgba(0, 0, 0, 0.7),
+    inset 0 0 30px -6px rgba(140, 178, 224, 0.26),
+    inset 0 0 18px -4px rgba(196, 150, 92, 0.28);
+}
+
+/* 第二卡的定稿名层:锈金微光(区别识海的病态青)。 */
+.cardFusionRenfang .fusionTitleC {
+  color: #e2d8c8;
+  text-shadow: 0 0 12px rgba(196, 150, 92, 0.35);
+}
+
 /* ── 未开放占位:灰显、不可点、零动效(死的,反衬解锁卡是活的)── */
 .cardLocked {
   opacity: 0.5;
@@ -971,6 +1036,9 @@
   .cardFusion,
   .cardFusion::before,
   .cardFusion::after,
+  .cardFusionRenfang,
+  .cardFusionRenfang::before,
+  .cardFusionRenfang::after,
   .fusionTitleA,
   .fusionTitleB,
   .card:not(.cardLocked) {
@@ -1036,6 +1104,12 @@
 .cardFusion .cardTag {
   background: rgba(126, 169, 160, 0.16);
   color: #9ecfc0;
+}
+
+/* 第二渗漏卡标签:锈金(缺页与配给簿的颜色)。 */
+.cardFusionRenfang .cardTag {
+  background: rgba(176, 149, 120, 0.16);
+  color: #b09578;
 }
 
 .cardSoon {

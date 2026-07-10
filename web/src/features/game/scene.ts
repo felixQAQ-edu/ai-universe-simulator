@@ -18,6 +18,8 @@ const SCENE_ARCHETYPES: ReadonlySet<string> = new Set<Archetype>([
  */
 const FUSION_SCENES: Readonly<Record<string, string>> = {
   'cultivation×rules_creepy': '/scenes/fusion-shihai.webp',
+  // 守则即补给(ADR-014):正式封面 Felix 并行出,出图后同名替换零代码(当前为 rules_creepy 同图占位)。
+  'rules_creepy×apocalypse': '/scenes/fusion-renfang.webp',
 };
 
 /**
