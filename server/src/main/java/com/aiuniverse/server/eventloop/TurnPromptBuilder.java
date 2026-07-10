@@ -128,10 +128,11 @@ public final class TurnPromptBuilder {
 			    给出至少一个通往它的选项(%3$s)。
 			(4)【有据恢复】玩家使用世界内生的恢复手段(%4$s)时,应在 stateUpdate 里【真的
 			    上调对应轴】——有据恢复不算无故回升,但须同时体现其代价(%5$s);
-			    别让恢复手段沦为口头叙事、数值却纹丝不动。""";
+			    别让恢复手段沦为口头叙事、数值却纹丝不动。%6$s""";
 
 	/**
-	 * per-combo 融合回合<b>文案槽</b>(ADR-014):裁决代价/回报口吻、差一项引导示例、恢复手段与代价示例。
+	 * per-combo 融合回合<b>文案槽</b>(ADR-014):裁决代价/回报口吻、差一项引导示例、恢复手段与代价示例、
+	 * per-combo 附加指令(Slice E' 平衡修:昼夜节律/发牌保证/断粮收束等,round-1 空串零变化)。
 	 * round 1 槽值 = Slice D/E 原文逐字迁移(含原换行,parity 线:参数化前后融合段逐字节不变)。
 	 */
 	record FusionTurnCopy(
@@ -139,7 +140,8 @@ public final class TurnPromptBuilder {
 			String rewardClause,    // 识破/印证的回报口吻
 			String nearMissExample, // 通关判定「仅差一项」引导示例
 			String recoveryMeans,   // 世界内生恢复手段示例
-			String recoveryCosts) { // 恢复代价示例
+			String recoveryCosts,   // 恢复代价示例
+			String extraDirectives) { // per-combo 附加指令(接在 (4) 之后;空串=无附加)
 	}
 
 	/** per-combo 融合回合文案槽(key = {@code host×foreign})。 */
@@ -149,13 +151,27 @@ public final class TurnPromptBuilder {
 					"识破伪笔或印证真传\n    心法,给出叙事与数值的正向回报(稳道心 / 长境界 / 得线索)",
 					"如还差识破一条伪笔,就给出试探某条可疑守则的行动",
 					"参悟心法 / 调息 / 丹药等",
-					"耗时辰 / 引来注意 / 消耗存量"),
+					"耗时辰 / 引来注意 / 消耗存量",
+					""),
 			"rules_creepy×apocalypse", new FusionTurnCopy(
 					"误信假页\n    (isTrue:false)应付出代价(首当其冲是理智,亦可波及体力与补给)",
 					"识破假页或印证真页,\n    给出叙事与数值的正向回报(保住补给 / 稳住理智 / 得物证线索)",
 					"如还差识破一条假页,就给出比对物证或查验尸体的行动",
 					"配给日 / 搜刮 / 以页换粮等",
-					"排队核脸 / 夜路遇险 / 庇护松动"));
+					"排队核脸 / 夜路遇险 / 庇护松动",
+					// Slice E' 平衡修(治两局实测:补给荒 14/27 回合断粮饿毙、整局压缩单夜、断粮后悬置):
+					"""
+
+					(5)【昼夜节律 · 多日尺度】本局故事跨越数日,存在昼夜循环:白天=配给日 / 外出搜刮 / 据点交易的
+					    窗口(补给通道开放),夜晚=守则的狩猎时间(怪谈压力主场)。叙事应有「熬过一夜 → 天亮喘息补给
+					    → 再入夜」的节律,【禁止把整局压缩在单夜内】——推进回合时让时间真实流动(入夜 / 天亮 /
+					    又一个配给日),白天的回合要真的给出补给窗口。
+					(6)【补给通道 · 发牌保证】补给类恢复机会(配给日 / 搜刮 / 守则换粮)应以合理频率出现在
+					    availableActions 里;补给进入「紧缺」档之后,【后续每一回合的选项中必须持续存在至少一条
+					    通往补给的路径】(可以有代价、有风险,但不能没有)——【连续多回合无任何补给途径是错误】。
+					(7)【断粮收束】补给归零(断粮)后,叙事应在少数几回合内走向对应结局(断粮饿毙),不得长期拖延
+					    「断粮但无事发生」;持续断粮时在 stateUpdate 里【如实反映恶化】——补给该到 0 就写 0
+					    (不要长期悬在 1-5 的低位回避收束),体力/理智随断粮相应下滑。"""));
 
 	/** 融合回合指令(骨架 + per-combo 文案槽)。缺文案槽 = 组合登记不完整(程序性错误)。 */
 	private static String fusionTurnDirective(String comboKey) {
@@ -165,7 +181,8 @@ public final class TurnPromptBuilder {
 		}
 		return FUSION_TURN_DIRECTIVE.formatted(
 				copy.penaltyClause(), copy.rewardClause(),
-				copy.nearMissExample(), copy.recoveryMeans(), copy.recoveryCosts());
+				copy.nearMissExample(), copy.recoveryMeans(), copy.recoveryCosts(),
+				copy.extraDirectives());
 	}
 
 	private static final String REPAIR_SYSTEM = """
