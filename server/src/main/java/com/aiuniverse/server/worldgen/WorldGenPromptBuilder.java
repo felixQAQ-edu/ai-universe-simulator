@@ -185,9 +185,11 @@ public final class WorldGenPromptBuilder {
 							+ "识海石壁上真传心法与心魔伪笔同墙杂书、无分界,读错一句便万劫不复;危险等级 extreme"),
 			"rules_creepy×apocalypse", List.of(
 					"旧文明散架多年后仍点着灯的人防工程,玩家是新入册的住户;配给室墙上钉着仅存五条的《住户守则》"
-							+ "(第 1、4、7、9、13),缺的页和这些年一个个消失的住户对得上号;危险等级 high",
+							+ "(第 1、4、7、9、13),缺的页和这些年一个个消失的住户对得上号;危险等级 high。"
+							+ "【硬性再确认】rules 里带 \"isTrue\": false 的假页必须 ≥3 条(第 9 条即其一),真页 ≥3 条",
 					"配给日的人防工程:东区据点又在收守则页子——一页真页换二十天口粮,也有人卖假页;"
-							+ "玩家刚领到本月配给,发现墙上第 9 条的钉孔比别的多一个;危险等级 high"));
+							+ "玩家刚领到本月配给,发现墙上第 9 条的钉孔比别的多一个;危险等级 high。"
+							+ "【硬性再确认】rules 里带 \"isTrue\": false 的假页必须 ≥3 条(第 9 条即其一),真页 ≥3 条"));
 
 	/**
 	 * 主调用提示(开 json_object,ADR-007)。<b>有序 archetype 列表(host 在前,ADR-013)</b>:
@@ -416,6 +418,8 @@ public final class WorldGenPromptBuilder {
 					- 【每条 rule 无论真假都必须带 hiddenLogic + discovered:false】(hiddenLogic 不是假页专属):
 					  · 真页的 hiddenLogic = 照做的【真实庇护 / 后果】;假页的 hiddenLogic = 照做的【隐藏代价 / 陷阱】
 					    + 可供裁决的物证(纸质 / 笔迹 / 尸体 / 簿册)。
+					- 【假页必须显式带 "isTrue": false 字段】——缺了 isTrue 字段的条目会被当成真页;输出前自查一遍:
+					  带 "isTrue": false 的条目数 ≥3(第 9 条即其一),不足则把某条拾获残页改写成假页再输出。
 					- content 一律写成守则页 / 告示的口吻(条款编号 + 条文),【绝不在 content 里暗示自己是真页假页】。
 
 					【三根融合杠杆 · 务必写进守则与机制】
@@ -435,7 +439,10 @@ public final class WorldGenPromptBuilder {
 					  日子仍是锈的、灰的,但配给日的队伍里,有人把罐头里的半份拨给了你——荒凉里收一点微光
 					  (outcome=success)。
 					- 可另配一个【新页】结局入池:缺的页从来不存在,真页不是找回来的、是验出来的;玩家把自己用命
-					  验过的账誊清钉上墙,通风闸外的东西第一次退了半步(outcome=success 或 neutral)。
+					  验过的账誊清钉上墙,通风闸外的东西第一次退了半步(outcome=success 或 neutral;condition 照模板写
+					  「角色存活,识破假页≥4 条,且理智≥30」)。
+					- 【成功结局 condition 同样只用中文轴名(体力/理智/补给)】——「san≥30」是错的,要写「理智≥30」;
+					  这条对成功结局与失败结局一体适用。
 					- 每个致命轴各配一条独立失败结局(condition 单轴绑定,见上方 endings 约束):
 					  · 体力线=【力竭伤重类】:体力归零,倒在走廊 / 闸门外(condition 只绑体力,description 写力竭伤重);
 					  · 理智线=【神志失守类】:理智归零,开始应门外的点名、相信夜里数出的数字(condition 只绑理智,
