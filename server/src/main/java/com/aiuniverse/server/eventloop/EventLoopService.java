@@ -139,6 +139,10 @@ public class EventLoopService implements TurnExecutor {
 			log.warn("[event-loop] save={} T{} 泄露遥测命中(非实时拦截,§1c):{}",
 					session.saveId(), engine.turn(), leak);
 		}
+		// 可观测性(E'' 顺带):正常回合一条 INFO(action + 落账后数值 + 提议 ending),冒烟排查不再解剖 heap。
+		log.info("[event-loop] save={} T{} action={} 落账 attrs={} ending={}",
+				session.saveId(), engine.turn(), actionId, engine.attributes(),
+				parsed.path("ending").isNull() ? "null" : parsed.path("ending").path("id").asString(""));
 		updateActionsFromParsed(session, parsed);
 		sink.delta(buildDelta(session));
 		if ("ended".equals(engine.status())) {
