@@ -33,8 +33,9 @@ class RulesCreepyApocalypseFusionTest {
 		AttributeAxis hunger = registry.fusedAxes("rules_creepy", "apocalypse").get(2);
 		AttributeAxis original = registry.meta("apocalypse").attributes().get(1);
 
-		// ADR-014 决策 4:behaviorHint override 位(原 hint 含「饥饿值」与换皮名打架)。
-		assertThat(hunger.behaviorHint()).contains("补给随回合自然消耗").doesNotContain("饥饿值");
+		// ADR-014 决策 4:behaviorHint override 位(原 hint 含「饥饿值」与换皮名打架);
+		// E'':衰减挂钩行为(夜间躲藏休整轻微消耗,治夜间结构性必死)。
+		assertThat(hunger.behaviorHint()).contains("补给消耗与行为挂钩").doesNotContain("饥饿值");
 		// 引擎面字段一律不换(key/axisRole/lethal/min/max)。
 		assertThat(hunger.key()).isEqualTo(original.key());
 		assertThat(hunger.axisRole()).isEqualTo(original.axisRole());
@@ -78,6 +79,6 @@ class RulesCreepyApocalypseFusionTest {
 		assertThat(prompt).contains("【假页(isTrue:false)至少 3 条、真页(不带 isTrue)至少 3 条】")
 				.contains("真守则(真页)不带 isTrue;假守则(假页)带 isTrue:false");
 		// 融合轴清单含换皮后的补给(含 behaviorHint override)。
-		assertThat(prompt).contains("- hunger(补给,0-100;补给随回合自然消耗");
+		assertThat(prompt).contains("- hunger(补给,0-100;补给消耗与行为挂钩");
 	}
 }
