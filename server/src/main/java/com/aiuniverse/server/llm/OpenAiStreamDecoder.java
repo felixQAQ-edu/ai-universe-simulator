@@ -13,7 +13,7 @@ import tools.jackson.databind.ObjectMapper;
  * SSE 文本逐行解出 {@code choices[0].delta.content},逐个吐给 {@link TokenStream}。
  *
  * <p>移植自 bakeoff {@code client.py} 的 chunk 消费循环(只取 {@code delta.content},空串/无 content
- * 跳过、{@code choices=[]} 的 usage 块跳过)。把它独立成纯函数,正是为了能用一段【录制样本】做
+ * 跳过;{@code choices=[]} 的流末 usage 块解出 token 用量走 {@link TokenStream#onUsage} 纯观测回调)。把它独立成纯函数,正是为了能用一段【录制样本】做
  * 确定性单测,无需打真实 API。
  */
 public class OpenAiStreamDecoder {
@@ -48,7 +48,7 @@ public class OpenAiStreamDecoder {
 				if (DONE.equals(payload)) {
 					return;
 				}
-				String content = extractContent(payload);
+				String content = extractContent(payload, sink);
 				if (content != null && !content.isEmpty()) {
 					sink.onToken(content);
 				}
@@ -58,13 +58,24 @@ public class OpenAiStreamDecoder {
 		}
 	}
 
-	/** 解出一个 data chunk 的 {@code choices[0].delta.content};无内容(usage/空 delta)返回 null。 */
-	private String extractContent(String json) {
+	/**
+	 * 解出一个 data chunk 的 {@code choices[0].delta.content};无内容(usage/空 delta)返回 null。
+	 * chunk 若带 {@code usage} 对象(stream_options.include_usage 的流末块),顺带回调
+	 * {@code sink.onUsage}(纯观测;缺字段容错记 -1,无 usage 的 chunk 不回调)。
+	 */
+	private String extractContent(String json, TokenStream sink) {
 		JsonNode node;
 		try {
 			node = mapper.readTree(json);
 		} catch (JacksonException e) {
 			throw new LlmException("解析模型流式响应失败", e);
+		}
+		JsonNode usage = node.path("usage");
+		if (usage.isObject()) {
+			sink.onUsage(new LlmUsage(
+					usage.path("prompt_tokens").asLong(-1),
+					usage.path("completion_tokens").asLong(-1),
+					usage.path("total_tokens").asLong(-1)));
 		}
 		JsonNode choices = node.path("choices");
 		if (!choices.isArray() || choices.isEmpty()) {

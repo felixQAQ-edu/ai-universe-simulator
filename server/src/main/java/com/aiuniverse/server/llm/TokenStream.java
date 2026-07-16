@@ -12,4 +12,11 @@ package com.aiuniverse.server.llm;
 @FunctionalInterface
 public interface TokenStream {
 	void onToken(String token);
+
+	/**
+	 * 流末 usage 块回调(纯观测):默认 no-op,lambda 调用方零改动;需要读数的调用方
+	 * (如 {@link UsageCapture})覆写。无 usage 块的流(如 mock)一次都不会被调用。
+	 */
+	default void onUsage(LlmUsage usage) {
+	}
 }

@@ -67,6 +67,52 @@ class OpenAiStreamDecoderTest {
 		assertThat(decodeAll(new StringReader(sse))).containsExactly("X");
 	}
 
+	// ── usage 观测(成本闸门读数):流末 usage 块解析 + 缺失容错 ──────────────
+
+	private UsageCapture decodeCapturing(Reader reader) {
+		UsageCapture cap = new UsageCapture(t -> {
+		});
+		decoder.decode(reader, cap);
+		return cap;
+	}
+
+	@Test
+	void parsesUsageBlockFromRecordedSample() throws Exception {
+		// 录制的 DeepSeek 样本:usage 有 prompt/completion、缺 total_tokens(方言)→ total 容错记 -1。
+		try (InputStream in = getClass().getResourceAsStream("/deepseek-sse-sample.txt")) {
+			UsageCapture cap = decodeCapturing(new InputStreamReader(in, StandardCharsets.UTF_8));
+			assertThat(cap.usage()).isEqualTo(new LlmUsage(12, 3, -1));
+			assertThat(cap.usage().display()).isEqualTo("prompt=12 completion=3 total=-");
+		}
+	}
+
+	@Test
+	void parsesFullOpenAiStyleUsageIncludingTotal() {
+		String sse = """
+				data: {"choices":[{"delta":{"content":"A"}}]}
+
+				data: {"choices":[],"usage":{"prompt_tokens":100,"completion_tokens":20,"total_tokens":120}}
+
+				data: [DONE]
+				""";
+		UsageCapture cap = decodeCapturing(new StringReader(sse));
+		assertThat(cap.usage()).isEqualTo(new LlmUsage(100, 20, 120));
+	}
+
+	@Test
+	void missingUsageBlockLeavesCaptureNullAndTokensUnaffected() {
+		String sse = """
+				data: {"choices":[{"delta":{"content":"A"}}]}
+
+				data: [DONE]
+				""";
+		List<String> tokens = new ArrayList<>();
+		UsageCapture cap = new UsageCapture(tokens::add);
+		decoder.decode(new StringReader(sse), cap);
+		assertThat(cap.usage()).isNull(); // 无 usage 块 → 静默,不告警
+		assertThat(tokens).containsExactly("A");
+	}
+
 	@Test
 	void malformedDataLineRaisesLlmException() {
 		String sse = "data: {not valid json}\n\n";
