@@ -30,7 +30,7 @@ class EventLoopServiceTest {
 	private final TurnPromptBuilder prompts = new TurnPromptBuilder(new ArchetypeRegistry());
 
 	// ── 脚本化 LLM:每次 streamChat 弹出下一段 token 序列喂 sink,并记录请求(断言次数/json_object/含错误)──
-	private static final class ScriptedLlm implements LlmClient {
+	private static class ScriptedLlm implements LlmClient {
 		final Deque<List<String>> responses = new ArrayDeque<>();
 		final List<ChatRequest> requests = new ArrayList<>();
 
@@ -97,6 +97,39 @@ class EventLoopServiceTest {
 				+ "\"triggeredRuleIds\":[1],\"discoveredRuleIds\":[1],"
 				+ "\"availableActions\":[{\"id\":\"A\",\"text\":\"看告示\"},{\"id\":\"B\",\"text\":\"离开\"}],"
 				+ "\"ending\":" + ending + "}";
+	}
+
+	// ── 0. usage 观测(成本闸门读数):有 usage 记 INFO,无(mock)静默 ──
+	@Test
+	void logsUsageInfoWhenProviderReportsItAndStaysSilentOtherwise() {
+		ch.qos.logback.classic.Logger logger =
+				(ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(EventLoopService.class);
+		ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> logs =
+				new ch.qos.logback.core.read.ListAppender<>();
+		logs.start();
+		logger.addAppender(logs);
+
+		// 有 usage:主调用后一条 INFO(与 per-turn INFO 同层)。
+		ScriptedLlm withUsage = new ScriptedLlm() {
+			@Override
+			public void streamChat(ChatRequest request, TokenStream sink) {
+				super.streamChat(request, sink);
+				sink.onUsage(new com.aiuniverse.server.llm.LlmUsage(500, 120, 620));
+			}
+		};
+		withUsage.script(wire("灯闪了一下。", validTail(90, 85, "null")));
+		new EventLoopService(withUsage, prompts, mapper).execute(session(), "A", new RecordingSink());
+		assertThat(logs.list).anySatisfy(e -> {
+			assertThat(e.getLevel()).isEqualTo(ch.qos.logback.classic.Level.INFO);
+			assertThat(e.getFormattedMessage()).contains("usage 主调用 prompt=500 completion=120 total=620");
+		});
+
+		// 无 usage(mock 形态):静默,不出 usage 行、不告警。
+		logs.list.clear();
+		ScriptedLlm noUsage = new ScriptedLlm();
+		noUsage.script(wire("灯又闪了一下。", validTail(90, 85, "null")));
+		new EventLoopService(noUsage, prompts, mapper).execute(session(), "A", new RecordingSink());
+		assertThat(logs.list).noneSatisfy(e -> assertThat(e.getFormattedMessage()).contains("usage"));
 	}
 
 	// ── 1. happy path:SSE 时序 narrative → delta;消毒;数值落账 ──

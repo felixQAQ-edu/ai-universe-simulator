@@ -12,6 +12,7 @@ import com.aiuniverse.server.engine.GameSchemas;
 import com.aiuniverse.server.llm.ChatRequest;
 import com.aiuniverse.server.llm.LlmClient;
 import com.aiuniverse.server.llm.LlmException;
+import com.aiuniverse.server.llm.UsageCapture;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -62,8 +63,9 @@ public class EventLoopService implements TurnExecutor {
 			narrativeBuf.append(inc);
 			sink.narrative(inc);
 		});
+		UsageCapture usage = new UsageCapture(splitter::accept);
 		try {
-			llm.streamChat(new ChatRequest(prompt, false), splitter::accept);
+			llm.streamChat(new ChatRequest(prompt, false), usage);
 		} catch (LlmException e) {
 			// 流中断:flush 残留(不会再有哨兵),把已生成的部分叙事当氛围,再保守 no-op。
 			splitter.end();
@@ -71,6 +73,7 @@ public class EventLoopService implements TurnExecutor {
 			return degrade(session, actionId, narrativeBuf.toString(), sink);
 		}
 		splitter.end();
+		logUsage(session, "主调用", usage);
 		session.phase().set(TurnPhase.SETTLING);
 
 		String narrative = narrativeBuf.toString();
@@ -121,13 +124,15 @@ public class EventLoopService implements TurnExecutor {
 		String repairPrompt = promptBuilder.buildRepairPrompt(failedTail, errors);
 
 		StringBuilder repairBuf = new StringBuilder(); // 修复发不下发叙事(叙事已 canonical),只收尾巴
+		UsageCapture usage = new UsageCapture(repairBuf::append);
 		try {
-			llm.streamChat(new ChatRequest(repairPrompt, true), repairBuf::append);
+			llm.streamChat(new ChatRequest(repairPrompt, true), usage);
 		} catch (LlmException e) {
 			log.warn("[event-loop] save={} 修复调用失败:{}", session.saveId(), e.getMessage());
 			return null;
 		}
 		log.info("[event-loop] save={} 触发一次结构化修复(校验错误 {} 条)", session.saveId(), errors.size());
+		logUsage(session, "修复", usage);
 		return reinfuseAndValidate(repairBuf.toString(), narrative); // 回灌同一个 N
 	}
 
@@ -150,6 +155,13 @@ public class EventLoopService implements TurnExecutor {
 			return new TurnResult(true);
 		}
 		return new TurnResult(false);
+	}
+
+	/** usage 观测(成本闸门读数,纯日志零逻辑):有 usage 块记一条 INFO,无(mock 等)静默跳过。 */
+	private void logUsage(GameSession session, String call, UsageCapture usage) {
+		if (usage.usage() != null) {
+			log.info("[event-loop] save={} usage {} {}", session.saveId(), call, usage.usage().display());
+		}
 	}
 
 	/** 保守 no-op 降级(§6.5/§6.6):turn++、不脏写、复用动作、响亮告警、发 delta 让玩家可继续。 */

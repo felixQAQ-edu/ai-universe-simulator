@@ -12,6 +12,7 @@ import com.aiuniverse.server.engine.LooseJson;
 import com.aiuniverse.server.llm.ChatRequest;
 import com.aiuniverse.server.llm.LlmClient;
 import com.aiuniverse.server.llm.LlmException;
+import com.aiuniverse.server.llm.UsageCapture;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -91,11 +92,16 @@ public class WorldGenService {
 	/** 胖调用:累积流式 token 成整串(world-gen 不逐字流给玩家,叙事随 init 一次性下发)。开 json_object。 */
 	private String call(String prompt) {
 		StringBuilder buf = new StringBuilder();
+		UsageCapture usage = new UsageCapture(buf::append);
 		try {
-			llm.streamChat(new ChatRequest(prompt, true), buf::append);
+			llm.streamChat(new ChatRequest(prompt, true), usage);
 		} catch (LlmException e) {
 			// 调用本身失败(网络/非 200/缺 key/流中断)→ 无可修复内容 → 直接 ERROR(干净重来)。
 			throw new WorldGenException("世界生成调用失败,请重新生成", e);
+		}
+		// usage 观测(成本闸门读数,纯日志零逻辑):有 usage 块记一条 INFO,无(mock 等)静默跳过。
+		if (usage.usage() != null) {
+			log.info("[world-gen] usage {}", usage.usage().display());
 		}
 		return buf.toString();
 	}

@@ -9,12 +9,18 @@ import java.util.Deque;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 
 import com.aiuniverse.server.archetype.ArchetypeRegistry;
 import com.aiuniverse.server.llm.ChatRequest;
 import com.aiuniverse.server.llm.LlmClient;
 import com.aiuniverse.server.llm.LlmException;
+import com.aiuniverse.server.llm.LlmUsage;
 import com.aiuniverse.server.llm.TokenStream;
+
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
@@ -29,7 +35,7 @@ class WorldGenServiceTest {
 	private final WorldGenPromptBuilder prompts = new WorldGenPromptBuilder(new ArchetypeRegistry());
 
 	/** 每次 streamChat 弹出下一段整串喂 sink,并记录请求(断言次数 / json_object)。 */
-	private static final class ScriptedLlm implements LlmClient {
+	private static class ScriptedLlm implements LlmClient {
 		final Deque<String> responses = new ArrayDeque<>();
 		final List<ChatRequest> requests = new ArrayList<>();
 
@@ -102,6 +108,48 @@ class WorldGenServiceTest {
 				.isInstanceOf(WorldGenException.class)
 				.hasMessageContaining("重新生成");
 		assertThat(llm.requests).hasSize(2);
+	}
+
+	// ── usage 观测(成本闸门读数):有 usage 记 INFO,无(mock)静默 ──────────
+
+	private ListAppender<ILoggingEvent> attachLogCapture() {
+		ch.qos.logback.classic.Logger logger =
+				(ch.qos.logback.classic.Logger) LoggerFactory.getLogger(WorldGenService.class);
+		ListAppender<ILoggingEvent> appender = new ListAppender<>();
+		appender.start();
+		logger.addAppender(appender);
+		return appender;
+	}
+
+	@Test
+	void logsUsageInfoWhenProviderReportsIt() {
+		ScriptedLlm llm = new ScriptedLlm() {
+			@Override
+			public void streamChat(ChatRequest request, TokenStream sink) {
+				super.streamChat(request, sink);
+				sink.onUsage(new LlmUsage(1200, 800, 2000));
+			}
+		};
+		llm.script(validWorld());
+		ListAppender<ILoggingEvent> logs = attachLogCapture();
+
+		new WorldGenService(llm, prompts, mapper).generate("rules_creepy");
+
+		assertThat(logs.list).anySatisfy(e -> {
+			assertThat(e.getLevel()).isEqualTo(Level.INFO);
+			assertThat(e.getFormattedMessage()).contains("usage").contains("prompt=1200 completion=800 total=2000");
+		});
+	}
+
+	@Test
+	void noUsageBlockStaysSilentNoWarning() {
+		ScriptedLlm llm = new ScriptedLlm(); // mock 形态:从不回调 onUsage
+		llm.script(validWorld());
+		ListAppender<ILoggingEvent> logs = attachLogCapture();
+
+		new WorldGenService(llm, prompts, mapper).generate("rules_creepy");
+
+		assertThat(logs.list).noneSatisfy(e -> assertThat(e.getFormattedMessage()).contains("usage"));
 	}
 
 	@Test
