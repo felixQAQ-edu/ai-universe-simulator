@@ -47,6 +47,7 @@
 - [ADR-012](docs/adr/ADR-012-hybrid-axis-merge-strategy.md) — 混合模式轴合并策略(host 优先 + 语义换皮,引擎不动):融合轴=按 key 并集,撞键 host 优先(修仙×规则怪谈 host=修仙、hp 取气血),外来轴带显示层换皮 override(规则怪谈 san→道心、key/axisRole/lethal 不变引擎无感);合并只在播种层(ArchetypeRegistry 合并函数 + GameInitService 派生),不动引擎/校验/`schemaVersion`(保 0.4);round 1 只产一组彩蛋,通用换皮引擎/ruleForm 融合留后续 ADR
 - [ADR-013](docs/adr/ADR-013-hybrid-fusion-protocol.md) — 混合模式融合协议(内联融合 + init 双值,引擎不动):init 收有序双值(host 在前、向后兼容单值),world-gen 单次胖调用内联注入两 archetype 块 + 一段融合 meta-prompt 产融合世界(mode:hybrid、保 json_object 无哨兵,守 ADR-007 不加预调用),接活 ADR-012 休眠 mergeAxes 喂现有派生;守则真假同墙混合、三根杠杆(数值入守则/先辨体系/真假对射用修仙常识裁)、护道结局,守则不越界判定(守 ADR-011);融合只在播种层+提示词+前端,不动引擎/校验/`schemaVersion`(保 0.4),round 1 手写修仙×规则怪谈一组
 - [ADR-014](docs/adr/ADR-014-fusion-skeleton-parameterization-and-second-combo.md) — 融合骨架参数化 + 第二组合「守则即补给」(rules_creepy × apocalypse):FUSION_SKELETON/FUSION_TURN_DIRECTIVE 抽 per-combo 注入槽(致命轴清单/结局条数从 fusedAxes 派生,真假称呼/资源经济/hint 示例等为文案槽),round-1 文案迁回槽位、prompt 逐字节 parity 锁死;第二组合=缺页的人防工程(真页/假页 + 物证与尸体裁决 + hunger 换皮「补给」),AxisSkin 微扩 behaviorHint override 位(修订 ADR-012 不换清单);首例三致命轴 {hp,san,hunger};引擎/校验/`schemaVersion`(保 0.4)不动
+- [ADR-015](docs/adr/ADR-015-overseas-deployment-form-factor.md) — 境外部署形态(修订 ADR-002,路线 B):同源单容器(Spring Boot + web/dist 拷入 static/,一个部署单元一个域名零 CORS)+ 最小续局落盘(每 saveId 一个 JSON、Engine 纯增量恢复入口、restore 守护测试把 golden 护城河延伸到持久化边界、落盘=视图 1 全量须在 web 根之外)+ 平台选型硬约束清单先行(单副本/SSE 不缓冲/持久卷/出口可达 DeepSeek/成本/环境变量覆盖);ADR-002 因子 ②③ 失效 ①④ 仍立,命中其预登记迁出触发条件;引擎现有行为/校验/`schemaVersion`(保 0.4)零回归
 
 ## 文档
 
