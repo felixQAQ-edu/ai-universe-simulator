@@ -418,3 +418,19 @@
   (`extraDirectives` 槽)、`prompts/world-gen.md`/`prompts/event-loop.md`(round 1.5 段)、[ADR-014](../docs/adr/ADR-014-fusion-skeleton-parameterization-and-second-combo.md)、
   F-016(融合复用性答卷)、F-003(有据恢复口径)。静默 no-op 的玩家体感问题(T5 无感)另入打磨 backlog(非本 F 范围)。
 - **✅ 已关闭(2026-07-14,E'/E'')**:commit `ebedebb`(E')+ `2819bf5`(E'')+ `fd5a2c3`(可观测性)。
+
+## F-018 · 薄适配层承诺实检通过:「适配层还没出生」,迁出成本低于预估(ADR-002 → ADR-015 检验链,✅ 正面发现)
+
+- **日期**:2026-07-16 | **步骤**:上线阶段 ③ 境外部署勘察(路线 B,ADR-015 前置)
+- **背景**:[ADR-002](../docs/adr/ADR-002-backend-form-factor.md) 采纳 CloudBase 云托管时立下薄适配层纪律(业务逻辑写成平台无关的
+  Spring 模块,CloudBase/微信集成只作薄适配层),并预登记「迁出需求出现(脱离微信生态)」为重新审视触发条件。路线 B
+  (境外托管、暂不进微信生态)恰好命中该触发条件——薄适配层假设首次受真实迁移检验。
+- **实检结论(只读勘察)**:**「适配层还没出生」**——`server/.../platform/` 仅有空置占位 `package-info.java`,`pom.xml`
+  零腾讯/CloudBase 依赖,代码无平台专有假设渗漏;DeepSeek key 走环境变量(`api-key-env: DEEPSEEK_API_KEY`),yml 默认
+  `active: mock`。因为 Phase 1–3 从未真正部署过 CloudBase,平台集成代码一行没写 → ADR-002 的承诺以最极端形态兑现:
+  **迁出成本 = 0 行适配层重写,低于 ADR-002 当年预估的「搬容器 + 重写适配层」**。
+- **意义**:接缝纪律(ADR-001 provider 配置表 → ADR-002 平台薄适配层 → ADR-003 前端 api/ 层 → ADR-005 TokenStream)
+  这条链第一次在「换部署衬底」维度被真实需求检验且通过——境外托管形态重估(ADR-015)只需处理部署拓扑与持久化,
+  不涉业务代码迁移。
+- **关联**:[ADR-015](../docs/adr/ADR-015-overseas-deployment-form-factor.md)(据本实检定形态)、
+  [phase3-launch-plan.md §六](../docs/phase3-launch-plan.md)(冲突收口)、`server/.../platform/package-info.java`。
