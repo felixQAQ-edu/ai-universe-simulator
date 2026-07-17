@@ -87,6 +87,7 @@
 - **启动回载**:扫落盘目录按文件名重填 map;saveId=UUID 不受影响、无碰撞、生成逻辑零改。三份轴语义集**无需落盘**——world 里有 `archetypes` 数组,回载时经 `ArchetypeRegistry`(单体/`fusedAxes`)原路重派生,单一真理源。
 - **前端**:localStorage 记 saveId + 续局入口(守 ADR-003:localStorage 访问收进 `api/` 或独立薄封装,逻辑层不碰平台 IO)。
 - **不在范围**:跨设备云存档(冻结的 Phase 2 主题 A)、多存档管理、存档淘汰策略。
+- **CONTEXT 暂缓回写**:持久化格式实为跨模块约定,但按 ADR-013 先例等实现端到端验通后再立字,避免空头约定——实现 slice 收口时重新评估是否回写 CONTEXT §三(届时 v1.5)。
 
 ### 3. 落盘安全(显式决策条款,与 CONTEXT §三.9 三视图消毒同源)
 
