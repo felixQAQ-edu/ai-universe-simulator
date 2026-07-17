@@ -125,6 +125,135 @@ public class Engine {
 	}
 
 	/**
+	 * 从持久化文档回载引擎(ADR-015 C3,<b>纯增量恢复入口</b>:现有构造器与 {@link #apply} 逐字不动)。
+	 * 输入 = {@link #toPersistedState()} 的产出(或 {@code GameSessionManager} 在其上补了
+	 * {@code currentActions}/{@code phaseHint} 的完整存档文档——本方法只读引擎部分,<b>容忍并忽略</b>多余顶层字段)。
+	 *
+	 * <p><b>轴语义集不落盘</b>(ADR-015):三份集合由调用方据 {@code world.archetypes} 经
+	 * {@code ArchetypeRegistry}(单体 / {@code fusedAxes})原路重派生后传入,与播种同一真理源;
+	 * 引擎照旧只据集合 gate、对轴语义无知。
+	 *
+	 * <p><b>非法输入 = 拒载,不半载</b>:缺 {@code schemaVersion}/{@code world}/{@code state} 或字段形态不对,
+	 * 先全量校验后才构造,任何一处不合格即抛 {@link IllegalArgumentException}、不产出半残实例。
+	 * {@code schemaVersion} 只认现行接受集 {@code {"0.2","0.3","0.4"}}(引用现值,不新造版本序列)。
+	 *
+	 * @throws IllegalArgumentException 持久化文档缺字段 / schemaVersion 不识 / 字段形态非法
+	 */
+	public static Engine restore(JsonNode persisted, ObjectMapper mapper, Set<String> accumulationKeys,
+			Map<String, String> axisDisplayNames, Set<String> nonLethalKeys) {
+		// ── 先全量校验(拒载不半载)──
+		if (persisted == null || !persisted.isObject()) {
+			throw new IllegalArgumentException("持久化文档必须是 JSON 对象");
+		}
+		String sv = persisted.path("schemaVersion").asString(null);
+		if (!"0.2".equals(sv) && !"0.3".equals(sv) && !"0.4".equals(sv)) {
+			throw new IllegalArgumentException("schemaVersion 不识(须为 \"0.2\"/\"0.3\"/\"0.4\"):" + sv);
+		}
+		JsonNode world = persisted.get("world");
+		if (world == null || !world.isObject()) {
+			throw new IllegalArgumentException("持久化文档缺 world(或非对象)");
+		}
+		JsonNode state = persisted.get("state");
+		if (state == null || !state.isObject()) {
+			throw new IllegalArgumentException("持久化文档缺 state(或非对象)");
+		}
+		if (!state.path("turn").isNumber()) {
+			throw new IllegalArgumentException("state.turn 缺失或非数值");
+		}
+		if (!state.path("status").isString()) {
+			throw new IllegalArgumentException("state.status 缺失或非字符串");
+		}
+		if (!state.path("timeline").isString()) {
+			throw new IllegalArgumentException("state.timeline 缺失或非字符串");
+		}
+		if (!state.path("logSummary").isString()) {
+			throw new IllegalArgumentException("state.logSummary 缺失或非字符串");
+		}
+		JsonNode logArr = state.get("log");
+		if (logArr == null || !logArr.isArray()) {
+			throw new IllegalArgumentException("state.log 缺失或非数组");
+		}
+		for (JsonNode e : logArr) {
+			if (!e.isObject()) {
+				throw new IllegalArgumentException("state.log 条目必须是对象");
+			}
+		}
+		JsonNode triggeredArr = persisted.get("triggered");
+		if (triggeredArr == null || !triggeredArr.isArray()) {
+			throw new IllegalArgumentException("持久化文档缺 triggered(或非数组)");
+		}
+		JsonNode issuesArr = persisted.get("issues");
+		if (issuesArr == null || !issuesArr.isArray()) {
+			throw new IllegalArgumentException("持久化文档缺 issues(或非数组)");
+		}
+		// ── 校验通过才构造:attributes 由现有构造器从 world.character.attributes 读回(导出时已写入当前值)──
+		Engine eng = new Engine((ObjectNode) world.deepCopy(), mapper, accumulationKeys,
+				axisDisplayNames, nonLethalKeys);
+		eng.turn = state.get("turn").asInt();
+		eng.status = state.get("status").asString();
+		eng.timeline = state.get("timeline").asString();
+		eng.logSummary = state.get("logSummary").asString();
+		for (JsonNode e : logArr) {
+			eng.log.add((ObjectNode) e.deepCopy());
+		}
+		for (JsonNode id : triggeredArr) {
+			eng.triggered.add(id.asInt());
+		}
+		for (JsonNode msg : issuesArr) {
+			eng.issues.add(msg.asString(""));
+		}
+		return eng;
+	}
+
+	/**
+	 * 导出持久化文档(ADR-015 C3,<b>视图 1 全量</b>:含 {@code isTrue}/{@code hiddenLogic},绝不出网,
+	 * 落盘目录须在 web 根之外——安全条款在落盘层 Slice 2 断言)。与另两视图<b>用途不同不得混用</b>:
+	 * {@link #contextJson()} 是喂模型视图(2),{@link #toClientState()} 是出网消毒投影(3)。
+	 *
+	 * <p>格式 = {@code {schemaVersion, world, state{turn,status,timeline,log,logSummary}, triggered, issues}}
+	 * ({@code schemaVersion} 引用 world 现值,不新造版本序列)。两处与内部 world 节点的差异:
+	 * (a) {@code character.attributes} 写入<b>引擎落账后的当前值</b>(内部 world 里还是初值,不写回则
+	 * {@link #restore} 读到旧数值);(b) 剥掉 world 内残留的 {@code state} 键(顶层已有,避免双份陈旧 state)。
+	 * {@code currentActions}/{@code phaseHint} 属 session 层,由 {@code GameSessionManager}(Slice 2)
+	 * 在本文档之上补齐。
+	 */
+	public ObjectNode toPersistedState() {
+		ObjectNode doc = mapper.createObjectNode();
+		doc.put("schemaVersion", world.path("schemaVersion").asString(null));
+		ObjectNode w = world.deepCopy();
+		w.remove("state");
+		ObjectNode character = w.has("character") && w.get("character").isObject()
+				? (ObjectNode) w.get("character")
+				: w.putObject("character");
+		ObjectNode attrs = mapper.createObjectNode();
+		for (Map.Entry<String, Double> e : attributes.entrySet()) {
+			putNumber(attrs, e.getKey(), e.getValue());
+		}
+		character.set("attributes", attrs);
+		doc.set("world", w);
+
+		ObjectNode state = doc.putObject("state");
+		state.put("turn", turn);
+		state.put("status", status);
+		state.put("timeline", timeline);
+		ArrayNode logArr = state.putArray("log");
+		for (ObjectNode e : log) {
+			logArr.add(e.deepCopy());
+		}
+		state.put("logSummary", logSummary);
+
+		ArrayNode triggeredArr = doc.putArray("triggered");
+		for (Integer id : triggered) {
+			triggeredArr.add(id);
+		}
+		ArrayNode issuesArr = doc.putArray("issues");
+		for (String msg : issues) {
+			issuesArr.add(msg);
+		}
+		return doc;
+	}
+
+	/**
 	 * 把模型本回合产出({@code parsed},已回灌 {@code narrative})落进真理之源,并做一致性/泄露核对。
 	 * 严格复刻 Python {@code apply()} 的 1–10 步序列(规格 §5),返回泄露遥测证据(空 = 干净)。
 	 *
