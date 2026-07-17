@@ -1,0 +1,14 @@
+# 构建上下文卫生:只有 web/ 与 server/ 进镜像构建,其余全部排除。
+.git
+.claude
+docs
+prompts
+bakeoff
+**/node_modules
+**/dist
+**/target
+**/data
+**/.env
+**/.env.local
+**/*.log
+.DS_Store

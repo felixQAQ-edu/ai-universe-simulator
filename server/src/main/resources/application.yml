@@ -5,6 +5,20 @@ spring:
 server:
   port: 8080
 
+# ── 平台探针(ADR-015 Slice 3):actuator 只开 health,其余一律不暴露 ──────────
+# liveness  = GET /actuator/health/liveness (进程活着)
+# readiness = GET /actuator/health/readiness(可接流量)
+# 平台不分两组探针时用 GET /actuator/health 即可。
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
 # ── 运行模型 provider 配置表(ADR-001 §5.1 的 Java 落地)──────────────────────
 # 换 provider 只改这张表。真实 API key 永远只进环境变量(api-key-env 指向变量名),
 # 绝不写进本文件 / 代码 / 提交(CONTEXT §三.2、ADR-002)。
