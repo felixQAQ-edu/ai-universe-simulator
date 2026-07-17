@@ -95,6 +95,8 @@ describe('resumeGame', () => {
     expect(s.attributeValues).toEqual({ hp: 70, san: 55 });
     expect(s.availableActions.map((a) => a.id)).toEqual(['A', 'B']);
     expect(s.discoveredRuleIds).toEqual([1]);
+    // 一次性续局确认反馈(下一次选动作即散,chooseAction 清 notice)。
+    expect(s.notice).toBe('已从上次落笔处接续(第 3 回合)');
   });
 
   it('log 为空(起局即崩后的续局)→ 散文兜底世界背景', async () => {
@@ -134,6 +136,8 @@ describe('resumeGame', () => {
     const s = store.getState();
     expect(s.status).toBe('ended');
     expect(s.ending).toEqual({ id: 'survive_dawn', title: '撑到黎明', description: '你活了下来。' });
+    // 回看结局不显续局 notice(结局画面本身就是确认)。
+    expect(s.notice).toBeNull();
   });
 
   it('失败(404/损坏)→ 静默清 saveId 回到 idle,不留错误挡路', async () => {

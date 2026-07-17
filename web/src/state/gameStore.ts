@@ -224,7 +224,9 @@ export function createGameStore(api: GameApi) {
               ? { id: reached.id, title: reached.title, description: reached.description ?? '' }
               : null,
             errorMessage: null,
-            notice: null,
+            // 一次性续局确认反馈(非预警):让玩家知道接上了、从哪接的;下一次选动作即散
+            // (chooseAction 清 notice),不加常驻 UI。
+            notice: ended ? null : `已从上次落笔处接续(第 ${res.world.state?.turn ?? 0} 回合)`,
           });
         } catch {
           // 续局失败(404/损坏/网络):静默清 saveId 回到正常起局,不弹错误挡路。
