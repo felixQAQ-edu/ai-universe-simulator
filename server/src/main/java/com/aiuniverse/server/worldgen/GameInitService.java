@@ -1,5 +1,6 @@
 package com.aiuniverse.server.worldgen;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -109,10 +110,30 @@ public class GameInitService {
 		for (String id : ids) {
 			validateArchetype(id); // 非已知/未激活 → IllegalArgumentException
 		}
-		if (ids.size() == 1) {
-			return archetypes.meta(ids.get(0)).attributes();
+		return archetypes.resolveAxes(ids); // 单体/融合共用派生;未登记组合 → IllegalArgumentException
+	}
+
+	/**
+	 * 续局查询(ADR-015 Slice 2,{@code GET /api/game/{saveId}/state} 的业务面):把一条已在内存表
+	 * (含启动回载)的会话状态投影给前端。<b>复用 {@link InitResponse} 形态,不新造 DTO</b>;
+	 * {@code openingNarrative} 恒空串(transient 字段本就不落盘,ADR-007 §三.12——前端续局散文由
+	 * {@code world.state.log} 末条补位)。<b>消毒纪律</b>:world 走 {@code toClientState()} 视图 3,
+	 * 绝不漏视图 1(落盘文档)。
+	 *
+	 * @return 会话不存在 → {@code null}(controller 映 404,前端静默清 saveId 回正常起局)
+	 */
+	public InitResponse resume(String saveId) {
+		GameSession session = sessions.get(saveId);
+		if (session == null) {
+			return null;
 		}
-		return archetypes.fusedAxes(ids.get(0), ids.get(1)); // 未登记组合 → IllegalArgumentException
+		ObjectNode clientWorld = session.engine().toClientState();
+		List<String> ids = new ArrayList<>();
+		clientWorld.path("archetypes").forEach(a -> ids.add(a.asString("")));
+		List<AttributeAxis> axes = archetypes.resolveAxes(ids); // 与播种/回载同一真理源
+		ArrayNode actions = session.currentActions();
+		return new InitResponse(saveId, clientWorld, "",
+				actions == null ? mapper.createArrayNode() : actions.deepCopy(), attributeMeta(axes));
 	}
 
 	/** 单个 archetype 入参校验(ADR-008 决策 4):非已知枚举 → 非法;已知但未激活 → 未开放。两者均 → 400。 */

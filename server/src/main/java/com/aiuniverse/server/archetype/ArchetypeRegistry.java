@@ -98,6 +98,25 @@ public class ArchetypeRegistry {
 		return List.copyOf(active.values());
 	}
 
+	/**
+	 * 由有序 archetype 列表解析数值轴集(播种 / 启动回载 / 续局三处共用的单一真理源,ADR-015):
+	 * 长度 1 → 单体轴集;长度 2 → 融合轴集(host 在前,委托 {@link #fusedAxes});其余非法。
+	 *
+	 * @throws IllegalArgumentException 空表 / 长度 &gt;2 / archetype 未激活 / 融合组合未登记
+	 */
+	public List<AttributeAxis> resolveAxes(List<String> ids) {
+		if (ids == null || ids.isEmpty()) {
+			throw new IllegalArgumentException("未指定 archetype");
+		}
+		if (ids.size() == 1) {
+			return meta(ids.get(0)).attributes();
+		}
+		if (ids.size() == 2) {
+			return fusedAxes(ids.get(0), ids.get(1));
+		}
+		throw new IllegalArgumentException("不支持的 archetype 组合长度:" + ids);
+	}
+
 	// ── 轴合并(ADR-012 混合模式 round 1;纯函数、暂未接线的休眠件)──────────────
 
 	/**

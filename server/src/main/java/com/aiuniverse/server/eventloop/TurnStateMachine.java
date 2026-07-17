@@ -1,6 +1,9 @@
 package com.aiuniverse.server.eventloop;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+
+import com.aiuniverse.server.persistence.SessionStore;
 
 /**
  * 单回合状态机 + 守卫(规格 §3,确定性、零 LLM 零流式)。持有注入的 {@link TurnExecutor},
@@ -22,9 +25,17 @@ import org.springframework.stereotype.Component;
 public final class TurnStateMachine {
 
 	private final TurnExecutor executor;
+	private final SessionStore store;
 
+	/** 纯内存形态(测试 / Slice 2 之前行为)。 */
 	public TurnStateMachine(TurnExecutor executor) {
+		this(executor, SessionStore.NOOP);
+	}
+
+	@Autowired
+	public TurnStateMachine(TurnExecutor executor, SessionStore store) {
 		this.executor = executor;
+		this.store = store;
 	}
 
 	/**
@@ -44,6 +55,9 @@ public final class TurnStateMachine {
 		}
 		try {
 			TurnResult result = executor.execute(session, actionId, sink);
+			// 写盘时机 = 临界区尾部(ADR-015 勘察 2):executor 返回后、相位放回之前——
+			// 忙态守卫保证每 saveId 单写者,零新锁;best-effort 不抛(写失败局面继续活在内存)。
+			store.persist(session);
 			session.phase().set(result.ended() ? TurnPhase.ENDED : TurnPhase.AWAITING_ACTION);
 		} catch (RuntimeException e) {
 			// executor 自身已尽力降级(§6);跑到这里是意料外故障 → 放回 AWAITING 不锁死该存档。
