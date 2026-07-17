@@ -31,3 +31,6 @@ build/
 
 ### VS Code ###
 .vscode/
+
+# 会话落盘目录(ADR-015 C3,默认 ./data;本地开发档不入库)
+data/
