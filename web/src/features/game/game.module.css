@@ -1180,3 +1180,30 @@
   line-height: 1.7;
   color: var(--text);
 }
+
+/* ── 续局入口(ADR-015 Slice 2)──────────────────────────────── */
+.resumeBtn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  width: 100%;
+  margin: 0 0 1rem;
+  padding: 0.8rem 1.2rem;
+  background: transparent;
+  border: 1px dashed var(--muted);
+  border-radius: 14px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.resumeTitle {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.resumeHint {
+  font-size: 0.78rem;
+  color: var(--muted);
+}

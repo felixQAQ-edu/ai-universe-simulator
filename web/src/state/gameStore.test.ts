@@ -100,6 +100,9 @@ function makeApi(initBehavior: 'ok' | 'fail' = 'ok', listBehavior: 'ok' | 'fail'
       if (initBehavior === 'fail') throw new GameApiError('world_gen_failed', '世界生成失败');
       return INIT_RESULT;
     },
+    async resumeGame() {
+      throw new GameApiError('session_not_found', '存档不存在或已失效');
+    },
     openTurnStream() {
       lastStream = new FakeTurnStream();
       return lastStream;

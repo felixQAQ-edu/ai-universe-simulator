@@ -31,6 +31,8 @@ export function ArchetypeSelect() {
   const error = useGameStore((s) => s.archetypesError);
   const loadArchetypes = useGameStore((s) => s.loadArchetypes);
   const startGame = useGameStore((s) => s.startGame);
+  const resumableSaveId = useGameStore((s) => s.resumableSaveId);
+  const resumeGame = useGameStore((s) => s.resumeGame);
 
   // 误入手势(纯组件 state,零持久化 —— 离开选择屏即遗忘,回来要重新「误入」)。
   const [fusionStages, setFusionStages] = useState<FusionStages>(INITIAL_FUSION_STAGES);
@@ -49,6 +51,14 @@ export function ArchetypeSelect() {
         <h1 className={styles.title}>选择你的世界</h1>
         <p className={styles.muted}>每一个世界都由 AI 即时生成,真假难辨,不可回头。</p>
       </header>
+
+      {/* 续局入口(ADR-015 Slice 2):localStorage 有上局 saveId 才显;失败由 store 静默清 saveId 回到本屏。 */}
+      {resumableSaveId && (
+        <button type="button" className={styles.resumeBtn} onClick={() => void resumeGame()}>
+          <span className={styles.resumeTitle}>继续上局</span>
+          <span className={styles.resumeHint}>世界线仍在,从上次落笔处接续</span>
+        </button>
+      )}
 
       {loading && archetypes.length === 0 ? (
         <div className={styles.centered}>

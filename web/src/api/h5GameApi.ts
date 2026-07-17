@@ -63,6 +63,28 @@ export function createH5GameApi(baseUrl = ''): GameApi {
       return { ...data, attributes: Array.isArray(data.attributes) ? data.attributes : [] };
     },
 
+    async resumeGame(saveId: string): Promise<InitResult> {
+      let resp: Response;
+      try {
+        resp = await fetch(`${baseUrl}/api/game/${saveId}/state`, { method: 'GET' });
+      } catch (e) {
+        throw new GameApiError('network', e instanceof Error ? e.message : '网络错误');
+      }
+      if (!resp.ok) {
+        const body = await safeJson(resp);
+        const err = (body as { error?: { code?: string; message?: string } } | null)?.error;
+        throw new GameApiError(
+          err?.code ?? (resp.status === 404 ? 'session_not_found' : 'resume_failed'),
+          err?.message ?? `续局失败(HTTP ${resp.status})`,
+        );
+      }
+      const data = (await safeJson(resp)) as InitResult | null;
+      if (!data || !data.saveId || !data.world) {
+        throw new GameApiError('bad_response', '续局响应格式异常');
+      }
+      return { ...data, attributes: Array.isArray(data.attributes) ? data.attributes : [] };
+    },
+
     openTurnStream(saveId: string, turn: number, actionId: string): TurnStream {
       const handlers = {
         narrative: [] as Array<(t: string) => void>,

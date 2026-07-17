@@ -67,13 +67,51 @@ export interface GameState {
   /** 可恢复的回合级提示(非法动作 / 忙态),展示后玩家可重选,状态留在 awaiting。 */
   notice: string | null;
 
+  /** localStorage 里可续的上局 saveId(ADR-015 Slice 2;无则选择屏不显「继续上局」入口)。 */
+  resumableSaveId: string | null;
+
   /** 拉取选择屏目录(选择屏 mount 时调用)。失败置 archetypesError,可重试。 */
   loadArchetypes: () => Promise<void>;
   /** 开局:单 archetype = 单体;有序数组(host 在前)= 融合世界(ADR-013)。 */
   startGame: (archetypes: Archetype | Archetype[]) => Promise<void>;
+  /**
+   * 续上局(ADR-015 Slice 2):经 api.resumeGame 恢复会话状态。散文区由 world.state.log 末条补位
+   * (openingNarrative 不落盘);ended 局照样可回看结局。失败(404/损坏/网络)→ 静默清 saveId
+   * 回到选择屏,不弹错误挡路。
+   */
+  resumeGame: () => Promise<void>;
   chooseAction: (actionId: string) => void;
   /** 离开/重开时清理在途回合流,回到选择屏(保留已拉取的目录)。 */
   reset: () => void;
+}
+
+// ── 续局 saveId 持久化(ADR-015 Slice 2)────────────────────────────────
+// 本刀是 web/src 首次引入 localStorage:纯展示层状态(记住上一局的 saveId),不新立抽象;
+// 全部读写走下面三个 helper 并 try/catch(隐私模式/无 storage 环境优雅降级为「无续局入口」)。
+const SAVE_ID_KEY = 'aiuniverse.saveId';
+
+function readSavedId(): string | null {
+  try {
+    return globalThis.localStorage?.getItem(SAVE_ID_KEY) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function writeSavedId(saveId: string): void {
+  try {
+    globalThis.localStorage?.setItem(SAVE_ID_KEY, saveId);
+  } catch {
+    /* 写不进就没有续局入口,不影响本局 */
+  }
+}
+
+function clearSavedId(): void {
+  try {
+    globalThis.localStorage?.removeItem(SAVE_ID_KEY);
+  } catch {
+    /* 同上 */
+  }
 }
 
 const INITIAL = {
@@ -112,6 +150,8 @@ export function createGameStore(api: GameApi) {
       archetypes: [] as ArchetypeSummary[],
       archetypesLoading: false,
       archetypesError: null,
+      // 同样在 INITIAL 之外:reset(换个世界)不该抹掉「继续上局」入口。
+      resumableSaveId: readSavedId(),
 
       async loadArchetypes() {
         if (get().archetypesLoading || get().archetypes.length > 0) return;
@@ -132,8 +172,10 @@ export function createGameStore(api: GameApi) {
         try {
           const res = await api.initGame(archetypes);
           const attrs = res.world.character?.attributes ?? {};
+          writeSavedId(res.saveId); // 起局成功即记住,起局即崩也能续(与后端 init 后写盘对齐)
           set({
             status: 'awaiting',
+            resumableSaveId: res.saveId,
             saveId: res.saveId,
             world: res.world,
             openingNarrative: res.openingNarrative,
@@ -150,6 +192,44 @@ export function createGameStore(api: GameApi) {
         } catch (e) {
           const msg = e instanceof GameApiError ? e.message : '世界生成失败,请重新生成';
           set({ status: 'initError', errorMessage: msg });
+        }
+      },
+
+      async resumeGame() {
+        const saveId = get().resumableSaveId;
+        if (!saveId || get().status === 'initializing') return;
+        activeStream?.close();
+        activeStream = null;
+        set({ ...INITIAL, status: 'initializing' });
+        try {
+          const res = await api.resumeGame(saveId);
+          const attrs = res.world.character?.attributes ?? {};
+          const log = res.world.state?.log ?? [];
+          // 续局散文补位:log 末条叙事(openingNarrative 不落盘)→ 兜底世界背景。
+          const narrative = (log.length > 0 ? log[log.length - 1].narrative : '') || res.world.world?.background || '';
+          const ended = res.world.state?.status === 'ended';
+          const reached = ended ? res.world.endings.find((e) => e.reached) : undefined;
+          set({
+            status: ended ? 'ended' : 'awaiting',
+            saveId: res.saveId,
+            world: res.world,
+            openingNarrative: '',
+            narrative,
+            turn: res.world.state?.turn ?? 0,
+            attributeAxes: res.attributes ?? [],
+            attributeValues: { ...attrs },
+            discoveredRuleIds: res.world.rules.filter((r) => r.discovered).map((r) => r.id),
+            availableActions: res.availableActions,
+            ending: reached
+              ? { id: reached.id, title: reached.title, description: reached.description ?? '' }
+              : null,
+            errorMessage: null,
+            notice: null,
+          });
+        } catch {
+          // 续局失败(404/损坏/网络):静默清 saveId 回到正常起局,不弹错误挡路。
+          clearSavedId();
+          set({ ...INITIAL, status: 'idle', resumableSaveId: null });
         }
       },
 

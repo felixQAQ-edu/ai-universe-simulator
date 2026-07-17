@@ -177,6 +177,14 @@ export interface GameApi {
   initGame(archetypes: Archetype | readonly Archetype[]): Promise<InitResult>;
 
   /**
+   * 续局查询(ADR-015 Slice 2:GET /api/game/{saveId}/state)。响应复用 InitResult 形态
+   * (openingNarrative 恒空串——transient 字段不落盘;续局散文由 world.state.log 末条补位)。
+   * @throws GameApiError 存档不存在/已失效(code=session_not_found,404)或网络失败——
+   *         调用方据此静默清 saveId 回正常起局。
+   */
+  resumeGame(saveId: string): Promise<InitResult>;
+
+  /**
    * 开一条回合流(ADR-006)。立即返回 TurnStream(请求在 microtask 后发起),
    * 调用方同步注册回调即可。
    */
