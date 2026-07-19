@@ -1,0 +1,54 @@
+# ADR-015 Slice 3 第 3 步 · Fly.io 部署配置(平台=Fly.io,区域 syd,Felix 2026-07-20 拍板)
+#
+# 纪律:所有要点显式写死、不吃平台默认、不用 fly launch 自动检测生成。
+# 改本文件 = 改部署形态,须过审查;部署一律 Felix 手动 `fly deploy`(无自动流水线)。
+# 操作清单与冒烟判定见 docs/phase3-fly-deploy-runbook.md。
+
+# app 名建议 wanjie-ai(万界);Fly app 名全局唯一,若被占用改 wanjie-ai-syd 之类,
+# 改名只动这一行 + runbook 命令里的名字。
+app = "wanjie-ai"
+primary_region = "syd"
+
+[build]
+  # 仓库根三阶段 Dockerfile(web 构建 → server 构建 → JRE 运行层);
+  # fly deploy 默认远程构建,构建上下文卫生由 .dockerignore 保证。
+  dockerfile = "Dockerfile"
+
+[env]
+  # 落盘目录显式指到持久卷挂载点(防 Dockerfile/application.yml 默认值漂移;三处现值一致=/data)。
+  AIUNIVERSE_SESSION_STORE_DIR = "/data"
+  # AIUNIVERSE_LLM_ACTIVE 刻意不在此写:
+  #   阶段 1(mock 冒烟)不设 → application.yml 默认 active=mock,不读 key 不花钱;
+  #   阶段 2(真 key)由 Felix 手动 `fly secrets` 注入(secret 本质是加密 env,
+  #   不用为切阶段改动这份已审查文件)。两阶段口径见 runbook。
+
+[mounts]
+  # 会话落盘卷(ADR-015 C3:每 saveId 一个 JSON)。卷须先手动创建且区域=syd。
+  source = "wanjie_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  # ADR-015 硬约束①:休眠=毒药(冷启 JVM 数十秒,起局/回合直接超时)。
+  # auto_stop = "off" + min_machines_running = 1 ⇒ 机器 7×24 常驻、永不缩零;
+  # auto_start = true 仅作兜底:若机器因故意外处于 stopped,来流量仍会拉起而非黑洞
+  # (常驻已由前两项保证,此项不构成「按需启停」)。
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    # 探针打 Boot actuator(仅 health 暴露,application.yml 已锁);
+    # grace_period 覆盖 JVM 冷启,避免刚部署即被判不健康而重启循环。
+    interval = "15s"
+    timeout = "5s"
+    grace_period = "45s"
+    method = "GET"
+    path = "/actuator/health"
+
+[[vm]]
+  # 单副本钉死(ADR-015 硬约束:单副本 + 忙态守卫的内存表语义)。
+  # 首次 deploy 必须带 --ha=false,否则 Fly 默认起 2 台机(见 runbook 常见坑)。
+  size = "shared-cpu-1x"
+  memory = "512mb"

@@ -12,3 +12,4 @@ bakeoff
 **/.env.local
 **/*.log
 .DS_Store
+fly.toml
