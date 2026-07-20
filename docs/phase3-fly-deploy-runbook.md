@@ -165,19 +165,21 @@ fly logs | grep -i usage
 
 ---
 
-## 四、冒烟结果记录(冒烟时回填;过/不过/数值,一是一二是一)
+## 四、冒烟结果记录(2026-07-20 回填;附录 B 全项通过)
 
 | # | 项 | 结果 | 数值/备注 |
 |---|-----|------|----------|
-| ① | health 三端点 + GET / | ⬜ | |
-| ② | SSE 不缓冲(mock 逐字) | ⬜ | |
-| ⑤ | active 覆盖生效(非 mock) | ⬜ | |
-| ⑥ | 真 key 起局 + /data 落盘 | ⬜ | |
-| ⑦ | total_tokens 线上有无 | ⬜ | 真值 / -1 |
-| ⑧ | 续局档 1(刷新) | ⬜ | |
-| ⑧ | 续局档 2(redeploy 后) | ⬜ | |
-| ⑨ | world-gen 耗时 / 回合 TTFT | ⬜ | |
-| ⑩ | 真机整局(Felix 拍板) | ⬜ | |
+| ① | health 三端点 + GET / | ✅ 过 | |
+| ② | SSE 不缓冲(mock 逐字) | ✅ 过 | 手机+桌面叙事逐字流;mock init 阻塞数分钟未被掐断(§⑨ 预埋 60s idle 风险未现形) |
+| ⑤ | active 覆盖生效(非 mock) | ✅ 过 | |
+| ⑥ | 真 key 起局 + /data 落盘 | ✅ 过 | `55e9834c` JSON 5917B,属主 appuser |
+| ⑦ | total_tokens 线上有无 | ✅ 真值 | 5429 / 3675 / 3712;-1 容错备而不用,launch-plan §六挂账尾巴关闭 |
+| ⑧ | 续局档 1(刷新) | ✅ 过 | |
+| ⑧ | 续局档 2(redeploy 后) | ✅ 过 | 卷跨 deploy 保留实证 |
+| ⑨ | world-gen 耗时 / 回合 TTFT | ✅ 过 | 首局 ~120s、次局 ~15s(本地基线 ~10s);稳态与本地持平,首局慢判为冷因素非稳定跨境代价,sin 迁移不因延迟提前 |
+| ⑩ | 真机整局(Felix 拍板) | ✅ 过 | 2026-07-20 手机整局体感通过 |
+
+另记两条部署事实:远程构建 amd64 镜像实测 **118MB**(远小于本机 arm64 520MB);首局 ~120s 为单次观察不立 FINDINGS(记 ROADMAP 日志)。
 
 ---
 
@@ -193,7 +195,7 @@ fly logs | grep -i usage
 - **secrets 粘贴后想验证**:只看 `fly secrets list` 的名字与摘要,**不要**用任何方式
   回显明文(不 `fly ssh console -C 'env'` 到聊天/截图里)。
 
-## 六、收口(冒烟全过 + Felix 拍板后,另起执行,本文不含)
+## 六、收口(已执行,2026-07-20)
 
-ROADMAP Slice 3 收口条 + ADR-015 附录 B 回填 + CONTEXT v1.5 评估回 Project 窗口对齐
-→ ff 合并 + push 等点头。
+ROADMAP Slice 3 收口条 + ADR-015 附录 B 回填 ✅ 已落档;CONTEXT v1.5 回写评估结论
+待回 Project 窗口对齐(本轮不动 CONTEXT)→ ff 合并 + push 等点头。
