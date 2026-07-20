@@ -135,10 +135,10 @@
 
 > 本 ADR 为形态决策,实现另起 slice;以下为骨架,不含部署代码。
 
-1. ⏳ **落盘 + restore slice**:持久化格式定型 → Engine restore 工厂(纯增量)→ `GameSessionManager` 写盘/回载 → **restore 守护测试**(验收硬门,见附录 A)→ 落盘路径安全断言 → 前端 localStorage saveId + 续局入口。
-2. ⏳ **容器 slice**:Dockerfile(多阶段:web build → dist 拷入 static/ → jar)+ 探针端点决策落地。
-3. ⏳ **平台选型 slice**:候选平台对着 §最终决策.4 六条硬约束逐项验(含跨境延迟实测),选定后部署。
-4. ⏳ **部署后首次真 key 冒烟**:按附录 B 清单验收。
+1. ✅(2026-07-17,Slice 1/2)**落盘 + restore slice**:持久化格式定型 → Engine restore 工厂(纯增量)→ `GameSessionManager` 写盘/回载 → **restore 守护测试**(验收硬门,见附录 A,首过)→ 落盘路径安全断言 → 前端 localStorage saveId + 续局入口。
+2. ✅(2026-07-17,Slice 3 第 1 步)**容器 slice**:三阶段 Dockerfile(web build → dist 拷入 static/ → jar)+ 探针(actuator 只开 health)。
+3. ✅(2026-07-20,Slice 3 第 3 步)**平台选型 slice**:**Fly.io,区域 syd**,六条硬约束逐项实测全过(含跨境延迟,见实际效果);`fly.toml` 全显式落仓 + 部署 runbook。
+4. ✅(2026-07-20)**部署后首次真 key 冒烟**:附录 B 全项通过 + Felix 真机整局拍板(结果见实际效果)。
 5. 用 `/roadmap-update` 同步 ROADMAP §五 / launch-plan。
 
 ## 附录 A · restore 守护测试(A 项验收硬门)
@@ -157,9 +157,22 @@
 - **出口延迟体感**:境外区域调 `api.deepseek.com` 的 TTFT 与逐字流速率,对照本地直连基线。
 - 线上跑的是真 provider 非 mock(启动日志确认 `active` 覆盖生效)。
 
-## 实际效果(事后补充)
+## 实际效果(2026-07-20 回填:Fly.io syd 首次部署 + 附录 B 冒烟全过,Felix 真机拍板通过)
 
-*平台选定 + 首次部署后回填:六条硬约束逐项实测结果(尤其 SSE 不缓冲与跨境 TTFT)、托管月固定成本占 ¥200 预算比例、restore 守护测试是否首过。*
+平台选定 **Fly.io,区域 syd**(冒烟阶段 Felix 是唯一用户,悉尼延迟最低拍板体感最准;国内朋友测试前 `fly volumes fork` + `fly machine clone` 迁 sin,平台内单命令级)。单副本 shared-cpu-1x/512MB + 1GB 卷挂 `/data`,公网 **https://wanjie-ai.fly.dev**。配置全显式落仓(`fly.toml`),部署手动 `fly deploy`、无自动流水线;操作与判定见 [phase3-fly-deploy-runbook.md](../phase3-fly-deploy-runbook.md)。
+
+**六条硬约束逐项实测**:
+
+1. **单副本可钉死** ✅:`--ha=false` + `auto_stop_machines="off"` + `min_machines_running=1`,恒 1 台 started、不休眠。
+2. **SSE 不缓冲** ✅:mock 逐字 echo(40ms/字,最苛刻流式载荷)手机+桌面均逐 token 到达;真 key 叙事逐字流正常。另记:mock init 阻塞数分钟未被反代掐断——runbook 预埋的「60s idle 超时掐纯 JSON 胖调用」风险**未现形**。
+3. **持久卷** ✅:起局落盘进卷(`55e9834c` JSON 5917B,属主 appuser);续局两档全过——刷新续局 + **redeploy 后续局(卷跨 deploy 保留实证)**。
+4. **出口可达 api.deepseek.com** ✅:world-gen 首局 ~120s、次局 ~15s(本地直连基线 ~10s)——**稳态与本地持平,首局慢判为冷因素非稳定跨境代价**;sin 迁移不因延迟提前,仍留作国内测试前动作。
+5. **托管费** ✅:常驻机 ≈US$3.2/月 + 卷 ≈US$0.15/月,¥200/月预算占比极小,大头留给 LLM。
+6. **env 注入** ✅:`fly secrets` 注入 `DEEPSEEK_API_KEY` + `AIUNIVERSE_LLM_ACTIVE=deepseek-v4-flash`(启动日志确认 active 覆盖生效、线上非 mock);落盘目录实名 `AIUNIVERSE_SESSION_STORE_DIR=/data`(fly.toml [env] 显式写)。
+
+**附录 B 其余项**:`total_tokens` 线上**回真值**(实测 5429 / 3675 / 3712;-1 容错备而不用,launch-plan §六挂账尾巴关闭);restore 守护测试(附录 A)Slice 1 落地即首过(2026-07-17);Felix 手机浏览器完整玩一局融合世界,体感通过。
+
+**另两条部署事实**:远程构建 amd64 镜像实测 **118MB**(远小于本机 arm64 520MB);首局 ~120s 为单次观察、不立 FINDINGS(不成模式,记 ROADMAP 日志)。
 
 ## 跟其他文档的交叉引用
 
