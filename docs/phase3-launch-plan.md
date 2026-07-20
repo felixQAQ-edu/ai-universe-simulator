@@ -177,7 +177,7 @@
 
 **④ 待办挂账**:
 
-- **`prompt_cache_hit_tokens` 观测**(2026-07-16 挂):LLM usage 观测本次只透传三个标准字段;DeepSeek usage 块另带方言字段 `prompt_cache_hit_tokens`/`prompt_cache_miss_tokens`。event-loop 每回合全量回传骨架 → 缓存命中率应较高,而缓存命中价差大、**直接影响 ¥200/月 预算换算**——④ 做成本换算时把这对字段一并解析观测。
+- **`prompt_cache_hit_tokens` 观测**(2026-07-16 挂;**已收账 2026-07-20**,commit `46a22b8`):LLM usage 观测当时只透传三个标准字段;DeepSeek usage 块另带方言字段 `prompt_cache_hit_tokens`/`prompt_cache_miss_tokens`,缓存命中价差 50 倍、**直接影响 ¥200/月 预算换算**。已补:`LlmUsage` 加 `cacheHitTokens`/`cacheMissTokens`(缺失记 -1)+ `OpenAiStreamDecoder` 解析,usage INFO 自动带出——线上跑几局即得真实命中率,供 ④ 定阈值时精化换算表(勘察报告 2026-07-20 已回窗口)。
 
 ---
 
