@@ -154,7 +154,7 @@
 
 **部署后首次真 key 冒烟 · 验收清单挂账(随各腿落地追加)**:
 
-- **usage 块 `total_tokens` 线上实际有无**(2026-07-16 挂):LLM usage 观测已落地(纯观测零逻辑,`[world-gen]`/`[event-loop]` usage INFO),但仓库录制样本里 DeepSeek 方言**缺 `total_tokens`**(解析已容错记 -1、日志显示 `-`,不自行推算)——部署后首次真 key 冒烟看这条 INFO,确认线上到底回不回 `total_tokens`。
+- **usage 块 `total_tokens` 线上实际有无**(2026-07-16 挂):LLM usage 观测已落地(纯观测零逻辑,`[world-gen]`/`[event-loop]` usage INFO),但仓库录制样本里 DeepSeek 方言**缺 `total_tokens`**(解析已容错记 -1、日志显示 `-`,不自行推算)——部署后首次真 key 冒烟看这条 INFO,确认线上到底回不回 `total_tokens`。**→ 已收账(2026-07-20,Fly.io syd 首次真 key 冒烟)**:线上**回真值**(实测 5429 / 3675 / 3712),-1 容错备而不用,本尾巴关闭(结果入 [ADR-015](adr/ADR-015-overseas-deployment-form-factor.md) 实际效果)。
 
 ---
 
