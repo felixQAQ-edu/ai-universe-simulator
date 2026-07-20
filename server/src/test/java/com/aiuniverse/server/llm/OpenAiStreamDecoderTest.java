@@ -78,16 +78,19 @@ class OpenAiStreamDecoderTest {
 
 	@Test
 	void parsesUsageBlockFromRecordedSample() throws Exception {
-		// 录制的 DeepSeek 样本:usage 有 prompt/completion、缺 total_tokens(方言)→ total 容错记 -1。
+		// 录制的 DeepSeek 样本:usage 有 prompt/completion + prompt_cache_hit/miss(方言)、
+		// 缺 total_tokens → total 容错记 -1;缓存两字段取真值(④ 成本闸门的命中率读数)。
 		try (InputStream in = getClass().getResourceAsStream("/deepseek-sse-sample.txt")) {
 			UsageCapture cap = decodeCapturing(new InputStreamReader(in, StandardCharsets.UTF_8));
-			assertThat(cap.usage()).isEqualTo(new LlmUsage(12, 3, -1));
-			assertThat(cap.usage().display()).isEqualTo("prompt=12 completion=3 total=-");
+			assertThat(cap.usage()).isEqualTo(new LlmUsage(12, 3, -1, 8, 4));
+			assertThat(cap.usage().display())
+					.isEqualTo("prompt=12 completion=3 total=- cacheHit=8 cacheMiss=4");
 		}
 	}
 
 	@Test
 	void parsesFullOpenAiStyleUsageIncludingTotal() {
+		// 完整 OpenAI 口径:有 total、无 prompt_cache_*(非 DeepSeek 方言)→ 缓存两字段容错记 -1。
 		String sse = """
 				data: {"choices":[{"delta":{"content":"A"}}]}
 
@@ -96,7 +99,11 @@ class OpenAiStreamDecoderTest {
 				data: [DONE]
 				""";
 		UsageCapture cap = decodeCapturing(new StringReader(sse));
+		assertThat(cap.usage()).isEqualTo(new LlmUsage(100, 20, 120, -1, -1));
+		// 三参便捷构造 = 缓存字段缺失(-1),与解析结果同值(既有调用点语义不变)。
 		assertThat(cap.usage()).isEqualTo(new LlmUsage(100, 20, 120));
+		assertThat(cap.usage().display())
+				.isEqualTo("prompt=100 completion=20 total=120 cacheHit=- cacheMiss=-");
 	}
 
 	@Test

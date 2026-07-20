@@ -75,7 +75,9 @@ public class OpenAiStreamDecoder {
 			sink.onUsage(new LlmUsage(
 					usage.path("prompt_tokens").asLong(-1),
 					usage.path("completion_tokens").asLong(-1),
-					usage.path("total_tokens").asLong(-1)));
+					usage.path("total_tokens").asLong(-1),
+					usage.path("prompt_cache_hit_tokens").asLong(-1),
+					usage.path("prompt_cache_miss_tokens").asLong(-1)));
 		}
 		JsonNode choices = node.path("choices");
 		if (!choices.isArray() || choices.isEmpty()) {
