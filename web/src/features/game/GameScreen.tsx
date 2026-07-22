@@ -34,13 +34,17 @@ function LoadingScreen() {
 
 function InitErrorScreen() {
   const errorMessage = useGameStore((s) => s.errorMessage);
+  const errorCode = useGameStore((s) => s.errorCode);
   const lastArchetype = useGameStore((s) => s.lastArchetype);
   const startGame = useGameStore((s) => s.startGame);
   const reset = useGameStore((s) => s.reset);
+  // 成本闸门拦截(ADR-016)不是「失败」——标题与副标题(「今日名额已满」)口径一致;
+  // world-gen 救不回 / 网络等真失败仍报「世界生成失败」。
+  const title = errorCode === 'quota_exceeded' ? '今日名额已满' : '世界生成失败';
   return (
     <main className={styles.screen}>
       <div className={styles.centered}>
-        <h1 className={styles.title}>世界生成失败</h1>
+        <h1 className={styles.title}>{title}</h1>
         <p className={styles.muted}>{errorMessage ?? '请重新生成。'}</p>
         <button
           type="button"

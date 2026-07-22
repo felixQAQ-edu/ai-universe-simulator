@@ -64,6 +64,11 @@ export interface GameState {
   ending: EndingPayload | null;
   /** 不可恢复失败信息(init 阶段)。 */
   errorMessage: string | null;
+  /**
+   * init 失败归一 code(来自 GameApiError.code):`quota_exceeded`(成本闸门 429,ADR-016)
+   * vs `world_gen_failed`/网络等真失败——错误屏据此切标题(配额拦截不是「失败」)。
+   */
+  errorCode: string | null;
   /** 可恢复的回合级提示(非法动作 / 忙态),展示后玩家可重选,状态留在 awaiting。 */
   notice: string | null;
 
@@ -128,6 +133,7 @@ const INITIAL = {
   availableActions: [] as AvailableAction[],
   ending: null,
   errorMessage: null,
+  errorCode: null,
   notice: null,
 };
 
@@ -195,7 +201,8 @@ export function createGameStore(api: GameApi) {
           });
         } catch (e) {
           const msg = e instanceof GameApiError ? e.message : '世界生成失败,请重新生成';
-          set({ status: 'initError', errorMessage: msg });
+          const code = e instanceof GameApiError ? e.code : null;
+          set({ status: 'initError', errorMessage: msg, errorCode: code });
         }
       },
 

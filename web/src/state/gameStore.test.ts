@@ -89,7 +89,10 @@ const ARCHETYPE_LIST: ArchetypeSummary[] = [
 ];
 
 /** 建一个 mock GameApi;initBehavior 控制成功/失败;openTurnStream 返回可控流。 */
-function makeApi(initBehavior: 'ok' | 'fail' = 'ok', listBehavior: 'ok' | 'fail' = 'ok') {
+function makeApi(
+  initBehavior: 'ok' | 'fail' | 'quota' = 'ok',
+  listBehavior: 'ok' | 'fail' = 'ok',
+) {
   let lastStream: FakeTurnStream | null = null;
   const api: GameApi = {
     async listArchetypes() {
@@ -98,6 +101,9 @@ function makeApi(initBehavior: 'ok' | 'fail' = 'ok', listBehavior: 'ok' | 'fail'
     },
     async initGame() {
       if (initBehavior === 'fail') throw new GameApiError('world_gen_failed', '世界生成失败');
+      if (initBehavior === 'quota') {
+        throw new GameApiError('quota_exceeded', '今日新世界名额已满,明天再来');
+      }
       return INIT_RESULT;
     },
     async resumeGame() {
@@ -136,7 +142,19 @@ describe('startGame', () => {
     const s = store.getState();
     expect(s.status).toBe('initError');
     expect(s.errorMessage).toContain('世界生成失败');
+    expect(s.errorCode).toBe('world_gen_failed'); // 真失败 → 错误屏标题走「世界生成失败」
     expect(s.world).toBeNull();
+  });
+
+  it('配额 429(ADR-016)→ initError + errorCode=quota_exceeded(标题切「今日名额已满」)', async () => {
+    const { api } = makeApi('quota');
+    const store = createGameStore(api);
+    await store.getState().startGame('rules_creepy');
+
+    const s = store.getState();
+    expect(s.status).toBe('initError');
+    expect(s.errorCode).toBe('quota_exceeded'); // 供错误屏区分「拦截」vs「失败」标题
+    expect(s.errorMessage).toContain('名额已满');
   });
 
   it('融合双值(ADR-013):有序数组原样传给 api,lastArchetype 记数组供重试', async () => {
