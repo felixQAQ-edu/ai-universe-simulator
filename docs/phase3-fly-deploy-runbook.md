@@ -127,6 +127,21 @@ fly secrets list     # 应见两个名字(只显示摘要,无明文)
 fly deploy --ha=false
 ```
 
+### 3.1.5 镜像换新前置检查(每次 `fly deploy` 后、功能冒烟前必做)
+
+> **弯路教训立字(2026-07-22,ADR-016 首轮冒烟)**:同源单容器一个镜像同时打包 web dist + server jar,`fly deploy` 若未真正换镜像(缓存命中 / 部署失败静默 / 部署了别的 commit),线上跑的仍是旧产物——功能级冒烟会得出**假阴性**(如成本闸门「设了阈值不触发」,实为旧镜像根本没闸门代码,secret 只是没人读的 env)。当时误判为前端 header 注入 bug,靠 **bundle 哈希对比**才坐实是部署陈旧。
+
+功能冒烟**之前**先跑这条零成本检查,确认镜像真换了:
+
+```sh
+# 1) 本地把待部署分支构建一次,记下 dist 的 bundle 哈希
+(cd web && npm run build) && ls web/dist/assets/index-*.js
+# 2) 线上首页引用的 bundle 名应等于上面的哈希;不等 = 镜像没换,重新 deploy,别往下验
+curl -s https://wanjie-ai.fly.dev/ | grep -o 'assets/index-[^"]*\.js'
+```
+
+哈希一致才继续 §3.2。（本批还可加验前端接线证据:线上 bundle `grep -c X-Device-Id` 应回 `2` = init + turn 两处。）
+
 ### 3.2 附录 B 冒烟清单(顺序固定)
 
 **⑤ active 覆盖生效**:
