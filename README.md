@@ -48,6 +48,7 @@
 - [ADR-013](docs/adr/ADR-013-hybrid-fusion-protocol.md) — 混合模式融合协议(内联融合 + init 双值,引擎不动):init 收有序双值(host 在前、向后兼容单值),world-gen 单次胖调用内联注入两 archetype 块 + 一段融合 meta-prompt 产融合世界(mode:hybrid、保 json_object 无哨兵,守 ADR-007 不加预调用),接活 ADR-012 休眠 mergeAxes 喂现有派生;守则真假同墙混合、三根杠杆(数值入守则/先辨体系/真假对射用修仙常识裁)、护道结局,守则不越界判定(守 ADR-011);融合只在播种层+提示词+前端,不动引擎/校验/`schemaVersion`(保 0.4),round 1 手写修仙×规则怪谈一组
 - [ADR-014](docs/adr/ADR-014-fusion-skeleton-parameterization-and-second-combo.md) — 融合骨架参数化 + 第二组合「守则即补给」(rules_creepy × apocalypse):FUSION_SKELETON/FUSION_TURN_DIRECTIVE 抽 per-combo 注入槽(致命轴清单/结局条数从 fusedAxes 派生,真假称呼/资源经济/hint 示例等为文案槽),round-1 文案迁回槽位、prompt 逐字节 parity 锁死;第二组合=缺页的人防工程(真页/假页 + 物证与尸体裁决 + hunger 换皮「补给」),AxisSkin 微扩 behaviorHint override 位(修订 ADR-012 不换清单);首例三致命轴 {hp,san,hunger};引擎/校验/`schemaVersion`(保 0.4)不动
 - [ADR-015](docs/adr/ADR-015-overseas-deployment-form-factor.md) — 境外部署形态(修订 ADR-002,路线 B):同源单容器(Spring Boot + web/dist 拷入 static/,一个部署单元一个域名零 CORS)+ 最小续局落盘(每 saveId 一个 JSON、Engine 纯增量恢复入口、restore 守护测试把 golden 护城河延伸到持久化边界、落盘=视图 1 全量须在 web 根之外)+ 平台选型硬约束清单先行(单副本/SSE 不缓冲/持久卷/出口可达 DeepSeek/成本/环境变量覆盖);ADR-002 因子 ②③ 失效 ①④ 仍立,命中其预登记迁出触发条件;引擎现有行为/校验/`schemaVersion`(保 0.4)零回归
+- [ADR-016](docs/adr/ADR-016-cost-gate.md) — 成本闸门(软启动开闸前置硬门槛):双层闸门——全局 ¥ 双顶硬熔断(日 ¥6 / 月 ¥175,真闸)+ 单 IP/设备次数软闸(日 init 10 局 / 日回合 300,防脚本;假想敌是脚本刷不是真人玩,宽到真人永远撞不到);记账旁挂 usage 收口(消费 ADR-001 price 配置,改价改配置不改码)、拦截在入口(init 前置 429 + turn 守卫 0 走 sink.error,LLM 调用前拒绝成本≈0);日计数内存(deploy 清零=宽松方向)、月累计 /data 原子写跨重启守住;mock 豁免;引擎/校验/`schemaVersion`(保 0.4)零动
 
 ## 文档
 
