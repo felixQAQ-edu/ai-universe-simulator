@@ -96,7 +96,7 @@ describe('initGame', () => {
     expect((err as GameApiError).code).toBe('network');
   });
 
-  it('请求头带 X-Device-Id(ADR-016 软闸设备键),且跨请求稳定', async () => {
+  it('请求头带 X-Device-Id(ADR-016 软闸设备键),经真实 Headers 归一后仍在、非空且跨请求稳定', async () => {
     const payload = {
       saveId: 's1',
       world: { schemaVersion: '0.4', world: { title: 'x' }, rules: [], character: {} },
@@ -108,10 +108,14 @@ describe('initGame', () => {
     await api.initGame('rules_creepy');
     await api.initGame('rules_creepy');
     const fetchMock = vi.mocked(fetch);
-    const h1 = (fetchMock.mock.calls[0][1] as RequestInit).headers as Record<string, string>;
-    const h2 = (fetchMock.mock.calls[1][1] as RequestInit).headers as Record<string, string>;
-    expect(h1['X-Device-Id']).toBeTruthy();
-    expect(h2['X-Device-Id']).toBe(h1['X-Device-Id']); // 同设备恒定
+    // 过 new Headers():这正是浏览器发送前对 init.headers 的归一化——比读原始对象字面量更贴近
+    // 「真实发出的请求头」(能挡住值变 falsy 被 drop / header 结构重排丢键 / 大小写等一类真回归)。
+    // .get 大小写不敏感,与后端 servlet getHeader("X-Device-Id") 同口径。
+    const d1 = new Headers((fetchMock.mock.calls[0][1] as RequestInit).headers).get('X-Device-Id');
+    const d2 = new Headers((fetchMock.mock.calls[1][1] as RequestInit).headers).get('X-Device-Id');
+    expect(d1).toBeTruthy();
+    expect(d1).not.toBe(''); // 非空(否则后端视作无设备键 → 软闸失效)
+    expect(d2).toBe(d1); // 同设备恒定
   });
 
   it('429(成本闸门)→ GameApiError(quota_exceeded),消息透传', async () => {
@@ -252,8 +256,12 @@ describe('openTurnStream', () => {
       const stream = api.openTurnStream('s1', 0, 'A');
       stream.onClose(() => resolve());
     });
-    const headers = (vi.mocked(fetch).mock.calls[0][1] as RequestInit).headers as Record<string, string>;
-    expect(headers['X-Device-Id']).toBeTruthy();
-    expect(headers['Content-Type']).toBe('application/json'); // 固定头不被覆盖
+    // 同 init:过 new Headers() 断言真实归一后 X-Device-Id 仍在(sse.ts 合并 headers 时
+    // 附加头先展开、Content-Type/Accept 后覆盖,验设备键未被固定头挤掉、固定头也在)。
+    const headers = new Headers((vi.mocked(fetch).mock.calls[0][1] as RequestInit).headers);
+    expect(headers.get('X-Device-Id')).toBeTruthy();
+    expect(headers.get('X-Device-Id')).not.toBe('');
+    expect(headers.get('Content-Type')).toBe('application/json'); // 固定头不被覆盖
+    expect(headers.get('Accept')).toBe('text/event-stream');
   });
 });
