@@ -4,13 +4,17 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import com.aiuniverse.server.persistence.SessionStore;
+import com.aiuniverse.server.quota.QuotaGate;
 
 /**
  * 单回合状态机 + 守卫(规格 §3,确定性、零 LLM 零流式)。持有注入的 {@link TurnExecutor},
  * 守卫通过后才委托它跑 GENERATING/SETTLING;据结算结果转 {@link TurnPhase}。
  *
- * <p><b>两道守卫(均在调 executor 之前,确定性拒绝)</b>:
- * <ol>
+ * <p><b>三道守卫(均在调 executor 之前,确定性拒绝)</b>:
+ * <ol start="0">
+ *   <li><b>配额(ADR-016 守卫 0)</b>:成本闸门拒绝 → {@code event:error code=quota_exceeded}、
+ *       executor <b>零调用</b>、<b>相位零触碰</b>(在 CAS 之前,会话停留 AWAITING_ACTION,
+ *       次日额度恢复可续)。插在合法性之前:被刷时最先拒、单次拒绝成本 ≈0。</li>
  *   <li><b>合法性</b>:{@code actionId ∉ 当前 availableActions} → {@code event:error}、
  *       executor <b>零调用</b>、停在 {@link TurnPhase#AWAITING_ACTION}。</li>
  *   <li><b>忙态</b>:入 GENERATING 走 {@code phase.compareAndSet(AWAITING_ACTION, GENERATING)};
@@ -26,23 +30,43 @@ public final class TurnStateMachine {
 
 	private final TurnExecutor executor;
 	private final SessionStore store;
+	private final QuotaGate quota;
 
 	/** 纯内存形态(测试 / Slice 2 之前行为)。 */
 	public TurnStateMachine(TurnExecutor executor) {
-		this(executor, SessionStore.NOOP);
+		this(executor, SessionStore.NOOP, QuotaGate.NOOP);
+	}
+
+	/** 落盘形态、无闸门(ADR-016 之前行为;既有测试调用点零改)。 */
+	public TurnStateMachine(TurnExecutor executor, SessionStore store) {
+		this(executor, store, QuotaGate.NOOP);
 	}
 
 	@Autowired
-	public TurnStateMachine(TurnExecutor executor, SessionStore store) {
+	public TurnStateMachine(TurnExecutor executor, SessionStore store, QuotaGate quota) {
 		this.executor = executor;
 		this.store = store;
+		this.quota = quota;
+	}
+
+	/** 无客户端标识形态(既有调用点/测试零改):跳过软闸键计数,只受全局闸约束。 */
+	public void submitAction(GameSession session, String actionId, TurnEventSink sink) {
+		submitAction(session, actionId, sink, null);
 	}
 
 	/**
 	 * 受理一次玩家动作。守卫 → 委托 executor → 转相位。本方法<b>阻塞</b>跑完整回合
 	 * (含流式),由 web 层在独立线程调用。
+	 *
+	 * @param client 软闸双键(ip + deviceId,ADR-016;可 null = 只查全局 ¥ 闸)
 	 */
-	public void submitAction(GameSession session, String actionId, TurnEventSink sink) {
+	public void submitAction(GameSession session, String actionId, TurnEventSink sink, QuotaGate.ClientKey client) {
+		// 守卫 0:配额(ADR-016,在合法性与 CAS 之前——相位零触碰,LLM 零调用)。
+		QuotaGate.Decision quotaDecision = quota.checkTurn(client);
+		if (!quotaDecision.allowed()) {
+			sink.error("quota_exceeded", quotaDecision.message());
+			return;
+		}
 		// 守卫 1:合法性(确定性,不调 LLM,不改相位)。
 		if (!session.hasAction(actionId)) {
 			sink.error("illegal_action", "无效的行动:" + actionId);

@@ -5,6 +5,7 @@ import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import com.aiuniverse.server.engine.GameSchemas;
@@ -13,6 +14,7 @@ import com.aiuniverse.server.llm.ChatRequest;
 import com.aiuniverse.server.llm.LlmClient;
 import com.aiuniverse.server.llm.LlmException;
 import com.aiuniverse.server.llm.UsageCapture;
+import com.aiuniverse.server.quota.QuotaGate;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -39,11 +41,19 @@ public class WorldGenService {
 	private final LlmClient llm;
 	private final WorldGenPromptBuilder prompts;
 	private final ObjectMapper mapper;
+	private final QuotaGate quota;
 
+	/** 无闸门形态(ADR-016 之前行为;既有测试调用点零改)。 */
 	public WorldGenService(LlmClient llm, WorldGenPromptBuilder prompts, ObjectMapper mapper) {
+		this(llm, prompts, mapper, QuotaGate.NOOP);
+	}
+
+	@Autowired
+	public WorldGenService(LlmClient llm, WorldGenPromptBuilder prompts, ObjectMapper mapper, QuotaGate quota) {
 		this.llm = llm;
 		this.prompts = prompts;
 		this.mapper = mapper;
+		this.quota = quota;
 	}
 
 	/**
@@ -99,10 +109,11 @@ public class WorldGenService {
 			// 调用本身失败(网络/非 200/缺 key/流中断)→ 无可修复内容 → 直接 ERROR(干净重来)。
 			throw new WorldGenException("世界生成调用失败,请重新生成", e);
 		}
-		// usage 观测(成本闸门读数,纯日志零逻辑):有 usage 块记一条 INFO,无(mock 等)静默跳过。
+		// usage 收口(ADR-016):INFO 观测 + ¥ 记账旁挂;无 usage 块(mock 等)静默跳过、天然免疫。
 		if (usage.usage() != null) {
 			log.info("[world-gen] usage {}", usage.usage().display());
 		}
+		quota.record(usage.usage());
 		return buf.toString();
 	}
 

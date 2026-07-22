@@ -5,6 +5,7 @@ import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import com.aiuniverse.server.engine.Engine;
@@ -13,6 +14,7 @@ import com.aiuniverse.server.llm.ChatRequest;
 import com.aiuniverse.server.llm.LlmClient;
 import com.aiuniverse.server.llm.LlmException;
 import com.aiuniverse.server.llm.UsageCapture;
+import com.aiuniverse.server.quota.QuotaGate;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -44,11 +46,19 @@ public class EventLoopService implements TurnExecutor {
 	private final LlmClient llm;
 	private final TurnPromptBuilder promptBuilder;
 	private final ObjectMapper mapper;
+	private final QuotaGate quota;
 
+	/** 无闸门形态(ADR-016 之前行为;既有测试调用点零改)。 */
 	public EventLoopService(LlmClient llm, TurnPromptBuilder promptBuilder, ObjectMapper mapper) {
+		this(llm, promptBuilder, mapper, QuotaGate.NOOP);
+	}
+
+	@Autowired
+	public EventLoopService(LlmClient llm, TurnPromptBuilder promptBuilder, ObjectMapper mapper, QuotaGate quota) {
 		this.llm = llm;
 		this.promptBuilder = promptBuilder;
 		this.mapper = mapper;
+		this.quota = quota;
 	}
 
 	@Override
@@ -157,11 +167,15 @@ public class EventLoopService implements TurnExecutor {
 		return new TurnResult(false);
 	}
 
-	/** usage 观测(成本闸门读数,纯日志零逻辑):有 usage 块记一条 INFO,无(mock 等)静默跳过。 */
+	/**
+	 * usage 收口(ADR-016):INFO 观测 + ¥ 记账旁挂。有 usage 块记一条 INFO 并入账;
+	 * 无(mock 等)静默跳过——mock 天然免疫 ¥ 记账。
+	 */
 	private void logUsage(GameSession session, String call, UsageCapture usage) {
 		if (usage.usage() != null) {
 			log.info("[event-loop] save={} usage {} {}", session.saveId(), call, usage.usage().display());
 		}
+		quota.record(usage.usage());
 	}
 
 	/** 保守 no-op 降级(§6.5/§6.6):turn++、不脏写、复用动作、响亮告警、发 delta 让玩家可继续。 */

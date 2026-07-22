@@ -11,6 +11,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 
 import com.aiuniverse.server.engine.Engine;
+import com.aiuniverse.server.persistence.SessionStore;
+import com.aiuniverse.server.quota.QuotaGate;
 
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ArrayNode;
@@ -128,6 +130,62 @@ class TurnStateMachineTest {
 
 		assertThat(ex.calls).as("executor 恰被调用一次").hasValue(1);
 		assertThat(sink2.errors).containsExactly("busy");
+		assertThat(s.phase()).hasValue(TurnPhase.AWAITING_ACTION);
+	}
+
+	// ── 守卫 0:配额(ADR-016,插在合法性之前、CAS 之前)────────────────────
+
+	/** 拒绝一切 turn、记录收到的 ClientKey 的 stub 闸门。 */
+	private static final class DenyingQuota implements QuotaGate {
+		final List<ClientKey> seen = new ArrayList<>();
+
+		@Override
+		public Decision checkInit(ClientKey key) {
+			return Decision.ALLOW;
+		}
+
+		@Override
+		public Decision checkTurn(ClientKey key) {
+			seen.add(key);
+			return Decision.deny("今日回合名额已满,明天再来");
+		}
+
+		@Override
+		public void record(com.aiuniverse.server.llm.LlmUsage usage) {
+		}
+	}
+
+	@Test
+	void quotaGuardRunsBeforeLegalityGuard() {
+		GameSession s = session();
+		StubExecutor ex = new StubExecutor();
+		RecordingSink sink = new RecordingSink();
+		DenyingQuota quota = new DenyingQuota();
+		// 动作 "Z" 本身非法:若合法性守卫先跑,错误码会是 illegal_action —— 断言 quota_exceeded 证明顺序。
+		new TurnStateMachine(ex, SessionStore.NOOP, quota).submitAction(s, "Z", sink,
+				new QuotaGate.ClientKey("1.2.3.4", "dev-A"));
+		assertThat(ex.calls).hasValue(0);
+		assertThat(sink.errors).containsExactly("quota_exceeded");
+		assertThat(quota.seen).containsExactly(new QuotaGate.ClientKey("1.2.3.4", "dev-A"));
+	}
+
+	@Test
+	void quotaDenialLeavesPhaseUntouched() {
+		GameSession s = session();
+		s.phase().set(TurnPhase.GENERATING); // 守卫 0 在 CAS 之前:任何相位都零触碰
+		RecordingSink sink = new RecordingSink();
+		new TurnStateMachine(new StubExecutor(), SessionStore.NOOP, new DenyingQuota())
+				.submitAction(s, "A", sink, null);
+		assertThat(sink.errors).containsExactly("quota_exceeded");
+		assertThat(s.phase()).hasValue(TurnPhase.GENERATING);
+	}
+
+	@Test
+	void threeArgSubmitDelegatesWithNullKeyAndNoopQuotaAllows() {
+		GameSession s = session();
+		StubExecutor ex = new StubExecutor();
+		new TurnStateMachine(ex).submitAction(s, "A", new RecordingSink()); // 旧签名 + NOOP 闸:行为不变
+		assertThat(ex.calls).hasValue(1);
 		assertThat(s.phase()).hasValue(TurnPhase.AWAITING_ACTION);
 	}
 }

@@ -33,6 +33,14 @@ aiuniverse:
   # 持久卷挂载点(如 /data)。目录必须在 web 根之外(启动断言,违者拒启)。
   session:
     store-dir: ./data
+  # ── 成本闸门四阈值(ADR-016;Felix 拍板,基于线上真实 usage + 52% 缓存命中率)────
+  # 全部可 env 覆盖(如 AIUNIVERSE_QUOTA_DAILY_BUDGET_CNY),冒烟压低阈值 = 临时 env。
+  # 日界线 = 北京时间;阈值哲学:假想敌是脚本刷不是真人玩,宽到真人永远撞不到。
+  quota:
+    daily-budget-cny: 6        # 全局日限额 CNY(真闸)
+    monthly-budget-cny: 175    # 全局月顶 CNY(真闸)
+    init-per-key-daily: 10     # 单 IP/设备日 init 局数(软闸)
+    turns-per-key-daily: 300   # 单 IP/设备日回合数(软闸)
   llm:
     active: mock
     providers:

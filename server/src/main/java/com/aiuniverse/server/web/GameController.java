@@ -17,11 +17,13 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import com.aiuniverse.server.eventloop.GameSession;
 import com.aiuniverse.server.eventloop.GameSessionManager;
 import com.aiuniverse.server.eventloop.TurnStateMachine;
+import com.aiuniverse.server.quota.QuotaGate;
 import com.aiuniverse.server.worldgen.GameInitService;
 import com.aiuniverse.server.worldgen.InitResponse;
 import com.aiuniverse.server.worldgen.WorldGenException;
 
 import jakarta.annotation.PreDestroy;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 
@@ -40,21 +42,30 @@ public class GameController {
 	private final GameSessionManager sessions;
 	private final TurnStateMachine stateMachine;
 	private final GameInitService initService;
+	private final QuotaGate quota;
 	/** SSE 是阻塞长连接,不能占 Tomcat 容器线程(同 StreamController 骨架口径)。 */
 	private final ExecutorService turnExecutor = Executors.newCachedThreadPool();
 
-	public GameController(GameSessionManager sessions, TurnStateMachine stateMachine, GameInitService initService) {
+	public GameController(GameSessionManager sessions, TurnStateMachine stateMachine, GameInitService initService,
+			QuotaGate quota) {
 		this.sessions = sessions;
 		this.stateMachine = stateMachine;
 		this.initService = initService;
+		this.quota = quota;
 	}
 
 	/**
 	 * 起一局新世界(INITIALIZING,设计稿 §3):plain POST 阻塞返 JSON。
+	 * 成本闸门前置(ADR-016):拒绝 → 429 + 结构化 error,world-gen <b>零调用</b>(拒绝成本 ≈0);
 	 * archetype 非法/未开放 → 400(ADR-008 决策 4);world-gen ERROR → 502 + 重生成提示。
 	 */
 	@PostMapping("/api/game/init")
-	public ResponseEntity<?> init(@Valid @RequestBody InitRequest req) {
+	public ResponseEntity<?> init(@Valid @RequestBody InitRequest req, HttpServletRequest http) {
+		QuotaGate.Decision decision = quota.checkInit(clientKey(http));
+		if (!decision.allowed()) {
+			return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+					.body(Map.of("error", Map.of("code", "quota_exceeded", "message", decision.message())));
+		}
 		try {
 			InitResponse resp = initService.init(req.resolved());
 			return ResponseEntity.ok(resp);
@@ -83,16 +94,18 @@ public class GameController {
 	}
 
 	@PostMapping("/api/game/{saveId}/turn")
-	public ResponseEntity<SseEmitter> turn(@PathVariable String saveId, @Valid @RequestBody TurnRequest req) {
+	public ResponseEntity<SseEmitter> turn(@PathVariable String saveId, @Valid @RequestBody TurnRequest req,
+			HttpServletRequest http) {
 		GameSession session = sessions.get(saveId);
 		if (session == null) {
 			return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
 		}
+		QuotaGate.ClientKey client = clientKey(http); // 头在容器线程读定,不跨线程摸 request
 		SseEmitter emitter = new SseEmitter(120_000L);
 		SseTurnEventSink sink = new SseTurnEventSink(emitter);
 		turnExecutor.execute(() -> {
 			try {
-				stateMachine.submitAction(session, req.actionId(), sink);
+				stateMachine.submitAction(session, req.actionId(), sink, client);
 				emitter.complete();
 			} catch (Exception e) {
 				emitter.completeWithError(e);
@@ -104,6 +117,19 @@ public class GameController {
 	@PreDestroy
 	void shutdown() {
 		turnExecutor.shutdown();
+	}
+
+	/**
+	 * 软闸双键(ADR-016 §2):ip 读 {@code Fly-Client-IP} 头(经 Fly 反代;{@code getRemoteAddr}
+	 * 只见内网地址,勘察已证),缺失(本地开发/直连)回退 {@code getRemoteAddr};deviceId 读
+	 * {@code X-Device-Id} 头(前端 localStorage UUID),可缺失——缺哪个键哪路不计。
+	 */
+	private static QuotaGate.ClientKey clientKey(HttpServletRequest http) {
+		String ip = http.getHeader("Fly-Client-IP");
+		if (ip == null || ip.isBlank()) {
+			ip = http.getRemoteAddr();
+		}
+		return new QuotaGate.ClientKey(ip, http.getHeader("X-Device-Id"));
 	}
 
 	/**
