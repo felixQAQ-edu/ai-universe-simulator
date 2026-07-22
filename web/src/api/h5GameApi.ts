@@ -12,6 +12,7 @@ import type {
   TurnStream,
 } from './contract';
 import { GameApiError } from './contract';
+import { getDeviceId } from './deviceId';
 import { streamSsePost } from './sse';
 import type { Archetype } from '../types/schema';
 
@@ -40,7 +41,8 @@ export function createH5GameApi(baseUrl = ''): GameApi {
       try {
         resp = await fetch(`${baseUrl}/api/game/init`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          // X-Device-Id = 软闸设备键(ADR-016),服务端单设备日 init 计数用。
+          headers: { 'Content-Type': 'application/json', 'X-Device-Id': getDeviceId() },
           body: JSON.stringify(body),
         });
       } catch (e) {
@@ -129,7 +131,8 @@ export function createH5GameApi(baseUrl = ''): GameApi {
         onClose() {
           emit(handlers.close, undefined as never);
         },
-      });
+        // X-Device-Id = 软闸设备键(ADR-016),服务端单设备日回合计数用。
+      }, { 'X-Device-Id': getDeviceId() });
 
       return {
         onNarrative: (cb) => void handlers.narrative.push(cb),

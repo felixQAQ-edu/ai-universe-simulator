@@ -221,6 +221,22 @@ describe('chooseAction', () => {
     expect(s.notice).toBe('该选项不可用');
   });
 
+  it('成本闸门(quota_exceeded,ADR-016)→ 回 awaiting + notice,散文/动作不丢', async () => {
+    const { api, stream } = makeApi('ok');
+    const store = createGameStore(api);
+    await store.getState().startGame('rules_creepy');
+    const actionsBefore = store.getState().availableActions;
+
+    store.getState().chooseAction('A');
+    stream().fireError({ code: 'quota_exceeded', message: '今日回合名额已满,明天再来' });
+    stream().fireClose();
+
+    const s = store.getState();
+    expect(s.status).toBe('awaiting'); // 守卫 0 相位零触碰:次日可续,不算整局失败
+    expect(s.notice).toBe('今日回合名额已满,明天再来');
+    expect(s.availableActions).toEqual(actionsBefore); // 决策圈原样保留
+  });
+
   it('守卫:非 awaiting 态不开流', async () => {
     const { api, stream } = makeApi('ok');
     const store = createGameStore(api);

@@ -31,8 +31,14 @@ export interface SseHandle {
  * @param url     端点(相对路径,经 Vite proxy 到后端)
  * @param body    JSON 请求体
  * @param handlers 帧/错误/收口回调
+ * @param headers  附加请求头(如 ADR-016 的 X-Device-Id;与固定头合并,后者不被覆盖)
  */
-export function streamSsePost(url: string, body: unknown, handlers: SseHandlers): SseHandle {
+export function streamSsePost(
+  url: string,
+  body: unknown,
+  handlers: SseHandlers,
+  headers?: Record<string, string>,
+): SseHandle {
   const controller = new AbortController();
   let closed = false;
 
@@ -53,7 +59,7 @@ export function streamSsePost(url: string, body: unknown, handlers: SseHandlers)
     if (closed) return;
     fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
+      headers: { ...headers, 'Content-Type': 'application/json', Accept: 'text/event-stream' },
       body: JSON.stringify(body),
       signal: controller.signal,
     })

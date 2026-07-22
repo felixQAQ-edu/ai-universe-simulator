@@ -131,8 +131,12 @@ const INITIAL = {
   notice: null,
 };
 
-/** 可恢复的回合错误 code(展示提示、留在 awaiting,不算整局失败)。 */
-const RECOVERABLE_TURN_ERRORS = new Set(['illegal_action', 'busy', 'session_not_found']);
+/**
+ * 可恢复的回合错误 code(展示提示、留在 awaiting,不算整局失败)。
+ * quota_exceeded(ADR-016):守卫 0 在相位 CAS 之前拒绝,会话服务端停留 AWAITING——
+ * 次日额度恢复同一局可续,故按可恢复处理(notice 展示「明天再来」文案)。
+ */
+const RECOVERABLE_TURN_ERRORS = new Set(['illegal_action', 'busy', 'session_not_found', 'quota_exceeded']);
 
 /**
  * 用注入的 GameApi 建一个 store。生产用默认 gameApi;测试传 mock api + 合成 TurnStream。

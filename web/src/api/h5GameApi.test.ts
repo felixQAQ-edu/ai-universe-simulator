@@ -95,6 +95,38 @@ describe('initGame', () => {
     expect(err).toBeInstanceOf(GameApiError);
     expect((err as GameApiError).code).toBe('network');
   });
+
+  it('请求头带 X-Device-Id(ADR-016 软闸设备键),且跨请求稳定', async () => {
+    const payload = {
+      saveId: 's1',
+      world: { schemaVersion: '0.4', world: { title: 'x' }, rules: [], character: {} },
+      openingNarrative: '',
+      availableActions: [{ id: 'A', text: '观察', hint: '' }],
+    };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(200, payload)));
+
+    await api.initGame('rules_creepy');
+    await api.initGame('rules_creepy');
+    const fetchMock = vi.mocked(fetch);
+    const h1 = (fetchMock.mock.calls[0][1] as RequestInit).headers as Record<string, string>;
+    const h2 = (fetchMock.mock.calls[1][1] as RequestInit).headers as Record<string, string>;
+    expect(h1['X-Device-Id']).toBeTruthy();
+    expect(h2['X-Device-Id']).toBe(h1['X-Device-Id']); // 同设备恒定
+  });
+
+  it('429(成本闸门)→ GameApiError(quota_exceeded),消息透传', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        jsonResponse(429, { error: { code: 'quota_exceeded', message: '今日新世界名额已满,明天再来' } }),
+      ),
+    );
+    await expect(api.initGame('rules_creepy')).rejects.toMatchObject({
+      name: 'GameApiError',
+      code: 'quota_exceeded',
+      message: '今日新世界名额已满,明天再来',
+    });
+  });
 });
 
 describe('listArchetypes', () => {
@@ -210,5 +242,18 @@ describe('openTurnStream', () => {
     });
     expect(errors[0].code).toBe('session_not_found');
     expect(closed).toBe(true);
+  });
+
+  it('回合流请求头也带 X-Device-Id(ADR-016,单设备日回合计数)', async () => {
+    const wire = 'event: delta\ndata: {"turn":1,"status":"ongoing","hp":90,"discoveredRules":[],"availableActions":[]}\n\n';
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(sseResponse(wire)));
+
+    await new Promise<void>((resolve) => {
+      const stream = api.openTurnStream('s1', 0, 'A');
+      stream.onClose(() => resolve());
+    });
+    const headers = (vi.mocked(fetch).mock.calls[0][1] as RequestInit).headers as Record<string, string>;
+    expect(headers['X-Device-Id']).toBeTruthy();
+    expect(headers['Content-Type']).toBe('application/json'); // 固定头不被覆盖
   });
 });
