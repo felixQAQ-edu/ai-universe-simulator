@@ -174,6 +174,8 @@
 ## 9. 前端视觉升级(H5 侧,~~冻结~~ → **已升级为 [ADR-017](adr/ADR-017-frontend-visual-charter-and-animation-libraries.md),范围以 ADR 为准**)
 
 > **升级指针(2026-07-22)**:本节已**解冻并升级为主线**——开刀条件(「Felix 主动想做」)命中,决策落 **[ADR-017](adr/ADR-017-frontend-visual-charter-and-animation-libraries.md)**(前端视觉宪法与动画库许可名单,修订 ADR-003)。**此后范围、约束、库许可一律以 ADR-017 为准**;下方原始条目保留作历史记录,其中「不引动画库 / 纯 CSS」的约束**已被 ADR-017 取代**(路线 B 冻结小程序线 → ADR-003 §5 的 Taro 论据失效,白名单放开 GSAP / Motion / Lenis 三项)。
+>
+> **配套基建指针(2026-07-23)**:动手时的常驻约束见 **[`AGENTS.md`](../AGENTS.md) § Motion Constraints**(记忆点唯一 / 动效预算 / 新增须替代或降级 / 正文禁区 / 清理与 reduced-motion / 库白名单;三条护栏的真理之源 = [ADR-017 §9 长期约束](adr/ADR-017-frontend-visual-charter-and-animation-libraries.md));**依赖后端能力、现在做只能是假的**那批视觉愿景另立档 → **[`docs/future-experience-backlog.md`](future-experience-backlog.md)**(原则:不拿页面内计数冒充世界记忆),其中 ④ 昼夜推进与本文 **§11** 是同一缺口的两面、① 依赖本文 §1/§4 主题 A。
 
 - **定位**:现有「顶部氛围带 + 白底正文」是**刻意设计非将就**(#8 第 1 档拍板),上线版=此形态精修;「视觉升级」指 H5 侧**展示层加料**(动效 / 粒子 / 转场 / 更强的卡片与结局演出等),在 ADR-003 边界下**逻辑/状态层零改**,可开实验分支玩。
 - **约束**:H5 可放开、小程序侧克制(Taro 迁移税,ADR-003);真实代价=**低端机性能与微信 WebView**(动效越重越挑设备);做时参考 `frontend-design` skill。
@@ -199,3 +201,4 @@
   1. **combo2 `extraDirectives` 昼夜钟摆强化**(提示词层,最轻):在现有附加指令槽里加「每回合必须报时段 + 昼夜切换须有仪式感叙事(熄灯/开闸/配给钟)」一类硬提醒;零 schema 改动,但仍是软引导,治标。
   2. **accumulation 轴「天数」使时间结构化可见**(状态层,较重):给 combo2 加一条 `axisRole=accumulation` 的「天数」轴(引擎天然支持,ADR-009;`lethal=false` 不触底)——时间从叙事装饰变成**状态真理之源里的数字**,AI 每回合落绝对值、前端面板可见「第 N 天」、bands 可配「第一夜/熬过三天/第七天」档;时间漂移被数值锚死。代价:动 combo2 轴集与 world-gen/event-loop 注入,需小设计稿。
 - **状态**:照旧「想法入档,代码不动」,**不阻塞软启动**(体验打磨级,非闸门/合规级)。开刀条件=软启动真实玩家对 combo2 的同类反馈再现,或 round 2 新组合需要「多日循环」模板时一并做(届时候选 2 顺手成为所有多日组合的公共资产)。
+- **交叉(2026-07-23)**:与 [`future-experience-backlog.md` ④「昼夜推进改变环境」](future-experience-backlog.md)是**同一缺口的两面**——本条是玩法体感缺时间锚,那条是视觉层缺时间锚,根因同为 CONTEXT §三.16 约定 (7) 只靠提示词软引导。**候选 2(「天数」accumulation 轴)一旦做,顺带就是视觉侧的依赖** → 两处一起做,别各做一半。
