@@ -159,6 +159,39 @@
 
 **两段刻意不混**——探索的快与落地的稳是两种要求,混在一起会同时失去两者。依赖(`package.json`)的实际改动属**落地批**,不在探索段发生。
 
+### 9. 长期约束(护栏三条,常驻生效)
+
+> **补于 2026-07-23**(本 ADR 修订自身,随 Cowork A 批「结构与设计语言」验收通过、B 批开工前落地)。
+
+**为什么要立成常驻约束**:护栏若只写在单轮任务指令里,**下一轮新需求一来即失效**——修仙再加剑影、规则怪谈再加故障、克苏鲁再加扭曲、末日再加沙尘爆闪,每一步都局部合理,合起来就是四个世界一起变成霓虹灯(撞原则 ①③④,也就是本 ADR 反面清单里的「AI PPT 审美」从后门溜回来)。故三条护栏**不写在任务里,写在档案里**。
+
+**① 每个世界只有一个一级记忆点(唯一,不得增设)**
+
+| 世界 | 一级记忆点 |
+|---|---|
+| 修仙 `cultivation` | **钟鸣共振** bell resonance |
+| 规则怪谈 `rules_creepy` | **灯闪** light flicker |
+| 克苏鲁 `cthulhu` | **文字异常 / 不确定** uncertain text anomaly |
+| 末日 `apocalypse` | **电台信号** radio transmission |
+
+一级 = 该世界的**签名动作**。想让某世界「再多一个记忆点」时,**答案是加强现有那个,不是并列第二个**——并列即稀释,四个世界各自多加一点,最后四个世界长得一样(原则 ③ 失守)。融合世界不新立一级记忆点:**host 记忆点打底 + 渗漏元素点缀**(同 §5 表末行与 [ADR-012](ADR-012-hybrid-axis-merge-strategy.md))。
+
+与 §6.3 第一版三点的关系:规则怪谈灯闪 / 克苏鲁文字异常逐条对应;**修仙**的一级记忆点收敛为**钟鸣共振**(§6.3 的「境界跳变整页照亮」是它的一次表现,不另立一级);**末日电台**为 B 批新增。
+
+**② 动效预算:每屏同时最多 1 个持续环境 + 1 个低频偶发 + 1 个用户触发**
+
+- 持续环境 = 长期在跑的(呼吸感 / 云雾 / 沙尘);
+- 低频偶发 = 隔一阵来一下的(灯闪 / 远光扫过 / 电台杂讯);
+- 用户触发 = 玩家动作的回应(按压 / 数值滚动 / 规则点亮)。
+
+**预算是硬的**:想加第二个持续环境,先关掉现有那个。这条把原则 ① 从「靠自觉」变成**可数**——冒烟时数得出来,不必争论「算不算影响阅读」。
+
+**③ 新增动效必须声明它替代谁或降级谁,不得只做加法**
+
+任何新效果的提案与实现说明里必须有一句「**它替代 X**」或「**它把 X 降级为 Y**」。加法要付账,这句就是账;没有这句的效果不进落地批。
+
+**三条同时以 [`AGENTS.md`](../../AGENTS.md) 的 Motion Constraints 一节对 Agent 生效**(lockstep 常驻副本,另含正文禁区 / 生命周期清理与 reduced-motion / 性能 / GSAP Skill 通用建议的不适用清单等执行细则)。**两处不一致时以本 ADR 为准**并回改 AGENTS.md。分工:**GSAP Skill 管技术正确性,AGENTS.md 与本 ADR 管审美边界与架构约束。**
+
 ### 关键理由
 
 1. **约束的理由消失了,约束就该重估**——ADR-003 §5 的唯一论据是 Taro 迁移安全,而小程序线已随路线 B 冻结;继续遵守等于让一条失效理由锁住当前主线目标。这与 ADR-002→ADR-015 的演进同构,是**预案内的第二例**。
@@ -187,9 +220,10 @@
 1. ✅ 本 ADR 落档 `docs/adr/ADR-017-frontend-visual-charter-and-animation-libraries.md`;root README ADR 列表追加一行;ROADMAP §五 已完成 ADR 索引追加。**落档单独 commit,与任何实现分开。**
 2. ✅ [打磨与愿景 backlog §9](../phase2-polish-and-vision-backlog.md) 标注「已升级为 ADR-017,范围以 ADR 为准」。
 3. ✅ ROADMAP 周度日志补方向定案条 + 「当前阶段」更新 + 版本历史顺升。
-4. ⏳ **Cowork 探索段**:独立视觉样板间,按 §6 第一版范围试效果;融合两世界的视觉语言在此提案(§5 表末行),回窗口定。
-5. ⏳ **CC 落地段**:feature 分支装依赖(白名单三库)+ 按批实现 + 测试 + lint/build + Felix 冒烟;引擎/校验/`schemaVersion`(保 "0.4")零动。
-6. ⏳ 落地批实测低端机 / 微信 WebView 性能与首屏包体,回填「实际效果」。
+4. ✅ **配套基建(2026-07-23,纯配置与文档)**:GSAP Agent Skills 四件装项目级 `.agents/skills/`(`gsap-core`/`gsap-timeline`/`gsap-performance`/`gsap-react`,刻意不装 `gsap-scrolltrigger`——本项目是屏内状态型叙事界面);`AGENTS.md` 落 Motion Constraints 常驻约束(含本 §9 三条的 lockstep 副本 + skill 通用建议的不适用清单);本 §9 长期约束落档;[`docs/future-experience-backlog.md`](../future-experience-backlog.md) 建档(依赖后端能力的视觉愿景,防「拿页面内计数冒充世界记忆」)。
+5. ⏳ **Cowork 探索段**:独立视觉样板间,按 §6 第一版范围试效果;融合两世界的视觉语言在此提案(§5 表末行),回窗口定。
+6. ⏳ **CC 落地段**:feature 分支装依赖(白名单三库)+ 按批实现 + 测试 + lint/build + Felix 冒烟;引擎/校验/`schemaVersion`(保 "0.4")零动。**落地批须先定 `@gsap/react` 的去留**(白名单外的第四个 npm 包,`gsap-react` skill 推荐、本 ADR §3 升级条款要求回窗口对齐;不引则走 `gsap.context()` + `ctx.revert()` 退路)。
+7. ⏳ 落地批实测低端机 / 微信 WebView 性能与首屏包体,回填「实际效果」。
 
 ## 实际效果(事后补充)
 
@@ -205,5 +239,7 @@
 - **起源与范围**:[打磨与愿景 backlog §9](../phase2-polish-and-vision-backlog.md)(前端视觉升级,本 ADR 落档后升级为 ADR 范围)。
 - **融合世界视觉原则同构**:[ADR-012](ADR-012-hybrid-axis-merge-strategy.md)(host 优先 + 语义换皮)。
 - **数据链路(三个记忆点的既有依赖)**:CONTEXT §三.14 `bands`(档位)/ §三.9 三视图消毒(视觉层只消费视图 3)/ [ADR-011](ADR-011-action-hint-narrative-metadata.md)(`hint` 展示)。
+- **常驻执行副本**:[`AGENTS.md`](../../AGENTS.md) § Motion Constraints(§9 三条护栏的 lockstep 副本 + 执行细则 + GSAP Skill 通用建议的不适用清单);[`.agents/skills/GSAP-VENDOR.md`](../../.agents/skills/GSAP-VENDOR.md)(四个 GSAP skill 的出处/版本/不装清单/许可)。
+- **依赖后端能力的视觉愿景(不在第一版)**:[`docs/future-experience-backlog.md`](../future-experience-backlog.md)——§7 表里那些「要等数据」的效果落此档,原则 = 不拿页面内计数冒充世界记忆。
 - **相关源文件**:`web/src/features/game/`(展示层)、`web/public/scenes/`(氛围图)、`web/eslint.config.js`(接口纪律硬线,本 ADR 不动)、`web/package.json`(依赖变更属落地批,不在本 ADR)。
 - **不在本 ADR 范围**:具体效果实现与依赖安装(落地批)、物件级动效 / 背景图随世界演变 / 声音(§7)、Taro 迁移本身(Phase 4 专门 ADR)、[ADR-004](#) 内容安全。
