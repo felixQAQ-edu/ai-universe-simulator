@@ -1,10 +1,15 @@
 # AI Universe Simulator
 
 基于 LLM 的生成式文字模拟游戏：玩家作为绝对变量介入 AI 动态生成、逻辑自洽的世界。
-杀手锏：概念融合·混合模式（世界观杂交）。目标用户：国内、微信生态。当前 Phase 0。
+杀手锏：概念融合·混合模式（世界观杂交）。当前 **Phase 3 收尾转前端视觉轮**
+（上线阶段 ③ 部署 + ④ 成本闸门已完成、① 备案冻结、② ADR-004 待启；已上公网
+https://wanjie-ai.fly.dev ）。目标用户原定国内微信生态，现走**路线 B**（境外托管、
+不备案、暂不进微信生态）先做软启动验证，境内合规整体冻结（见 ADR-015 / 上线全图）。
 
 ## 协作分工
-架构/决策讨论在 Project 对话；写码、测试、提交在 Codex。
+架构/决策讨论在 Project 对话；执行分**两段**——视觉探索走 **Cowork 独立样板间**
+（不直接改 `web/src`），写码、测试、提交走 **Claude Code**（feature 分支 + 测试 +
+Felix 冒烟，见 ADR-017 §8）。
 改动请先讲清思路再动手，避免无说明的大改。
 
 ## 动任何模块前先读
@@ -15,7 +20,7 @@
 - 技术决策落 `docs/adr/`（用 `/adr-author`）；进度用 `/roadmap-update` 更新 ROADMAP。
 - 验证中的发现记 `bakeoff/FINDINGS.md`；约定或 schema 变更走 CONTEXT 升版本号，不靠提示词反复叮嘱。
 - 提示词是核心资产，放仓库根 `prompts/`，按管线步骤组织（world-gen / event-loop / …）。
-- 运行模型（给玩家生成）= DeepSeek，见 ADR-001；写码用 Codex，两者别混。
+- 运行模型（给玩家生成）= DeepSeek，见 ADR-001；写码用 Claude Code，两者别混。
 
 ## 安全与纪律
 - API key 只进 `bakeoff/.env`（已 gitignore），绝不写进对话、代码或提交。
@@ -104,7 +109,7 @@
 | Skill 里的建议 | 本项目口径 |
 |---|---|
 | 推荐 **ScrollTrigger** 做滚动驱动动画（`gsap-core` / `gsap-timeline` / `gsap-performance` / `gsap-react` 多处提及） | **不适用。非真正滚动驱动的效果不得引入 ScrollTrigger。** 本项目是屏内状态型叙事界面，动效由**状态变化**驱动而非滚动位置；`gsap-scrolltrigger` skill 已刻意不装 |
-| `gsap-react` §Installation 让 `npm install @gsap/react`（`useGSAP()` 钩子） | **不得自行引入**——它是白名单三库之外的**第四个 npm 包**，按 ADR-017 §3 升级条款须**回 Project 窗口对齐**。未对齐前走同一 skill 给出的退路：`useEffect` 内 `gsap.context()` + 清理里 `ctx.revert()` |
+| `gsap-react` §Installation 让 `npm install @gsap/react`（`useGSAP()` 钩子） | **已裁定驳回（2026-07-23，Felix）。本项目不引 `@gsap/react`，一律走退路方案**：`useEffect` 内 `gsap.context()` + 清理里 `ctx.revert()`（同一 skill 自带的写法）。**理由**：① 它是白名单三库之外的**第四个 npm 包**，ADR-017 白名单**墨迹未干即破例**，护栏严肃性受损——「白名单可随时加一个」的先例代价远大于多写几行；② `useGSAP()` 的实际价值（自动清理 + 作用域绑定）`gsap.context()` + `ctx.revert()` **全都有**，只是啰嗦几行。**留的口子**：落地段（移植回 `web/src`）时若 `gsap.context()` 在真实 React 生命周期里**确有严重痛点**，凭**真实证据**回 Project 窗口申请——**无证据的便利驱动不构成理由** |
 | `gsap-core` 指向 **`gsap-plugins`**（Flip / Draggable / MorphSVG…）与 **CustomEase** | 同包插件（`registerPlugin`）**不算新依赖、无移植债增量**，但仍受**动效预算**与原则 ② 约束：用之前要能回答「它服务哪个原则、替代了谁」。ScrollTrigger 是明确禁项，不在此列 |
 | `gsap-core`「**Prefer GSAP Instead of CSS Animations**」 | **反过来**：ADR-017 §4 减债习惯 = **能用 CSS 的优先 CSS**，GSAP 留给时间线编排与连续插值 |
 | `gsap-core`「未指定库时**默认推荐 GSAP**」 | 本项目**分工已定**：React 声明式交互（按压/进出场/数值滚动）归 **Motion**，GSAP 只做时间线编排——不因 skill 的默认推荐把 Motion 的活挪给 GSAP |
