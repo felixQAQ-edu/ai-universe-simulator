@@ -9,6 +9,7 @@ import type {
   TurnStream,
 } from '../api';
 import { GameApiError } from '../api';
+import { resolveBandLabel, resolveSeverity } from '../features/game/bands';
 import { createGameStore } from './gameStore';
 
 // 状态层单测:喂合成事件序列,断言状态推进(含 ending / error 分支)。
@@ -76,8 +77,17 @@ const INIT_RESULT: InitResult = {
     { id: 'A', text: '观察', hint: '' },
     { id: 'B', text: '等待', hint: '' },
   ],
+  // 轴元数据(含行为档与 ADR-018 severity)只在 init/resume 下发一次;回合 delta 只带数值。
   attributes: [
-    { key: 'hp', displayName: '体力' },
+    {
+      key: 'hp',
+      displayName: '体力',
+      bands: [
+        { min: 0, max: 20, label: '濒危', severity: 'danger' },
+        { min: 21, max: 50, label: '受创', severity: 'caution' },
+        { min: 51, max: 100, label: '充沛', severity: 'neutral' },
+      ],
+    },
     { key: 'san', displayName: '理智' },
   ],
 };
@@ -201,6 +211,32 @@ describe('chooseAction', () => {
 
     st.fireClose();
     expect(store.getState().status).toBe('awaiting');
+  });
+
+  it('ADR-018:delta 只带数值,当前档与 severity 用 init 保留的 bands 重算(静态语义不必每回合重发)', async () => {
+    const { api, stream } = makeApi('ok');
+    const store = createGameStore(api);
+    await store.getState().startGame('rules_creepy');
+
+    const hpBands = () => store.getState().attributeAxes[0].bands;
+    // 起局 hp=100 → 顶档、无危险。
+    expect(resolveBandLabel(store.getState().attributeValues.hp, hpBands())).toBe('充沛');
+    expect(resolveSeverity(store.getState().attributeValues.hp, hpBands())).toBe('neutral');
+
+    store.getState().chooseAction('A');
+    stream().fireDelta({
+      turn: 1,
+      status: 'ongoing',
+      attributes: { hp: 12, san: 65 }, // delta 只有值,没有 bands / severity
+      discoveredRules: [],
+      availableActions: [{ id: 'A', text: '继续', hint: '' }],
+    });
+
+    // 轴元数据原封不动(delta 不带、也不该带);当前档随新值重算到最危档。
+    expect(store.getState().attributeAxes[0].displayName).toBe('体力');
+    expect(hpBands()).toHaveLength(3);
+    expect(resolveBandLabel(store.getState().attributeValues.hp, hpBands())).toBe('濒危');
+    expect(resolveSeverity(store.getState().attributeValues.hp, hpBands())).toBe('danger');
   });
 
   it('命中结局:delta(ended) + ending → status ended,ending 就位', async () => {

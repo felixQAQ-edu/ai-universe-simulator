@@ -3,6 +3,7 @@ export type {
   ArchetypeSummary,
   AttributeAxisMeta,
   AxisBand,
+  AxisSeverity,
   ClientRule,
   ClientWorld,
   DiscoveredRule,

@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 
 import com.aiuniverse.server.archetype.AttributeAxis.AxisRole;
 import com.aiuniverse.server.archetype.AttributeAxis.Band;
+import com.aiuniverse.server.archetype.AttributeAxis.Severity;
 
 /**
  * 行为档 + resolveBand 纯函数(#3 数值行为化 Slice A)——良构校验、axisRole 感知的边界归属、
@@ -88,18 +89,20 @@ class AttributeAxisBandTest {
 		var ranges = AttributeAxis.stable("hp", "体力").withBands(
 				new Band(100, "充沛", "h1"), new Band(50, "受创", "h2"), new Band(20, "濒危", "h3")).bandRanges();
 		assertThat(ranges.stream().map(AttributeAxis.BandRange::label)).containsExactly("濒危", "受创", "充沛");
-		assertThat(ranges.get(0)).isEqualTo(new AttributeAxis.BandRange(0, 20, "濒危"));
-		assertThat(ranges.get(1)).isEqualTo(new AttributeAxis.BandRange(21, 50, "受创"));
-		assertThat(ranges.get(2)).isEqualTo(new AttributeAxis.BandRange(51, 100, "充沛"));
+		// severity 随区间同趟派生(ADR-018):致命 depletion → 最低档 danger、次低 caution、其余 neutral。
+		assertThat(ranges.get(0)).isEqualTo(new AttributeAxis.BandRange(0, 20, "濒危", Severity.DANGER));
+		assertThat(ranges.get(1)).isEqualTo(new AttributeAxis.BandRange(21, 50, "受创", Severity.CAUTION));
+		assertThat(ranges.get(2)).isEqualTo(new AttributeAxis.BandRange(51, 100, "充沛", Severity.NEUTRAL));
 	}
 
 	@Test
 	void accumulationBandRangesAreContiguousAscending() {
 		var ranges = AttributeAxis.accumulating("knowledge", "禁忌知识", "h").withBands(
 				new Band(0, "蒙昧", "h1"), new Band(31, "初窥", "h2"), new Band(61, "深陷", "h3")).bandRanges();
-		assertThat(ranges.get(0)).isEqualTo(new AttributeAxis.BandRange(0, 30, "蒙昧"));
-		assertThat(ranges.get(1)).isEqualTo(new AttributeAxis.BandRange(31, 60, "初窥"));
-		assertThat(ranges.get(2)).isEqualTo(new AttributeAxis.BandRange(61, 100, "深陷"));
+		// accumulating(纯成长,perilAtHigh=false)→ 全 neutral;双刃变体见 AttributeAxisSeverityTest。
+		assertThat(ranges.get(0)).isEqualTo(new AttributeAxis.BandRange(0, 30, "蒙昧", Severity.NEUTRAL));
+		assertThat(ranges.get(1)).isEqualTo(new AttributeAxis.BandRange(31, 60, "初窥", Severity.NEUTRAL));
+		assertThat(ranges.get(2)).isEqualTo(new AttributeAxis.BandRange(61, 100, "深陷", Severity.NEUTRAL));
 	}
 
 	@Test

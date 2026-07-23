@@ -148,10 +148,15 @@ public class GameInitService {
 
 	/**
 	 * 本局数值轴元数据 {@code [{key,displayName,bands?}]}(顺序即面板顺序;behaviorHint/range 不下发前端)。
-	 * 有行为档的轴带上 {@code bands:[{min,max,label}]}(#3,显式 inclusive 区间投影,axisRole 无关——前端只需
-	 * 「{@code min≤value≤max}」解析当前档,无须懂 depletion/accumulation;守 ADR-003 展示层语义无关);<b>不下发
-	 * narrationHint</b>(它仅服务端注入 prompt)。无档轴省略 {@code bands} 字段(前端只显数字)。融合世界据融合轴集
-	 * 渲染(道心换皮 displayName / bands 直接生效,前端无感,ADR-013)。
+	 * 有行为档的轴带上 {@code bands:[{min,max,label,severity}]}(#3,显式 inclusive 区间投影,axisRole 无关——
+	 * 前端只需「{@code min≤value≤max}」解析当前档,无须懂 depletion/accumulation;守 ADR-003 展示层语义无关);
+	 * <b>不下发 narrationHint</b>(它仅服务端注入 prompt)。无档轴省略 {@code bands} 字段(前端只显数字)。
+	 * 融合世界据融合轴集渲染(道心换皮 displayName / bands 直接生效,前端无感,ADR-013)。
+	 *
+	 * <p><b>severity(ADR-018 语义产出方原则)</b>:每档的风险等级在<b>服务端</b>据 axisRole/lethal/perilAtHigh
+	 * 派生完毕(见 {@code AttributeAxis.bandRanges()}),前端只按区间匹配当前档并渲染,<b>不判断危不危险</b>。
+	 * 本方法是 axesJson 的<b>唯一构建点</b>——{@code init} 与 {@code resume} 共用(同一构建路径,ADR-018),
+	 * 两条路径的 severity 必然一致。走 API DTO 而非被校验的 wire schema → {@code schemaVersion} 保 "0.4"。
 	 */
 	private ArrayNode attributeMeta(List<AttributeAxis> axes) {
 		ArrayNode out = mapper.createArrayNode();
@@ -160,7 +165,8 @@ public class GameInitService {
 			if (!a.bands().isEmpty()) {
 				ArrayNode bands = axis.putArray("bands");
 				for (AttributeAxis.BandRange r : a.bandRanges()) {
-					bands.addObject().put("min", r.min()).put("max", r.max()).put("label", r.label());
+					bands.addObject().put("min", r.min()).put("max", r.max()).put("label", r.label())
+							.put("severity", r.severity().wire());
 				}
 			}
 		}

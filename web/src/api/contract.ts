@@ -63,7 +63,19 @@ export interface AxisBand {
   max: number;
   /** 档名(玩家可见中文短词,如「濒危」「灵力枯竭」「深陷」)。 */
   label: string;
+  /**
+   * 该档的风险等级(ADR-018 severity 契约)。**由服务端派生,前端只渲染、绝不自行判断危不危险**——
+   * 按区间匹配当前档是数据匹配(合法),判断该档危险与否是语义判断(须在服务端完成)。
+   * 可选:老响应可能没有;缺省 / 未知值一律安全降级(见 `features/game/bands.ts`)。
+   */
+  severity?: AxisSeverity;
 }
+
+/**
+ * 数值档的风险等级(ADR-018)。`neutral`=无风险语义 / `caution`=预警 / `danger`=危险。
+ * 前端四套数值主题**只呈现风险等级,不猜测数值好坏**。
+ */
+export type AxisSeverity = 'neutral' | 'caution' | 'danger';
 
 /**
  * 本模式一个数值轴的展示元数据(ADR-008 决策 1 前端消费方)。后端 init 下发 [{key,displayName,bands?}],

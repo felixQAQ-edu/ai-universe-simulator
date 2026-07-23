@@ -232,12 +232,16 @@ public class ArchetypeRegistry {
 
 	/**
 	 * 显示层换皮:换 displayName + bands,behaviorHint 仅当 skin 给了 override 才换(ADR-014,缺省沿用原 hint);
-	 * 其余(key/min/max/axisRole/lethal)全保留 → 引擎无感。
+	 * 其余(key/min/max/axisRole/lethal/<b>perilAtHigh</b>)全保留 → 引擎无感。
+	 *
+	 * <p><b>perilAtHigh 在「换皮不换」清单内(ADR-018)</b>:换皮只改玩家看到的名字与档文案,不改这根轴的危险
+	 * 方向。故融合局的 severity <b>自动等同于对应 host 侧单体</b>——<b>per-combo 对 severity 零登记</b>,
+	 * 新增融合组合不为此做任何事(守 F-016 复用成本模型)。
 	 */
 	private static AttributeAxis applySkin(AttributeAxis axis, AxisSkin skin) {
 		String hint = skin.behaviorHint() != null ? skin.behaviorHint() : axis.behaviorHint();
 		return new AttributeAxis(axis.key(), skin.displayName(), axis.min(), axis.max(),
-				hint, axis.axisRole(), axis.lethal(), skin.bands());
+				hint, axis.axisRole(), axis.lethal(), axis.perilAtHigh(), skin.bands());
 	}
 
 	/**
@@ -380,7 +384,9 @@ public class ArchetypeRegistry {
 								band(100, "清明", "神志清明、判断冷静"),
 								band(50, "动摇", "精神紧绷、手指发抖,理智开始动摇,疑神疑鬼"),
 								band(20, "崩溃边缘", "幻觉与低语缠绕、分不清虚实,理智即将断裂")),
-						AttributeAxis.accumulating("knowledge", "禁忌知识",
+						// 累积型【双刃】(ADR-018 perilAtHigh):引擎侧与 accumulating 逐字相同(≤0 不致死),
+						// 只多一位纯展示层标——高位=越接近疯狂,故最高档染 danger(对照修仙境界纯成长、全档 neutral)。
+						AttributeAxis.doubleEdged("knowledge", "禁忌知识",
 								"累积型双刃:玩家主动钻研典籍 / 窥探禁忌 / 接触旧日之物时上涨(求知与探索使之增长),"
 										+ "平时只涨或持平、不无故回落;knowledge 高则解锁更强的洞察 / 看穿真相(力量)。"
 										+ "【关键联动】knowledge 越高,本回合 san 流失就应越快、越凶——知道得越多越接近真相、"
