@@ -11,6 +11,9 @@
 @docs/CONTEXT.md   # 术语 / 统一 JSON Schema / 命名与工程约定（约定的真理之源）
 @docs/ROADMAP.md   # 路线图、当前进度、待决 ADR
 
+动前端视觉/动效前另读 `AGENTS.md` 的 **Motion Constraints** 一节（记忆点唯一 / 动效预算 /
+新增须替代或降级 / 正文禁区 / 清理与 reduced-motion / 库白名单；真理之源 = ADR-017）。
+
 ## 工程约定
 - 技术决策落 `docs/adr/`（用 `/adr-author`）；进度用 `/roadmap-update` 更新 ROADMAP。
 - 验证中的发现记 `bakeoff/FINDINGS.md`；约定或 schema 变更走 CONTEXT 升版本号，不靠提示词反复叮嘱。
