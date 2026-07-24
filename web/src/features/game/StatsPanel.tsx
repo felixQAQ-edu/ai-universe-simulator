@@ -1,6 +1,7 @@
 import type { AttributeAxisMeta } from '../../api';
 import { resolveBandLabel, resolveSeverity } from './bands';
 import { severityWord, useSkin, type AxisView } from './theme/contract';
+import { useAnimatedValues } from './theme/useAnimatedValues';
 import styles from './game.module.css';
 
 // 数值面板 = **通用层**(ADR-018 §4.2)。职责严格限于:
@@ -18,7 +19,10 @@ export function StatsPanel({
   values: Record<string, number>;
 }) {
   const bundle = useSkin();
-  const views = axes.map((axis) => toAxisView(axis, values));
+  // 数值滚动的**单一驱动量**:档名与 severity 一律按此刻屏幕上的数去查,
+  // 数字滚过阈值那一帧同步翻档(ADR-018 §4.2:同步逻辑在通用层,不下放主题层)。
+  const shown = useAnimatedValues(values, bundle);
+  const views = axes.map((axis) => toAxisView(axis, shown));
   if (!bundle) return <LegacyStats axes={views} />;
   const Form = bundle.skin.Stats;
   return <Form axes={views} runtime={bundle.runtime} />;
