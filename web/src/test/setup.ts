@@ -19,3 +19,24 @@ if (typeof globalThis.localStorage === 'undefined' || globalThis.localStorage ==
     Object.defineProperty(window, 'localStorage', { value: memoryStorage, configurable: true });
   }
 }
+
+// jsdom 不实现 matchMedia —— 而 `theme/motion.ts` 的 reducedMotion() 闸(以及未来所有
+// 媒体查询驱动的降级)要读它。补一个最小实现(同上面 localStorage polyfill 的先例):
+// **默认全部不匹配**(= 不减弱动效),需要测「reduced-motion 下不闪」的用例自行改写返回值。
+if (typeof window !== 'undefined' && typeof window.matchMedia !== 'function') {
+  Object.defineProperty(window, 'matchMedia', {
+    configurable: true,
+    writable: true,
+    value: (query: string) =>
+      ({
+        matches: false,
+        media: query,
+        onchange: null,
+        addListener: () => {},
+        removeListener: () => {},
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => false,
+      }) as unknown as MediaQueryList,
+  });
+}

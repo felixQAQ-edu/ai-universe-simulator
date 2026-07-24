@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cardTheme, resolveWorldTheme } from './registry';
+import { NEUTRAL_THEME, cardTheme, fusionKey, resolveWorldTheme } from './registry';
 
 // 单一主题注册表(ADR-018 §4.1):世界判定只发生一次。
 // 封面用例整体自 scene.test.ts 迁来(原 `sceneImageUrl`,覆盖零损失);
@@ -43,6 +43,34 @@ describe('resolveWorldTheme · 封面(原 sceneImageUrl 用例,逐条保留)', (
       '/scenes/rules_creepy.webp',
     );
     expect(resolveWorldTheme(['life_sim', 'cyberpunk']).sceneUrl).toBeNull();
+  });
+});
+
+describe('resolveWorldTheme · 皮肤登记(feature gate,ADR-018 §4.5)', () => {
+  it('规则怪谈(刀 1 试验田)登记了新皮肤', () => {
+    expect(resolveWorldTheme('rules_creepy').skin).toBe('rules_creepy');
+  });
+
+  it('其余三世界仍走旧实现(刀 1 不准顺手一起登记)', () => {
+    expect(resolveWorldTheme('cultivation').skin).toBeNull();
+    expect(resolveWorldTheme('apocalypse').skin).toBeNull();
+    expect(resolveWorldTheme('cthulhu').skin).toBeNull();
+  });
+
+  it('未知 / 未开放世界 → 中性主题(不显图、中性卡、旧实现)', () => {
+    expect(resolveWorldTheme('totally_unknown')).toEqual(NEUTRAL_THEME);
+    expect(resolveWorldTheme('life_sim').skin).toBeNull();
+  });
+
+  // 放行标准 2:规则怪谈作 host 的融合局,在没有融合视觉签名时**纯 host 呈现**。
+  it('融合局的游戏内皮肤 = host 的皮肤(签名未实现前纯 host 呈现,ADR-018 §5 Q2)', () => {
+    const renfang = resolveWorldTheme(['rules_creepy', 'apocalypse']);
+    expect(renfang.key).toBe(fusionKey('rules_creepy', 'apocalypse'));
+    expect(renfang.skin).toBe('rules_creepy'); // host = 规则怪谈 → 用规则怪谈皮肤
+  });
+
+  it('host 未登记的融合局仍走旧实现(识海遗蜕 host=修仙)', () => {
+    expect(resolveWorldTheme(['cultivation', 'rules_creepy']).skin).toBeNull();
   });
 });
 
