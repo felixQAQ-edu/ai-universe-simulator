@@ -1,0 +1,399 @@
+/* ═══ 规则怪谈 · 皮肤「值班室冷灯」(ADR-018 刀 1 试验田)══════════════════════
+ *
+ * 样板间(~/code/wanjie-visual-lab · guize-a)冻结成果的生产移植。
+ * 三条纪律:
+ *   ① 色板与时间感全部走**主题根 token**——通用组件(正文/规则面板/提示条)不知道自己被换了皮,
+ *      只是读到了不同的 var 值(ADR-018 §4.2 通用层/主题层分工);
+ *   ② `--t-dur` 与 `--t-ease` **成对**(§4.3):规则怪谈 = 0.09s + linear(准时、机械、戛然而止);
+ *   ③ 一切动画在 `prefers-reduced-motion: reduce` 下停(AGENTS.md Motion Constraints §5)。
+ *
+ * 动效预算(§2):持续 = 监控呼吸(.cctvBreathe,挂顶部氛围图)/ 低频 = OSD 扫描线 /
+ * 用户触发 = 规则点亮脉冲 + 选项阶跃反馈;入场灯闪为一次性,不占槽。
+ * 零图片资源:噪点与分段全部 CSS。
+ */
+
+/* ── 主题根:色板 token + 时间感 token ───────────────────────────────── */
+.screen {
+  /* 世界决定明暗(ADR-018 §4.6):本世界固定深色,不跟随系统浅/深色偏好。 */
+  --bg: #101418;
+  --text: #c2cdd5; /* 约 12.5:1 —— 样板间补丁批·项四校准值 */
+  --muted: #5f6d78;
+  --line: rgba(130, 160, 180, 0.16);
+  --card: rgba(20, 28, 34, 0.82); /* 半透明是刻意的:灯闪压暗背景时,字不跟着暗 */
+  --chip: rgba(130, 160, 180, 0.12);
+  --accent: #7ba3c4;
+  --accent-soft: rgba(123, 163, 196, 0.1);
+  --notice-bg: rgba(123, 163, 196, 0.12);
+  --notice-fg: #cfdbe4;
+
+  /* 规则条目:连续阅读故行距放松;未点亮项 #8b9dab 约 6.3:1(补丁批·项四) */
+  --rule-lh: 1.95;
+  --rule-idle: #8b9dab;
+
+  /* 光标不闪 = 静态方块:贴规则怪谈「精确/机械/阶跃」的时间感,
+     同时了结 AGENTS.md §4「正文永不持续动画」在正文区的最后一处循环。 */
+  --caret-play: paused;
+
+  /* 方角:本世界零圆角语言(值班室的表格与铭牌都不是圆的) */
+  --panel-radius: 2px;
+
+  /* 时间感(成对,§4.3) */
+  --t-dur: 0.09s;
+  --t-ease: linear;
+
+  color: var(--text);
+}
+
+/* 内容抬到氛围层之上:**压暗层永远在内容之下**,正文文字全程不参与压暗
+   (Felix 2026-07-24 裁定条件 a)。面板半透明 → 背景在闪,字不闪。 */
+.screen > *:not(.ambient) {
+  position: relative;
+  z-index: 1;
+}
+
+/* ── 氛围层(全部 fixed 铺满视口:桌面端 .screen 只有 640px 宽,两侧也须是值班室)── */
+.ambient {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.roomFill {
+  position: absolute;
+  inset: 0;
+  background: #101418;
+}
+
+/* 室内冷光(顶灯落在房间里的光)。灯闪时压暗的就是它 ——
+   样板间是一根可见的灯管条;生产顶部被氛围图占满,灯管条在手机视口必然被盖住,
+   故改为「房间的光」本身可压暗(效果等价:光源暗下去),不新增 DOM 概念。 */
+.roomLight {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(120% 60% at 50% -10%, rgba(200, 228, 248, 0.16), transparent 62%),
+    linear-gradient(180deg, rgba(150, 190, 220, 0.07), transparent 45%);
+}
+
+/* 静态噪点(不抖动:持续槽让位给监控呼吸)。零图片 —— SVG turbulence 内联 data URI。 */
+.crt {
+  position: absolute;
+  inset: -30px;
+  opacity: 0.055;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='140' height='140' filter='url(%23n)'/></svg>");
+}
+
+.vignette {
+  position: absolute;
+  inset: 0;
+  box-shadow: inset 0 0 110px 30px rgba(2, 4, 7, 0.6);
+}
+
+/* 压暗层:灯闪的本体。在氛围层内 → 内容之下(见 .screen > * 的 z-index)。 */
+.blackout {
+  position: absolute;
+  inset: 0;
+  background: #04060a;
+  opacity: 0;
+}
+
+/* ── 持续环境(1/1):监控画面呼吸 —— 挂在顶部氛围图上,它就是本世界的「监控画面」── */
+.cctvBreathe {
+  transform-origin: center;
+  animation: breathe 9s ease-in-out infinite alternate;
+  transition: filter 0.15s linear;
+}
+
+@keyframes breathe {
+  to {
+    transform: scale(1.028);
+  }
+}
+
+/* 前一拍:监控呼吸暂停(灯管压暗由 GSAP 作用在 .roomLight 上) */
+.preBeat .cctvBreathe {
+  animation-play-state: paused;
+}
+
+/* 余韵:监控画面曝光略不一致,保持 10s 后 0.15s 干脆复原(结束干脆 = RULES 时间感) */
+.afterFlicker .cctvBreathe {
+  filter: brightness(1.14) contrast(0.92);
+}
+
+/* 停表(§4.4):正文不稳定期(生成中 / 开场逐字未完)低频动效一律停。 */
+.paused .osd::after,
+.paused .cctvBreathe {
+  animation-play-state: paused;
+}
+
+/* ── 数值形态:监控 OSD 状态栏 ──────────────────────────────────────── */
+.osd {
+  padding: 10px 12px 12px;
+  background: rgba(8, 12, 16, 0.88);
+  border: 1px solid var(--line);
+  border-radius: 2px; /* 方角:本世界零圆角语言 */
+  position: relative;
+  overflow: hidden;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 低频偶发(1/1):扫描线 14s 一次单程,其余时间隐藏 */
+.osd::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -22px;
+  height: 22px;
+  background: linear-gradient(180deg, transparent, rgba(160, 200, 230, 0.06), transparent);
+  animation: osdScan 14s linear infinite;
+  opacity: 0;
+  pointer-events: none;
+}
+
+@keyframes osdScan {
+  0% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+  2% {
+    opacity: 1;
+  }
+  10% {
+    transform: translateY(620%);
+    opacity: 1;
+  }
+  11% {
+    transform: translateY(620%);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(620%);
+    opacity: 0;
+  }
+}
+
+.osdHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 0.22em;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 6px;
+}
+
+.rec {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #a0574a;
+}
+
+.rec i {
+  /* 静态(不闪烁):记忆点唯一,红点不与灯闪抢戏 */
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #a0574a;
+  opacity: 0.7;
+}
+
+.osdRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 0;
+}
+
+.osdLabel {
+  font-size: 12px;
+  color: var(--muted);
+  letter-spacing: 0.12em;
+  flex: none;
+}
+
+.osdTrack {
+  flex: 1;
+  min-width: 40px;
+  height: 8px;
+  background: repeating-linear-gradient(
+    90deg,
+    rgba(123, 163, 196, 0.1) 0 6px,
+    transparent 6px 9px
+  );
+  overflow: hidden;
+}
+
+.osdBar {
+  height: 100%;
+  background: repeating-linear-gradient(90deg, var(--accent) 0 6px, transparent 6px 9px);
+}
+
+.osdNum {
+  font-size: 13px;
+  min-width: 24px;
+  text-align: right;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  color: var(--text);
+}
+
+.osdBand {
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
+.osdStatus {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  white-space: nowrap;
+}
+
+.osdLamp {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentcolor;
+}
+
+/* 状态色**只由 severity 驱动**(服务端派生);缺省时整个状态块不渲染,不进危险态。 */
+.statusOk {
+  color: #7ba3c4;
+}
+
+.statusWarn {
+  color: #c4a35f;
+}
+
+.statusBad {
+  color: #a0574a;
+}
+
+/* ── 决策圈形态:值班登记表条目 ─────────────────────────────────────── */
+.duties {
+  border: 1px solid var(--line);
+}
+
+.duty {
+  appearance: none;
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+  font-size: 0.9rem;
+  line-height: 1.8;
+  padding: 0;
+  color: var(--text);
+  background: rgba(14, 19, 24, 0.82);
+  border: none;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0; /* 方角:与圆角卡片语言彻底区分 */
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--t-dur) var(--t-ease);
+}
+
+.duty:last-child {
+  border-bottom: none;
+}
+
+.duty:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.dutyNo {
+  flex: none;
+  width: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 11px;
+  color: var(--muted);
+  border-right: 1px solid var(--line);
+}
+
+.dutyBody {
+  flex: 1;
+  padding: 11px 12px;
+}
+
+.dutyText {
+  display: block;
+}
+
+/* 定性风险提示(ADR-011):次级层级小字,缺失时不渲染、不占位。 */
+.dutyHint {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.74rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.dutyBox {
+  flex: none;
+  display: flex;
+  align-items: center;
+  padding-right: 12px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.dutyBox::after {
+  content: '□';
+}
+
+/* 阶跃反馈:按下即变,无缓动,松开即回(RULES 时间感) */
+.duty:active:not(:disabled) {
+  background: rgba(123, 163, 196, 0.14);
+}
+
+.duty:active:not(:disabled) .dutyNo {
+  color: var(--accent);
+}
+
+.duty:active:not(:disabled) .dutyBox::after {
+  content: '■';
+  color: var(--accent);
+}
+
+/* ── debug 控件(仅 ?debug=1;不改任何生产数据)───────────────────────── */
+.debugBtn {
+  align-self: flex-start;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 0.68rem;
+  color: var(--muted);
+  background: transparent;
+  border: 1px dashed var(--muted);
+  border-radius: 2px;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+/* ── 无障碍:偏好减弱动效 ───────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .screen {
+    --t-dur: 0.01s;
+  }
+
+  .cctvBreathe,
+  .osd::after {
+    animation: none;
+  }
+
+  .afterFlicker .cctvBreathe {
+    filter: none;
+  }
+}

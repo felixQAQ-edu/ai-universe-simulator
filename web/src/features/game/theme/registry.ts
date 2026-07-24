@@ -40,10 +40,14 @@ interface WorldEntry {
 
 /**
  * 单体世界登记表。加一个世界 = 加一条(图放 `web/public/scenes/<archetype>.webp`,后端零改)。
- * `skin` 目前全为 null(基建段):四世界一律旧实现,下一刀只把规则怪谈那条翻过来。
+ * `skin` 只有规则怪谈非 null —— 试验田先证明基建,其余三世界照旧(ADR-018 §3 刀 1「不准顺手做」)。
  */
 const WORLDS: Readonly<Record<string, WorldEntry>> = {
-  rules_creepy: { sceneUrl: '/scenes/rules_creepy.webp', cardClass: styles.cardCreepy, skin: null },
+  rules_creepy: {
+    sceneUrl: '/scenes/rules_creepy.webp',
+    cardClass: styles.cardCreepy,
+    skin: 'rules_creepy', // 刀 1 试验田:唯一登记新皮肤的世界
+  },
   apocalypse: { sceneUrl: '/scenes/apocalypse.webp', cardClass: styles.cardApocalypse, skin: null },
   cthulhu: { sceneUrl: '/scenes/cthulhu.webp', cardClass: styles.cardCthulhu, skin: null },
   cultivation: { sceneUrl: '/scenes/cultivation.webp', cardClass: styles.cardCultivation, skin: null },

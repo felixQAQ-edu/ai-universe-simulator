@@ -165,7 +165,7 @@
 .prose {
   background: var(--card);
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--panel-radius, 12px);
   padding: 1rem 1.05rem;
   min-height: 8rem;
   white-space: pre-wrap;
@@ -251,7 +251,7 @@
 .rules {
   background: var(--card);
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--panel-radius, 12px);
   padding: 0.8rem 1rem;
 }
 
@@ -332,7 +332,7 @@
   /* 主题令牌:皮肤给自己的世界配一套(缺省 = 旧的浅色/深色两版)。 */
   background: var(--notice-bg, #f6e7c8);
   color: var(--notice-fg, #7a5a13);
-  border-radius: 10px;
+  border-radius: var(--panel-radius, 10px);
   padding: 0.55rem 0.8rem;
   font-size: 0.85rem;
 }
