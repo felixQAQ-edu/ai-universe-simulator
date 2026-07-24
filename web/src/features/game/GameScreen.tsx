@@ -112,13 +112,19 @@ function PlayingScreen() {
   const paused = generating || revealing;
   const Ambient = skin?.Ambient;
   const Actions = skin?.Actions ?? DecisionCircle;
-  const skinClasses = skin
-    ? `${skin.screenClass} ${paused ? skin.pausedClass : ''} ${rootClass}`
-    : '';
+  // 空段一律滤掉:未登记世界的 class 属性与刀 1 之前**逐字节一致**(连尾随空格都不多一个)。
+  const rootClasses = [
+    styles.screen,
+    skin?.screenClass,
+    paused ? skin?.pausedClass : null,
+    rootClass,
+  ]
+    .filter(Boolean)
+    .join(' ');
 
   return (
     <SkinContext.Provider value={bundle}>
-      <main className={`${styles.screen} ${skinClasses}`}>
+      <main className={rootClasses}>
         {Ambient && (
           <Ambient
             runtime={runtime}

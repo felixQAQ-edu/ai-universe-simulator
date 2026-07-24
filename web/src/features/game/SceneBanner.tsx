@@ -33,7 +33,8 @@ export function SceneBanner({
     <header className={styles.banner}>
       {sceneUrl && (
         <div
-          className={`${styles.bannerImg} ${skin?.bannerImgClass ?? ''}`}
+          // 空段滤掉:未登记世界的 class 属性与刀 1 之前逐字节一致。
+          className={[styles.bannerImg, skin?.bannerImgClass].filter(Boolean).join(' ')}
           style={{ backgroundImage: `url(${sceneUrl})` }}
           aria-hidden="true"
         />
