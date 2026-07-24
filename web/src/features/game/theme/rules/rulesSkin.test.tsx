@@ -1,10 +1,11 @@
+import { StrictMode, useRef } from 'react';
 import { render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AttributeAxisMeta, AxisBand } from '../../../../api';
 import type { AvailableAction } from '../../../../types/schema';
 import { StatsPanel } from '../../StatsPanel';
 import { SkinContext } from '../contract';
-import { SkinRuntime } from '../lifecycle';
+import { SkinRuntime, useSkinRuntime } from '../lifecycle';
 import { SKINS } from '../skins';
 import { RulesActions } from './RulesActions';
 import { RulesAmbient } from './RulesAmbient';
@@ -161,19 +162,72 @@ describe('RulesAmbient(入场灯闪的触发条件)', () => {
     vi.restoreAllMocks();
   });
 
-  const mount = (props: { generating: boolean; setRootClass: (c: string) => void }) => {
+  const mount = (props: {
+    generating: boolean;
+    setRootClass: (c: string) => void;
+    onIntroDone?: () => void;
+  }) => {
     const runtime = new SkinRuntime();
+    // 主题根:皮肤把灯闪的连续量(亮度/色温/压暗)写成它上面的 CSS 自定义属性。
+    const root = { current: document.createElement('main') } as React.RefObject<HTMLElement | null>;
     render(
       <RulesAmbient
         runtime={runtime}
+        rootRef={root}
         paused={false}
         generating={props.generating}
         turn={0}
         setRootClass={props.setRootClass}
+        onIntroDone={props.onIntroDone ?? (() => {})}
       />,
     );
     return runtime;
   };
+
+  // ★ 刀 1 冒烟「灯闪到底有没有发生」的第二个真因(与遮挡无关):
+  // StrictMode 下 effect 走 挂载 → 清理 → 再挂载,中间那次清理会 teardown 掉已排期的定时器。
+  // 若守卫记的是「排过期了」,第二次挂载就直接跳过 —— 本地开发下入场序列永远不会播。
+  it('StrictMode 双挂载(开发模式)后仍会播 —— 守卫记「已开演」而非「已排期」', () => {
+    vi.useFakeTimers();
+    const setRootClass = vi.fn();
+    // 必须用**真实接线**(useSkinRuntime + 主题根)才能复现:StrictMode 的
+    // 挂载 → 清理 → 再挂载里,中间那次清理会 runtime.teardown() 清掉已排期的定时器。
+    // 只 new 一个 SkinRuntime 手动传进去是复现不出来的 —— 没人在两次挂载之间 teardown。
+    function Harness() {
+      const runtime = useSkinRuntime('rules_creepy', 0);
+      const root = useRef<HTMLElement | null>(null);
+      return (
+        <main ref={root}>
+          <RulesAmbient
+            runtime={runtime}
+            rootRef={root}
+            paused={false}
+            generating={false}
+            turn={0}
+            setRootClass={setRootClass}
+            onIntroDone={() => {}}
+          />
+        </main>
+      );
+    }
+    render(
+      <StrictMode>
+        <Harness />
+      </StrictMode>,
+    );
+
+    vi.advanceTimersByTime(1000);
+
+    expect(setRootClass).toHaveBeenCalled();
+  });
+
+  it('入场序列播完会放行正文(串行:先环境,后叙事)', () => {
+    vi.useFakeTimers();
+    const onIntroDone = vi.fn();
+    mount({ generating: true, setRootClass: vi.fn(), onIntroDone }); // 被抑制也必须放行
+    vi.advanceTimersByTime(1000);
+    expect(onIntroDone).toHaveBeenCalledTimes(1);
+  });
 
   it('正常入场:放一次(前一拍会给主题根挂状态 class)', () => {
     vi.useFakeTimers();
@@ -226,10 +280,12 @@ describe('RulesAmbient(入场灯闪的触发条件)', () => {
     const { container } = render(
       <RulesAmbient
         runtime={new SkinRuntime()}
+        rootRef={{ current: document.createElement('main') } as React.RefObject<HTMLElement | null>}
         paused={false}
         generating={false}
         turn={0}
         setRootClass={() => {}}
+        onIntroDone={() => {}}
       />,
     );
     expect(container.querySelector('[aria-hidden="true"]')).not.toBeNull();

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useGameStore } from '../../state/gameStore';
 import { ArchetypeSelect } from './ArchetypeSelect';
 import { DecisionCircle } from './DecisionCircle';
@@ -86,12 +86,29 @@ function PlayingScreen() {
   // 开场 reveal:仅当还没行动过(turn 0)时对开场叙事做 client-side 逐字动画。
   // 打字进度在这里算(而非 Prose 内),因为它同时是低频动效的停表信号(ADR-018 §4.4)。
   const isOpening = turn === 0;
-  const { shown, done } = useTypewriter(narrative, isOpening && !!world);
+  const rootRef = useRef<HTMLElement | null>(null);
 
   // ── 本项目唯一的世界判定点(ADR-018 §4.1)────────────────────────────
   // 子组件一律消费这次判定的结果(封面 / 皮肤 / 卡片氛围),不得各自再判 archetype。
   const theme = resolveWorldTheme(world?.archetypes);
   const skin = (theme.skin ? SKINS[theme.skin] : null) ?? null;
+
+  // ── 串行入场(ADR-018 §4.7)────────────────────────────────────────────
+  // 场景进入 → 皮肤的入场序列(灯闪)→ 余韵 → **然后**正文才开始逐字:
+  // 先看见环境,再进入叙事;顺带彻底消除「记忆点与阅读抢注意力」的风险。
+  const [introDone, setIntroDone] = useState(false);
+  const releaseIntro = useCallback(() => setIntroDone(true), []);
+  // 兜底:皮肤若因故没回调(实现漏了/异常/浏览器后台节流),2.5s 后通用层自行放行 ——
+  // **叙事永远不该被动画卡住**。这是兜底,不是设计路径。
+  useEffect(() => {
+    const t = window.setTimeout(releaseIntro, 2500);
+    return () => window.clearTimeout(t);
+  }, [releaseIntro]);
+
+  // 等入场序列期间:不开始打字(enabled=false 会直接全显,故渲染侧走空串,见下 proseText)。
+  const waitingForIntro = isOpening && !!skin?.hasIntro && !introDone;
+  const revealEnabled = isOpening && !!world && !waitingForIntro;
+  const { shown, done } = useTypewriter(narrative, revealEnabled);
   // runtime 的 key 含皮肤与回合:两者任一变化即走**同一个** teardown(§4.4)。
   const runtime = useSkinRuntime(theme.skin ?? '', turn);
   const bundle = useMemo(() => (skin ? { skin, runtime } : null), [skin, runtime]);
@@ -106,7 +123,9 @@ function PlayingScreen() {
 
   if (!world) return null;
 
-  const revealing = isOpening && !done;
+  const revealing = revealEnabled && !done;
+  // 正文:非开场直接显示;开场等入场序列(此间空,布局靠 .prose 的 min-height 不塌),放行后逐字。
+  const proseText = !isOpening ? narrative : waitingForIntro ? '' : shown;
   // 停表:回合流生成中 / 开场逐字未完 —— 正文不稳定期,低频调度一律停。
   const generating = status === 'generating';
   const paused = generating || revealing;
@@ -124,14 +143,16 @@ function PlayingScreen() {
 
   return (
     <SkinContext.Provider value={bundle}>
-      <main className={rootClasses}>
+      <main className={rootClasses} ref={rootRef}>
         {Ambient && (
           <Ambient
             runtime={runtime}
+            rootRef={rootRef}
             paused={paused}
             generating={generating}
             turn={turn}
             setRootClass={setRootClass}
+            onIntroDone={releaseIntro}
           />
         )}
 
@@ -145,7 +166,7 @@ function PlayingScreen() {
 
         <StatsPanel axes={attributeAxes} values={attributeValues} />
 
-        <Prose text={isOpening ? shown : narrative} caret={revealing} />
+        <Prose text={proseText} caret={revealing} />
 
         {notice && <div className={styles.notice}>{notice}</div>}
 

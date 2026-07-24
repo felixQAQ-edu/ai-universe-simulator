@@ -15,6 +15,10 @@ import rules from './rules/rules.module.css';
 export const SKINS: Partial<Record<SkinId, WorldSkin>> = {
   rules_creepy: {
     id: 'rules_creepy',
+    // 入场序列(场景进入 → 稳一拍 → 灯闪三拍 → 余韵)→ 之后才放行正文逐字(ADR-018 §4.7)。
+    hasIntro: true,
+    // 数值滚动的时间感:准时、机械、线性(与 `--t-ease: linear` 同源);同步逻辑在通用层。
+    valueRoll: { durationMs: 900, ease: 'none' },
     screenClass: rules.screen,
     pausedClass: rules.paused,
     bannerImgClass: rules.cctvBreathe,

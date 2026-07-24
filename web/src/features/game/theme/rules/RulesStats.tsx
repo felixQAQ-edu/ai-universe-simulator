@@ -1,9 +1,5 @@
-import { useEffect, useRef } from 'react';
-import gsap from 'gsap';
 import type { AxisView, StatsProps } from '../contract';
 import { severityWord } from '../contract';
-import type { SkinRuntime } from '../lifecycle';
-import { RULES, reducedMotion } from '../motion';
 import styles from './rules.module.css';
 
 // 规则怪谈 · 数值形态「监控 OSD 状态栏」(样板间冻结成果移植)。
@@ -13,8 +9,12 @@ import styles from './rules.module.css';
 // `axis.severity`(服务端派生)。样板间那版按 `value >= 60 ? "正常" : …` 自算阈值 —— 那正是
 // 本 ADR 禁止的「消费方发明启发式」,移植时必须换掉,而不是照抄。
 // severity 为 null(四种缺省)→ **不显示状态灯与状态词**,数字与档名照常(安全降级,绝不默认危险)。
+//
+// **数值滚动不在本文件**:`axis.value` 已经是通用层插值后的当前显示值(`useAnimatedValues`),
+// 档名与 severity 也由同一个值派生 —— 数字滚过阈值那一帧,三者同帧翻转。
+// 主题层若自己再滚一遍数字,就会出现「数字还在滚、状态已经翻」的老毛病(ADR-018 §4.2)。
 
-export function RulesStats({ axes, runtime }: StatsProps) {
+export function RulesStats({ axes }: StatsProps) {
   return (
     <div className={styles.osd}>
       <div className={styles.osdHead}>
@@ -25,7 +25,7 @@ export function RulesStats({ axes, runtime }: StatsProps) {
         <span>SYS.07 · 状态自检</span>
       </div>
       {axes.map((axis) => (
-        <OsdRow key={axis.key} axis={axis} runtime={runtime} />
+        <OsdRow key={axis.key} axis={axis} />
       ))}
     </div>
   );
@@ -39,52 +39,15 @@ function severityClass(axis: AxisView): string {
   return '';
 }
 
-function OsdRow({ axis, runtime }: { axis: AxisView; runtime: SkinRuntime }) {
-  const bar = useRef<HTMLDivElement>(null);
-  const num = useRef<HTMLSpanElement>(null);
-  /** 屏上当前显示到的数(动画起点);首帧 = 真值,故首屏读数即正确。 */
-  const shown = useRef(axis.value);
+function OsdRow({ axis }: { axis: AxisView }) {
   const status = severityWord(axis.severity);
-
-  useEffect(() => {
-    const b = bar.current;
-    const n = num.current;
-    if (!b || !n) return;
-    const from = shown.current;
-    const to = axis.value;
-    shown.current = to;
-    if (from === to) return;
-
-    if (reducedMotion()) {
-      n.textContent = pad(to);
-      b.style.width = `${clamp(to)}%`;
-      return;
-    }
-    // 数值滚动 = 本屏的用户触发槽。走统一 runtime(§4.4):turn 切换/卸载由同一个 teardown 收走,
-    // 不在这里另起一套清理。线性缓动 = 规则怪谈「准时、机械」的时间感(RULES 常量)。
-    runtime.add(() => {
-      const o = { v: from };
-      gsap.to(o, {
-        v: to,
-        duration: RULES.dur(0.9),
-        ease: RULES.ease,
-        onUpdate: () => {
-          n.textContent = pad(o.v);
-          b.style.width = `${clamp(o.v)}%`;
-        },
-      });
-    });
-  }, [axis.value, runtime]);
-
   return (
     <div className={styles.osdRow} aria-label={axis.a11yText}>
       <span className={styles.osdLabel}>{axis.displayName}</span>
       <div className={styles.osdTrack}>
-        <div className={styles.osdBar} ref={bar} style={{ width: `${axis.percent}%` }} />
+        <div className={styles.osdBar} style={{ width: `${axis.percent}%` }} />
       </div>
-      <span className={styles.osdNum} ref={num}>
-        {pad(axis.value)}
-      </span>
+      <span className={styles.osdNum}>{pad(axis.value)}</span>
       {axis.bandLabel && <span className={styles.osdBand}>{axis.bandLabel}</span>}
       {status && (
         <span className={`${styles.osdStatus} ${severityClass(axis)}`}>
@@ -96,6 +59,5 @@ function OsdRow({ axis, runtime }: { axis: AxisView; runtime: SkinRuntime }) {
   );
 }
 
-const clamp = (n: number) => Math.max(0, Math.min(100, n));
 /** 监控读数是等宽两位数(0–100 的 100 自然三位,不截断)。 */
 const pad = (n: number) => String(Math.round(n)).padStart(2, '0');

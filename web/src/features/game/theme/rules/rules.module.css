@@ -7,7 +7,7 @@
  *   ② `--t-dur` 与 `--t-ease` **成对**(§4.3):规则怪谈 = 0.09s + linear(准时、机械、戛然而止);
  *   ③ 一切动画在 `prefers-reduced-motion: reduce` 下停(AGENTS.md Motion Constraints §5)。
  *
- * 动效预算(§2):持续 = 监控呼吸(.cctvBreathe,挂顶部氛围图)/ 低频 = OSD 扫描线 /
+ * 动效预算(§2):持续 = 监控呼吸(.cctvBreathe,挂顶部场景图)/ 低频 = OSD 扫描线 /
  * 用户触发 = 规则点亮脉冲 + 选项阶跃反馈;入场灯闪为一次性,不占槽。
  * 零图片资源:噪点与分段全部 CSS。
  */
@@ -41,11 +41,21 @@
   --t-dur: 0.09s;
   --t-ease: linear;
 
+  /* 灯闪的连续量(由 GSAP 写在主题根上,各层 CSS 自己消费;缺省 = 灯正常亮着)。
+     一条时间线同时驱动顶部场景图 / 氛围层 / OSD,而氛围层不必去 query 别人的 DOM。 */
+  --fl-b: 1;      /* 亮度 */
+  --fl-c: 1;      /* 对比度 */
+  --fl-s: 1;      /* 饱和度(恢复时偏灰 = 色温不对) */
+  --fl-light: 1;  /* 室内冷光强度 */
+  --fl-black: 0;  /* 氛围压暗强度(只补间隙与边缘) */
+  --fl-osd: 1;    /* 数值面板曝光(极轻) */
+
   color: var(--text);
 }
 
-/* 内容抬到氛围层之上:**压暗层永远在内容之下**,正文文字全程不参与压暗
-   (Felix 2026-07-24 裁定条件 a)。面板半透明 → 背景在闪,字不闪。 */
+/* 内容在氛围层之上。灯闪的主表面已改为**顶部场景图**(内容层里唯一不透明、占屏最大的面),
+   氛围压暗只补间隙与边缘 —— 正文与选项两层都不参与,文字 opacity 全程不动
+   (Felix 2026-07-24 裁定条件 a,第二版换表面后仍然成立且更强)。 */
 .screen > *:not(.ambient) {
   position: relative;
   z-index: 1;
@@ -72,6 +82,7 @@
 .roomLight {
   position: absolute;
   inset: 0;
+  opacity: var(--fl-light, 1);
   background:
     radial-gradient(120% 60% at 50% -10%, rgba(200, 228, 248, 0.16), transparent 62%),
     linear-gradient(180deg, rgba(150, 190, 220, 0.07), transparent 45%);
@@ -91,19 +102,21 @@
   box-shadow: inset 0 0 110px 30px rgba(2, 4, 7, 0.6);
 }
 
-/* 压暗层:灯闪的本体。在氛围层内 → 内容之下(见 .screen > * 的 z-index)。 */
+/* 压暗层:只补氛围(间隙与边缘)。**主表面是顶部场景图** —— 第一版把它当主表面,
+   实测被不透明内容遮掉 87% 面积(顶部场景图处透过率为 0),那是方案矛盾不是强度不够。 */
 .blackout {
   position: absolute;
   inset: 0;
   background: #04060a;
-  opacity: 0;
+  opacity: var(--fl-black, 0);
 }
 
-/* ── 持续环境(1/1):监控画面呼吸 —— 挂在顶部氛围图上,它就是本世界的「监控画面」── */
+/* ── 持续环境(1/1):监控画面呼吸 —— 挂在顶部场景图上,它就是本世界的「监控画面」──
+   顶部场景图 = 本世界的房间,也是灯闪的**主表面**(不透明、占屏最大、在视线起点)。 */
 .cctvBreathe {
   transform-origin: center;
   animation: breathe 9s ease-in-out infinite alternate;
-  transition: filter 0.15s linear;
+  filter: brightness(var(--fl-b, 1)) contrast(var(--fl-c, 1)) saturate(var(--fl-s, 1));
 }
 
 @keyframes breathe {
@@ -117,11 +130,6 @@
   animation-play-state: paused;
 }
 
-/* 余韵:监控画面曝光略不一致,保持 10s 后 0.15s 干脆复原(结束干脆 = RULES 时间感) */
-.afterFlicker .cctvBreathe {
-  filter: brightness(1.14) contrast(0.92);
-}
-
 /* 停表(§4.4):正文不稳定期(生成中 / 开场逐字未完)低频动效一律停。 */
 .paused .osd::after,
 .paused .cctvBreathe {
@@ -130,6 +138,8 @@
 
 /* ── 数值形态:监控 OSD 状态栏 ──────────────────────────────────────── */
 .osd {
+  /* 轻表面:数值面板是仪器,跟着灯走一点点(极轻曝光,不改文字 opacity)。 */
+  filter: brightness(var(--fl-osd, 1));
   padding: 10px 12px 12px;
   background: rgba(8, 12, 16, 0.88);
   border: 1px solid var(--line);
@@ -388,12 +398,18 @@
     --t-dur: 0.01s;
   }
 
+  .screen {
+    /* 灯闪整体不发生(JS 侧同样过 reducedMotion() 闸);此处钉死连续量,双保险。 */
+    --fl-b: 1;
+    --fl-c: 1;
+    --fl-s: 1;
+    --fl-light: 1;
+    --fl-black: 0;
+    --fl-osd: 1;
+  }
+
   .cctvBreathe,
   .osd::after {
     animation: none;
-  }
-
-  .afterFlicker .cctvBreathe {
-    filter: none;
   }
 }

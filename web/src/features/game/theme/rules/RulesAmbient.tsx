@@ -3,96 +3,202 @@ import gsap from 'gsap';
 import type { AmbientProps } from '../contract';
 import { isDebug } from '../debug';
 import { RULES, reducedMotion } from '../motion';
+import { trace } from '../telemetry';
 import styles from './rules.module.css';
 
-// 规则怪谈 · 氛围层「值班室冷灯」(样板间冻结成果移植)。
+// 规则怪谈 · 氛围层「值班室冷灯」+ 一级记忆点「灯闪」。
 //
-// 动效记账(AGENTS.md Motion Constraints §2/§3):
-//   持续环境(1) = 监控画面呼吸 —— 挂在**已有的顶部氛围图**上(SceneBanner 即本世界的「监控画面」)。
-//                 **它替代样板间那块独立 CCTV 面板**:不新增 DOM 概念、不新增第二个持续动效。
-//   低频偶发(1) = OSD 扫描线(RulesStats,14s 单程,纯 CSS)。
-//   一次性     = 入场灯闪(本文件;主记忆点,不占低频槽)。
-//   用户触发(1) = 规则点亮脉冲 / 选项阶跃反馈(既有)。
+// ── 承载表面(第二版,Felix 2026-07-24 二分后重做)────────────────────────────
+// 第一版把压暗层压在内容之下,实测:顶部场景图(视口上 47%)透过率 **0**、
+// OSD 面板 0.12、正文面板 0.18,全屏平均 0.201,只有 13% 面积(面板间隙细条)真的在暗。
+// 「正文不受影响」与「整屏可感」在同一层叠顺序里无解 —— **换表面,不是加强度**:
 //
-// 压暗层的位置是**硬要求**:`.blackout` 在氛围层内、z-index 低于内容 —— 灯闪压暗
-// **只作用于氛围层与室内光层,正文文字层全程不参与**(Felix 2026-07-24 裁定条件 a)。
-// 之所以仍然「整屏在闪」,是因为本主题的面板底色是半透明的:背景在暗,字不暗。
+//   主表面 = **顶部场景图**(它就是这个世界的房间;不透明、占屏最大、永远在视线起点)
+//          + **氛围层**(间隙与边缘,补全「整个房间」的感觉)
+//   轻表面 = OSD 面板,只接受极轻曝光波动(数值面板是仪器,跟着灯走一点点)
+//   不动   = **正文与选项**(不改文字 opacity、不加滤镜)——阅读绝对稳定
+//
+// 编排方式:GSAP 只写**主题根上的 CSS 自定义属性**,各层 CSS 自己消费。
+// 于是一条时间线同时驱动场景图/氛围/面板,而氛围层不必去 query 别人的 DOM。
+//
+// ── 三拍不对称(不做等长两闪)──────────────────────────────────────────────
+//   ① 电压下降   220ms 缓慢压暗到 0.88(先让人「觉得哪里不太对」)
+//   ② 短促深暗落  70ms 掉到 0.30 并保持 50ms(更短、更深,不与①对称)
+//   ③ 恢复偏移   110ms 冲到 1.10 且偏冷偏灰(色温不对),再 6s 慢慢回稳
+//
+// 动效记账(AGENTS.md §2/§3):持续 1 = 监控呼吸(挂顶部场景图,**替代样板间那块独立
+// CCTV 面板**)/ 低频 1 = OSD 扫描线 / 用户触发 1 = 规则点亮 + 选项阶跃;灯闪一次性不占槽。
 
-export function RulesAmbient({ runtime, generating, setRootClass }: AmbientProps) {
-  const blackout = useRef<HTMLDivElement>(null);
-  /** 室内冷光层(灯闪时被压暗的「光源」)。 */
-  const light = useRef<HTMLDivElement>(null);
-  /** 入场灯闪整局只放一次;turn 切换时 runtime 会被 teardown,但**绝不补发**(放行标准 5)。 */
-  const entered = useRef(false);
+/** 三拍时间轴(ms),集中在一处便于按体感调。 */
+const SAG_MS = 220;
+const DROP_MS = 70;
+const DROP_HOLD_MS = 50;
+const RECOVER_MS = 110;
+const SETTLE_MS = 6000;
+/** 场景进入后先静一拍,再开始(不是一进门就闪)。 */
+const LEAD_IN_MS = 600;
+/** 灯闪收尾到放行正文之间的余韵(串行,ADR-018 §4.7)。 */
+const AFTERGLOW_MS = 240;
 
-  const playFlicker = useCallback(() => {
-    const b = blackout.current;
-    const t = light.current;
-    // reduced-motion:直接不放(静态确认由常亮的室内冷光与静态噪点承担)。
-    if (!b || !t || reducedMotion()) return;
-    // 生成文本期间不触发(放行标准 4);忙态锁挡住重复触发,不排队、不堆叠。
-    if (generating || !runtime.tryLock()) return;
+const TRACE = 'rules.flicker';
 
-    const token = runtime.token;
-    runtime.add(() => {
-      // 前一拍:监控呼吸暂停 + 室内光压暗一线(0.5s)。
-      setRootClass(styles.preBeat);
-      gsap.to(t, { opacity: 0.85, duration: 0.4, ease: RULES.ease });
-    });
+export function RulesAmbient({
+  runtime,
+  rootRef,
+  generating,
+  setRootClass,
+  onIntroDone,
+}: AmbientProps) {
+  /**
+   * 入场序列的进度。**用「已开演/已演完」而不是「已排期过」当守卫** —— 这是刀 1 冒烟
+   * 「灯闪到底有没有发生」的第二个真因:React StrictMode 在开发模式下会
+   * 挂载 → 清理 → 再挂载,中间那次清理会 `runtime.teardown()` 清掉已排期的定时器;
+   * 若守卫记的是「排过期了」,第二次挂载就直接跳过 —— **本地开发下入场序列永远不会播**。
+   * 记「有没有真的开演」则第二次挂载会重新排期,而 turn 切换不会重排(effect 依赖不变)。
+   */
+  const intro = useRef<'idle' | 'running' | 'done'>('idle');
+  const introReleased = useRef(false);
 
-    runtime.setTimeout(() => {
-      setRootClass('');
+  const releaseIntro = useCallback(() => {
+    if (introReleased.current) return;
+    introReleased.current = true;
+    onIntroDone();
+  }, [onIntroDone]);
+
+  const playFlicker = useCallback(
+    (isIntro: boolean) => {
+      const root = rootRef.current;
+      const suppress = (reason: string) => {
+        trace(TRACE, { suppressedReason: reason, state: 'suppressed' });
+        if (isIntro) {
+          intro.current = 'done'; // 抑制也算「这一局的入场交代过了」,不再重排
+          releaseIntro(); // 抑制也要放行正文,绝不把叙事卡住
+        }
+      };
+      if (!root) return suppress('主题根未挂载');
+      // reduced-motion:不闪,静态氛围照旧(AGENTS.md §5)。
+      if (reducedMotion()) return suppress('reduced-motion');
+      // 生成文本期间不触发(放行标准 4);忙态锁挡重复触发,不排队、不堆叠。
+      if (generating) return suppress('generating');
+      if (!runtime.tryLock()) return suppress('busy(上一次尚未收尾)');
+
+      const token = runtime.token;
+      if (isIntro) intro.current = 'running';
+      trace(TRACE, { firedAt: now(), state: 'sag', suppressedReason: undefined });
+      setRootClass(styles.preBeat); // 监控呼吸暂停(前一拍)
+      trace(TRACE, { activeClass: 'preBeat' });
+
+      runtime.onTeardown(() => {
+        // 被打断(换 turn / 卸载):变量收回,不留半暗的房间;不补发、不重排。
+        clearVars(root);
+        setRootClass('');
+        if (isIntro) {
+          intro.current = 'done';
+          releaseIntro();
+        }
+      });
+
       runtime.add(() => {
         gsap
           .timeline({
             onComplete: () => {
               if (!runtime.alive(token)) return;
-              // 余韵:监控画面曝光偏移保持 10s,然后 0.15s 干脆复原(结束干脆 = RULES 时间感)。
-              setRootClass(styles.afterFlicker);
+              trace(TRACE, { completedAt: now(), state: 'settle', activeClass: '' });
+              setRootClass('');
               runtime.setTimeout(() => {
-                setRootClass('');
+                if (isIntro) {
+                  intro.current = 'done';
+                  releaseIntro();
+                }
                 runtime.unlock();
-              }, 10000);
+                trace(TRACE, { state: 'done' });
+              }, AFTERGLOW_MS);
             },
           })
-          .set(b, { opacity: 0 })
-          .to(b, { opacity: 0.6, duration: 0.05 }, 0.15)
-          .to(t, { opacity: 0.15, duration: 0.05 }, '<')
-          .to(b, { opacity: 0.08, duration: 0.07 })
-          .to(t, { opacity: 1, duration: 0.07 }, '<')
-          .to(b, { opacity: 0.45, duration: 0.05 })
-          .to(t, { opacity: 0.25, duration: 0.05 }, '<')
-          .to(b, { opacity: 0, duration: 0.6, ease: 'power2.out' })
-          .to(t, { opacity: 1, duration: 0.6 }, '<');
+          // ① 电压下降(慢)
+          .to(root, {
+            '--fl-b': 0.88,
+            '--fl-light': 0.9,
+            duration: SAG_MS / 1000,
+            ease: 'power1.inOut',
+            onStart: () => trace(TRACE, { state: 'sag' }),
+          })
+          // ② 短促深暗落(快、深、不与①对称)
+          .to(root, {
+            '--fl-b': 0.3,
+            '--fl-light': 0.12,
+            '--fl-black': 0.55,
+            '--fl-osd': 0.9,
+            duration: DROP_MS / 1000,
+            ease: RULES.ease, // 线性:机械、戛然
+            onStart: () => trace(TRACE, { state: 'drop' }),
+          })
+          .to({}, { duration: DROP_HOLD_MS / 1000 })
+          // ③ 恢复偏移(亮度过冲 + 色温偏冷偏灰)
+          .to(root, {
+            '--fl-b': 1.1,
+            '--fl-c': 0.94,
+            '--fl-s': 0.82,
+            '--fl-light': 1.06,
+            '--fl-black': 0,
+            '--fl-osd': 1,
+            duration: RECOVER_MS / 1000,
+            ease: 'power2.out',
+            onStart: () => trace(TRACE, { state: 'recover' }),
+          })
+          // 慢慢回稳(余韵在氛围层,不拦正文)
+          .to(root, {
+            '--fl-b': 1,
+            '--fl-c': 1,
+            '--fl-s': 1,
+            '--fl-light': 1,
+            duration: SETTLE_MS / 1000,
+            ease: 'power2.out',
+          });
       });
-    }, 500);
-  }, [runtime, generating, setRootClass]);
+    },
+    [runtime, rootRef, generating, setRootClass, releaseIntro],
+  );
 
-  // 入场灯闪:进入这个世界时放**一次**(Felix 2026-07-24 裁定 Q2 = 入场即放,
-  // 与开场逐字 reveal 重叠;压暗不碰正文文字层)。整局只此一次,turn 切换不重放、不补发。
+  // 最新的播放函数放 ref,让下面的入场 effect 只依赖 runtime(不因 generating 变化而重排)。
+  const playRef = useRef(playFlicker);
   useEffect(() => {
-    if (entered.current) return;
-    entered.current = true;
-    runtime.setTimeout(playFlicker, 450);
+    playRef.current = playFlicker;
+  }, [playFlicker]);
+
+  // 入场:场景进入 → 短暂稳定 → 灯闪 → 余韵 → 放行正文逐字(**串行**,ADR-018 §4.7)。
+  // 依赖只有 runtime(跨 turn 身份稳定)⇒ 换回合不会重排;StrictMode 重挂载会重排(见 intro 守卫)。
+  useEffect(() => {
+    if (intro.current !== 'idle') return;
+    trace(TRACE, { scheduledAt: now(), state: 'scheduled' }, true);
+    runtime.setTimeout(() => playRef.current(true), LEAD_IN_MS);
     // 卸载/换 turn 由 runtime 统一 teardown 收走(§4.4),此处不另写清理。
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [runtime]);
 
   return (
     <>
       <div className={styles.ambient} aria-hidden="true">
         <div className={styles.roomFill} />
-        <div className={styles.roomLight} ref={light} />
+        <div className={styles.roomLight} />
         <div className={styles.crt} />
         <div className={styles.vignette} />
-        {/* 压暗层:在氛围层内、内容之下 —— 正文文字永不参与压暗。 */}
-        <div className={styles.blackout} ref={blackout} />
+        {/* 压暗层只补氛围(间隙与边缘);主表面是顶部场景图,见文件头。 */}
+        <div className={styles.blackout} />
       </div>
       {isDebug() && (
-        <button type="button" className={styles.debugBtn} onClick={playFlicker}>
-          重播:入场灯闪(含前一拍 + 余韵)
+        <button type="button" className={styles.debugBtn} onClick={() => playFlicker(false)}>
+          重播:灯闪(三拍 + 回稳)
         </button>
       )}
     </>
   );
+}
+
+const now = () => Math.round(performance.now());
+
+/** 把这次编排写进根上的自定义属性清掉(GSAP 之外的兜底,teardown 时用)。 */
+function clearVars(root: HTMLElement): void {
+  for (const v of ['--fl-b', '--fl-c', '--fl-s', '--fl-light', '--fl-black', '--fl-osd']) {
+    root.style.removeProperty(v);
+  }
 }

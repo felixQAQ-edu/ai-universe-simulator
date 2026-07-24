@@ -1,5 +1,5 @@
 import { createContext, useContext } from 'react';
-import type { ComponentType } from 'react';
+import type { ComponentType, RefObject } from 'react';
 import type { AxisSeverity } from '../../../api';
 import type { AvailableAction } from '../../../types/schema';
 import type { SkinRuntime } from './lifecycle';
@@ -52,6 +52,19 @@ export interface AmbientProps {
   /** 唯一 teardown(§4.4):在途 timeline / 定时器一律登记到它。 */
   runtime: SkinRuntime;
   /**
+   * 主题根元素。皮肤把**连续量**(亮度/色温/压暗强度这类)写成根上的 CSS 自定义属性,
+   * 由各层 CSS 自行消费 —— 这样一次编排可以同时作用于顶部场景图、氛围层与面板,
+   * 而**不需要氛围层去 query 别的组件的 DOM**(那会把组件边界捅穿)。
+   * 离散状态仍走 {@link setRootClass}。
+   */
+  rootRef: RefObject<HTMLElement | null>;
+  /**
+   * 入场序列播完(含余韵)时调用一次。通用层据此**串行**放行正文逐字
+   * (ADR-018 §4.7:先看见环境,再进入叙事)。皮肤若被抑制(reduced-motion 等)须**立即**调用,
+   * 否则通用层的兜底计时器会替它放行 —— 但那是兜底,不是设计。
+   */
+  onIntroDone: () => void;
+  /**
    * 停表(§4.4):`generating` **或**开场 reveal 打字期为 true ——
    * **正文是禁区**,文本不稳定期低频调度一律停。
    */
@@ -80,9 +93,23 @@ export interface StatsProps {
   runtime: SkinRuntime;
 }
 
+/** 数值滚动的时间感(由皮肤给,**同步逻辑不在皮肤**——见 `useAnimatedValues`)。 */
+export interface ValueRoll {
+  durationMs: number;
+  /** GSAP 缓动名(与该世界的 `--t-ease` 同源)。 */
+  ease: string;
+}
+
 /** 一套世界皮肤 = 一组形态组件 + 一组 class 令牌。 */
 export interface WorldSkin {
   id: SkinId;
+  /**
+   * 是否有入场序列。true 时通用层**等** {@link AmbientProps.onIntroDone} 再开始正文逐字
+   * (串行,ADR-018 §4.7);false 则不等。
+   */
+  hasIntro: boolean;
+  /** 数值滚动时长与缓动(通用层拿它跑插值,主题层不自己做同步)。 */
+  valueRoll: ValueRoll;
   /** 主题根 class:色板 token + `--t-dur`/`--t-ease`(成对)+ reduced-motion 覆盖。 */
   screenClass: string;
   /** 停表时挂在主题根上的 class(低频 CSS 动效在其下 `animation-play-state: paused`)。 */
