@@ -1,36 +1,40 @@
-import type { Archetype, DangerLevel } from '../../types/schema';
-import { dangerLabel, sceneImageUrl } from './scene';
+import type { DangerLevel } from '../../types/schema';
+import { dangerLabel } from './scene';
+import { useSkin } from './theme/contract';
 import styles from './game.module.css';
 
-// #8 顶部 establishing-shot 氛围带(静态第 1 档,纯前端)。据 world.archetypes 选一张
-// 静态底图铺在顶部(ADR-013 放开单键假设:单体=该模式图 / 融合=融合专属封面 识海遗蜕),
-// 图底渐变融进正文背景(顺带盖住占位图右下角水印);其上叠现成状态字段
-// (回合 / 危险度中文 / 标题 / tone 副标题)。无新增时间/天气/地点字段(本轮无数据源)。
+// #8 顶部 establishing-shot 氛围带。图底渐变融进正文背景(顺带盖住占位图右下角水印),
+// 其上叠现成状态字段(回合 / 危险度中文 / 标题 / tone 副标题)。
 //
-// 守界:纯展示 + 现成 store 字段,无平台 IO、不引动画库(纯 CSS 渐变)。图缺失时优雅降级
-// (不显图、布局靠固定高度不塌)。
+// **ADR-018 刀 1**:不再自己解析 archetype —— 封面由 `PlayingScreen` 的**唯一一次**世界判定
+// (`resolveWorldTheme`)算出后经 `sceneUrl` 传入(§4.1「世界判定只发生一次,子组件消费结果」)。
+// 皮肤从 context 消费(消费判定结果,不是重新判定):规则怪谈把这张图当**监控画面**,
+// 挂上「呼吸」= 本屏唯一的持续环境动效。
+//
+// 守界:纯展示 + 现成 store 字段,无平台 IO。图缺失时优雅降级(不显图、布局靠固定高度不塌)。
 
 export function SceneBanner({
-  archetypes,
+  sceneUrl,
   turn,
   dangerLevel,
   title,
   tone,
 }: {
-  archetypes: readonly Archetype[] | undefined;
+  /** 顶部底图路径;null = 未配图,不渲染图层(降级不塌)。 */
+  sceneUrl: string | null;
   turn: number;
   dangerLevel: DangerLevel;
   title: string;
   tone: string;
 }) {
-  const imageUrl = sceneImageUrl(archetypes);
+  const skin = useSkin()?.skin;
 
   return (
     <header className={styles.banner}>
-      {imageUrl && (
+      {sceneUrl && (
         <div
-          className={styles.bannerImg}
-          style={{ backgroundImage: `url(${imageUrl})` }}
+          className={`${styles.bannerImg} ${skin?.bannerImgClass ?? ''}`}
+          style={{ backgroundImage: `url(${sceneUrl})` }}
           aria-hidden="true"
         />
       )}

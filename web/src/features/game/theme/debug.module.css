@@ -1,0 +1,18 @@
+/* debug 面板样式(仅 ?debug=1 渲染,ADR-018 §5 Q7)。刻意朴素,不参与任何世界视觉语言。 */
+
+.panel {
+  margin-top: 0.5rem;
+  padding: 0.5rem 0.7rem;
+  border: 1px dashed var(--muted);
+  border-radius: 8px;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 0.68rem;
+  line-height: 1.7;
+  color: var(--muted);
+  opacity: 0.9;
+}
+
+.line {
+  margin: 0;
+  word-break: break-all;
+}

@@ -1,0 +1,71 @@
+import { describe, expect, it } from 'vitest';
+import { cardTheme, resolveWorldTheme } from './registry';
+
+// 单一主题注册表(ADR-018 §4.1):世界判定只发生一次。
+// 封面用例整体自 scene.test.ts 迁来(原 `sceneImageUrl`,覆盖零损失);
+// 卡片氛围与皮肤登记是本刀新收编的两项(原 vibeClass 私有且无测试)。
+
+describe('resolveWorldTheme · 封面(原 sceneImageUrl 用例,逐条保留)', () => {
+  it('已配图世界 → /scenes/<archetype>.webp', () => {
+    expect(resolveWorldTheme('rules_creepy').sceneUrl).toBe('/scenes/rules_creepy.webp');
+    expect(resolveWorldTheme('apocalypse').sceneUrl).toBe('/scenes/apocalypse.webp');
+    expect(resolveWorldTheme('cthulhu').sceneUrl).toBe('/scenes/cthulhu.webp');
+    expect(resolveWorldTheme('cultivation').sceneUrl).toBe('/scenes/cultivation.webp');
+  });
+
+  it('未配图 / 未知 / undefined → null(优雅降级,不显图)', () => {
+    expect(resolveWorldTheme('life_sim').sceneUrl).toBeNull(); // 已知未开放,暂无图
+    expect(resolveWorldTheme('cyberpunk').sceneUrl).toBeNull();
+    expect(resolveWorldTheme('totally_unknown').sceneUrl).toBeNull();
+    expect(resolveWorldTheme(undefined).sceneUrl).toBeNull();
+  });
+
+  it('单元素数组 → 与单键同结果(单体零回归)', () => {
+    expect(resolveWorldTheme(['cultivation']).sceneUrl).toBe('/scenes/cultivation.webp');
+    expect(resolveWorldTheme(['rules_creepy']).sceneUrl).toBe('/scenes/rules_creepy.webp');
+    expect(resolveWorldTheme([]).sceneUrl).toBeNull();
+  });
+
+  it('融合世界(修仙×规则怪谈,host 在前)→ 融合专属封面 识海遗蜕', () => {
+    expect(resolveWorldTheme(['cultivation', 'rules_creepy']).sceneUrl).toBe(
+      '/scenes/fusion-shihai.webp',
+    );
+  });
+
+  it('融合世界(规则怪谈×末日,ADR-014)→ 融合专属封面 缺页的人防工程', () => {
+    expect(resolveWorldTheme(['rules_creepy', 'apocalypse']).sceneUrl).toBe(
+      '/scenes/fusion-renfang.webp',
+    );
+  });
+
+  it('未登记融合组合 → 回落 host([0])的单体图,不盲取错图', () => {
+    expect(resolveWorldTheme(['rules_creepy', 'cultivation']).sceneUrl).toBe(
+      '/scenes/rules_creepy.webp',
+    );
+    expect(resolveWorldTheme(['life_sim', 'cyberpunk']).sceneUrl).toBeNull();
+  });
+});
+
+describe('cardTheme · 选择屏卡片氛围(收编原私有 vibeClass)', () => {
+  it('四个已激活世界各有一套且互不相同', () => {
+    const classes = ['rules_creepy', 'apocalypse', 'cthulhu', 'cultivation'].map(
+      (a) => cardTheme(a).cardClass,
+    );
+    classes.forEach((c) => expect(c).toBeTruthy());
+    expect(new Set(classes).size).toBe(4);
+  });
+
+  it('两个融合组合各有一套渗漏卡氛围,且与单体卡不同', () => {
+    const shihai = cardTheme('cultivation×rules_creepy').cardClass;
+    const renfang = cardTheme('rules_creepy×apocalypse').cardClass;
+    expect(shihai).toBeTruthy();
+    expect(renfang).toBeTruthy();
+    expect(shihai).not.toBe(renfang);
+    expect(shihai).not.toBe(cardTheme('cultivation').cardClass);
+  });
+
+  it('未登记 key → 中性卡(原 vibeClass 无测试无显式降级,收编时补上)', () => {
+    expect(cardTheme('life_sim').cardClass).toBe('');
+    expect(cardTheme('totally_unknown').cardClass).toBe('');
+  });
+});

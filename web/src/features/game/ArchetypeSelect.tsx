@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useGameStore } from '../../state/gameStore';
 import type { ArchetypeSummary } from '../../api';
 import { FUSION_GESTURES, INITIAL_FUSION_STAGES, nextFusionStages, type FusionStages } from './fusion';
+import { cardTheme } from './theme/registry';
 import styles from './game.module.css';
 
 // 世界选择第一屏(产品门面,ADR-008 决策 4)。玩家进游戏 → 看见可玩世界 → 选一个 →
@@ -16,14 +17,8 @@ import styles from './game.module.css';
 // 手势组合表在 fusion.ts(per-combo 独立状态机,交叉序列不误触发);纯组件 state、零持久化。
 // 点融合卡 → startGame(该组合有序双值,host 在前,接 ADR-013 init)。
 
-/** archetype id → 卡片氛围色调 class(展示层决定,不入后端)。未知 id 回落中性。 */
-function vibeClass(archetype: string): string {
-  if (archetype === 'rules_creepy') return styles.cardCreepy;
-  if (archetype === 'apocalypse') return styles.cardApocalypse;
-  if (archetype === 'cthulhu') return styles.cardCthulhu;
-  if (archetype === 'cultivation') return styles.cardCultivation;
-  return '';
-}
+// 卡片氛围 class 由**单一主题注册表**给出(ADR-018 §4.1 收编原私有 `vibeClass`,
+// 它此前无测试、无显式降级);未登记世界 → '' 中性卡,与旧行为一致。
 
 export function ArchetypeSelect() {
   const archetypes = useGameStore((s) => s.archetypes);
@@ -149,7 +144,7 @@ export function ArchetypeCard({
   return (
     <button
       type="button"
-      className={`${styles.card} ${vibeClass(archetype)}`}
+      className={`${styles.card} ${cardTheme(archetype).cardClass}`}
       onClick={handleClick}
       onPointerDown={startPress}
       onPointerUp={cancelPress}
@@ -166,22 +161,23 @@ export function ArchetypeCard({
   );
 }
 
-/** per-combo 渗漏卡文案与主题(ADR-014 参数化;展示层配置,不入后端)。 */
+/**
+ * per-combo 渗漏卡**文案**(ADR-014 参数化;展示层配置,不入后端)。
+ * 卡片氛围 class 不在这里 —— 它与单体卡同源,由主题注册表按组合键给出(ADR-018 §4.1)。
+ */
 const FUSION_CARDS: Record<
   string,
-  { titles: [string, string, string]; ariaLabel: string; tagline: string; theme: string }
+  { titles: [string, string, string]; ariaLabel: string; tagline: string }
 > = {
   'cultivation×rules_creepy': {
     titles: ['修仙', '规则怪谈', '识海遗蜕'],
     ariaLabel: '识海遗蜕(融合世界)',
     tagline: '两个世界之间,有什么渗了过来。',
-    theme: styles.cardFusion, // 修仙青白仙气 × 怪谈冷蓝互噬
   },
   'rules_creepy×apocalypse': {
     titles: ['规则怪谈', '末日生存', '缺页的人防工程'],
     ariaLabel: '缺页的人防工程(融合世界)',
     tagline: '缺的那几页,和消失的人对得上号。',
-    theme: styles.cardFusionRenfang, // 怪谈冷蓝 × 末日锈土互噬
   },
 };
 
@@ -196,7 +192,7 @@ export function FusionCard({ combo, onChoose }: { combo: string; onChoose: () =>
   return (
     <button
       type="button"
-      className={`${styles.card} ${card.theme}`}
+      className={`${styles.card} ${cardTheme(combo).cardClass}`}
       onClick={onChoose}
       aria-label={card.ariaLabel}
     >

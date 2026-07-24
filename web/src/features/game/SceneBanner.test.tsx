@@ -1,14 +1,20 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { SceneBanner } from './SceneBanner';
+import { resolveWorldTheme } from './theme/registry';
 
-// #8 顶部氛围带组件:状态栏渲染现成字段 + 据 archetype 选图 + 图缺失优雅降级不塌。
+// #8 顶部氛围带组件:状态栏渲染现成字段 + 铺底图 + 图缺失优雅降级不塌。
+//
+// ADR-018 刀 1:选图不再由本组件解析 archetype(世界判定只发生一次,在 PlayingScreen);
+// 用例改为「先经注册表解析、再把结果喂进来」—— 断言的仍是同一条链路的同一批结果。
+const sceneUrl = (archetypes: string | readonly string[] | undefined) =>
+  resolveWorldTheme(archetypes).sceneUrl;
 
 describe('SceneBanner', () => {
   it('渲染顶部状态栏:回合 / 危险度中文 / 标题 / tone', () => {
     render(
       <SceneBanner
-        archetypes={['rules_creepy']}
+        sceneUrl={sceneUrl(['rules_creepy'])}
         turn={3}
         dangerLevel="high"
         title="雨夜便利店"
@@ -23,7 +29,7 @@ describe('SceneBanner', () => {
   it('已配图世界:渲染底图层(background-image 指向对应 webp)', () => {
     const { container } = render(
       <SceneBanner
-        archetypes={['cthulhu']}
+        sceneUrl={sceneUrl(['cthulhu'])}
         turn={1}
         dangerLevel="extreme"
         title="旧日低语"
@@ -40,7 +46,7 @@ describe('SceneBanner', () => {
   it('未配图 / 未知 archetype:不渲染底图层,但状态栏照常渲染(降级不塌)', () => {
     const { container } = render(
       <SceneBanner
-        archetypes={undefined}
+        sceneUrl={sceneUrl(undefined)}
         turn={0}
         dangerLevel="low"
         title="无名之地"
@@ -58,7 +64,7 @@ describe('SceneBanner', () => {
   it('融合世界(ADR-013,archetypes 双元素 host 在前):取融合专属封面 识海遗蜕', () => {
     const { container } = render(
       <SceneBanner
-        archetypes={['cultivation', 'rules_creepy']}
+        sceneUrl={sceneUrl(['cultivation', 'rules_creepy'])}
         turn={0}
         dangerLevel="extreme"
         title="识海遗蜕"

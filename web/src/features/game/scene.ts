@@ -1,46 +1,11 @@
-// #8 顶部氛围图(静态第 1 档)的纯函数:选图路径解析 + 危险度中英映射。
-// 展示层常量,不入后端、无平台 IO(守 ADR-003)。测试直接打这两个函数。
+// #8 顶部氛围图的纯函数:危险度中英映射。
+// 展示层常量,不入后端、无平台 IO(守 ADR-003)。测试直接打这个函数。
+//
+// **迁出说明(ADR-018 刀 1)**:原 `sceneImageUrl`(单体 + 融合封面两张分派表)已收编进
+// 单一主题注册表 `theme/registry.ts` —— 世界判定只发生一次(§4.1),封面只是那次判定的一个字段。
+// 本文件只留与世界无关的枚举映射。
 
-import type { Archetype, DangerLevel } from '../../types/schema';
-
-// 每世界一张人工审过的静态底图,放 web/public/scenes/<archetype>.webp;
-// Vite 构建挂根路径 /scenes/<archetype>.webp。加新世界 = 放一张同名图即可,后端零改。
-const SCENE_ARCHETYPES: ReadonlySet<string> = new Set<Archetype>([
-  'rules_creepy',
-  'apocalypse',
-  'cthulhu',
-  'cultivation',
-]);
-
-/**
- * 融合世界(ADR-013,mode=hybrid)的专属封面:key = `host×foreign`(有序,host 在前)。
- * round 1 只一组(修仙×规则怪谈=识海遗蜕);加融合组合 = 放一张图 + 加一条映射。
- */
-const FUSION_SCENES: Readonly<Record<string, string>> = {
-  'cultivation×rules_creepy': '/scenes/fusion-shihai.webp',
-  // 守则即补给(ADR-014):正式封面 Felix 并行出,出图后同名替换零代码(当前为 rules_creepy 同图占位)。
-  'rules_creepy×apocalypse': '/scenes/fusion-renfang.webp',
-};
-
-/**
- * 据 world.archetypes 解析氛围底图路径(#8;ADR-013 放开单键假设)。
- * - 单体(单 key / 单元素数组)→ 已配图世界 `/scenes/<archetype>.webp`;
- * - 融合(数组 ≥2,host 在前)→ 融合专属封面(识海遗蜕);未登记组合回落 host([0])的图——
- *   绝不盲取 `[0]` 当单体键错认融合世界。
- * 未配图 → null,顶部优雅降级为纯氛围色、不显图、布局不塌。
- */
-export function sceneImageUrl(archetypes: string | readonly string[] | undefined): string | null {
-  if (!archetypes) return null;
-  const list = typeof archetypes === 'string' ? [archetypes] : archetypes;
-  if (list.length === 0) return null;
-  if (list.length >= 2) {
-    const fusion = FUSION_SCENES[`${list[0]}×${list[1]}`];
-    if (fusion) return fusion;
-    // 未登记融合组合:回落 host 的单体图(仍优雅降级)。
-  }
-  const host = list[0];
-  return SCENE_ARCHETYPES.has(host) ? `/scenes/${host}.webp` : null;
-}
+import type { DangerLevel } from '../../types/schema';
 
 /** 危险度英文枚举 → 中文短词(顶部状态栏展示,纯前端常量表)。 */
 const DANGER_LABEL: Record<DangerLevel, string> = {

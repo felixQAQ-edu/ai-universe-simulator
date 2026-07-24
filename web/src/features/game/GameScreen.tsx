@@ -1,3 +1,4 @@
+import { useCallback, useMemo, useState } from 'react';
 import { useGameStore } from '../../state/gameStore';
 import { ArchetypeSelect } from './ArchetypeSelect';
 import { DecisionCircle } from './DecisionCircle';
@@ -6,6 +7,12 @@ import { Prose } from './Prose';
 import { RulesPanel } from './RulesPanel';
 import { SceneBanner } from './SceneBanner';
 import { StatsPanel } from './StatsPanel';
+import { SkinContext } from './theme/contract';
+import { DebugPanel } from './theme/DebugPanel';
+import { useSkinRuntime } from './theme/lifecycle';
+import { resolveWorldTheme } from './theme/registry';
+import { SKINS } from './theme/skins';
+import { useTypewriter } from './useTypewriter';
 import styles from './game.module.css';
 
 /**
@@ -76,38 +83,80 @@ function PlayingScreen() {
   const chooseAction = useGameStore((s) => s.chooseAction);
   const reset = useGameStore((s) => s.reset);
 
+  // 开场 reveal:仅当还没行动过(turn 0)时对开场叙事做 client-side 逐字动画。
+  // 打字进度在这里算(而非 Prose 内),因为它同时是低频动效的停表信号(ADR-018 §4.4)。
+  const isOpening = turn === 0;
+  const { shown, done } = useTypewriter(narrative, isOpening && !!world);
+
+  // ── 本项目唯一的世界判定点(ADR-018 §4.1)────────────────────────────
+  // 子组件一律消费这次判定的结果(封面 / 皮肤 / 卡片氛围),不得各自再判 archetype。
+  const theme = resolveWorldTheme(world?.archetypes);
+  const skin = (theme.skin ? SKINS[theme.skin] : null) ?? null;
+  // runtime 的 key 含皮肤与回合:两者任一变化即走**同一个** teardown(§4.4)。
+  const runtime = useSkinRuntime(theme.skin ?? '', turn);
+  const bundle = useMemo(() => (skin ? { skin, runtime } : null), [skin, runtime]);
+
+  // 皮肤挂在主题根上的瞬时状态 class(前一拍 / 余韵)。含义由皮肤定义,这里只负责拼字符串。
+  // 状态连同「它属于哪个皮肤+回合」一起存 —— 换 turn / 换皮肤即自动作废(渲染期比对,不用 effect
+  // 补一次 setState),免得 teardown 掐掉余韵计时后状态 class 永久留在根上。
+  const scope = `${theme.skin ?? ''}|${turn}`;
+  const [rootState, setRootState] = useState({ scope, cls: '' });
+  const rootClass = rootState.scope === scope ? rootState.cls : '';
+  const setRootClass = useCallback((cls: string) => setRootState({ scope, cls }), [scope]);
+
   if (!world) return null;
 
-  // 开场 reveal:仅当还没行动过(turn 0)时对开场叙事做 client-side 逐字动画。
-  const isOpening = turn === 0;
+  const revealing = isOpening && !done;
+  // 停表:回合流生成中 / 开场逐字未完 —— 正文不稳定期,低频调度一律停。
+  const generating = status === 'generating';
+  const paused = generating || revealing;
+  const Ambient = skin?.Ambient;
+  const Actions = skin?.Actions ?? DecisionCircle;
+  const skinClasses = skin
+    ? `${skin.screenClass} ${paused ? skin.pausedClass : ''} ${rootClass}`
+    : '';
 
   return (
-    <main className={styles.screen}>
-      <SceneBanner
-        archetypes={world.archetypes}
-        turn={turn}
-        dangerLevel={world.world.dangerLevel}
-        title={world.world.title}
-        tone={world.world.tone}
-      />
+    <SkinContext.Provider value={bundle}>
+      <main className={`${styles.screen} ${skinClasses}`}>
+        {Ambient && (
+          <Ambient
+            runtime={runtime}
+            paused={paused}
+            generating={generating}
+            turn={turn}
+            setRootClass={setRootClass}
+          />
+        )}
 
-      <StatsPanel axes={attributeAxes} values={attributeValues} />
-
-      <Prose text={narrative} reveal={isOpening} />
-
-      {notice && <div className={styles.notice}>{notice}</div>}
-
-      {status === 'ended' && ending ? (
-        <EndingScreen ending={ending} onRestart={reset} />
-      ) : (
-        <DecisionCircle
-          actions={availableActions}
-          disabled={status === 'generating'}
-          onChoose={chooseAction}
+        <SceneBanner
+          sceneUrl={theme.sceneUrl}
+          turn={turn}
+          dangerLevel={world.world.dangerLevel}
+          title={world.world.title}
+          tone={world.world.tone}
         />
-      )}
 
-      <RulesPanel rules={world.rules} discoveredIds={discoveredRuleIds} />
-    </main>
+        <StatsPanel axes={attributeAxes} values={attributeValues} />
+
+        <Prose text={isOpening ? shown : narrative} caret={revealing} />
+
+        {notice && <div className={styles.notice}>{notice}</div>}
+
+        {status === 'ended' && ending ? (
+          <EndingScreen ending={ending} onRestart={reset} />
+        ) : (
+          <Actions
+            actions={availableActions}
+            disabled={status === 'generating'}
+            onChoose={chooseAction}
+          />
+        )}
+
+        <RulesPanel rules={world.rules} discoveredIds={discoveredRuleIds} />
+
+        <DebugPanel theme={theme} axes={attributeAxes} values={attributeValues} paused={paused} />
+      </main>
+    </SkinContext.Provider>
   );
 }

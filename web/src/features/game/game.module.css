@@ -179,6 +179,9 @@
   width: 0.5ch;
   margin-left: 1px;
   animation: blink 1s steps(2) infinite;
+  /* 主题令牌:皮肤可置 `paused` 把闪烁冻成静态方块(ADR-018 §4.2 通用层被 tokenize、
+     不认识具体世界;缺省 running = 刀 1 之前的行为)。 */
+  animation-play-state: var(--caret-play, running);
   color: var(--muted);
 }
 
@@ -267,8 +270,9 @@
 
 .rule {
   font-size: 0.9rem;
-  line-height: 1.5;
-  color: var(--muted);
+  /* 主题令牌:规则是连续阅读区,皮肤可放松行距 / 提高未点亮项对比度(缺省 = 旧值)。 */
+  line-height: var(--rule-lh, 1.5);
+  color: var(--rule-idle, var(--muted));
   /* 未验证的规则留白边,验证后才长出左侧警示条 —— 让「坐实的规则」在面板里跳出来。 */
   border-left: 3px solid transparent;
   border-radius: 0 8px 8px 0;
@@ -325,8 +329,9 @@
 
 /* 通用 / 状态屏 ------------------------------------------------------ */
 .notice {
-  background: #f6e7c8;
-  color: #7a5a13;
+  /* 主题令牌:皮肤给自己的世界配一套(缺省 = 旧的浅色/深色两版)。 */
+  background: var(--notice-bg, #f6e7c8);
+  color: var(--notice-fg, #7a5a13);
   border-radius: 10px;
   padding: 0.55rem 0.8rem;
   font-size: 0.85rem;
@@ -334,8 +339,8 @@
 
 @media (prefers-color-scheme: dark) {
   .notice {
-    background: #3a3115;
-    color: #e7c878;
+    background: var(--notice-bg, #3a3115);
+    color: var(--notice-fg, #e7c878);
   }
 }
 
