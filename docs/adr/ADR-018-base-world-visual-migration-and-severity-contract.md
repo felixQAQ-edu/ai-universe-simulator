@@ -231,6 +231,17 @@
 
 刀 1 后**只有规则怪谈登记新主题**,其余世界走旧实现。出问题**删一条注册即回退**,不得要求回滚整套基建。
 
+**4.5.1 「其余世界 DOM 不变」是等式,不是印象 —— 刀 2/3/4 的标准验收手段(刀 1 已用)**
+
+每刀只登记自己那一个世界,故每刀都必须证明**未登记世界的产出逐字节不变**。方法固定下来,后续刀照做:
+
+1. `git worktree add <tmp> origin/main`,在该 worktree 起第二个 dev server(不同端口),软链 `node_modules` 复用;
+2. 两个 dev 喂**同一份数据**(同一桩后端 / 同一续局 saveId);
+3. 对每个未登记世界的游戏屏与选择屏,取 `<main>` 子树 outerHTML,**归一化 CSS Modules 哈希**(`_name_hash_n → name`)、折叠空白与打字进度,算长度 + 校验和;
+4. **两边必须完全相等**。
+
+刀 1 首轮对拍差 2 字符(模板串拼 class 的尾随空格),已改为数组 `filter(Boolean).join(' ')` 消除 —— **「除空格外不变」不算通过,必须是等式**。(这也顺带守住:主题 token/皮肤挂载不得给未登记世界的 DOM 添任何属性。)
+
 **4.6 世界决定明暗(注册表级通用规则,非某世界特例)**
 
 > **世界决定明暗:游戏屏不跟随系统浅/深色偏好。每个世界主题自带完整色板,主题根覆盖 + 铺底层盖满视口。未登记世界仍跟随系统偏好(旧实现不变)。**
@@ -303,6 +314,8 @@ AI 标注异常字方案挂 [future-experience-backlog](../future-experience-bac
 仅 `?debug=1`。**长按标题不进生产**(该手势已被选择屏的融合渗漏占用)。
 `debug` 参数**不写入持久状态**;debug 控件**不得改变生产数据**,只允许触发前端展示与查看调度状态。
 
+**效果时序遥测(刀 1 落地,范式保留供刀 2/4 复用)**:`theme/telemetry.ts` 记 `scheduledAt / firedAt / completedAt / suppressedReason / state / activeClass`,`?debug=1` 面板逐行读。这条探针在刀 1 当场把「灯闪到底有没有发生」从**凭感觉猜**变成**读数二分**(直接坐实序列在 StrictMode 下根本没触发,见 §4.9 与 [F-019](../../bakeoff/FINDINGS.md))。**刀 2 钟鸣、刀 4 异常调度这类「有没有发生、被谁抑制」难以肉眼判定的一次性/低频效果,一律先接这条探针再调体感** —— 不接探针就调强度是刀 1 已证明的弯路。纪律:只记时间戳与原因,不参与生产逻辑、不写持久状态。
+
 **Q8 · 测试双层**
 
 - **共享语义断言**:value / displayName / 当前 band label 可读、severity 正确映射、`bands` 缺省不崩、未知 severity 安全降级;
@@ -316,7 +329,9 @@ AI 标注异常字方案挂 [future-experience-backlog](../future-experience-bac
 |----|------|
 | 正文版式差异化 | C 批(叙事壳层差异化),已挂 [future-experience-backlog](../future-experience-backlog.md) |
 | notice 跳位 | 并入 [打磨与愿景 backlog §10](../phase2-polish-and-vision-backlog.md) 同族(静默 no-op UX) |
-| 动效预算在生产的重新记账 | 刀 1 时顺带盘点:`.caret` blink 与 `ruleJustDiscovered` 脉冲是否计入 AGENTS.md §3 的槽位;**超预算则降级**(守「新增须替代或降级」) |
+| 动效预算在生产的重新记账 | 刀 1 已盘点:PlayingScreen 改造前 0 持续/0 低频/1 用户触发,改造后 1 持续(监控呼吸,替代样板间独立 CCTV)+ 1 低频(OSD 扫描线)+ 1 用户触发(规则脉冲/按压),入场灯闪一次性不占槽 —— **未超预算**。`.caret` 在规则怪谈下已由 `--caret-play: paused` 降为静态 |
+| **`.caret` 在未登记三世界 reduced-motion 下仍闪**(既有缺口,非本刀引入) | `game.module.css` 的 `.caret` blink 无 reduced-motion 规则;规则怪谈因 token 覆盖已无此问题,修其余三世界会碰「DOM 逐字节不变」→ **归刀 2 顺带**(刀 2 本就动那批世界) |
+| **融合封面与 host 色板衔接**(刀 1 实测顶部暖锈 × 皮肤冷蓝有割裂感) | 挂 **ADR-019**(融合游戏内视觉);**修边界过渡、不迁就封面**(让 host 色板向封面偏会在第一个组合上就稀释「局内 host 打底」,Felix 2026-07-24 定调) |
 
 ## 关键理由
 
