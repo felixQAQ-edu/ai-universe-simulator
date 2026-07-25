@@ -1,0 +1,464 @@
+/* ═══ 修仙 · 皮肤「金光流云」(ADR-018 刀 2)══════════════════════════════════
+ *
+ * 样板间(~/code/wanjie-visual-lab · xiuxian-b)冻结成果的生产移植。三条纪律同刀 1:
+ *   ① 色板与时间感全部走**主题根 token** —— 通用组件(正文/规则面板/提示条)不知道自己被换了皮;
+ *   ② `--t-dur` 与 `--t-ease` **成对**(§4.3):修仙 = 0.55s + 缓出长尾(慢、从容、余韵长),
+ *      与规则怪谈的 0.09s + linear(准时、机械、戛然而止)是两种**时间感**,不是快慢之别;
+ *   ③ 一切动画在 `prefers-reduced-motion: reduce` 下停(AGENTS.md Motion Constraints §5)。
+ *
+ * 动效预算(AGENTS.md §2,本屏 1+1+1 未超):
+ *   持续 1 = 天穹层(流云 + 金色微粒**同层合并**为一个槽);
+ *   低频 1 = 灵脉流光单程(样板间原为**持续循环流光**,已按 §3「新增须替代或降级」降为
+ *            19–27s 一次的单程);
+ *   用户触发 1 = 玉简签按压 + 钟鸣 + 数值滚动(同一个玩家动作的回应,同刀 1 的记账口径)。
+ *   钟鸣为一次性仪式,不额外占槽;它**替代** ADR-017 §6.3 初版「境界跳变整页照亮」(已订正)。
+ *   `.caret` 在本世界由 `--caret-play: paused` 降级为静态方块(正文区最后一处循环,AGENTS.md §4)。
+ *
+ * 零图片资源:云、微粒、金光全部 CSS/渐变。
+ */
+
+/* ── 主题根:色板 token + 时间感 token ───────────────────────────────── */
+.screen {
+  /* 世界决定明暗(ADR-018 §4.6):本世界固定**亮色**,不跟随系统浅/深色偏好 ——
+     修仙是刀 1 的反方向验证:深色偏好下若跟随系统,青白仙气会变成另一个世界。 */
+  --bg: #e7ede9;
+  --text: #2a3029; /* 约 13.1:1 on card */
+  --muted: #566052; /* 约 6.4:1 on card */
+  --line: rgba(120, 105, 60, 0.22);
+  /* 近不透明是刻意的:微粒从面板背后升起,**绝不压在字上**(AGENTS.md §4 正文即禁区)。 */
+  --card: rgba(251, 252, 250, 0.94);
+  --chip: rgba(184, 147, 63, 0.12);
+  --accent: #7d6019; /* 白字徽标 5.9:1 */
+  --accent-soft: rgba(184, 147, 63, 0.16);
+  --notice-bg: rgba(184, 147, 63, 0.16);
+  --notice-fg: #4a4327;
+
+  /* 规则条目:心法守则连续阅读,行距放松;未点亮项约 6.8:1(§4.6 可访问性口径) */
+  --rule-lh: 1.95;
+  --rule-idle: #535c50;
+
+  /* 光标静态:仙途的时间感里,一个 1s 闪烁的方块是唯一一处「机器在跳」。 */
+  --caret-play: paused;
+
+  /* 极小圆角:玉简/书卷的边是切出来的,不是磨圆的。 */
+  --panel-radius: 3px;
+
+  /* 时间感(成对,§4.3):慢、从容、缓出长尾 —— 与 motion.ts 的 XIAN 同源同口径。 */
+  --t-dur: 0.55s;
+  --t-ease: cubic-bezier(0.19, 0.6, 0.29, 0.98);
+
+  /* 钟鸣的连续量(由 GSAP 写在主题根上,各承载面自己消费;缺省 = 无钟鸣)。
+     一条时间线同时驱动顶部场景图 / 天穹层 / 灵脉面板,而氛围层不必去 query 别人的 DOM。 */
+  --bell-b: 1; /* 顶部场景图亮度 */
+  --bell-s: 1; /* 饱和度 */
+  --bell-warm: 0; /* 暖调偏移(sepia) */
+  --bell-wash: 0; /* 金光泛照强度 */
+  --bell-panel: 0; /* 灵脉面板受照 */
+
+  color: var(--text);
+}
+
+/* 内容在氛围层之上。钟鸣的**主承载面 = 顶部场景图**(内容层里唯一不透明、占屏最大、
+   在视线起点的那个面);正文与选项两层都不参与,文字 opacity 与滤镜全程不动
+   —— F-019 的教训直接适用:先回答「作用在哪个面、那个面会被什么遮住」。 */
+.screen > *:not(.ambient) {
+  position: relative;
+  z-index: 1;
+}
+
+/* ── 氛围层(fixed 铺满视口:.screen 只有 640px 宽,两侧也须是这片天)────── */
+.ambient {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.skyFill {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, #eaf0ec 0%, #e5eae3 52%, #ecdfc4 120%);
+}
+
+/* 持续环境(1/1):天穹层 —— 流云与金色微粒**同层**,一起算一个槽 */
+.sky {
+  position: absolute;
+  inset: 0;
+}
+
+.cloud {
+  position: absolute;
+  left: -45%;
+  width: 190%;
+  height: 90px;
+  border-radius: 50%;
+  filter: blur(30px);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 246, 222, 0.8),
+    rgba(232, 216, 178, 0.5),
+    transparent
+  );
+}
+
+.c1 {
+  top: 14%;
+  animation: cloudDrift 90s ease-in-out infinite alternate;
+}
+
+.c2 {
+  top: 45%;
+  height: 70px;
+  opacity: 0.7;
+  animation: cloudDrift 120s ease-in-out infinite alternate-reverse;
+}
+
+.c3 {
+  top: 74%;
+  height: 110px;
+  opacity: 0.55;
+  animation: cloudDrift 105s ease-in-out infinite alternate;
+}
+
+@keyframes cloudDrift {
+  to {
+    transform: translateX(14%);
+  }
+}
+
+.dot {
+  position: absolute;
+  bottom: -12px;
+  border-radius: 50%;
+  background: #c9a24f;
+  animation-name: rise;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+@keyframes rise {
+  from {
+    transform: translateY(4vh);
+  }
+  to {
+    transform: translateY(-108vh);
+  }
+}
+
+/* 钟鸣在氛围层的部分:天光泛金(视口边缘与面板间隙,补全「整片天都亮了一下」) */
+.skyWash {
+  position: absolute;
+  inset: 0;
+  opacity: var(--bell-wash, 0);
+  background: radial-gradient(
+    120% 70% at 50% 22%,
+    rgba(255, 246, 214, 0.9),
+    rgba(255, 233, 180, 0.35) 45%,
+    transparent 75%
+  );
+}
+
+/* 钟鸣的那一圈金光(扩散环)。GSAP 直接动它的 scale/opacity;缺省不占位。 */
+.halo {
+  display: none;
+  position: absolute;
+  left: 50%;
+  top: 22%;
+  width: 110vmax;
+  height: 110vmax;
+  margin: -55vmax 0 0 -55vmax;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    transparent 34%,
+    rgba(226, 190, 116, 0.42) 40%,
+    rgba(232, 203, 138, 0.16) 46%,
+    transparent 53%
+  );
+}
+
+/* 环境收住(钟鸣前一拍):天穹与灵脉一起屏住呼吸,然后钟响。 */
+.stilled .sky,
+.stilled .sky *,
+.stilled .maiFill::after {
+  animation-play-state: paused;
+}
+
+/* 停表(§4.4):正文不稳定期(生成中 / 开场逐字未完)低频与持续动效一律停。 */
+.paused .sky,
+.paused .sky *,
+.paused .maiFill::after {
+  animation-play-state: paused;
+}
+
+/* ── 顶部场景图 = 钟鸣主承载面 ────────────────────────────────────────
+   本世界的持续槽给了天穹层,故这里**没有**常驻动画,只承接钟鸣的连续量。 */
+.bannerGlow {
+  filter: brightness(var(--bell-b, 1)) saturate(var(--bell-s, 1)) sepia(var(--bell-warm, 0));
+}
+
+.bannerGlow::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: var(--bell-wash, 0);
+  background: radial-gradient(
+    circle at 50% 34%,
+    rgba(255, 246, 218, 0.95),
+    rgba(255, 232, 178, 0.45) 44%,
+    transparent 74%
+  );
+}
+
+/* ── 数值形态:灵脉(竖向光带)──────────────────────────────────────
+   与规则怪谈 OSD 的横向分段是**两种形态**:竖着走的是脉,横着排的是仪表。 */
+.lingmai {
+  display: flex;
+  justify-content: space-around;
+  gap: 4px;
+  padding: 14px 10px 12px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  /* 书卷天地头:上下两道金线,左右不封 —— 本世界的卡片边框语言 */
+  border-radius: 3px;
+  border-top: 2px solid rgba(184, 147, 63, 0.38);
+  border-bottom: 2px solid rgba(184, 147, 63, 0.24);
+  box-shadow: 0 0 calc(var(--bell-panel, 0) * 26px) rgba(214, 176, 96, 0.55);
+}
+
+.mai {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  flex: 1;
+  min-width: 0;
+}
+
+.maiName {
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.maiTrack {
+  width: 6px;
+  height: 84px;
+  border-radius: 3px;
+  background: rgba(120, 105, 60, 0.14);
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
+}
+
+.maiFill {
+  width: 100%;
+  border-radius: 3px;
+  background: linear-gradient(180deg, rgba(200, 164, 80, 0.32), #b8933f);
+  position: relative;
+  overflow: hidden;
+}
+
+/* 低频偶发(1/1):流光单程上行。样板间原为持续循环,本刀降级为 19–27s 一次的单程。 */
+.maiFill::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  background: linear-gradient(180deg, transparent, rgba(255, 250, 230, 0.6), transparent);
+  background-size: 100% 300%;
+  background-position: 0 130%;
+  animation: maiFlow 22s ease-in-out infinite;
+}
+
+/* 各脉不同步(同时亮=像进度条刷新,错开=像各自在走) */
+.mai:nth-child(1) .maiFill::after {
+  animation-duration: 19s;
+}
+
+.mai:nth-child(2) .maiFill::after {
+  animation-duration: 23s;
+}
+
+.mai:nth-child(3) .maiFill::after {
+  animation-duration: 27s;
+}
+
+.mai:nth-child(4) .maiFill::after {
+  animation-duration: 25s; /* 融合局(识海遗蜕)第四根轴:道心 */
+}
+
+@keyframes maiFlow {
+  0%,
+  88% {
+    opacity: 0;
+    background-position: 0 130%;
+  }
+
+  90% {
+    opacity: 1;
+  }
+
+  98% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+    background-position: 0 -30%;
+  }
+}
+
+/* 视觉状态**只由 severity 驱动**(服务端派生,ADR-018 §1);缺省 = 不进危险态。 */
+.caution .maiFill {
+  background: linear-gradient(180deg, rgba(196, 152, 62, 0.32), #b07f28);
+}
+
+.danger .maiFill {
+  background: linear-gradient(180deg, rgba(180, 90, 74, 0.32), #ab4b3c);
+}
+
+.maiNum {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.maiBand {
+  font-size: 10px;
+  line-height: 1.35;
+  color: var(--muted);
+  text-align: center;
+  word-break: keep-all;
+}
+
+.maiRisk {
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  color: #b07f28;
+}
+
+.danger .maiRisk {
+  color: #ab4b3c;
+}
+
+/* ── 决策圈形态:玉简签 ───────────────────────────────────────────────
+   对角切角(clip-path)+ 金色签头(左缘)+ 宽度刻意不齐(避免表单感)+ 缓出发光。 */
+.slips {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.slip {
+  appearance: none;
+  display: block;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+  font-size: 0.9rem;
+  line-height: 1.75;
+  padding: 12px 16px 12px 17px;
+  color: var(--text);
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  background: linear-gradient(175deg, rgba(255, 255, 255, 0.72), rgba(248, 246, 238, 0.58));
+  border: 1px solid rgba(120, 105, 60, 0.26);
+  border-left: 3px solid rgba(184, 147, 63, 0.5); /* 签头 */
+  border-radius: 0;
+  clip-path: polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 9px 100%, 0 calc(100% - 9px));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.62);
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    border-color var(--t-dur) var(--t-ease),
+    box-shadow var(--t-dur) var(--t-ease),
+    background var(--t-dur) var(--t-ease);
+}
+
+/* 宽度错落:第一张满宽,其余各自收一点(玉简是一片片削出来的,不是印出来的) */
+.slip:nth-child(2) {
+  width: 92%;
+}
+
+.slip:nth-child(3) {
+  width: 96%;
+  margin-left: 4%;
+}
+
+.slip:nth-child(4) {
+  width: 94%;
+}
+
+.slip:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* 按压:缓出发光(与规则怪谈的阶跃反馈相反 —— 那边是开关,这边是气机泛起) */
+.slip:active:not(:disabled) {
+  border-left-color: #b8933f;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.62),
+    0 0 18px rgba(184, 147, 63, 0.34);
+}
+
+/* 墨色确认(钟鸣时间轴 t=0):点下即上墨,约 480ms 后退去 —— 让玩家先知道「输入已接收」,
+   再等世界回应。生产里回合要跑好几秒,这一下确认比样板间更要紧。 */
+.slipAck {
+  transition-duration: 0.06s;
+  border-left-color: #b8933f;
+  color: #22281f;
+  background: linear-gradient(175deg, rgba(240, 233, 214, 0.88), rgba(230, 222, 198, 0.72));
+}
+
+.slipText {
+  display: block;
+}
+
+/* 定性风险提示(ADR-011):次级层级小字,缺失时不渲染、不占位。 */
+.slipHint {
+  display: block;
+  margin-top: 0.22rem;
+  font-size: 0.74rem;
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+/* ── debug 控件(仅 ?debug=1;不改任何生产数据)───────────────────────── */
+.debugBtn {
+  align-self: flex-start;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 0.68rem;
+  color: var(--muted);
+  background: transparent;
+  border: 1px dashed var(--muted);
+  border-radius: 3px;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+/* ── 无障碍:偏好减弱动效 ───────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .screen {
+    /* 时间感 token 成对降级(§4.3:不只是变快,是整套时间感都收掉) */
+    --t-dur: 0.01s;
+    --t-ease: linear;
+
+    /* 钟鸣整体不发生(JS 侧同样过 reducedMotion() 闸);此处钉死连续量,双保险。 */
+    --bell-b: 1;
+    --bell-s: 1;
+    --bell-warm: 0;
+    --bell-wash: 0;
+    --bell-panel: 0;
+  }
+
+  .cloud,
+  .dot,
+  .maiFill::after {
+    animation: none;
+  }
+}

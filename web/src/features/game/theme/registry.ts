@@ -12,10 +12,10 @@
 import styles from '../game.module.css';
 
 /**
- * 已登记新皮肤的世界 id。刀 1 只有规则怪谈(试验田);刀 2–4 各自把自己那条加进来。
+ * 已登记新皮肤的世界 id。刀 1 规则怪谈(试验田)证明基建可用,刀 2 加修仙;刀 3/4 各自再加一条。
  * 未登记世界 → `skin: null` → 走旧实现。
  */
-export type SkinId = 'rules_creepy';
+export type SkinId = 'rules_creepy' | 'cultivation';
 
 /** 一个世界(单体或融合组合)的视觉登记。 */
 export interface WorldTheme {
@@ -40,7 +40,8 @@ interface WorldEntry {
 
 /**
  * 单体世界登记表。加一个世界 = 加一条(图放 `web/public/scenes/<archetype>.webp`,后端零改)。
- * `skin` 只有规则怪谈非 null —— 试验田先证明基建,其余三世界照旧(ADR-018 §3 刀 1「不准顺手做」)。
+ * `skin` 目前只有规则怪谈(刀 1 试验田)与修仙(刀 2)非 null;末日 / 克苏鲁照旧走旧实现,
+ * 各自等刀 3 / 刀 4(ADR-018 §3 每刀「不准顺手做」:不顺手把别的世界一起登记)。
  */
 const WORLDS: Readonly<Record<string, WorldEntry>> = {
   rules_creepy: {
@@ -50,7 +51,11 @@ const WORLDS: Readonly<Record<string, WorldEntry>> = {
   },
   apocalypse: { sceneUrl: '/scenes/apocalypse.webp', cardClass: styles.cardApocalypse, skin: null },
   cthulhu: { sceneUrl: '/scenes/cthulhu.webp', cardClass: styles.cardCthulhu, skin: null },
-  cultivation: { sceneUrl: '/scenes/cultivation.webp', cardClass: styles.cardCultivation, skin: null },
+  cultivation: {
+    sceneUrl: '/scenes/cultivation.webp',
+    cardClass: styles.cardCultivation,
+    skin: 'cultivation', // 刀 2:一级记忆点「一声钟鸣」挂 realm 向上跨档
+  },
 };
 
 /**

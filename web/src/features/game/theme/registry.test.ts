@@ -51,8 +51,11 @@ describe('resolveWorldTheme · 皮肤登记(feature gate,ADR-018 §4.5)', () => 
     expect(resolveWorldTheme('rules_creepy').skin).toBe('rules_creepy');
   });
 
-  it('其余三世界仍走旧实现(刀 1 不准顺手一起登记)', () => {
-    expect(resolveWorldTheme('cultivation').skin).toBeNull();
+  it('修仙(刀 2)登记了新皮肤', () => {
+    expect(resolveWorldTheme('cultivation').skin).toBe('cultivation');
+  });
+
+  it('末日 / 克苏鲁仍走旧实现(刀 2 不准顺手一起登记,各等刀 3 / 刀 4)', () => {
     expect(resolveWorldTheme('apocalypse').skin).toBeNull();
     expect(resolveWorldTheme('cthulhu').skin).toBeNull();
   });
@@ -69,8 +72,17 @@ describe('resolveWorldTheme · 皮肤登记(feature gate,ADR-018 §4.5)', () => 
     expect(renfang.skin).toBe('rules_creepy'); // host = 规则怪谈 → 用规则怪谈皮肤
   });
 
-  it('host 未登记的融合局仍走旧实现(识海遗蜕 host=修仙)', () => {
-    expect(resolveWorldTheme(['cultivation', 'rules_creepy']).skin).toBeNull();
+  // 刀 2 的连带结果(设计如此,非顺手做):识海遗蜕 host=修仙 → 随 host 一起用上修仙皮肤。
+  // 融合**专属**视觉签名仍未实现、仍挂 ADR-019;这里只是 Q2「签名未实现前纯 host 呈现」。
+  it('识海遗蜕(host=修仙)随 host 用修仙皮肤,封面仍是融合封面', () => {
+    const shihai = resolveWorldTheme(['cultivation', 'rules_creepy']);
+    expect(shihai.key).toBe(fusionKey('cultivation', 'rules_creepy'));
+    expect(shihai.skin).toBe('cultivation');
+    expect(shihai.sceneUrl).toBe('/scenes/fusion-shihai.webp');
+  });
+
+  it('host 未登记的融合局仍走旧实现(末日 / 克苏鲁作 host 时)', () => {
+    expect(resolveWorldTheme(['apocalypse', 'cthulhu']).skin).toBeNull();
   });
 });
 

@@ -1,14 +1,19 @@
+import { XIAN } from './motion';
 import type { WorldSkin } from './contract';
 import type { SkinId } from './registry';
 import { RulesActions } from './rules/RulesActions';
 import { RulesAmbient } from './rules/RulesAmbient';
 import { RulesStats } from './rules/RulesStats';
 import rules from './rules/rules.module.css';
+import { XianActions } from './xian/XianActions';
+import { XianAmbient } from './xian/XianAmbient';
+import { XianStats } from './xian/XianStats';
+import xian from './xian/xian.module.css';
 
 // 皮肤表(ADR-018 §4.5 feature gate 的另一半):skinId → 一套形态组件 + class 令牌。
 //
 // **刀 1 只有规则怪谈**(试验田:先用一个世界证明这套共享基建能活在生产里,
-// 而不是四个世界一起上——那样等于没有试验田)。刀 2–4 各自把自己那条加进来。
+// 而不是四个世界一起上——那样等于没有试验田)。刀 2 加修仙;末日 / 克苏鲁等刀 3 / 刀 4。
 //
 // 回滚路径:`registry.ts` 里把某世界的 `skin` 置回 null,该世界立刻回到旧实现,
 // **不必回滚任何共享基建**;表是 Partial —— 两张表万一对不上也只是降级,不会崩。
@@ -19,11 +24,36 @@ export const SKINS: Partial<Record<SkinId, WorldSkin>> = {
     hasIntro: true,
     // 数值滚动的时间感:准时、机械、线性(与 `--t-ease: linear` 同源);同步逻辑在通用层。
     valueRoll: { durationMs: 900, ease: 'none' },
+    // 一级记忆点是入场灯闪,不挂任何轴 —— 故收到的 signatureTick 恒为 0。
     screenClass: rules.screen,
     pausedClass: rules.paused,
     bannerImgClass: rules.cctvBreathe,
     Ambient: RulesAmbient,
     Stats: RulesStats,
     Actions: RulesActions,
+  },
+  cultivation: {
+    id: 'cultivation',
+    // 修仙的一级记忆点是**状态事件**(钟鸣)不是入场序列 —— 不占开场,正文照常立即逐字。
+    hasIntro: false,
+    // 时间感:慢、从容、缓出长尾(与 `--t-ease` 的 cubic-bezier 同源,§4.3 成对)。
+    valueRoll: {
+      durationMs: Math.round(XIAN.dur(1.1) * 1000),
+      ease: XIAN.ease,
+      // 跨档那一回合先让钟响,数值随之而变(氛围层 t=550ms 鸣、数值 t=1100ms 起滚)。
+      // 反过来 = 数字先跳、钟来配个音,仪式的因果就倒了。
+      ceremonyDelayMs: 1100,
+    },
+    // 「盯 realm」是**注册表里的按 key 配置**(ADR-018 §5 Q5 立字:锁在注册表内,
+    // 不得渗进通用数值组件)—— 通用层只按这个 key 算档序号,不知道 realm 是境界。
+    signatureAxisKey: 'realm',
+    screenClass: xian.screen,
+    pausedClass: xian.paused,
+    // 顶部场景图 = 钟鸣的**主承载面**(不透明、占屏最大、在视线起点);此处不挂持续动画,
+    // 本世界的持续槽给了天穹层(流云 + 微粒同层)。
+    bannerImgClass: xian.bannerGlow,
+    Ambient: XianAmbient,
+    Stats: XianStats,
+    Actions: XianActions,
   },
 };
