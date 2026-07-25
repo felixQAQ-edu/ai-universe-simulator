@@ -314,6 +314,15 @@
   .ruleJustDiscovered {
     animation: none;
   }
+
+  /* 光标闪烁在偏好减弱动效下也要停 —— 这是刀 1 记在 ADR-018 §6 的既有缺口(非刀 1 引入):
+     规则怪谈与修仙靠主题 token `--caret-play: paused` 已无此问题,但**未登记皮肤的世界
+     拿不到那个 token**,于是这条正文区里唯一的循环动画在 reduce 下照闪(AGENTS.md §5
+     「新增效果不得开天窗」的反面:旧效果的天窗同样要补)。停的是动画,不是光标本身 ——
+     方块照常显示,「正在打字」的指示不丢。 */
+  .caret {
+    animation: none;
+  }
 }
 
 .ruleTag {
