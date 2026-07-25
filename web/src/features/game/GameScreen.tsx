@@ -12,6 +12,7 @@ import { DebugPanel } from './theme/DebugPanel';
 import { useSkinRuntime } from './theme/lifecycle';
 import { resolveWorldTheme } from './theme/registry';
 import { SKINS } from './theme/skins';
+import { useSignalCrossing } from './theme/useSignalCrossing';
 import { useTypewriter } from './useTypewriter';
 import styles from './game.module.css';
 
@@ -93,6 +94,11 @@ function PlayingScreen() {
   const theme = resolveWorldTheme(world?.archetypes);
   const skin = (theme.skin ? SKINS[theme.skin] : null) ?? null;
 
+  // ── 一级记忆点的触发信号(ADR-018 §5 Q5)──────────────────────────────
+  // 「盯哪根轴」是皮肤在注册表里的按 key 配置;这里只按那个 key 算档序号、判**向上**跨档。
+  // 算一次、两个消费方共用(氛围层演钟鸣 / 数值面板推迟起滚),不让两处各判一遍。
+  const signature = useSignalCrossing(skin, attributeAxes, attributeValues);
+
   // ── 串行入场(ADR-018 §4.7)────────────────────────────────────────────
   // 场景进入 → 皮肤的入场序列(灯闪)→ 余韵 → **然后**正文才开始逐字:
   // 先看见环境,再进入叙事;顺带彻底消除「记忆点与阅读抢注意力」的风险。
@@ -153,6 +159,7 @@ function PlayingScreen() {
             turn={turn}
             setRootClass={setRootClass}
             onIntroDone={releaseIntro}
+            signatureTick={signature.tick}
           />
         )}
 
@@ -164,7 +171,11 @@ function PlayingScreen() {
           tone={world.world.tone}
         />
 
-        <StatsPanel axes={attributeAxes} values={attributeValues} />
+        <StatsPanel
+          axes={attributeAxes}
+          values={attributeValues}
+          signatureTick={signature.tick}
+        />
 
         <Prose text={proseText} caret={revealing} />
 
@@ -182,7 +193,13 @@ function PlayingScreen() {
 
         <RulesPanel rules={world.rules} discoveredIds={discoveredRuleIds} />
 
-        <DebugPanel theme={theme} axes={attributeAxes} values={attributeValues} paused={paused} />
+        <DebugPanel
+          theme={theme}
+          axes={attributeAxes}
+          values={attributeValues}
+          paused={paused}
+          signature={signature}
+        />
       </main>
     </SkinContext.Provider>
   );

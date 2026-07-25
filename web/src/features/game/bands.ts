@@ -25,6 +25,24 @@ export function resolveBandLabel(value: number, bands?: AxisBand[]): string | nu
 }
 
 /**
+ * 据当前值解析该档在**升序**档表里的序号(0 = 值域最低的那一档)。无档表 / 未命中 → null。
+ *
+ * 序号是**位置事实**(区间按 min 升序天然有序),不是语义判断——它只回答「比上一次更靠上还是更靠下」,
+ * 不回答「这一档危不危险」(那仍然只有 {@link resolveSeverity} 一个来源,ADR-018 §1)。
+ * 刻意**不信任 wire 数组顺序**:自己按 min 排一遍再取位置(后端 `bandRanges()` 今天是升序,
+ * 但「按数组下标猜」正是 ADR-018 点名排除的脆弱做法,这里连自家顺序也不赖着)。
+ *
+ * 用途:一级记忆点的跨档触发(ADR-018 §5 Q5 修仙钟鸣挂 `realm` **向上**跨档)。
+ */
+export function resolveBandIndex(value: number, bands?: AxisBand[]): number | null {
+  const band = resolveBand(value, bands);
+  if (!band || !bands) return null;
+  const ascending = [...bands].sort((a, b) => a.min - b.min);
+  const index = ascending.indexOf(band);
+  return index < 0 ? null : index;
+}
+
+/**
  * 据当前值解析该档的风险等级(ADR-018)。**四种缺省一律安全降级为 null**——
  * 无 bands / 值未命中任何区间 / 老数据没有 severity / severity 是未知取值。
  *

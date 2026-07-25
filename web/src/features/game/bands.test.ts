@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AxisBand } from '../../api';
-import { resolveBand, resolveBandLabel, resolveSeverity } from './bands';
+import { resolveBand, resolveBandIndex, resolveBandLabel, resolveSeverity } from './bands';
 
 // ADR-018 刀 0 · 前端侧只做「按区间匹配当前档 + 读服务端给的 severity」,不判危险。
 // 重点是四种缺省一律安全降级(不附加危险态),绝不默认 danger、绝不回退旧启发式。
@@ -104,5 +104,37 @@ describe('resolveSeverity · 四种缺省一律安全降级(null = 不进危险�
       resolveSeverity(50, [{ min: 0, max: 10, label: '窄档' }]),
     ];
     expect(fallbacks.every((s) => s === null)).toBe(true);
+  });
+});
+
+// ADR-018 §5 Q5(刀 2 记忆点触发的判定原料):档序号是**位置事实**(区间按 min 升序),
+// 只回答「比上次更靠上还是更靠下」;危不危险仍只有 severity 一个来源。
+describe('resolveBandIndex', () => {
+  it('升序序号:0 = 值域最低那一档', () => {
+    expect(resolveBandIndex(5, REALM_BANDS)).toBe(0);
+    expect(resolveBandIndex(45, REALM_BANDS)).toBe(1);
+    expect(resolveBandIndex(88, REALM_BANDS)).toBe(2);
+  });
+
+  it('不信任 wire 数组顺序:降序写的档表也给同一个序号', () => {
+    const descending = [...REALM_BANDS].reverse();
+    expect(resolveBandIndex(88, descending)).toBe(2);
+    expect(resolveBandIndex(5, descending)).toBe(0);
+  });
+
+  it('无档表 / 空表 → null(静默降级,记忆点据此不触发)', () => {
+    expect(resolveBandIndex(50, undefined)).toBeNull();
+    expect(resolveBandIndex(50, [])).toBeNull();
+  });
+
+  it('值未命中任何区间 → null(不猜最近的一档)', () => {
+    expect(resolveBandIndex(50, [{ min: 0, max: 10, label: '低' }])).toBeNull();
+  });
+
+  it('与档名同源:序号指向的就是 resolveBand 匹配到的那一档', () => {
+    const bands = HP_BANDS;
+    const index = resolveBandIndex(33, bands)!;
+    const ascending = [...bands].sort((a, b) => a.min - b.min);
+    expect(ascending[index]).toBe(resolveBand(33, bands));
   });
 });

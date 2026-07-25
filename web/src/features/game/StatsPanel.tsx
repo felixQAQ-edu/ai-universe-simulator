@@ -14,14 +14,20 @@ import styles from './game.module.css';
 export function StatsPanel({
   axes,
   values,
+  signatureTick = 0,
 }: {
   axes: AttributeAxisMeta[];
   values: Record<string, number>;
+  /**
+   * 签名轴向上跨档的累计次数(由 `PlayingScreen` 的**同一次**判定算出,与氛围层同源)。
+   * 跨档那一回合数值滚动会推迟起步,让一级记忆点先响(ADR-018 §5 Q5);缺省 0 = 从不推迟。
+   */
+  signatureTick?: number;
 }) {
   const bundle = useSkin();
   // 数值滚动的**单一驱动量**:档名与 severity 一律按此刻屏幕上的数去查,
   // 数字滚过阈值那一帧同步翻档(ADR-018 §4.2:同步逻辑在通用层,不下放主题层)。
-  const shown = useAnimatedValues(values, bundle);
+  const shown = useAnimatedValues(values, bundle, signatureTick);
   const views = axes.map((axis) => toAxisView(axis, shown));
   if (!bundle) return <LegacyStats axes={views} />;
   const Form = bundle.skin.Stats;

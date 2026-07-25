@@ -179,6 +179,7 @@ describe('RulesAmbient(入场灯闪的触发条件)', () => {
         turn={0}
         setRootClass={props.setRootClass}
         onIntroDone={props.onIntroDone ?? (() => {})}
+        signatureTick={0}
       />,
     );
     return runtime;
@@ -206,6 +207,7 @@ describe('RulesAmbient(入场灯闪的触发条件)', () => {
             turn={0}
             setRootClass={setRootClass}
             onIntroDone={() => {}}
+            signatureTick={0}
           />
         </main>
       );
@@ -286,6 +288,7 @@ describe('RulesAmbient(入场灯闪的触发条件)', () => {
         turn={0}
         setRootClass={() => {}}
         onIntroDone={() => {}}
+        signatureTick={0}
       />,
     );
     expect(container.querySelector('[aria-hidden="true"]')).not.toBeNull();

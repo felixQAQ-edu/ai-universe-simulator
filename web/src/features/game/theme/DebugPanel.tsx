@@ -1,9 +1,10 @@
 import { useSyncExternalStore } from 'react';
 import type { AttributeAxisMeta } from '../../../api';
-import { resolveBandLabel, resolveSeverity } from '../bands';
+import { resolveBandIndex, resolveBandLabel, resolveSeverity } from '../bands';
 import { isDebug } from './debug';
 import type { WorldTheme } from './registry';
 import { readTraces, subscribeTraces } from './telemetry';
+import type { SignatureSignal } from './useSignalCrossing';
 import styles from './debug.module.css';
 
 // debug 面板(ADR-018 §5 Q7):**仅 `?debug=1` 可见,普通路径连一个像素都不渲染**。
@@ -17,11 +18,14 @@ export function DebugPanel({
   axes,
   values,
   paused,
+  signature,
 }: {
   theme: WorldTheme;
   axes: AttributeAxisMeta[];
   values: Record<string, number>;
   paused: boolean;
+  /** 签名轴跨档读数(ADR-018 §5 Q5);未接线 / 未配置签名轴时不显这一行。 */
+  signature?: SignatureSignal;
 }) {
   const debug = isDebug();
   // 外部可变存储走 useSyncExternalStore(快照引用只在有变更时换新,见 telemetry.ts)。
@@ -35,12 +39,20 @@ export function DebugPanel({
         {theme.sceneUrl ?? '无'}
       </p>
       <p className={styles.line}>低频调度:{paused ? '停表(正文不稳定期)' : '运行'}</p>
+      {signature?.axisKey && (
+        <p className={styles.line}>
+          签名轴 {signature.axisKey} · 上一次档 {idx(signature.prevIndex)} → 当前档{' '}
+          {idx(signature.index)} · 判定{' '}
+          {crossing(signature.prevIndex, signature.index)} · 向上跨档累计 {signature.tick} 次
+        </p>
+      )}
       {axes.map((axis) => {
         const v = Number(values[axis.key] ?? 0);
         return (
           <p className={styles.line} key={axis.key}>
-            {axis.displayName}({axis.key}) = {v} · 档 {resolveBandLabel(v, axis.bands) ?? '—'} ·
-            severity {resolveSeverity(v, axis.bands) ?? 'null(安全降级)'}
+            {axis.displayName}({axis.key}) = {v} · 档 {resolveBandLabel(v, axis.bands) ?? '—'}(序号{' '}
+            {idx(resolveBandIndex(v, axis.bands))}) · severity{' '}
+            {resolveSeverity(v, axis.bands) ?? 'null(安全降级)'}
           </p>
         );
       })}
@@ -56,3 +68,13 @@ export function DebugPanel({
 }
 
 const ms = (v?: number) => (typeof v === 'number' ? `${v}ms` : '—');
+
+const idx = (v: number | null) => (typeof v === 'number' ? String(v) : '—');
+
+/** 跨档判定的人话版(读数二分用:能直接看到「为什么没鸣」)。 */
+function crossing(prev: number | null, now: number | null): string {
+  if (prev === null || now === null) return '不判(无前值 / 无档表)';
+  if (now > prev) return '向上跨档 ✔';
+  if (now < prev) return '下跌(不鸣)';
+  return '同档(不鸣)';
+}

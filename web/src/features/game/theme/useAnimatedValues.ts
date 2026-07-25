@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import gsap from 'gsap';
 import type { SkinBundle } from './contract';
 import { reducedMotion } from './motion';
@@ -20,11 +20,15 @@ import { reducedMotion } from './motion';
 /**
  * @param target 引擎落账的目标值(key→value)
  * @param bundle 当前皮肤 + runtime;null(未登记世界)→ **原样返回目标值**,旧行为零变化
+ * @param signatureTick 签名轴向上跨档的累计次数(`useSignalCrossing` 给)。**它变了的那一次**
+ *        数值滚动推迟 `skin.valueRoll.ceremonyDelayMs`,让一级记忆点先响(缺省 0 = 从不推迟,
+ *        刀 1 行为逐字不变)。**只延迟起步,不拆同步**:数字/档名/状态灯仍是同一个 displayValue。
  * @returns 此刻应当显示的值(**已取整**:取整后的数才是玩家看到的数,查档必须用同一个数)
  */
 export function useAnimatedValues(
   target: Record<string, number>,
   bundle: SkinBundle | null,
+  signatureTick = 0,
 ): Record<string, number> {
   const skin = bundle?.skin ?? null;
   const runtime = bundle?.runtime ?? null;
@@ -58,10 +62,19 @@ export function useAnimatedValues(
 
   const from = current.exact;
 
+  // 上一次真正起滚时的跨档次数。**存 ref 而不是渲染期派生**:仪式延迟只该给「这一次跨档」用,
+  // 而 tick 是单调累加的(跨过就一直大于 0),渲染期无从区分「刚跨」与「早跨过」。
+  const rolledAtTick = useRef(signatureTick);
+
   useEffect(() => {
     if (!animate || !runtime || !skin) return;
     const same = Object.keys(target).every((k) => round(from[k]) === round(target[k]));
     if (same) return;
+
+    // 这一次值变化是不是伴着签名轴向上跨档 —— 是则先按住数字,让记忆点先演(ADR-018 §5 Q5)。
+    const ceremonial = signatureTick !== rolledAtTick.current;
+    rolledAtTick.current = signatureTick;
+    const holdMs = ceremonial ? (skin.valueRoll.ceremonyDelayMs ?? 0) : 0;
 
     const proxy: Record<string, number> = {};
     for (const k of Object.keys(target)) proxy[k] = from[k] ?? target[k];
@@ -72,6 +85,7 @@ export function useAnimatedValues(
         ...target,
         duration: skin.valueRoll.durationMs / 1000,
         ease: skin.valueRoll.ease,
+        delay: holdMs / 1000,
         onUpdate: () =>
           setState((s) => ({ ...s, exact: { ...proxy }, shown: rounded(proxy, target) })),
         onComplete: () =>
@@ -79,7 +93,7 @@ export function useAnimatedValues(
       });
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [valueKey, shapeKey, animate, runtime, skin]);
+  }, [valueKey, shapeKey, animate, runtime, skin, signatureTick]);
 
   return current.shown;
 }

@@ -76,8 +76,17 @@ export interface AmbientProps {
   /**
    * 给**主题根**挂一个瞬时状态 class(前一拍 / 余韵这类跨越氛围层与顶部画面的状态)。
    * 通用层只负责把字符串拼上去,**class 的含义完全由皮肤定义**;传 '' 清除。
+   * 可以是多个 class 用空格连起来(皮肤自己决定怎么组合),通用层不解析。
    */
   setRootClass: (cls: string) => void;
+  /**
+   * **签名轴向上跨档的次数**(ADR-018 §5 Q5)。通用层按 {@link WorldSkin.signatureAxisKey}
+   * 配置的那根轴算好后传入:每次「新档序号 > 旧档序号」加一,下跌 / 平档 / 首次装载**一律不加**。
+   *
+   * 皮肤据它触发一级记忆点(修仙 = 一声钟鸣):`useEffect` 依赖它,值变了且 > 0 才开演。
+   * 未配置签名轴的皮肤恒收到 0 —— 契约里**刻意必填**:每套皮肤都得正面回答「我盯不盯轴」。
+   */
+  signatureTick: number;
 }
 
 /** 决策圈形态组件收到的东西(与通用 DecisionCircle 同签名)。 */
@@ -98,6 +107,15 @@ export interface ValueRoll {
   durationMs: number;
   /** GSAP 缓动名(与该世界的 `--t-ease` 同源)。 */
   ease: string;
+  /**
+   * **仪式延迟**:签名轴向上跨档的那一回合,数值滚动推迟这么久才起步,好让一级记忆点先响
+   * (修仙:钟先鸣,境界与数值随之而变 —— 反过来就成了「数字先跳,钟来配个音」)。缺省 0。
+   *
+   * 只在**跨档那一次**生效,普通回合照旧立即起滚;`prefers-reduced-motion` 下不插值故天然不延迟。
+   * 它是**时间感参数**(皮肤给值),延迟本身由通用层统一施加 —— 数字/档名/状态灯仍由同一个
+   * `displayValue` 驱动、同帧翻档(§4.2.1 不下放主题层)。
+   */
+  ceremonyDelayMs?: number;
 }
 
 /** 一套世界皮肤 = 一组形态组件 + 一组 class 令牌。 */
@@ -110,6 +128,12 @@ export interface WorldSkin {
   hasIntro: boolean;
   /** 数值滚动时长与缓动(通用层拿它跑插值,主题层不自己做同步)。 */
   valueRoll: ValueRoll;
+  /**
+   * 一级记忆点所盯的**数值轴 key**(ADR-018 §5 Q5:修仙钟鸣挂 `realm`)。
+   * **「盯哪根轴」是主题注册表的按 key 配置,锁在注册表内** —— 通用数值组件永远不认识具体轴,
+   * 它只是「按这个 key 算个档序号交出去」;缺省 = 本世界没有轴驱动的记忆点。
+   */
+  signatureAxisKey?: string;
   /** 主题根 class:色板 token + `--t-dur`/`--t-ease`(成对)+ reduced-motion 覆盖。 */
   screenClass: string;
   /** 停表时挂在主题根上的 class(低频 CSS 动效在其下 `animation-play-state: paused`)。 */
