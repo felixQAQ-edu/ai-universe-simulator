@@ -47,6 +47,13 @@
   --t-dur: 0.55s;
   --t-ease: cubic-bezier(0.19, 0.6, 0.29, 0.98);
 
+  /* 衬线 = 本世界视觉语言的一部分(样板间冻结成果),**整屏统一**:
+     玉简签用衬线而正文用无衬线,是同一个世界内部的分裂 —— 玩家读到的是两个地方。
+     只换字族:不动 DOM、不动布局、不改字号行距(那属 C 批阅读构图,仍挂账)。
+     渲染风险如实记:中文衬线在低 DPI 安卓与微信 WebView 下笔画可能发糊,
+     故本项列进刀 2 冒烟检查项;本地存疑则留刀 4 真机四世界回归一并判。 */
+  font-family: 'Songti SC', 'STSong', 'Noto Serif SC', 'Source Han Serif SC', 'Songti TC', serif;
+
   /* 钟鸣的连续量(由 GSAP 写在主题根上,各承载面自己消费;缺省 = 无钟鸣)。
      一条时间线同时驱动顶部场景图 / 天穹层 / 灵脉面板,而氛围层不必去 query 别人的 DOM。 */
   --bell-b: 1; /* 顶部场景图亮度 */
@@ -322,7 +329,11 @@
   background: linear-gradient(180deg, rgba(180, 90, 74, 0.32), #ab4b3c);
 }
 
+/* 读数**不跟整屏走衬线**:数字要等宽才不会在滚动时跳动,而中文衬线字族多数不带
+   tabular figures(滚动中 86→74 的字宽会变,数字左右抽动)。这不是「衬线/无衬线分裂」——
+   读数是仪器刻度不是行文,同刀 1 OSD 用等宽数字的口径。若真机上觉得跳脱,改回 inherit 即可。 */
 .maiNum {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
   font-size: 13px;
   font-variant-numeric: tabular-nums;
   color: var(--text);
