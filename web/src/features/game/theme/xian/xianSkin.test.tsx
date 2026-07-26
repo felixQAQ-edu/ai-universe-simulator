@@ -130,6 +130,80 @@ describe('XianStats(灵脉形态)· 共享语义', () => {
   });
 });
 
+// 刀 2.5:签名轴换形态(境界印)。**分派只认通用层打的 `signature` 标**——
+// 主题层若改用 `axis.key === 'realm'`,下面这组用例里「换个 key 当签名轴」那条会立刻变红。
+describe('RealmSeal(境界印)· 签名轴形态分派', () => {
+  const THREE: AttributeAxisMeta[] = [
+    { key: 'hp', displayName: '气血', bands: HP_BANDS },
+    { key: 'mana', displayName: '灵力', bands: MANA_BANDS },
+    { key: 'realm', displayName: '境界', bands: REALM_BANDS },
+  ];
+
+  it('签名轴走印:中央是档名,数字降为次级(两者都在,层级由形态给)', () => {
+    withSkin(<StatsPanel axes={THREE} values={{ hp: 86, mana: 64, realm: 20 }} />);
+    // 印上的档名与数字都可读(不断言字号/层数,守「行为不守像素」)
+    expect(screen.getByText('初境')).toBeInTheDocument();
+    expect(screen.getByText('20')).toBeInTheDocument();
+    expect(screen.getByLabelText('境界 · 20 · 初境 · 正常')).toBeInTheDocument();
+  });
+
+  it('非签名轴仍走灵脉:印**只有一个**', () => {
+    const { container } = withSkin(
+      <StatsPanel axes={THREE} values={{ hp: 86, mana: 64, realm: 20 }} />,
+    );
+    expect(container.querySelectorAll('[class*="seal"]').length).toBeGreaterThan(0);
+    // 印是整块(含内部填充与文字容器),但**顶层印**只该有一个:按 aria-label 数更稳。
+    const labelled = [...container.querySelectorAll('[aria-label]')];
+    expect(labelled).toHaveLength(3); // 三根轴各一个可访问节点
+  });
+
+  it('皮肤未登记签名轴 → 全部整齐走灵脉(优雅降级,不是半印半脉)', () => {
+    const noSignature = { ...skin, signatureAxisKey: undefined };
+    const { container } = render(
+      <SkinContext.Provider value={{ skin: noSignature, runtime: new SkinRuntime() }}>
+        <StatsPanel axes={THREE} values={{ hp: 86, mana: 64, realm: 20 }} />
+      </SkinContext.Provider>,
+    );
+    expect(container.querySelector('[class*="seal"]')).toBeNull();
+    expect(screen.getByText('初境')).toBeInTheDocument(); // 档名照常(只是回到灵脉形态)
+  });
+
+  it('换一根轴当签名轴,印就跟着换 —— 分派认标不认 key', () => {
+    const hpSignature = { ...skin, signatureAxisKey: 'hp' };
+    const { container } = render(
+      <SkinContext.Provider value={{ skin: hpSignature, runtime: new SkinRuntime() }}>
+        <StatsPanel axes={THREE} values={{ hp: 86, mana: 64, realm: 20 }} />
+      </SkinContext.Provider>,
+    );
+    const seal = container.querySelector('[class*="seal"]');
+    expect(seal).not.toBeNull();
+    expect(seal!.getAttribute('aria-label')).toContain('气血'); // 印落在气血上,不是境界
+  });
+
+  it('印同样消费 severity(不因「签名轴」就假定安全)', () => {
+    const hpSignature = { ...skin, signatureAxisKey: 'hp' };
+    render(
+      <SkinContext.Provider value={{ skin: hpSignature, runtime: new SkinRuntime() }}>
+        <StatsPanel axes={THREE} values={{ hp: 8, mana: 64, realm: 20 }} />
+      </SkinContext.Provider>,
+    );
+    expect(screen.getByText('危险')).toBeInTheDocument();
+    expect(screen.getByLabelText('气血 · 8 · 气血枯竭 · 危险')).toBeInTheDocument();
+  });
+
+  it('融合局四轴:一印 + 三灵脉,换皮轴「道心」照常在', () => {
+    const four: AttributeAxisMeta[] = [
+      ...THREE,
+      { key: 'san', displayName: '道心', bands: HP_BANDS },
+    ];
+    const { container } = withSkin(
+      <StatsPanel axes={four} values={{ hp: 86, mana: 64, realm: 20, san: 72 }} />,
+    );
+    expect([...container.querySelectorAll('[aria-label]')]).toHaveLength(4);
+    expect(screen.getByText('道心')).toBeInTheDocument();
+  });
+});
+
 describe('XianActions(玉简签形态)', () => {
   const actions: AvailableAction[] = [
     { id: 'A', text: '闭关冲击炼气八层', hint: '一日不成,道心受损' },
