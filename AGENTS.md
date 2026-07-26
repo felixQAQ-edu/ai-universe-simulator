@@ -11,30 +11,31 @@ https://wanjie-ai.fly.dev ）。目标用户原定国内微信生态，现走**�
 **最新进度以 `docs/ROADMAP.md` 为准**（本行只为让 agent 一眼知道自己站在哪儿）。
 
 ## 协作分工
-架构/决策讨论在 Project 对话；执行分**两段**——视觉探索走 **Cowork 独立样板间**
-（不直接改 `web/src`），写码、测试、提交走 **Claude Code**（feature 分支 + 测试 +
+架构/决策讨论在 **Project 对话**；执行分**两段**——视觉探索走 **Cowork 独立样板间**
+（不直接改 `web/src`），写码、测试、提交走 **Claude Code / Codex**（feature 分支 + 测试 +
 Felix 冒烟，见 ADR-017 §8）。
-改动请先讲清思路再动手，避免无说明的大改。
+**改动请先讲清思路再动手，避免无说明的大改**（展开见下 § Workflow Discipline §1）。
 
 ## 动任何模块前先读
 @docs/CONTEXT.md   # 术语 / 统一 JSON Schema / 命名与工程约定（约定的真理之源）
 @docs/ROADMAP.md   # 路线图、当前进度、待决 ADR
 
-## 工程约定
-- 技术决策落 `docs/adr/`（用 `/adr-author`）；进度用 `/roadmap-update` 更新 ROADMAP。
-- 验证中的发现记 `bakeoff/FINDINGS.md`；约定或 schema 变更走 CONTEXT 升版本号，不靠提示词反复叮嘱。
-- 提示词是核心资产，放仓库根 `prompts/`，按管线步骤组织（world-gen / event-loop / …）。
-- 运行模型（给玩家生成）= DeepSeek，见 ADR-001；写码用 Claude Code，两者别混。
+**动手的规矩看本文件下半部分**：§ Workflow Discipline（怎么干活）+ § Motion Constraints（前端视觉/动效）。
+详细 ADR / FINDINGS 按需读，不必每次全载，以省上下文。
 
-## 安全与纪律
-- API key 只进 `bakeoff/.env`（已 gitignore），绝不写进对话、代码或提交。
-- 从 `main` 切特性分支干活；一段完整工作就提交一次。
-- 详细 ADR / FINDINGS 按需读，不必每次全载，以省上下文。
+## 各类产出物落在哪（**只记位置，规矩见 § Workflow Discipline**）
+- 技术决策 → `docs/adr/`（Claude Code 可用 `/adr-author`；其它 agent 手写同结构）。
+- 进度 → `docs/ROADMAP.md`（Claude Code 可用 `/roadmap-update`）。
+- 验证中的发现 → `bakeoff/FINDINGS.md`；约定 / schema 变更 → `docs/CONTEXT.md` 升版本号。
+- 提示词是核心资产 → 仓库根 `prompts/`，按管线步骤组织（world-gen / event-loop / …）。
+- 运行模型（给玩家生成）= **DeepSeek**（见 ADR-001）；写码用的 agent 模型与它是两回事，别混。
 
 ## 仓库结构速查
-- `docs/` — ROADMAP / CONTEXT / adr/
+- `docs/` — ROADMAP / CONTEXT / adr/ + 各批设计稿与 backlog
 - `prompts/` — 管线各步提示词
 - `bakeoff/` — provider 验证脚手架（client / providers / schema / scenarios / report / run + FINDINGS）
+- `server/` — Spring Boot 后端；`web/` — React + Vite 前端
+- `.agents/skills/` — 项目级 skill（GSAP 四件装 + adr-author / roadmap-update）
 
 ---
 
