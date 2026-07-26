@@ -154,25 +154,33 @@
   }
 }
 
-/* 钟鸣在氛围层的部分:天光泛金(视口边缘与面板间隙,补全「整片天都亮了一下」) */
+/* 钟鸣在氛围层的部分:天光泛金(视口边缘与面板间隙,补全「整片天都亮了一下」)。
+   **原点同样是境界印**(`--seal-x/--seal-y`)—— 刀 2.5 实测:那一圈 halo 环放到印上之后
+   大半被数值卡与正文卡挡住(F-019 的同一个陷阱:原点有意义 ≠ 看得见),
+   真正能被看见的载体是**这层泛照**,它从印所在处向四周的间隙与边缘荡开。
+   无签名轴 / 印未挂载 → 回落屏幕上部缺省原点。 */
 .skyWash {
   position: absolute;
   inset: 0;
   opacity: var(--bell-wash, 0);
   background: radial-gradient(
-    120% 70% at 50% 22%,
+    120% 70% at var(--seal-x, 50%) var(--seal-y, 22%),
     rgba(255, 246, 214, 0.9),
     rgba(255, 233, 180, 0.35) 45%,
     transparent 75%
   );
 }
 
-/* 钟鸣的那一圈金光(扩散环)。GSAP 直接动它的 scale/opacity;缺省不占位。 */
+/* 钟鸣的那一圈金光(扩散环)。GSAP 直接动它的 scale/opacity;缺省不占位。
+   **扩散原点 = 境界印**(`--seal-x/--seal-y` 由数值形态写在主题根上):波纹要从有意义的
+   位置发出 —— 境界跨档鸣的钟,该从那方印上荡开,而不是从屏幕几何中心。
+   无签名轴 / 印未挂载 → 回落到缺省原点(50% / 22%),不因缺变量而错位。
+   居中用 margin 而非 transform:GSAP 在动 scale,transform 交给它独占,免得两边互相覆盖。 */
 .halo {
   display: none;
   position: absolute;
-  left: 50%;
-  top: 22%;
+  left: var(--seal-x, 50%);
+  top: var(--seal-y, 22%);
   width: 110vmax;
   height: 110vmax;
   margin: -55vmax 0 0 -55vmax;
@@ -220,19 +228,24 @@
   );
 }
 
-/* ── 数值形态:灵脉(竖向光带)──────────────────────────────────────
-   与规则怪谈 OSD 的横向分段是**两种形态**:竖着走的是脉,横着排的是仪表。 */
+/* ── 数值形态:灵脉(竖向光带)+ 境界印 ────────────────────────────────
+   与规则怪谈 OSD 的横向分段是**两种形态**:竖着走的是脉,横着排的是仪表。
+   刀 2.5 打磨(按缺陷修,限定数值区):细柱加宽、卡片收高、去纯白、数字收紧、脉结与丹田。 */
 .lingmai {
   display: flex;
+  align-items: flex-end;
   justify-content: space-around;
   gap: 4px;
-  padding: 14px 10px 12px;
-  background: var(--card);
-  border: 1px solid var(--line);
-  /* 书卷天地头:上下两道金线,左右不封 —— 本世界的卡片边框语言 */
+  /* 卡片收高约 18%(与柱体加宽配合,让区域凝练:上下留白从 14/12 收到 10/9) */
+  padding: 10px 10px 9px;
+  /* 去纯白:暖象牙 + 轻微半透明(天穹的光透一点进来,不再是贴在画面上的白卡) */
+  background: linear-gradient(180deg, rgba(252, 250, 243, 0.9), rgba(246, 243, 233, 0.86));
+  /* 底部边框更淡:重心在上,卡片下沿不收口,与正文之间不筑第二道墙 */
+  border: 1px solid rgba(120, 105, 60, 0.14);
+  border-bottom-color: rgba(120, 105, 60, 0.07);
   border-radius: 3px;
-  border-top: 2px solid rgba(184, 147, 63, 0.38);
-  border-bottom: 2px solid rgba(184, 147, 63, 0.24);
+  /* 书卷天地头:顶部一道细金线(比刀 2 更细更实,只在顶) */
+  border-top: 1px solid rgba(168, 132, 54, 0.5);
   box-shadow: 0 0 calc(var(--bell-panel, 0) * 26px) rgba(214, 176, 96, 0.55);
 }
 
@@ -240,7 +253,8 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 7px;
+  /* 收掉散开的间距:名在上、柱在中、数字与档名紧贴柱底成一组 */
+  gap: 5px;
   flex: 1;
   min-width: 0;
 }
@@ -253,30 +267,56 @@
 }
 
 .maiTrack {
-  width: 6px;
-  height: 84px;
-  border-radius: 3px;
-  background: rgba(120, 105, 60, 0.14);
+  /* 加宽:6px 细柱在写实场景图下读作进度条;18px 才有「脉」的体量 */
+  width: 18px;
+  height: 76px;
+  border-radius: 9px;
+  background: rgba(120, 105, 60, 0.13);
   display: flex;
   align-items: flex-end;
   overflow: hidden;
+  position: relative;
+}
+
+/* 脉结:自下而上 30 / 60 / 85% 三处**极淡的两侧微鼓**(横向椭圆,不是圆点、不做解剖图),
+   最下一处更实 = 丹田节点。**盖在光带之上**(不是画在轨道底色里)——画在底色里的话,
+   数值一高就被光带盖住,而「脉的结构」不该随数值有无:脉一直在那儿,变的是里面的气。
+   纯 CSS 绘制,不加 DOM;`pointer-events: none` 不吃点击。 */
+.maiTrack::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background-image:
+    radial-gradient(ellipse 135% 4% at 50% 15%, rgba(120, 96, 36, 0.22), transparent 72%),
+    radial-gradient(ellipse 135% 4% at 50% 40%, rgba(120, 96, 36, 0.19), transparent 72%),
+    radial-gradient(ellipse 135% 5% at 50% 70%, rgba(120, 96, 36, 0.24), transparent 72%),
+    radial-gradient(ellipse 160% 7% at 50% 98%, rgba(110, 88, 32, 0.34), transparent 74%);
 }
 
 .maiFill {
   width: 100%;
-  border-radius: 3px;
-  background: linear-gradient(180deg, rgba(200, 164, 80, 0.32), #b8933f);
+  border-radius: 9px;
+  background: linear-gradient(180deg, rgba(200, 164, 80, 0.3), #b8933f);
   position: relative;
   overflow: hidden;
 }
 
-/* 低频偶发(1/1):流光单程上行。样板间原为持续循环,本刀降级为 19–27s 一次的单程。 */
+/* 低频偶发(1/1):流光单程上行。样板间原为持续循环,刀 2 降级为 19–27s 一次的单程。
+   **刀 2.5 明确保留、不改静止**:它是「气在脉络流转」唯一的活证据,且已在动效预算低频槽
+   记账。柱体加宽后亮芯改为居中一道(约 10px 宽)而不是整柱泛白,幅度降、频率不动。 */
 .maiFill::after {
   content: '';
   position: absolute;
-  inset: 0;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 10px;
+  margin-left: -5px;
+  border-radius: 5px;
   opacity: 0;
-  background: linear-gradient(180deg, transparent, rgba(255, 250, 230, 0.6), transparent);
+  background: linear-gradient(180deg, transparent, rgba(255, 250, 230, 0.55), transparent);
   background-size: 100% 300%;
   background-position: 0 130%;
   animation: maiFlow 22s ease-in-out infinite;
@@ -331,20 +371,24 @@
 
 /* 读数**不跟整屏走衬线**:数字要等宽才不会在滚动时跳动,而中文衬线字族多数不带
    tabular figures(滚动中 86→74 的字宽会变,数字左右抽动)。这不是「衬线/无衬线分裂」——
-   读数是仪器刻度不是行文,同刀 1 OSD 用等宽数字的口径。若真机上觉得跳脱,改回 inherit 即可。 */
+   读数是仪器刻度不是行文,同刀 1 OSD 用等宽数字的口径。若真机上觉得跳脱,改回 inherit 即可。
+   刀 2.5:改**墨灰**(不用最深黑 —— 最深黑是正文的重量,数字抢了会先于叙事被读到),
+   并靠紧柱底(负 margin 吃掉 flex gap),与档名成一组。 */
 .maiNum {
   font-family: ui-monospace, 'SF Mono', Menlo, monospace;
   font-size: 13px;
   font-variant-numeric: tabular-nums;
-  color: var(--text);
+  color: #4a5347;
+  margin-top: -2px;
 }
 
 .maiBand {
   font-size: 10px;
-  line-height: 1.35;
+  line-height: 1.3;
   color: var(--muted);
   text-align: center;
   word-break: keep-all;
+  margin-top: -3px; /* 紧跟数字下方,不散开 */
 }
 
 .maiRisk {
@@ -355,6 +399,95 @@
 
 .danger .maiRisk {
   color: #ab4b3c;
+}
+
+/* ── 签名轴形态:境界印 ───────────────────────────────────────────────
+   三项**刻意不等距**:印比灵脉宽一档、并略高出一点,层级由**形态差异**自然形成,
+   不靠字号堆。中央是档名(玩家真正在意的是「到哪一层了」),数字降为次级读数。
+   配色用深金/古铜而非朱砂红 —— 红在本界面已被 severity 的 danger 占用,
+   一方恒 neutral 的印染成红会读成警报。 */
+.seal {
+  position: relative;
+  flex: 1.5; /* 略大于灵脉的 flex:1 */
+  min-width: 0;
+  align-self: stretch; /* 与整行同高:印是立着的碑,不是挂在底边的标签 */
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  overflow: hidden;
+  padding: 9px 6px 8px;
+  border-radius: 2px;
+  color: var(--text);
+  background: linear-gradient(180deg, rgba(250, 244, 228, 0.95), rgba(240, 231, 208, 0.92));
+  border: 1px solid rgba(150, 116, 44, 0.42);
+  /* 碑的厚度:内描一道浅金,外面一圈极淡投影 */
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 252, 240, 0.65),
+    0 1px 2px rgba(120, 100, 50, 0.12);
+}
+
+/* 印泥深浅 = 当前值:自下而上的一层极淡金,量仍读得出来,但让位给档名 */
+.sealFill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  /* 顶缘刻意渐隐:硬边会把印读回「进度条」,而印泥该是浸上来的 */
+  background: linear-gradient(
+    180deg,
+    rgba(196, 160, 74, 0) 0%,
+    rgba(196, 160, 74, 0.14) 45%,
+    rgba(178, 140, 56, 0.26) 100%
+  );
+  pointer-events: none;
+}
+
+.sealBody {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  text-align: center;
+}
+
+.sealName {
+  font-size: 10px;
+  letter-spacing: 0.26em;
+  color: #8a7434;
+  text-indent: 0.26em; /* 抵消末字后的字距,视觉居中 */
+}
+
+/* 档名是印的主角 */
+.sealBand {
+  font-size: 15px;
+  line-height: 1.2;
+  letter-spacing: 0.06em;
+  color: #3a4136;
+  word-break: keep-all;
+}
+
+/* 数字次级:小、淡、等宽(同灵脉读数口径) */
+.sealNum {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: #7c8478;
+}
+
+/* 印同样消费 severity(境界恒 neutral 故实际不触发,但不为此写死 —— 换个世界把签名轴
+   挂到别的轴上,印照样该按服务端给的等级变色)。 */
+.caution.seal {
+  border-color: rgba(176, 127, 40, 0.6);
+}
+
+.danger.seal {
+  border-color: rgba(171, 75, 60, 0.6);
+}
+
+.danger.seal .sealFill {
+  background: linear-gradient(180deg, rgba(180, 90, 74, 0.16), rgba(171, 75, 60, 0.26));
 }
 
 /* ── 决策圈形态:玉简签 ───────────────────────────────────────────────
