@@ -89,8 +89,14 @@ const riskWord = (axis: AxisView) =>
   axis.severity === 'neutral' ? null : severityWord(axis.severity);
 
 /**
- * 签名轴的形态:**境界印**(印 / 碑)。中央是档名(玩家真正在意的是「到哪一层了」),
- * 数字降为次级;印略大于灵脉,层级由**形态差异**自然形成,不靠字号堆。
+ * 签名轴的形态:**境界印**(八边玉印)。
+ *
+ * **层级来自形态差异(流动 vs 凝结),不是面积差异**(Felix 2026-07-26 改口径:
+ * 第一版把印做成占右侧整块宽度的矩形卡,读起来是「被放大的信息卡」而不是印 ——
+ * 面积是最粗糙的层级手段)。故:体量收到与灵脉相近、切八角去掉矩形卡感、
+ * 垂直居中收束**不与灵脉顶对齐**(左边流动、右边凝结,印是稳定的锚点)。
+ *
+ * 文字权重三档拉开:眉题「境界」最轻 → **档名是主视觉** → 数字降一档。
  *
  * 仍然消费 severity:境界是 accumulation 且 `perilAtHigh=false` → 服务端派生恒 neutral,
  * 所以这条路径实际上永不染红 —— 但**代码不为此假设写死**(换个世界把签名轴挂到别的轴上,
@@ -110,8 +116,13 @@ function RealmSeal({
   const cls = [styles.seal, severityClass(axis)].filter(Boolean).join(' ');
   return (
     <div className={cls} aria-label={axis.a11yText} ref={sealRef}>
-      {/* 印泥深浅 = 当前值(仍保留量的读法,只是让位给档名) */}
-      <div className={styles.sealFill} style={{ height: `${axis.percent}%` }} aria-hidden="true" />
+      {/* 印面:八角内切一层,与外层的印边之间留出一道极细的边(不用 border —— clip-path 会切掉它) */}
+      <div className={styles.sealFace} aria-hidden="true">
+        {/* 印泥深浅 = 当前值(仍保留量的读法,只是让位给档名) */}
+        <div className={styles.sealFill} style={{ height: `${axis.percent}%` }} />
+        {/* 极淡内圈:玉印的一线光,不上纹样 */}
+        <div className={styles.sealRing} />
+      </div>
       <div className={styles.sealBody}>
         <span className={styles.sealName}>{axis.displayName}</span>
         {axis.bandLabel && <span className={styles.sealBand}>{axis.bandLabel}</span>}

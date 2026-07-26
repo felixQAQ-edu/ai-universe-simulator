@@ -61,6 +61,7 @@
   --bell-warm: 0; /* 暖调偏移(sepia) */
   --bell-wash: 0; /* 金光泛照强度 */
   --bell-panel: 0; /* 灵脉面板受照 */
+  --bell-seal: 0; /* 境界印轮廓的那一圈光(**先于泛照亮起**,波纹自印边荡开) */
 
   color: var(--text);
 }
@@ -255,7 +256,10 @@
   align-items: center;
   /* 收掉散开的间距:名在上、柱在中、数字与档名紧贴柱底成一组 */
   gap: 5px;
-  flex: 1;
+  /* 不摊满剩余宽度:印收到 70px 之后,灵脉若还 `flex:1` 会各自撑到 120px+,
+     三项之间空得发散。定宽 66px + 容器 space-around 让间距自己匀开。 */
+  flex: 0 1 auto;
+  width: 66px;
   min-width: 0;
 }
 
@@ -401,29 +405,57 @@
   color: #ab4b3c;
 }
 
-/* ── 签名轴形态:境界印 ───────────────────────────────────────────────
-   三项**刻意不等距**:印比灵脉宽一档、并略高出一点,层级由**形态差异**自然形成,
-   不靠字号堆。中央是档名(玩家真正在意的是「到哪一层了」),数字降为次级读数。
-   配色用深金/古铜而非朱砂红 —— 红在本界面已被 severity 的 danger 占用,
-   一方恒 neutral 的印染成红会读成警报。 */
+/* ── 签名轴形态:境界印(八边玉印)─────────────────────────────────────
+   **层级来自形态差异(流动 vs 凝结),不是面积差异**(Felix 2026-07-26 改口径):
+   第一版做成占右侧整块宽度的矩形卡 → 读作「被放大的信息卡」而非印,面积是最粗糙的层级手段。
+   现在:体量收到与灵脉相近(70px vs 66px)、切八角去掉矩形卡感、**垂直居中收束不与灵脉顶对齐**
+   —— 左边流动、右边凝结,印是稳定的锚点。
+   配色仍是深金/古铜而非朱砂红 —— 红已被 severity 的 danger 占用,一方恒 neutral 的印染红会读成警报。 */
 .seal {
   position: relative;
-  flex: 1.5; /* 略大于灵脉的 flex:1 */
-  min-width: 0;
-  align-self: stretch; /* 与整行同高:印是立着的碑,不是挂在底边的标签 */
+  /* 收到与灵脉同量级:不再吃掉右侧整块宽度(112px → 70px) */
+  flex: 0 0 auto;
+  width: 70px;
+  aspect-ratio: 1;
+  /* 居中收束 + 微微下沉:锚点该坐得比流动的脉低一点,但不脱离整行 */
+  align-self: center;
+  margin-top: 6px;
   display: flex;
-  align-items: stretch;
+  align-items: center;
   justify-content: center;
-  overflow: hidden;
-  padding: 9px 6px 8px;
-  border-radius: 2px;
   color: var(--text);
-  background: linear-gradient(180deg, rgba(250, 244, 228, 0.95), rgba(240, 231, 208, 0.92));
-  border: 1px solid rgba(150, 116, 44, 0.42);
-  /* 碑的厚度:内描一道浅金,外面一圈极淡投影 */
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 252, 240, 0.65),
-    0 1px 2px rgba(120, 100, 50, 0.12);
+  /* 印边(外层就是这道边的颜色,印面由 .sealFace 内切覆盖 —— 不用 border:clip-path 会切掉它) */
+  background: rgba(150, 116, 44, 0.5);
+  clip-path: polygon(
+    22% 0,
+    78% 0,
+    100% 22%,
+    100% 78%,
+    78% 100%,
+    22% 100%,
+    0 78%,
+    0 22%
+  );
+  /* 钟鸣时**沿印的轮廓**先亮一圈(drop-shadow 跟着 clip 后的形状走,box-shadow 不会) */
+  filter: drop-shadow(0 0 calc(var(--bell-seal, 0) * 10px) rgba(232, 196, 110, 0.9));
+}
+
+/* 印面:内切一层,与外层之间露出的那一线就是印边 */
+.sealFace {
+  position: absolute;
+  inset: 1.5px;
+  overflow: hidden;
+  clip-path: polygon(
+    22% 0,
+    78% 0,
+    100% 22%,
+    100% 78%,
+    78% 100%,
+    22% 100%,
+    0 78%,
+    0 22%
+  );
+  background: linear-gradient(160deg, rgba(251, 246, 233, 0.97), rgba(238, 229, 205, 0.95));
 }
 
 /* 印泥深浅 = 当前值:自下而上的一层极淡金,量仍读得出来,但让位给档名 */
@@ -439,7 +471,16 @@
     rgba(196, 160, 74, 0.14) 45%,
     rgba(178, 140, 56, 0.26) 100%
   );
-  pointer-events: none;
+}
+
+/* 极淡内圈 + 一层雾光:玉的层次靠光不靠纹样(明确不上复杂纹样) */
+.sealRing {
+  position: absolute;
+  inset: 5px;
+  border-radius: 50%;
+  box-shadow:
+    inset 0 0 0 1px rgba(168, 132, 54, 0.16),
+    inset 0 3px 7px rgba(255, 253, 245, 0.75);
 }
 
 .sealBody {
@@ -448,42 +489,44 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 3px;
+  gap: 1px;
   text-align: center;
+  line-height: 1.15;
 }
 
+/* 眉题:最轻的一档,只交代「这是哪根轴」 */
 .sealName {
-  font-size: 10px;
-  letter-spacing: 0.26em;
-  color: #8a7434;
-  text-indent: 0.26em; /* 抵消末字后的字距,视觉居中 */
+  font-size: 8px;
+  letter-spacing: 0.24em;
+  color: rgba(138, 116, 52, 0.75);
+  text-indent: 0.24em; /* 抵消末字后的字距,视觉居中 */
 }
 
-/* 档名是印的主角 */
+/* 档名 = 印的主视觉 */
 .sealBand {
-  font-size: 15px;
-  line-height: 1.2;
-  letter-spacing: 0.06em;
-  color: #3a4136;
+  font-size: 17px;
+  line-height: 1.1;
+  letter-spacing: 0.04em;
+  color: #2f362c;
   word-break: keep-all;
 }
 
-/* 数字次级:小、淡、等宽(同灵脉读数口径) */
+/* 数字降一档:小、淡、等宽(同灵脉读数口径) */
 .sealNum {
   font-family: ui-monospace, 'SF Mono', Menlo, monospace;
-  font-size: 11px;
+  font-size: 10px;
   font-variant-numeric: tabular-nums;
-  color: #7c8478;
+  color: rgba(124, 132, 120, 0.9);
 }
 
 /* 印同样消费 severity(境界恒 neutral 故实际不触发,但不为此写死 —— 换个世界把签名轴
    挂到别的轴上,印照样该按服务端给的等级变色)。 */
 .caution.seal {
-  border-color: rgba(176, 127, 40, 0.6);
+  background: rgba(176, 127, 40, 0.62);
 }
 
 .danger.seal {
-  border-color: rgba(171, 75, 60, 0.6);
+  background: rgba(171, 75, 60, 0.6);
 }
 
 .danger.seal .sealFill {
@@ -598,6 +641,7 @@
     --bell-warm: 0;
     --bell-wash: 0;
     --bell-panel: 0;
+    --bell-seal: 0;
   }
 
   .cloud,

@@ -30,7 +30,7 @@ import styles from './xian.module.css';
 //   以下重锚到**新数值到达**(= 跨档判定成立)那一刻:
 //   +0        排期,记探针
 //   +300ms    环境收住(天穹与灵脉一起屏住呼吸)
-//   +550ms    钟鸣:第一圈金光(明显阶段约 2s)
+//   +550ms    钟鸣:**沿境界印的轮廓先亮一圈**(RIM_LEAD_S),再向上扩散进云海(明显阶段约 2s)
 //   +1100ms   境界与数值**才**开始变化(由通用层的 `ceremonyDelayMs` 施加,见 skins.tsx)
 //   之后      云层被推开的痕迹缓慢回落约 9s(余韵;不加长、不叠粒子爆发、不留持续发光)
 const STILL_MS = 300;
@@ -39,6 +39,8 @@ const RING_MS = 550;
 const RELEASE_MS = 2600;
 /** 余韵回落(秒):云层痕迹恢复,长尾缓动。 */
 const AFTERGLOW_S = 9;
+/** 印边先亮的那一拍(秒):波纹自印的轮廓荡开,而不是从中心炸开(Felix 2026-07-26)。 */
+const RIM_LEAD_S = 0.18;
 
 const TRACE = 'xian.bell';
 
@@ -100,10 +102,11 @@ export function XianAmbient({ runtime, rootRef, signatureTick, setRootClass }: A
       const sky = skyRef.current;
 
       runtime.add(() => {
-        // 那一圈扩散金光(氛围层内,不越过内容层)
+        // 那一圈扩散金光(氛围层内,不越过内容层)。**比印边晚一拍起**:
+        // 先看见印的轮廓亮起,波纹才荡开 —— 不是从一个方块的中心炸开。
         if (halo) {
           gsap
-            .timeline()
+            .timeline({ delay: RIM_LEAD_S })
             .set(halo, { display: 'block' })
             .fromTo(
               halo,
@@ -114,7 +117,8 @@ export function XianAmbient({ runtime, rootRef, signatureTick, setRootClass }: A
             .set(halo, { display: 'none' });
         }
 
-        // 金光泛照:一条时间线同时驱动顶部场景图 / 天穹 / 灵脉面板
+        // 金光泛照:一条时间线同时驱动境界印 / 顶部场景图 / 天穹 / 灵脉面板。
+        // 顺序是**先印后天**(Felix 2026-07-26):沿印的轮廓先亮一圈,再向上扩散进云海。
         gsap
           .timeline({
             onComplete: () => {
@@ -122,6 +126,14 @@ export function XianAmbient({ runtime, rootRef, signatureTick, setRootClass }: A
               trace(TRACE, { completedAt: now(), state: 'settle' });
             },
           })
+          // ① 印边先亮(短、快、只作用在印的轮廓上)
+          .to(root, {
+            '--bell-seal': 1,
+            duration: RIM_LEAD_S,
+            ease: XIAN.ease,
+            onStart: () => trace(TRACE, { state: 'rim' }),
+          })
+          // ② 光自印处向上扩散进云海
           .to(root, {
             '--bell-b': 1.32,
             '--bell-s': 1.14,
@@ -131,12 +143,14 @@ export function XianAmbient({ runtime, rootRef, signatureTick, setRootClass }: A
             duration: XIAN.dur(0.35),
             ease: XIAN.ease,
           })
+          // ③ 长尾回落(印边与天光一起收)
           .to(root, {
             '--bell-b': 1,
             '--bell-s': 1,
             '--bell-warm': 0,
             '--bell-wash': 0,
             '--bell-panel': 0,
+            '--bell-seal': 0,
             duration: XIAN.dur(1.5),
             ease: XIAN.easeLong,
           });
