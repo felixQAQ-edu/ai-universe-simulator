@@ -175,6 +175,7 @@ function PlayingScreen() {
           axes={attributeAxes}
           values={attributeValues}
           signatureTick={signature.tick}
+          rootRef={rootRef}
         />
 
         <Prose text={proseText} caret={revealing} />

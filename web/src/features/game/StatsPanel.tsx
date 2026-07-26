@@ -1,3 +1,4 @@
+import type { RefObject } from 'react';
 import type { AttributeAxisMeta } from '../../api';
 import { resolveBandLabel, resolveSeverity } from './bands';
 import { severityWord, useSkin, type AxisView } from './theme/contract';
@@ -15,9 +16,12 @@ export function StatsPanel({
   axes,
   values,
   signatureTick = 0,
+  rootRef = NULL_ROOT,
 }: {
   axes: AttributeAxisMeta[];
   values: Record<string, number>;
+  /** 主题根(见 `StatsProps.rootRef`);未接线时为空 ref,形态组件据此优雅降级。 */
+  rootRef?: RefObject<HTMLElement | null>;
   /**
    * 签名轴向上跨档的累计次数(由 `PlayingScreen` 的**同一次**判定算出,与氛围层同源)。
    * 跨档那一回合数值滚动会推迟起步,让一级记忆点先响(ADR-018 §5 Q5);缺省 0 = 从不推迟。
@@ -28,14 +32,24 @@ export function StatsPanel({
   // 数值滚动的**单一驱动量**:档名与 severity 一律按此刻屏幕上的数去查,
   // 数字滚过阈值那一帧同步翻档(ADR-018 §4.2:同步逻辑在通用层,不下放主题层)。
   const shown = useAnimatedValues(values, bundle, signatureTick);
-  const views = axes.map((axis) => toAxisView(axis, shown));
+  // 签名轴打标在**这里**发生(注册表配置 → 一个 bool),主题层因此不必、也不许读 key
+  // 去认「哪根轴特殊」(ADR-018 §4.2 + §5 Q5「锁在注册表内」)。
+  const signatureKey = bundle?.skin.signatureAxisKey ?? null;
+  const views = axes.map((axis) => toAxisView(axis, shown, signatureKey));
   if (!bundle) return <LegacyStats axes={views} />;
   const Form = bundle.skin.Stats;
-  return <Form axes={views} runtime={bundle.runtime} />;
+  return <Form axes={views} runtime={bundle.runtime} rootRef={rootRef} />;
 }
 
+/** 未接线时的空主题根:模块级常量,避免每次渲染换新对象引起下游 effect 反复重跑。 */
+const NULL_ROOT: RefObject<HTMLElement | null> = { current: null };
+
 /** 通用层的全部计算:一根轴 → 主题层能用的一切(不多给一分语义原料)。 */
-function toAxisView(axis: AttributeAxisMeta, values: Record<string, number>): AxisView {
+function toAxisView(
+  axis: AttributeAxisMeta,
+  values: Record<string, number>,
+  signatureKey: string | null,
+): AxisView {
   const value = Number(values[axis.key] ?? 0);
   const bandLabel = resolveBandLabel(value, axis.bands);
   const severity = resolveSeverity(value, axis.bands);
@@ -48,6 +62,7 @@ function toAxisView(axis: AttributeAxisMeta, values: Record<string, number>): Ax
     bandLabel,
     severity,
     a11yText: [axis.displayName, String(value), bandLabel, risk].filter(Boolean).join(' · '),
+    signature: !!signatureKey && axis.key === signatureKey,
   };
 }
 

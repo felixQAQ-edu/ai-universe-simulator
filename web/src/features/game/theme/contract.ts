@@ -33,6 +33,17 @@ export interface AxisView {
   severity: AxisSeverity | null;
   /** 可访问文本(读屏用):「体力 71 · 受创 · 注意」。 */
   a11yText: string;
+  /**
+   * 这根是不是本世界的**签名轴**({@link WorldSkin.signatureAxisKey} 登记的那根)。
+   *
+   * **由通用层打标、主题层只读这个 bool** —— 主题层想给签名轴换个形态(修仙:境界改印),
+   * 唯一合法的问法是「你是不是签名轴」,**不是**「你的 key 是不是 realm」:后者等于把
+   * 「哪根轴特殊」这条配置从注册表复制进主题组件,ADR-018 §5 Q5「锁在注册表内」当场失效,
+   * 且第二个消费方一出现就会两处口径不一致(§4.2 主题层不得重新解释轴语义)。
+   *
+   * 未登记签名轴的世界:全部为 false —— 主题层据此**整齐降级**(修仙:全部走灵脉)。
+   */
+  signature: boolean;
 }
 
 /**
@@ -100,6 +111,13 @@ export interface ActionsProps {
 export interface StatsProps {
   axes: AxisView[];
   runtime: SkinRuntime;
+  /**
+   * 主题根。与 {@link AmbientProps.rootRef} 同一个元素、同一用途:数值形态若要把**位置或连续量**
+   * 交给别的层消费(修仙:境界印把自己的中心写成 `--seal-x/--seal-y`,好让氛围层的金光从**印**
+   * 而不是从屏幕中心扩散),一律写主题根上的自定义属性 —— **不是**让氛围层去 query 数值面板的 DOM
+   * (那会把组件边界捅穿,且两边挂载顺序一变就静默失效)。
+   */
+  rootRef: RefObject<HTMLElement | null>;
 }
 
 /** 数值滚动的时间感(由皮肤给,**同步逻辑不在皮肤**——见 `useAnimatedValues`)。 */
