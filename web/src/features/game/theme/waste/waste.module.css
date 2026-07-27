@@ -1,0 +1,443 @@
+/* ═══ 末日生存 · 皮肤「灰烬纪元」(ADR-018 刀 3)══════════════════════════════
+ *
+ * 样板间(~/code/wanjie-visual-lab · wasteland)冻结成果的生产移植。三条纪律同刀 1/2:
+ *   ① 色板与时间感全部走**主题根 token**;
+ *   ② `--t-dur` 与 `--t-ease` **成对**(§4.3):末日 = 0.3s + `power2.out` 且**启动带迟滞**
+ *      (迟钝、磨损 —— 机械件动起来总要先克服一点静摩擦),与规则怪谈的阶跃、修仙的缓出长尾
+ *      是三种**时间感**,不是快慢之别;
+ *   ③ 一切动画在 `prefers-reduced-motion: reduce` 下停。
+ *
+ * 动效预算(AGENTS.md §2 + §2.1,本屏 1+1+1 未超):
+ *   持续 1 = 风沙横飘;
+ *   低频 1 = **电台 / 远光两种表现,互斥共用一个槽** —— 互斥由**代码保证**
+ *            (两边都抢 `runtime.tryLock()`,电台持锁期含 10s 余韵),不是「概率上很少同时」;
+ *   用户触发 1 = 铁皮告示按压 + 数值滚动。
+ *   本世界无入场序列(`hasIntro: false`:记忆点是电台,不是进门那一下)。
+ *   `.caret` 由 `--caret-play: paused` 降级为静态(正文区最后一处循环,AGENTS.md §4)。
+ *
+ * 零图片资源:风沙、颗粒、表盘、铆钉全部 CSS。
+ */
+
+/* ── 主题根:色板 token + 时间感 token ───────────────────────────────── */
+.screen {
+  /* 世界决定明暗(ADR-018 §4.6):本世界固定**暗色**,不跟随系统浅/深色偏好。 */
+  --bg: #17130f;
+  --text: #ded3c4; /* 约 11.9:1 on card */
+  --muted: #97897a; /* 约 5.6:1 on card —— 见下 rule-idle 说明 */
+  --line: rgba(180, 150, 110, 0.18);
+  /* 半透明是刻意的:风沙从面板背后掠过,但字不跟着晃(AGENTS.md §4 正文即禁区)。 */
+  --card: rgba(32, 26, 21, 0.86);
+  --chip: rgba(180, 150, 110, 0.12);
+  --accent: #c98b3f;
+  --accent-soft: rgba(201, 139, 63, 0.14);
+  --notice-bg: rgba(201, 139, 63, 0.14);
+  --notice-fg: #e6d6bd;
+
+  /* 生存法则连续阅读;未点亮项约 6.4:1(§4.6 可访问性口径) */
+  --rule-lh: 1.9;
+  --rule-idle: #a8998a;
+
+  /* 光标静态:废土上没有会规律闪烁的东西。 */
+  --caret-play: paused;
+
+  /* 近乎方角:铁皮与告示牌不磨圆。 */
+  --panel-radius: 2px;
+
+  /* 时间感(成对,§4.3):迟钝、磨损 */
+  --t-dur: 0.3s;
+  --t-ease: cubic-bezier(0.3, 0, 0.35, 1);
+
+  color: var(--text);
+}
+
+/* 内容在氛围层之上。 */
+.screen > *:not(.ambient) {
+  position: relative;
+  z-index: 1;
+}
+
+/* ── 氛围层(fixed 铺满视口)───────────────────────────────────────── */
+.ambient {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.wasteFill {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, #1b1611 0%, #17130f 55%, #120f0c 100%);
+}
+
+/* 持续环境(1/1):风沙横飘 */
+.dust {
+  position: absolute;
+  right: -6%;
+  border-radius: 50%;
+  background: #cbb894;
+  animation-name: drift;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+@keyframes drift {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-112vw);
+  }
+}
+
+/* 低频(1/1,表现之二):远光 —— 始终**先亮风沙、再隐约见光源**。
+   GSAP 直接动这两个元素的 opacity/x/scale(多段时间线编排,CSS 不划算)。 */
+.farGlow {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 38%;
+  height: 34%;
+  opacity: 0;
+  background: radial-gradient(
+    60% 100% at 70% 50%,
+    rgba(226, 196, 140, 0.32),
+    rgba(200, 165, 110, 0.12) 55%,
+    transparent 80%
+  );
+  filter: blur(14px);
+}
+
+.farLight {
+  position: absolute;
+  left: 72%;
+  top: 52%;
+  width: 26px;
+  height: 8px;
+  opacity: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 240, 205, 0.95), rgba(240, 205, 140, 0.2) 60%, transparent 78%);
+  filter: blur(2px);
+}
+
+/* 静态颗粒(不抖动:持续槽给了风沙)。零图片 —— SVG turbulence 内联 data URI。 */
+.grain {
+  position: absolute;
+  inset: -30px;
+  opacity: 0.07;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='140' height='140' filter='url(%23n)'/></svg>");
+}
+
+.vignette {
+  position: absolute;
+  inset: 0;
+  box-shadow: inset 0 0 130px 42px rgba(8, 5, 2, 0.72);
+}
+
+/* 停表(§4.4):正文不稳定期低频/持续动效一律停。 */
+.paused .dust {
+  animation-play-state: paused;
+}
+
+/* 顶部场景图:本世界持续槽给了风沙,故此处**无常驻动画**,只留一点点风沙压过的暖尘色。 */
+.bannerImg {
+  filter: saturate(0.92) contrast(1.04);
+}
+
+/* ── 数值形态:磨损机械仪表 ─────────────────────────────────────────── */
+.dials {
+  display: flex;
+  justify-content: space-around;
+  gap: 6px;
+  padding: 12px 10px 10px;
+  background: linear-gradient(180deg, rgba(38, 31, 25, 0.9), rgba(28, 23, 18, 0.86));
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  /* 四角铆钉:本世界的卡片边框语言 */
+  background-image:
+    radial-gradient(circle, rgba(203, 184, 148, 0.42) 1.5px, transparent 2.2px),
+    radial-gradient(circle, rgba(203, 184, 148, 0.42) 1.5px, transparent 2.2px),
+    radial-gradient(circle, rgba(203, 184, 148, 0.42) 1.5px, transparent 2.2px),
+    radial-gradient(circle, rgba(203, 184, 148, 0.42) 1.5px, transparent 2.2px);
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
+  background-position: 6px 6px, calc(100% - 6px) 6px, 6px calc(100% - 6px),
+    calc(100% - 6px) calc(100% - 6px);
+}
+
+.dial {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  flex: 0 1 auto;
+  width: 74px;
+  min-width: 0;
+}
+
+.dialFace {
+  position: relative;
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 38% 32%, rgba(92, 78, 62, 0.55), rgba(30, 25, 20, 0.9) 70%),
+    #241d17;
+  border: 1px solid rgba(180, 150, 110, 0.28);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+
+/* 刻度弧:一条极淡的量程线,不画数字刻度(表是磨损的,字早看不清了) */
+.dialArc {
+  position: absolute;
+  inset: 7px;
+  border-radius: 50%;
+  border: 1px solid rgba(203, 184, 148, 0.16);
+  border-bottom-color: transparent;
+}
+
+.dialNeedle {
+  position: absolute;
+  left: 50%;
+  bottom: 50%;
+  width: 2px;
+  height: 19px;
+  margin-left: -1px;
+  transform-origin: 50% 100%;
+  background: linear-gradient(180deg, #d8c8a8, rgba(216, 200, 168, 0.45));
+  /* 指针跟着通用层的 displayValue 走(§4.2.1);过渡给一点迟滞感 */
+  transition: transform var(--t-dur) var(--t-ease);
+}
+
+.dialCap {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  margin: -3.5px 0 0 -3.5px;
+  border-radius: 50%;
+  background: #b9a88c;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4);
+}
+
+/* 磨损:表面一道划痕(静态,不动) */
+.dialScratch {
+  position: absolute;
+  left: 18%;
+  top: 26%;
+  width: 62%;
+  height: 1px;
+  background: rgba(230, 220, 200, 0.14);
+  transform: rotate(-19deg);
+}
+
+.dialLabel {
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  color: var(--muted);
+  white-space: nowrap;
+  margin-top: 2px;
+}
+
+.dialNum {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: #cbbda8;
+}
+
+.dialBand {
+  font-size: 10px;
+  line-height: 1.3;
+  color: var(--muted);
+  text-align: center;
+  word-break: keep-all;
+}
+
+.dialRisk {
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  color: #c9903f;
+}
+
+/* 告警状态**只由 severity 驱动**(服务端派生);缺省 = 不进告警态。 */
+.caution .dialNeedle {
+  background: linear-gradient(180deg, #dcae5e, rgba(220, 174, 94, 0.45));
+}
+
+.danger .dialNeedle {
+  background: linear-gradient(180deg, #d1614a, rgba(209, 97, 74, 0.45));
+}
+
+.danger .dialFace {
+  border-color: rgba(209, 97, 74, 0.42);
+}
+
+.danger .dialRisk {
+  color: #d1614a;
+}
+
+/* ── 间奏槽:手摇电台 ──────────────────────────────────────────────── */
+.radio {
+  padding: 9px 11px 10px;
+  background: linear-gradient(180deg, rgba(26, 22, 18, 0.94), rgba(20, 17, 14, 0.92));
+  border: 1px solid rgba(180, 150, 110, 0.22);
+  border-radius: 2px;
+  box-shadow: inset 0 1px 0 rgba(203, 184, 148, 0.08);
+}
+
+.radioHead {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.radioLed {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #7d5a2a;
+  box-shadow: 0 0 4px rgba(201, 139, 63, 0.5);
+}
+
+.radioFreq {
+  font-variant-numeric: tabular-nums;
+  color: #cbb894;
+  letter-spacing: 0.04em;
+}
+
+.radioUnit {
+  font-size: 9px;
+  opacity: 0.7;
+}
+
+.radioSig {
+  margin-left: auto;
+  letter-spacing: 0.1em;
+  color: #b09a72;
+}
+
+.radioLine {
+  margin: 7px 0 0;
+  min-height: 2.6em;
+  font-size: 0.82rem;
+  line-height: 1.65;
+  color: #cbbda8;
+  letter-spacing: 0.02em;
+  word-break: break-word;
+  /* 淡入淡出走 CSS transition(AGENTS.md §7 减债习惯:能用 CSS 的优先 CSS)。 */
+  transition: opacity 0.45s var(--t-ease);
+}
+
+/* 收到内容时字略亮一点、间距略松 —— 只是「听清了」,不是高亮 */
+.radioRx {
+  color: #e2d6c0;
+  letter-spacing: 0.035em;
+}
+
+/* ── 决策圈形态:铁皮告示 ──────────────────────────────────────────── */
+.notices {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.notice {
+  appearance: none;
+  display: block;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+  font-size: 0.9rem;
+  line-height: 1.7;
+  padding: 11px 14px;
+  color: var(--text);
+  cursor: pointer;
+  background: linear-gradient(172deg, rgba(48, 40, 32, 0.94), rgba(34, 28, 23, 0.92));
+  border: 1px solid rgba(180, 150, 110, 0.3);
+  border-radius: 0;
+  -webkit-tap-highlight-color: transparent;
+  /* 磨损切角 */
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%);
+  /* 四角铆钉 */
+  background-image:
+    radial-gradient(circle, rgba(203, 184, 148, 0.5) 1.6px, transparent 2.3px),
+    radial-gradient(circle, rgba(203, 184, 148, 0.5) 1.6px, transparent 2.3px);
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
+  background-position: 6px 6px, calc(100% - 12px) 6px;
+  /* **形态与阴影同源**(ADR-018 §4.10):切角用 clip-path,故投影必须走 drop-shadow ——
+     box-shadow 画的是矩形,会在切掉的那个角外面露出直角阴影。 */
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.45));
+  transition:
+    transform var(--t-dur) var(--t-ease),
+    filter var(--t-dur) var(--t-ease),
+    border-color var(--t-dur) var(--t-ease);
+}
+
+.notice:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* 按压 = **下沉**(铁皮被按下去,不会发光);启动带一点迟滞由 --t-ease 承担 */
+.notice:active:not(:disabled) {
+  transform: translateY(1.5px);
+  filter: drop-shadow(0 0 0 rgba(0, 0, 0, 0.45));
+  border-color: rgba(201, 139, 63, 0.55);
+}
+
+.noticeBody {
+  display: block;
+}
+
+.noticeText {
+  display: block;
+}
+
+/* 定性风险提示(ADR-011):次级层级小字,缺失时不渲染、不占位。 */
+.noticeHint {
+  display: block;
+  margin-top: 0.22rem;
+  font-size: 0.74rem;
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+/* ── debug 控件(仅 ?debug=1;不改任何生产数据)───────────────────────── */
+.debugBtn {
+  align-self: flex-start;
+  margin-top: 8px;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 0.68rem;
+  color: var(--muted);
+  background: transparent;
+  border: 1px dashed var(--muted);
+  border-radius: 2px;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+/* ── 无障碍:偏好减弱动效 ───────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .screen {
+    --t-dur: 0.01s;
+    --t-ease: linear;
+  }
+
+  .dust {
+    animation: none;
+  }
+
+  .dialNeedle,
+  .radioLine,
+  .notice {
+    transition: none;
+  }
+}

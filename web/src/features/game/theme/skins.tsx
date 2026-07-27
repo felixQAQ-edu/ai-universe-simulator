@@ -1,10 +1,15 @@
-import { XIAN } from './motion';
+import { WASTE, XIAN } from './motion';
 import type { WorldSkin } from './contract';
 import type { SkinId } from './registry';
 import { RulesActions } from './rules/RulesActions';
 import { RulesAmbient } from './rules/RulesAmbient';
 import { RulesStats } from './rules/RulesStats';
 import rules from './rules/rules.module.css';
+import { WasteActions } from './waste/WasteActions';
+import { WasteAmbient } from './waste/WasteAmbient';
+import { WasteRadio } from './waste/WasteRadio';
+import { WasteStats } from './waste/WasteStats';
+import waste from './waste/waste.module.css';
 import { XianActions } from './xian/XianActions';
 import { XianAmbient } from './xian/XianAmbient';
 import { XianStats } from './xian/XianStats';
@@ -55,5 +60,25 @@ export const SKINS: Partial<Record<SkinId, WorldSkin>> = {
     Ambient: XianAmbient,
     Stats: XianStats,
     Actions: XianActions,
+  },
+  apocalypse: {
+    id: 'apocalypse',
+    // 一级记忆点是**电台**(环境/状态事件),不是进门那一下 → 不占开场。
+    hasIntro: false,
+    // 时间感:迟钝、磨损(启动带迟滞);与 `--t-ease` 同源(§4.3 成对)。
+    valueRoll: { durationMs: Math.round(WASTE.dur(0.95) * 1000), ease: WASTE.ease },
+    // **不配 signatureAxisKey**:签名机制现在判的是「向上跨档 = 成就」,
+    // 而末日的饥饿向下跨档是**恶化** —— 语义相反。为末日把机制扩成「可配置方向」,
+    // 它就从**签名事件检测器**退化为**通用跨档广播器**;通用广播器一旦存在,
+    // 每个世界都会想挂点什么(理智跌破闪一下、体力见底抖一下),
+    // 「一世界一记忆点」与动效预算两条护栏同时受压。**保持机制专一**(Felix 2026-07-27)。
+    screenClass: waste.screen,
+    pausedClass: waste.paused,
+    bannerImgClass: waste.bannerImg,
+    Ambient: WasteAmbient,
+    Stats: WasteStats,
+    Actions: WasteActions,
+    // 间奏槽:手摇电台,渲染在正文之后、决策圈之前(ADR-018 §3 刀 3)。
+    Interlude: WasteRadio,
   },
 };

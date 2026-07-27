@@ -55,8 +55,11 @@ describe('resolveWorldTheme · 皮肤登记(feature gate,ADR-018 §4.5)', () => 
     expect(resolveWorldTheme('cultivation').skin).toBe('cultivation');
   });
 
-  it('末日 / 克苏鲁仍走旧实现(刀 2 不准顺手一起登记,各等刀 3 / 刀 4)', () => {
-    expect(resolveWorldTheme('apocalypse').skin).toBeNull();
+  it('末日(刀 3)登记了新皮肤', () => {
+    expect(resolveWorldTheme('apocalypse').skin).toBe('apocalypse');
+  });
+
+  it('克苏鲁仍走旧实现(刀 3 不准顺手一起登记,等刀 4)', () => {
     expect(resolveWorldTheme('cthulhu').skin).toBeNull();
   });
 
@@ -81,8 +84,10 @@ describe('resolveWorldTheme · 皮肤登记(feature gate,ADR-018 §4.5)', () => 
     expect(shihai.sceneUrl).toBe('/scenes/fusion-shihai.webp');
   });
 
-  it('host 未登记的融合局仍走旧实现(末日 / 克苏鲁作 host 时)', () => {
-    expect(resolveWorldTheme(['apocalypse', 'cthulhu']).skin).toBeNull();
+  // 刀 3 的连带结果(同刀 2 的识海遗蜕):缺页的人防工程 host=规则怪谈,故仍用规则怪谈皮肤;
+  // 而末日**作 host** 的组合(尚未登记任何一组)从此会拿到末日皮肤 —— Q2 降级路径,非融合签名。
+  it('host 未登记皮肤的融合局仍走旧实现(克苏鲁作 host 时)', () => {
+    expect(resolveWorldTheme(['cthulhu', 'apocalypse']).skin).toBeNull();
   });
 });
 

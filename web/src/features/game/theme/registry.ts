@@ -15,7 +15,7 @@ import styles from '../game.module.css';
  * 已登记新皮肤的世界 id。刀 1 规则怪谈(试验田)证明基建可用,刀 2 加修仙;刀 3/4 各自再加一条。
  * 未登记世界 → `skin: null` → 走旧实现。
  */
-export type SkinId = 'rules_creepy' | 'cultivation';
+export type SkinId = 'rules_creepy' | 'cultivation' | 'apocalypse';
 
 /** 一个世界(单体或融合组合)的视觉登记。 */
 export interface WorldTheme {
@@ -40,8 +40,8 @@ interface WorldEntry {
 
 /**
  * 单体世界登记表。加一个世界 = 加一条(图放 `web/public/scenes/<archetype>.webp`,后端零改)。
- * `skin` 目前只有规则怪谈(刀 1 试验田)与修仙(刀 2)非 null;末日 / 克苏鲁照旧走旧实现,
- * 各自等刀 3 / 刀 4(ADR-018 §3 每刀「不准顺手做」:不顺手把别的世界一起登记)。
+ * `skin` 目前有规则怪谈(刀 1 试验田)/ 修仙(刀 2)/ 末日(刀 3);克苏鲁照旧走旧实现,
+ * 等刀 4(ADR-018 §3 每刀「不准顺手做」:不顺手把别的世界一起登记)。
  */
 const WORLDS: Readonly<Record<string, WorldEntry>> = {
   rules_creepy: {
@@ -49,7 +49,11 @@ const WORLDS: Readonly<Record<string, WorldEntry>> = {
     cardClass: styles.cardCreepy,
     skin: 'rules_creepy', // 刀 1 试验田:唯一登记新皮肤的世界
   },
-  apocalypse: { sceneUrl: '/scenes/apocalypse.webp', cardClass: styles.cardApocalypse, skin: null },
+  apocalypse: {
+    sceneUrl: '/scenes/apocalypse.webp',
+    cardClass: styles.cardApocalypse,
+    skin: 'apocalypse', // 刀 3:一级记忆点「电台信号」走间奏槽(不挂轴,故无 signatureAxisKey)
+  },
   cthulhu: { sceneUrl: '/scenes/cthulhu.webp', cardClass: styles.cardCthulhu, skin: null },
   cultivation: {
     sceneUrl: '/scenes/cultivation.webp',
