@@ -35,6 +35,15 @@ export const CTHU = {
 export const WASTE = {
   ease: 'power2.out',
   easeStart: 'power1.in',
+  /**
+   * **数值滚动专用**(刀 3 补):样板间的表盘指针跑的是**两段补间 + 启动 lag**
+   * (`delay: lag()` → `easeStart` 走前 62% → `ease` 收尾),而通用层的数值滚动
+   * (`useAnimatedValues`)刻意只吃**一个** ease —— 同步逻辑单点、不给主题层自己滚数字的口子。
+   * 于是这里给一条**单 ease 的等效近似**:`inOut` 的慢起步替代 lag + `power1.in`,
+   * 慢收尾替代 `power2.out` 收束。**若直接复用 `ease`,末日与修仙的数值滚动会是同一条曲线**
+   * (两者的 `ease` 都是 `power2.out`),四世界就少了一条时间感。
+   */
+  easeRoll: 'power2.inOut',
   dur: (base: number) => base * gsap.utils.random(1.0, 1.15),
   lag: () => gsap.utils.random(0.1, 0.22), // 启动迟滞
 };

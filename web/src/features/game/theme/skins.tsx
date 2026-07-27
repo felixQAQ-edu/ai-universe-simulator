@@ -66,7 +66,7 @@ export const SKINS: Partial<Record<SkinId, WorldSkin>> = {
     // 一级记忆点是**电台**(环境/状态事件),不是进门那一下 → 不占开场。
     hasIntro: false,
     // 时间感:迟钝、磨损(启动带迟滞);与 `--t-ease` 同源(§4.3 成对)。
-    valueRoll: { durationMs: Math.round(WASTE.dur(0.95) * 1000), ease: WASTE.ease },
+    valueRoll: { durationMs: Math.round(WASTE.dur(0.95) * 1000), ease: WASTE.easeRoll },
     // **不配 signatureAxisKey**:签名机制现在判的是「向上跨档 = 成就」,
     // 而末日的饥饿向下跨档是**恶化** —— 语义相反。为末日把机制扩成「可配置方向」,
     // 它就从**签名事件检测器**退化为**通用跨档广播器**;通用广播器一旦存在,

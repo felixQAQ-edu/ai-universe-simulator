@@ -51,6 +51,16 @@ const DUST = [
 const FAR_GAP_MIN_MS = 26_000;
 const FAR_GAP_SPAN_MS = 34_000;
 const FAR_CHANCE = 0.4;
+/**
+ * **兜底放锁**(ms):最长的一支远光时间线约 8s,这里给足余量。
+ *
+ * 为什么非有不可 —— 冒烟取证抓到的真 bug:远光只在 GSAP `onComplete` 里放锁,而**页面转入
+ * 后台时 rAF 冻结、timeline 永不完成**,锁就被永久占住 → 与它共用槽位的**电台从此静默**
+ * (直到换回合 teardown 才恢复)。调度侧的 `!document.hidden` 只能防「隐藏时开演」,
+ * 防不住「开演后被隐藏」。故再挂一道 `runtime.setTimeout` 兜底 —— 计时器在后台仍会跑
+ * (只是被钳到 ≥1s),锁一定放得掉。同刀 2 钟鸣 `RELEASE_MS` 的口径。
+ */
+const FAR_RELEASE_MS = 12_000;
 
 const TRACE = 'waste.farlight';
 
@@ -75,14 +85,24 @@ export function WasteAmbient({ runtime, rootRef, paused }: AmbientProps) {
 
     const token = runtime.token;
     trace(TRACE, { firedAt: Math.round(performance.now()), state: 'far' }, true);
-    const done = () => {
-      if (runtime.alive(token)) trace(TRACE, { completedAt: Math.round(performance.now()) });
+    // 放锁只做一次:正常收尾与兜底谁先到都行,第二次调用是 no-op。
+    let released = false;
+    const done = (reason: 'complete' | 'fallback') => {
+      if (released) return;
+      released = true;
+      if (runtime.alive(token)) {
+        trace(TRACE, {
+          completedAt: Math.round(performance.now()),
+          state: reason === 'fallback' ? 'far(兜底放锁)' : 'far',
+        });
+      }
       runtime.unlock();
     };
+    runtime.setTimeout(() => done('fallback'), FAR_RELEASE_MS);
 
     runtime.add(() => {
       const kind = Math.random();
-      const tl = gsap.timeline({ onComplete: done });
+      const tl = gsap.timeline({ onComplete: () => done('complete') });
       if (kind < 0.34) {
         // 行为 1:只有风沙亮起来,始终没看清光源
         tl.to(glow, { opacity: 0.5, duration: 2.2, ease: WASTE.easeStart }).to(
