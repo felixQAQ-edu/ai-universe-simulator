@@ -107,6 +107,30 @@ export interface ActionsProps {
   onChoose: (id: string) => void;
 }
 
+/**
+ * **间奏槽**收到的东西(ADR-018 §3 刀 3 段)。
+ *
+ * 间奏 = 渲染在**正文之后、决策圈之前**的世界专属区块(末日:那台手摇电台)。
+ * 位置是语义的一部分:**读完情境 → 间奏响一下 → 做决定** —— 它是决策前的最后一个扰动,
+ * 挪到正文之前改的不是位置而是叙事节奏,挪到页面顶部则退化成 UI 条。
+ *
+ * **可选槽**:皮肤不配 `Interlude` 就整段不渲染(未登记世界与刀 1/2 已登记世界 DOM 零影响)。
+ * 刻意做成**通用槽**而非「电台槽」——刀 4 的 Prose 重写、C 批叙事壳层差异化都在这一带。
+ */
+export interface InterludeProps {
+  /** 唯一 teardown(§4.4):在途 timeline / 定时器一律登记到它。 */
+  runtime: SkinRuntime;
+  /**
+   * 停表(§4.4):`generating` **或**开场 reveal 打字期为 true ——
+   * **正文是禁区**,文本不稳定期低频调度一律停。
+   */
+  paused: boolean;
+  /** 是否正在生成回合文本(与 reveal 打字区分开)。 */
+  generating: boolean;
+  /** 当前回合(仅供主题层判断「是否换了回合」)。 */
+  turn: number;
+}
+
 /** 数值形态组件收到的东西。 */
 export interface StatsProps {
   axes: AxisView[];
@@ -161,6 +185,11 @@ export interface WorldSkin {
   Ambient: ComponentType<AmbientProps>;
   Stats: ComponentType<StatsProps>;
   Actions: ComponentType<ActionsProps>;
+  /**
+   * **可选**间奏槽(正文之后、决策圈之前)。不配 = 整段不渲染,DOM 上不留任何痕迹 ——
+   * 刀 1/2 已登记世界与未登记世界都不受影响(§4.5.1 对拍仍成立)。见 {@link InterludeProps}。
+   */
+  Interlude?: ComponentType<InterludeProps>;
 }
 
 /** 皮肤 + 该局 runtime。两者同生同死,故同一个 context 一起发下去。 */
