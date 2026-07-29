@@ -239,10 +239,21 @@ export function useAnomaly({
   }, [runtime, proseRef, fireSpore]);
 
   // ── 异常调度链 ────────────────────────────────────────────────────
-  // **依赖里带 `turn`**:`useSkinRuntime` 在换回合时 `teardown()` 会清掉全部受管定时器,
-  // 若只依赖 `runtime`(其身份跨 turn 稳定),effect 不会重跑 → 链条被清掉后再没人重排,
-  // 记忆点从第二回合起**永久静默且无报错**。这与 §4.11 是同一族失效(锁/链被冻住,
-  // 表现只是「那个效果再也不出现了」),故此处显式重排,并有回归测试钉住。
+  // **调度链用 `window.setTimeout` + 本 effect 自己的 cleanup,不走 `runtime.setTimeout`。**
+  //
+  // 这是刻意的,理由有两条,方向相反但结论一致:
+  //
+  //   ① **链条不能被换回合清掉**:`useSkinRuntime` 在换回合时会 `teardown()` 清掉全部
+  //      **受管**定时器。链条若挂在 runtime 上,又因为 runtime 身份跨 turn 稳定而不重排,
+  //      就会被清掉后再没人重新排期 —— 记忆点从第二回合起**永久静默且无报错**
+  //      (与 §4.11 同族的失效:表现只是「那个效果再也不出现了」)。
+  //   ② **链条也不该每回合重排**:依赖里若带 `turn`,每次玩家做选择都会把倒计时清零重来;
+  //      玩家出手比间隔快时,异常就**永远等不到那一刻**。节奏必须是连续的墙钟,
+  //      与回合无关 —— 这正是「无记忆」那条设计的前提。
+  //
+  // 于是链条自持:cleanup 只在卸载/皮肤切换时收走。**一次异常内部**的定时器(撤销、余韵、
+  // 放锁)仍走 `runtime.setTimeout` —— 那些**应当**被换回合打断,因为正文整段换了,
+  // 且分片容器按 turn 打 key 会整棵重建,旧节点连同旧引用一起作废。
   useEffect(() => {
     if (reducedMotion()) return; // 整个调度不启动(面板与纸条仍在,只是这世界不动)
 
@@ -291,7 +302,7 @@ export function useAnomaly({
       window.removeEventListener('scroll', onScroll);
       document.removeEventListener('visibilitychange', onVisible);
     };
-  }, [runtime, turn, fireText, fireInstrument]);
+  }, [runtime, fireText, fireInstrument]);
 
   // 孢子暂停:**独立**调度器,与异常调度器互不知晓(假线索的另一半)。
   useEffect(() => {
