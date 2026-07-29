@@ -139,8 +139,13 @@ export function WasteAmbient({ runtime, rootRef, paused }: AmbientProps) {
   }, [farEvent]);
 
   useEffect(() => {
+    // **链条走 `window.setTimeout` + 本 effect 自己的 cleanup,不走 `runtime.setTimeout`**
+    // (ADR-018 §4.11 第二种子模式,刀 4 的守护测试发现):`teardown()` 在换回合时清掉受管定时器,
+    // 而 runtime 身份跨 turn 稳定 → effect 不重跑 → **没人重新排期**,远光从第二回合起永久静默。
+    // 一次远光**内部**的 timeline 与定时器仍登记在 runtime 上 —— 那些应当被换回合打断。
+    let timer = 0;
     const loop = () => {
-      runtime.setTimeout(
+      timer = window.setTimeout(
         () => {
           if (!pausedRef.current && !document.hidden && Math.random() < FAR_CHANCE) {
             playRef.current();
@@ -151,7 +156,7 @@ export function WasteAmbient({ runtime, rootRef, paused }: AmbientProps) {
       );
     };
     loop();
-    // 计时器与 timeline 全登记在 runtime 上,统一 teardown 收走(§4.4)。
+    return () => window.clearTimeout(timer);
   }, [runtime]);
 
   // 本世界不占用入场序列(记忆点是电台,不是进门那一下)——`hasIntro: false`,

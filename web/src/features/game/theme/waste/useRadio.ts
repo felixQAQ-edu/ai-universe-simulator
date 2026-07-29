@@ -167,15 +167,25 @@ export function useRadio(runtime: SkinRuntime, paused: boolean) {
     burstRef.current = burst;
 
     // 调度链:随机步长,不用 setInterval(固定心跳会被量化学习)。
+    //
+    // **链条走 `window.setTimeout` + 本 effect 自己的 cleanup,不走 `runtime.setTimeout`**
+    // (ADR-018 §4.11 第二种子模式,刀 4 的守护测试发现):`runtime.teardown()` 在**换回合**时
+    // 清掉全部受管定时器,而 runtime 身份跨 turn 稳定 → 本 effect 不会重跑 →
+    // 链条被清掉后**再没有人重新排期**,电台从第二回合起永久静默且无报错。
+    // 一次播出**内部**的定时器仍走 runtime —— 那些**应当**被换回合打断。
+    let timer = 0;
     const loop = () => {
-      runtime.setTimeout(() => {
-        // 停表期 / 页面不可见时不播,但**链条继续**(下一次照常排期)。
-        if (!pausedRef.current && !document.hidden && Math.random() < BURST_CHANCE) burst();
-        loop();
-      }, GAP_MIN_MS + Math.random() * GAP_SPAN_MS);
+      timer = window.setTimeout(
+        () => {
+          // 停表期 / 页面不可见时不播,但**链条继续**(下一次照常排期)。
+          if (!pausedRef.current && !document.hidden && Math.random() < BURST_CHANCE) burst();
+          loop();
+        },
+        GAP_MIN_MS + Math.random() * GAP_SPAN_MS,
+      );
     };
     loop();
-    // 计时器全部登记在 runtime 上,换回合 / 卸载由统一 teardown 收走(§4.4)。
+    return () => window.clearTimeout(timer);
   }, [runtime]);
 
   return { view, burst: () => burstRef.current() };
