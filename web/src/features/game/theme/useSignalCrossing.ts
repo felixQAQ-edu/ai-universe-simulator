@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import type { AttributeAxisMeta } from '../../../api';
-import { resolveBandIndex } from '../bands';
+import type { AttributeAxisMeta, AxisSeverity } from '../../../api';
+import { resolveBandIndex, resolveSeverity } from '../bands';
 import type { WorldSkin } from './contract';
 
 // 签名轴跨档信号(ADR-018 §5 Q5)——**一级记忆点的触发判定,收在通用层单点**。
@@ -32,6 +32,18 @@ export interface SignatureSignal {
   index: number | null;
   /** 上一次观察到的档序号 —— 「跨没跨」的另一半读数(debug 面板要能同时看到两个)。 */
   prevIndex: number | null;
+  /**
+   * 签名轴**当前档的风险等级**(服务端派生,ADR-018 §1)。
+   *
+   * 为什么放在这里:有的一级记忆点不是「跨档就演一次」(修仙钟鸣),而是**随状态改变频率**
+   * (克苏鲁的文字异常:越疯越频繁)。后者需要的是当前档的**语义**而非跨档事件 ——
+   * 而主题层不许自己按 key / 数值高低推断语义(§4.2),所以由通用层从**同一根**签名轴上
+   * 一并读出来交下去。与 `index` 的分工:`index` 是位置事实(比上一次靠上还是靠下),
+   * `severity` 是危险语义(这一档危不危险)—— 两者刻意不互相推导。
+   *
+   * 未配置签名轴 / 无档表 / 老数据无 severity / 未知取值 → null(安全降级,绝不默认 danger)。
+   */
+  severity: AxisSeverity | null;
 }
 
 /**
@@ -47,6 +59,9 @@ export function useSignalCrossing(
   const key = skin?.signatureAxisKey;
   const axis = key ? axes.find((a) => a.key === key) : undefined;
   const index = axis ? resolveBandIndex(Number(values[axis.key] ?? 0), axis.bands) : null;
+  // severity 跟着**引擎落账的目标值**走(与 index 同源),不跟屏幕上插值中的显示值 ——
+  // 「世界有多不对劲」是状态事实,不该等数字滚完才生效。
+  const severity = axis ? resolveSeverity(Number(values[axis.key] ?? 0), axis.bands) : null;
   // 轴集签名:换局 / 续局换了世界 → 前值作废,重新开始观察(不拿上一局的档序号比)。
   const scope = `${key ?? ''}|${axes.map((a) => a.key).join(',')}`;
 
@@ -64,5 +79,11 @@ export function useSignalCrossing(
     setSeen(current);
   }
 
-  return { tick: current.tick, axisKey: key ?? null, index: current.index, prevIndex: current.prevIndex };
+  return {
+    tick: current.tick,
+    axisKey: key ?? null,
+    index: current.index,
+    prevIndex: current.prevIndex,
+    severity,
+  };
 }

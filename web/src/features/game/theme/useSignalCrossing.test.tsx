@@ -135,6 +135,46 @@ describe('useSignalCrossing(签名轴跨档)', () => {
     expect(h.push({ realm: 35 })).toBe(1); // 同值重渲不再加
   });
 
+  // ── 签名轴 severity(刀 4 扩点)────────────────────────────────────────
+  // 克苏鲁的记忆点不是「跨档演一次」而是「随状态改频率」,需要当前档的**语义**。
+  // 主题层不许自己按 key / 数值高低推断(§4.2),故通用层从同一根轴上一并读出来。
+  describe('签名轴 severity(随状态调频率的记忆点用)', () => {
+    const signalOf = (skin: WorldSkin | null, axes: AttributeAxisMeta[], values: Record<string, number>) => {
+      let out: ReturnType<typeof useSignalCrossing> | null = null;
+      function Probe() {
+        out = useSignalCrossing(skin, axes, values);
+        return null;
+      }
+      render(<Probe />);
+      return out!;
+    };
+
+    it('交出签名轴当前档的 severity —— 且随值切换', () => {
+      expect(signalOf(skinWith('hp'), [HP], { hp: 90 }).severity).toBe('neutral');
+      expect(signalOf(skinWith('hp'), [HP], { hp: 35 }).severity).toBe('caution');
+      expect(signalOf(skinWith('hp'), [HP], { hp: 8 }).severity).toBe('danger');
+    });
+
+    it('只读签名轴那一根:别的轴再危险也不算', () => {
+      expect(signalOf(skinWith('realm'), [REALM, HP], { realm: 50, hp: 3 }).severity).toBe('neutral');
+    });
+
+    it('四种缺省一律 null(未配签名轴 / 无档表 / 未登记皮肤 / 轴不在场)——绝不默认 danger', () => {
+      const noBands: AttributeAxisMeta = { key: 'hp', displayName: '气血' };
+      expect(signalOf(skinWith(undefined), [HP], { hp: 3 }).severity).toBeNull();
+      expect(signalOf(skinWith('hp'), [noBands], { hp: 3 }).severity).toBeNull();
+      expect(signalOf(null, [HP], { hp: 3 }).severity).toBeNull();
+      expect(signalOf(skinWith('san'), [HP], { hp: 3 }).severity).toBeNull();
+    });
+
+    it('severity 跟目标值走,与「跨没跨档」互不推导', () => {
+      // 首次装载:tick 恒 0(没跨档),但 severity 立刻可用 —— 两者刻意不互相依赖。
+      const s = signalOf(skinWith('hp'), [HP], { hp: 5 });
+      expect(s.tick).toBe(0);
+      expect(s.severity).toBe('danger');
+    });
+  });
+
   it('换局(轴集变了)重新观察:不拿上一局的档序号比', () => {
     // 同一个探针实例先玩修仙(realm 高档),再换成一个只有 hp 的世界,再换回来 —— 不该鸣。
     let latest = 0;

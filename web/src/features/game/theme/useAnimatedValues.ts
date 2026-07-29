@@ -75,6 +75,11 @@ export function useAnimatedValues(
     const ceremonial = signatureTick !== rolledAtTick.current;
     rolledAtTick.current = signatureTick;
     const holdMs = ceremonial ? (skin.valueRoll.ceremonyDelayMs ?? 0) : 0;
+    // **每次起 tween 时求值**(见 ValueRoll 头注释):给数字的皮肤逐字不变;
+    // 给函数的皮肤(克苏鲁)每一次滚动都重新采样 —— 时间感是「每次都不一样」,
+    // 冻成模块加载时的一个常数等于把这条时间感悄悄删掉。
+    const durationMs = resolve(skin.valueRoll.durationMs);
+    const startDelayMs = resolve(skin.valueRoll.startDelayMs ?? 0);
 
     const proxy: Record<string, number> = {};
     for (const k of Object.keys(target)) proxy[k] = from[k] ?? target[k];
@@ -83,9 +88,9 @@ export function useAnimatedValues(
     runtime.add(() => {
       gsap.to(proxy, {
         ...target,
-        duration: skin.valueRoll.durationMs / 1000,
+        duration: durationMs / 1000,
         ease: skin.valueRoll.ease,
-        delay: holdMs / 1000,
+        delay: (holdMs + startDelayMs) / 1000,
         onUpdate: () =>
           setState((s) => ({ ...s, exact: { ...proxy }, shown: rounded(proxy, target) })),
         onComplete: () =>
@@ -99,6 +104,9 @@ export function useAnimatedValues(
 }
 
 const round = (n: number | undefined) => (typeof n === 'number' ? Math.round(n) : 0);
+
+/** 时间感取值:数字直接用,函数**此刻**求值(见 `ValueRoll`)。 */
+const resolve = (v: number | (() => number)): number => (typeof v === 'function' ? v() : v);
 
 /** 只输出目标里存在的键(换局后旧轴不该残留在面板上)。 */
 function rounded(src: Record<string, number>, shape: Record<string, number>): Record<string, number> {

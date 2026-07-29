@@ -131,6 +131,59 @@ export interface InterludeProps {
   turn: number;
 }
 
+/**
+ * **正文形态槽**收到的东西(ADR-018 刀 4)。
+ *
+ * 为什么正文也需要一个槽(而不是在通用 `Prose` 里按主题分支):克苏鲁的一级记忆点
+ * 「文字异常」**必须作用在正文的字上**,而作用点需要**分片 DOM**(每一小段一个 span)
+ * 才能被单点、瞬时地改写。两条硬约束把方案定死了 ——
+ *
+ * - 通用 `Prose` 里写 `if (skin === 'cthulhu')` = 把世界判定复制进通用层,
+ *   ADR-018 §4.1「世界判定只发生一次」当场失效(刀 1 花整整一刀把散在五处的
+ *   archetype 分派收编进注册表,那是往回走);
+ * - 让氛围层去 `querySelector` 正文的 DOM = 捅穿组件边界(见 {@link AmbientProps.rootRef}
+ *   头注释立的同一条),且两边挂载顺序一变就静默失效。
+ *
+ * 于是照刀 3 `Interlude` 的先例:**真实需求超出现有槽 → 契约小幅扩展一个可选槽 →
+ * 其余一律不动 = 抽象正常演化**。不配该槽的世界渲染通用 `Prose`,
+ * **DOM 逐字节不变是构造保证,不是「没写错就不会变」**(§4.5.1 对拍照旧成立)。
+ */
+export interface ProseProps {
+  /** 当前该显示的正文(已含开场逐字进度;通用层算,形态层不自己算)。 */
+  text: string;
+  /** 是否显示打字光标。 */
+  caret: boolean;
+  /** 唯一 teardown(§4.4):在途 timeline / 定时器 / 监听一律登记到它。 */
+  runtime: SkinRuntime;
+  /**
+   * 主题根。同 {@link AmbientProps.rootRef}:形态层要把连续量交给别的层消费时
+   * (克苏鲁:指针漂移量写成根上的自定义属性,由数值形态的 CSS 自行消费),
+   * 一律写主题根的自定义属性 —— **不是**去 query 数值面板的 DOM。
+   */
+  rootRef: RefObject<HTMLElement | null>;
+  /**
+   * 停表(§4.4):`generating` **或**开场 reveal 打字期为 true。
+   * **正文是禁区**且此刻文本本身不稳定 —— React 重渲染会冲掉命令式改动,
+   * 更糟的是可能把异常后的文本当成原文记下,故文本不稳定期一切调度必须停。
+   */
+  paused: boolean;
+  /** 是否正在生成回合文本(与 reveal 打字区分开)。 */
+  generating: boolean;
+  /** 当前回合。形态层据它重建分片(旧节点引用一律作废)。 */
+  turn: number;
+  /**
+   * 签名轴当前档的**风险等级**(服务端派生,ADR-018 §1)。
+   *
+   * 克苏鲁的异常频率随「越疯越频繁」而变 —— 但**主题层不许读 `san` 这个 key**
+   * 去判断「这是理智轴」(§4.2:不得读 key 判断这是什么轴、不得按数值高低判断危不危险)。
+   * 合法通道只有这一条:注册表登记「盯哪根轴」({@link WorldSkin.signatureAxisKey}),
+   * 通用层把**那根轴的 severity** 交出来,形态层只按 neutral/caution/danger 三档调频率。
+   *
+   * 未配置签名轴 / 无档表 / 未知取值 → null(**按最低频处理**,同「不确定时不吓玩家」)。
+   */
+  signatureSeverity: AxisSeverity | null;
+}
+
 /** 数值形态组件收到的东西。 */
 export interface StatsProps {
   axes: AxisView[];
@@ -144,11 +197,28 @@ export interface StatsProps {
   rootRef: RefObject<HTMLElement | null>;
 }
 
-/** 数值滚动的时间感(由皮肤给,**同步逻辑不在皮肤**——见 `useAnimatedValues`)。 */
+/**
+ * 数值滚动的时间感(由皮肤给,**同步逻辑不在皮肤**——见 `useAnimatedValues`)。
+ *
+ * `durationMs` / `startDelayMs` 允许给**函数**:通用层在**每次起 tween 时**求值。
+ * 这条口子是为「时间本身不可信」的世界开的(克苏鲁:每次时长 ×random(0.82–1.22)、
+ * 25% 概率额外迟到)——写成常数会让那条时间感在数值滚动上**静默失效**:
+ * 常数在模块加载时算一次,一整个会话所有滚动同一时长,而**代码上完全看不出问题**
+ * (它「用了自己的常量」)。这正是 ADR-018 §4.12「搬元素要连关系一起搬」的又一处:
+ * 样板间靠的是「每次调用重新 random」这个**关系**,不是 `CTHU.dur` 这个**元素**。
+ *
+ * 给数字 = 每次都一样(规则怪谈 / 修仙 / 末日,行为与刀 1–3 逐字不变)。
+ */
 export interface ValueRoll {
-  durationMs: number;
+  durationMs: number | (() => number);
   /** GSAP 缓动名(与该世界的 `--t-ease` 同源)。 */
   ease: string;
+  /**
+   * 起滚前的固定迟到(ms),**每次求值**。缺省 0。
+   * 与 {@link ceremonyDelayMs} 的区别:后者只在签名轴跨档那一次生效(仪式),
+   * 前者是该世界**每一次**滚动都带的时间质地(克苏鲁的「偶尔迟到」)。两者相加。
+   */
+  startDelayMs?: number | (() => number);
   /**
    * **仪式延迟**:签名轴向上跨档的那一回合,数值滚动推迟这么久才起步,好让一级记忆点先响
    * (修仙:钟先鸣,境界与数值随之而变 —— 反过来就成了「数字先跳,钟来配个音」)。缺省 0。
@@ -190,6 +260,11 @@ export interface WorldSkin {
    * 刀 1/2 已登记世界与未登记世界都不受影响(§4.5.1 对拍仍成立)。见 {@link InterludeProps}。
    */
   Interlude?: ComponentType<InterludeProps>;
+  /**
+   * **可选**正文形态槽。不配 = 渲染通用 `Prose`,DOM 上不留任何痕迹
+   * (刀 1/2/3 三世界与其测试零影响)。见 {@link ProseProps}。
+   */
+  Prose?: ComponentType<ProseProps>;
 }
 
 /** 皮肤 + 该局 runtime。两者同生同死,故同一个 context 一起发下去。 */

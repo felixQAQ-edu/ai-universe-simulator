@@ -43,7 +43,8 @@ export function DebugPanel({
         <p className={styles.line}>
           签名轴 {signature.axisKey} · 上一次档 {idx(signature.prevIndex)} → 当前档{' '}
           {idx(signature.index)} · 判定{' '}
-          {crossing(signature.prevIndex, signature.index)} · 向上跨档累计 {signature.tick} 次
+          {crossing(signature.prevIndex, signature.index)} · 向上跨档累计 {signature.tick} 次 ·
+          severity {signature.severity ?? 'null(按最低频)'}
         </p>
       )}
       {axes.map((axis) => {

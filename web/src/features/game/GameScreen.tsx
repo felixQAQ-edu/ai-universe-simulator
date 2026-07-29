@@ -140,6 +140,9 @@ function PlayingScreen() {
   // 间奏槽(ADR-018 §3 刀 3):可选,不配即整段不渲染 —— 位置在正文之后、决策圈之前,
   // 「读完情境 → 间奏响一下 → 做决定」,位置本身是语义的一部分。
   const Interlude = skin?.Interlude;
+  // 正文形态槽(ADR-018 刀 4):可选,不配即渲染通用 Prose ——
+  // **未配槽的世界正文 DOM 逐字节不变是构造保证**(§4.5.1 对拍照旧成立)。
+  const ProseForm = skin?.Prose;
   // 空段一律滤掉:未登记世界的 class 属性与刀 1 之前**逐字节一致**(连尾随空格都不多一个)。
   const rootClasses = [
     styles.screen,
@@ -181,7 +184,20 @@ function PlayingScreen() {
           rootRef={rootRef}
         />
 
-        <Prose text={proseText} caret={revealing} />
+        {ProseForm ? (
+          <ProseForm
+            text={proseText}
+            caret={revealing}
+            runtime={runtime}
+            rootRef={rootRef}
+            paused={paused}
+            generating={generating}
+            turn={turn}
+            signatureSeverity={signature.severity}
+          />
+        ) : (
+          <Prose text={proseText} caret={revealing} />
+        )}
 
         {Interlude && (
           <Interlude runtime={runtime} paused={paused} generating={generating} turn={turn} />
