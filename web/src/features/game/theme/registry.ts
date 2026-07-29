@@ -15,7 +15,7 @@ import styles from '../game.module.css';
  * 已登记新皮肤的世界 id。刀 1 规则怪谈(试验田)证明基建可用,刀 2 加修仙;刀 3/4 各自再加一条。
  * 未登记世界 → `skin: null` → 走旧实现。
  */
-export type SkinId = 'rules_creepy' | 'cultivation' | 'apocalypse';
+export type SkinId = 'rules_creepy' | 'cultivation' | 'apocalypse' | 'cthulhu';
 
 /** 一个世界(单体或融合组合)的视觉登记。 */
 export interface WorldTheme {
@@ -40,8 +40,8 @@ interface WorldEntry {
 
 /**
  * 单体世界登记表。加一个世界 = 加一条(图放 `web/public/scenes/<archetype>.webp`,后端零改)。
- * `skin` 目前有规则怪谈(刀 1 试验田)/ 修仙(刀 2)/ 末日(刀 3);克苏鲁照旧走旧实现,
- * 等刀 4(ADR-018 §3 每刀「不准顺手做」:不顺手把别的世界一起登记)。
+ * 四刀走完,四个基础世界**全部登记**(刀 1 规则怪谈试验田 / 刀 2 修仙 / 刀 3 末日 / 刀 4 克苏鲁)。
+ * feature gate 仍在:任一世界出问题,删它的 `skin` 一条即回到旧实现。
  */
 const WORLDS: Readonly<Record<string, WorldEntry>> = {
   rules_creepy: {
@@ -54,7 +54,14 @@ const WORLDS: Readonly<Record<string, WorldEntry>> = {
     cardClass: styles.cardApocalypse,
     skin: 'apocalypse', // 刀 3:一级记忆点「电台信号」走间奏槽(不挂轴,故无 signatureAxisKey)
   },
-  cthulhu: { sceneUrl: '/scenes/cthulhu.webp', cardClass: styles.cardCthulhu, skin: null },
+  cthulhu: {
+    sceneUrl: '/scenes/cthulhu.webp',
+    cardClass: styles.cardCthulhu,
+    // 刀 4:一级记忆点「文字异常」——**不挂跨档事件**,而是按签名轴当前档的 severity
+    // 调频率(ADR-018 §5 Q4:只在低位启动会退化为状态播报)。故 signatureAxisKey 登记的是
+    // 「盯哪根轴」,消费方是 `ProseProps.signatureSeverity` 而非 signatureTick。
+    skin: 'cthulhu',
+  },
   cultivation: {
     sceneUrl: '/scenes/cultivation.webp',
     cardClass: styles.cardCultivation,

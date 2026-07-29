@@ -59,8 +59,8 @@ describe('resolveWorldTheme · 皮肤登记(feature gate,ADR-018 §4.5)', () => 
     expect(resolveWorldTheme('apocalypse').skin).toBe('apocalypse');
   });
 
-  it('克苏鲁仍走旧实现(刀 3 不准顺手一起登记,等刀 4)', () => {
-    expect(resolveWorldTheme('cthulhu').skin).toBeNull();
+  it('克苏鲁(刀 4)登记了新皮肤 —— 四刀走完,四个基础世界全部登记', () => {
+    expect(resolveWorldTheme('cthulhu').skin).toBe('cthulhu');
   });
 
   it('未知 / 未开放世界 → 中性主题(不显图、中性卡、旧实现)', () => {
@@ -84,10 +84,18 @@ describe('resolveWorldTheme · 皮肤登记(feature gate,ADR-018 §4.5)', () => 
     expect(shihai.sceneUrl).toBe('/scenes/fusion-shihai.webp');
   });
 
-  // 刀 3 的连带结果(同刀 2 的识海遗蜕):缺页的人防工程 host=规则怪谈,故仍用规则怪谈皮肤;
-  // 而末日**作 host** 的组合(尚未登记任何一组)从此会拿到末日皮肤 —— Q2 降级路径,非融合签名。
-  it('host 未登记皮肤的融合局仍走旧实现(克苏鲁作 host 时)', () => {
-    expect(resolveWorldTheme(['cthulhu', 'apocalypse']).skin).toBeNull();
+  // 刀 4 之后**四个基础世界全部登记**,故「host 未登记 → 融合局走旧实现」这条降级路径
+  // 在基础世界里已无样本可举 —— 改用未开放世界作 host 来守它(路径本身仍须成立:
+  // 未来上新世界时,未登记的 host 必须整齐降级,而不是错拿别人的皮肤)。
+  it('host 未登记皮肤的融合局仍走旧实现(降级路径本身仍成立)', () => {
+    expect(resolveWorldTheme(['life_sim', 'apocalypse']).skin).toBeNull();
+  });
+
+  // 克苏鲁作 host 的组合尚未登记任何一组;真出现时按 Q2 纯 host 呈现 = 克苏鲁皮肤。
+  it('克苏鲁作 host 的未登记组合 → 回落克苏鲁单体登记(不盲取 foreign 的皮肤)', () => {
+    const t = resolveWorldTheme(['cthulhu', 'apocalypse']);
+    expect(t.skin).toBe('cthulhu');
+    expect(t.sceneUrl).toBe('/scenes/cthulhu.webp');
   });
 });
 

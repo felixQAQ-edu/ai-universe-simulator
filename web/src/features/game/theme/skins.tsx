@@ -1,6 +1,11 @@
-import { WASTE, XIAN } from './motion';
+import { CTHU, WASTE, XIAN } from './motion';
 import type { WorldSkin } from './contract';
 import type { SkinId } from './registry';
+import { CthuActions } from './cthu/CthuActions';
+import { CthuAmbient } from './cthu/CthuAmbient';
+import { CthuProse } from './cthu/CthuProse';
+import { CthuStats } from './cthu/CthuStats';
+import cthu from './cthu/cthu.module.css';
 import { RulesActions } from './rules/RulesActions';
 import { RulesAmbient } from './rules/RulesAmbient';
 import { RulesStats } from './rules/RulesStats';
@@ -80,5 +85,31 @@ export const SKINS: Partial<Record<SkinId, WorldSkin>> = {
     Actions: WasteActions,
     // 间奏槽:手摇电台,渲染在正文之后、决策圈之前(ADR-018 §3 刀 3)。
     Interlude: WasteRadio,
+  },
+  cthulhu: {
+    id: 'cthulhu',
+    // 一级记忆点是**文字异常**:侵入型,不该有起点(「玩家意识到时它已经发生了」)——
+    // 与钟鸣(状态事件)、灯闪(入场序列)三者结构各不相同。故不占开场。
+    hasIntro: false,
+    // 时间感:**节奏不可信**。这里刻意传函数 —— 每次滚动重新采样时长与迟到,
+    // 传常数会让这条时间感在数值滚动上静默失效(见 `ValueRoll` 头注释、ADR-018 §4.12)。
+    valueRoll: {
+      durationMs: () => Math.round(CTHU.dur(1.3) * 1000),
+      ease: CTHU.ease,
+      startDelayMs: () => Math.round(CTHU.delay() * 1000),
+    },
+    // 「盯 san」是注册表的按 key 配置(§5 Q5 锁在注册表内)。与修仙不同的是:
+    // 本世界消费的是那根轴的**当前档 severity**(调异常频率),不是向上跨档次数 ——
+    // 通用层照旧不知道 san 是理智。
+    signatureAxisKey: 'san',
+    screenClass: cthu.screen,
+    pausedClass: cthu.paused,
+    // 顶部场景图不挂持续动画:本世界的持续槽给了孢子。
+    bannerImgClass: '',
+    Ambient: CthuAmbient,
+    Stats: CthuStats,
+    Actions: CthuActions,
+    // 正文形态槽(刀 4 新开):分片壳 + 文字异常调度器的宿主。
+    Prose: CthuProse,
   },
 };
