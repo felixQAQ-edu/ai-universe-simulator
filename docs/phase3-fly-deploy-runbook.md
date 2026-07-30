@@ -142,6 +142,32 @@ curl -s https://wanjie-ai.fly.dev/ | grep -o 'assets/index-[^"]*\.js'
 
 哈希一致才继续 §3.2。（本批还可加验前端接线证据:线上 bundle `grep -c X-Device-Id` 应回 `2` = init + turn 两处。）
 
+### 3.1.6 secret 完整性检查(每次 `fly deploy` 后、功能冒烟前必做)
+
+> **弯路教训立字(2026-07-29,ADR-018 刀 4 真机冒烟)**:临时 app 上冒烟时,`AIUNIVERSE_LLM_ACTIVE` **漏设**、`DEEPSEEK_API_KEY` **值有误** → 线上**静默退回 mock / 调用失败**,表现为「**生成很久然后失败**」。排查方向一开始全指向应用代码(以为是流式或超时),实际是环境配置。
+>
+> 这与 §3.1.5「镜像换新」是**同一族**缺陷:**环境配置的静默失效** —— 应用没崩、日志不显眼、功能冒烟只看到一个含糊的失败,而根因在容器之外。两条都属「**先证明环境是你以为的那个,再验功能**」。
+
+功能冒烟**之前**先跑这条零成本检查:
+
+```sh
+fly secrets list --app <app 名>
+```
+
+逐项核对(**三条都要过**):
+
+1. **该有的都在** —— 真 key 阶段必须同时看到 `DEEPSEEK_API_KEY` **与** `AIUNIVERSE_LLM_ACTIVE`。
+   只设 key 不设 active = `application.yml` 默认 `active: mock` 仍生效,**线上跑的是 mock**(它不读 key,所以「key 设了」不构成任何证据)。
+2. **状态皆 `Deployed`** —— 若显示 `Staged`(用了 `--stage` 后还没 deploy),secret 尚未生效,先 `fly deploy --ha=false`。
+3. **值确实正确** —— `fly secrets list` **只显摘要不显明文**,故它证不了值对不对。要证只有一条路:看启动日志与实际行为。
+
+```sh
+fly logs --app <app 名> | grep -i -m5 'active\|llm\|deepseek'
+```
+
+- 判定:日志须表明 provider 是 `deepseek-v4-flash` **而非 mock**;起局后叙事应是**真实生成的中文**(mock 是逐字 echo 固定文案,一眼可辨)。
+- **若起局「生成很久然后失败」**:先按本节回头查 active 与 key,**不要先怀疑应用代码** —— 本次就是在这里绕了一圈。
+
 ### 3.2 附录 B 冒烟清单(顺序固定)
 
 **⑤ active 覆盖生效**:
