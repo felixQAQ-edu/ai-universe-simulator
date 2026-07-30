@@ -162,11 +162,16 @@
 }
 
 /* 散文区 ------------------------------------------------------------- */
+/* 主题令牌(缺省 = 刀 1 之前的原值,故未设 token 的世界计算样式逐条不变):
+   皮肤可让正文卡与数值卡**用不同的白、不同的边框强度** —— 三张同规格白卡并排
+   是「后台系统」的读法,而不是一个世界。四个 token 一律只改 CSS 值(底色 / 边框 /
+   内缘 / 留白),**不动 DOM 结构**:改结构属 C 批叙事壳层差异化,不在收敛批范围。 */
 .prose {
-  background: var(--card);
-  border: 1px solid var(--line);
+  background: var(--prose-bg, var(--card));
+  border: var(--prose-border, 1px solid var(--line));
+  box-shadow: var(--prose-shadow, none);
   border-radius: var(--panel-radius, 12px);
-  padding: 1rem 1.05rem;
+  padding: var(--prose-pad, 1rem 1.05rem);
   min-height: 8rem;
   white-space: pre-wrap;
   word-break: break-word;
