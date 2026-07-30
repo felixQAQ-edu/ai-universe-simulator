@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { AxisView, StatsProps } from '../contract';
 import { severityWord } from '../contract';
 import styles from './xian.module.css';
@@ -22,6 +22,39 @@ import styles from './xian.module.css';
 //
 // **数值滚动不在本文件**:`axis.value` 已是通用层插值后的当前显示值,档名与 severity 由
 // 同一个值派生 —— 数字滚过阈值那一帧三者同帧翻转(§4.2.1)。
+
+/** 亮芯单程的时长上界(与 CSS 里 1.45–1.9s 的四档对齐,取最长的一档再留一点余量)。 */
+const FLOW_MS = 2000;
+
+/**
+ * 「这根脉此刻在动吗」。用于把亮芯的流动从**低频心跳**改成**数值变化的回应**
+ * (常态完全静止 —— 一根每 19–27s 自己亮一下的柱子读作后台在刷新)。
+ *
+ * 值在滚动期间每帧都在变,故**不能每次变化都重排**:第一次变化开演,
+ * 演完(或值停下后)才退掉,下一次变化才能再开 —— 一次数值变化 = 一趟亮芯,不堆叠。
+ *
+ * 计时器**挂 window 且自持 cleanup**,不挂 `runtime`:ADR-018 §4.11-B 的教训 ——
+ * 换回合 `teardown()` 会清掉受管定时器,而 runtime 身份跨 turn 稳定、effect 不会重跑,
+ * 于是「谁在什么时候重新启动它」没有答案,效果从第二回合起永久静默且无报错。
+ */
+function useFlowing(value: number): boolean {
+  // 变化计数走 React 官方**「据 props 调整 state」**(同 `useSignalCrossing`),
+  // **不是渲染期写 ref** —— 后者会被 StrictMode 双调用吃掉那次变化(ADR-018 §4.9 那一类坑)。
+  const [seen, setSeen] = useState({ value, changes: 0 });
+  if (seen.value !== value) setSeen({ value, changes: seen.changes + 1 });
+
+  // 「第几次变化已经收尾了」。**只由计时器回调置位** —— effect 体内不同步 setState
+  // (那会引起级联渲染,eslint `react-hooks/set-state-in-effect` 也拦);
+  // 「此刻在不在流」是从这两个计数**派生**出来的,不另存一个 boolean。
+  const [settled, setSettled] = useState(0);
+  useEffect(() => {
+    if (seen.changes === 0) return; // 首次装载(init / 续局)不流:那不是「气涌上来」
+    const t = window.setTimeout(() => setSettled(seen.changes), FLOW_MS);
+    return () => window.clearTimeout(t);
+  }, [seen.changes]);
+
+  return seen.changes > 0 && settled < seen.changes;
+}
 
 export function XianStats({ axes, rootRef }: StatsProps) {
   const sealRef = useRef<HTMLDivElement | null>(null);
@@ -136,7 +169,11 @@ function RealmSeal({
 /** 非签名轴的形态:灵脉竖向光带(丹田在下,脉结在上)。 */
 function MaiColumn({ axis }: { axis: AxisView }) {
   const risk = riskWord(axis);
-  const cls = [styles.mai, severityClass(axis)].filter(Boolean).join(' ');
+  // 亮芯只在**这根脉的数值真的在动**时走一趟(常态静止,见 xian.module.css `.flowing`)。
+  const flowing = useFlowing(axis.value);
+  const cls = [styles.mai, severityClass(axis), flowing ? styles.flowing : null]
+    .filter(Boolean)
+    .join(' ');
   return (
     <div className={cls} aria-label={axis.a11yText}>
       <span className={styles.maiName}>{axis.displayName}</span>

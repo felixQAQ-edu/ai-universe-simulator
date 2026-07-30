@@ -6,11 +6,13 @@
  *      与规则怪谈的 0.09s + linear(准时、机械、戛然而止)是两种**时间感**,不是快慢之别;
  *   ③ 一切动画在 `prefers-reduced-motion: reduce` 下停(AGENTS.md Motion Constraints §5)。
  *
- * 动效预算(AGENTS.md §2,本屏 1+1+1 未超):
- *   持续 1 = 天穹层(流云 + 金色微粒**同层合并**为一个槽);
- *   低频 1 = 灵脉流光单程(样板间原为**持续循环流光**,已按 §3「新增须替代或降级」降为
- *            19–27s 一次的单程);
- *   用户触发 1 = 玉简签按压 + 钟鸣 + 数值滚动(同一个玩家动作的回应,同刀 1 的记账口径)。
+ * 动效预算(AGENTS.md §2,本屏 1+0+1,**未超且较刀 2.5 净减一槽**):
+ *   持续 1 = 天穹层(流云 + 升腾微粒**同层合并**为一个槽);
+ *   低频 0 = **腾空**。刀 2/2.5 挂在这里的「灵脉流光 19–27s 单程」已在收敛批
+ *            改为**数值变化时**才走一趟 —— 常态完全静止,故不再占低频槽,
+ *            并入下面的用户触发槽(它现在是玩家那次选择的回应,不是后台心跳)。
+ *   用户触发 1 = 玉简签按压 + 钟鸣 + 数值滚动 + 灵脉亮芯(同一个玩家动作的回应,
+ *            同刀 1 的记账口径:槽位管的是**同时运行的效果数**,不是效果种类数)。
  *   钟鸣为一次性仪式,不额外占槽;它**替代** ADR-017 §6.3 初版「境界跳变整页照亮」(已订正)。
  *   `.caret` 在本世界由 `--caret-play: paused` 降级为静态方块(正文区最后一处循环,AGENTS.md §4)。
  *
@@ -263,14 +265,15 @@
   gap: 4px;
   /* 卡片收高约 18%(与柱体加宽配合,让区域凝练:上下留白从 14/12 收到 10/9) */
   padding: 10px 10px 9px;
-  /* 去纯白:暖象牙 + 轻微半透明(天穹的光透一点进来,不再是贴在画面上的白卡) */
-  background: linear-gradient(180deg, rgba(252, 250, 243, 0.9), rgba(246, 243, 233, 0.86));
+  /* 收敛批:容器保留(数值区仍需一个整体),但**透明度提高**让底下的雾色透进来 ——
+     刀 2.5 的暖象牙 0.9/0.86 在月下青岚顶图下仍读作一张白卡。 */
+  background: linear-gradient(180deg, rgba(236, 243, 243, 0.5), rgba(226, 235, 236, 0.42));
   /* 底部边框更淡:重心在上,卡片下沿不收口,与正文之间不筑第二道墙 */
-  border: 1px solid rgba(120, 105, 60, 0.14);
-  border-bottom-color: rgba(120, 105, 60, 0.07);
+  border: 1px solid rgba(58, 88, 92, 0.13);
+  border-bottom-color: rgba(58, 88, 92, 0.06);
   border-radius: 3px;
-  /* 书卷天地头:顶部一道细金线(比刀 2 更细更实,只在顶) */
-  border-top: 1px solid rgba(168, 132, 54, 0.5);
+  /* 书卷天地头:顶部一道细金线 —— 金的三处留存之一(边缘) */
+  border-top: 1px solid rgba(168, 132, 54, 0.42);
   box-shadow: 0 0 calc(var(--bell-panel, 0) * 26px) rgba(214, 176, 96, 0.55);
 }
 
@@ -299,17 +302,19 @@
   width: 18px;
   height: 76px;
   border-radius: 9px;
-  background: rgba(120, 105, 60, 0.13);
+  background: rgba(58, 88, 92, 0.12);
   display: flex;
   align-items: flex-end;
   overflow: hidden;
   position: relative;
 }
 
-/* 脉结:自下而上 30 / 60 / 85% 三处**极淡的两侧微鼓**(横向椭圆,不是圆点、不做解剖图),
-   最下一处更实 = 丹田节点。**盖在光带之上**(不是画在轨道底色里)——画在底色里的话,
+/* 脉结 + 丹田。**盖在光带之上**(不是画在轨道底色里)——画在底色里的话,
    数值一高就被光带盖住,而「脉的结构」不该随数值有无:脉一直在那儿,变的是里面的气。
-   纯 CSS 绘制,不加 DOM;`pointer-events: none` 不吃点击。 */
+   纯 CSS 绘制,不加 DOM;`pointer-events: none` 不吃点击。
+
+   收敛批:刀 2.5 的三处脉结 + 丹田读作**刻度**(等距的横线 = 试管刻度,正是要避的那个读法),
+   收到「一处几乎看不出的脉结 + 底部丹田稍明确」——结构还在,不再像量杯。 */
 .maiTrack::after {
   content: '';
   position: absolute;
@@ -317,23 +322,45 @@
   z-index: 1;
   pointer-events: none;
   background-image:
-    radial-gradient(ellipse 135% 4% at 50% 15%, rgba(120, 96, 36, 0.22), transparent 72%),
-    radial-gradient(ellipse 135% 4% at 50% 40%, rgba(120, 96, 36, 0.19), transparent 72%),
-    radial-gradient(ellipse 135% 5% at 50% 70%, rgba(120, 96, 36, 0.24), transparent 72%),
-    radial-gradient(ellipse 160% 7% at 50% 98%, rgba(110, 88, 32, 0.34), transparent 74%);
+    radial-gradient(ellipse 135% 4% at 50% 44%, rgba(48, 76, 80, 0.13), transparent 74%),
+    radial-gradient(ellipse 165% 8% at 50% 98%, rgba(44, 72, 76, 0.32), transparent 72%);
 }
 
+/* 气,不是液体。收敛批三处改动,目标是把「金色饮料装在玻璃管里」的读法拆掉:
+     ① 去掉自上而下的**规则渐变**(那道从浅到深的匀变正是「液面 + 折射」的画法),
+        改为近乎均匀的气色,只在**顶端**渐隐 —— 气是往上散的,不是有个液面;
+     ② 内部一条**纵向亮芯**(静态,由 90deg 渐变画出的竖条),让脉里有「一线气」而不是一管料;
+     ③ 常态色由金改**青玉**:金收窄到边缘 / 境界印 / 钟鸣三处,
+        且顶图里那几缕灵气本就是青绿的(实测 #7fd4c8 一族)。
+   caution / danger 仍整块换色(风险语言优先,且此时更该跳出来)。 */
 .maiFill {
   width: 100%;
   border-radius: 9px;
-  background: linear-gradient(180deg, rgba(200, 164, 80, 0.3), #b8933f);
+  background:
+    linear-gradient(
+      90deg,
+      transparent 18%,
+      rgba(233, 250, 246, 0.5) 44%,
+      rgba(233, 250, 246, 0.5) 56%,
+      transparent 82%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(124, 176, 168, 0.42) 0%,
+      rgba(110, 160, 153, 0.88) 15%,
+      rgba(100, 150, 143, 0.92) 100%
+    );
   position: relative;
   overflow: hidden;
 }
 
-/* 低频偶发(1/1):流光单程上行。样板间原为持续循环,刀 2 降级为 19–27s 一次的单程。
-   **刀 2.5 明确保留、不改静止**:它是「气在脉络流转」唯一的活证据,且已在动效预算低频槽
-   记账。柱体加宽后亮芯改为居中一道(约 10px 宽)而不是整柱泛白,幅度降、频率不动。 */
+/* 亮芯的流动。**收敛批把它从「低频偶发」改为「数值变化时」**:
+     常态完全静止 —— 一根每 19–27s 自己亮一下的柱子,读作后台在刷新;
+     只在**这一回合的数值真的动了**的时候单程走一趟,它才是「气随修为涌上来」。
+   动效预算因此**净减**(AGENTS.md §2/§3 是减法方向,不是新增效果槽):
+     低频偶发槽由「灵脉流光」腾空,流光并入既有的**用户触发**槽
+     (玉简按压 + 钟鸣 + 数值滚动 —— 同一个玩家动作的回应,与刀 1 记账口径一致)。
+   触发由 `XianStats` 挂 `.flowing`(值变了才挂,滚完退掉);无 class = 无动画。 */
 .maiFill::after {
   content: '';
   position: absolute;
@@ -344,41 +371,44 @@
   margin-left: -5px;
   border-radius: 5px;
   opacity: 0;
-  background: linear-gradient(180deg, transparent, rgba(255, 250, 230, 0.55), transparent);
+  background: linear-gradient(180deg, transparent, rgba(240, 253, 249, 0.72), transparent);
   background-size: 100% 300%;
   background-position: 0 130%;
-  animation: maiFlow 22s ease-in-out infinite;
 }
 
-/* 各脉不同步(同时亮=像进度条刷新,错开=像各自在走) */
-.mai:nth-child(1) .maiFill::after {
-  animation-duration: 19s;
+.flowing .maiFill::after {
+  animation: maiFlow 1.6s ease-out 1;
 }
 
-.mai:nth-child(2) .maiFill::after {
-  animation-duration: 23s;
+/* 各脉不同步(同时亮 = 像进度条刷新,错开 = 像各自在走)。
+   多轴同回合一起变时尤其要紧,故错开量保留、只是尺度从「秒级周期」缩到「单程时长」。 */
+.mai:nth-child(1).flowing .maiFill::after {
+  animation-duration: 1.45s;
 }
 
-.mai:nth-child(3) .maiFill::after {
-  animation-duration: 27s;
+.mai:nth-child(2).flowing .maiFill::after {
+  animation-duration: 1.75s;
 }
 
-.mai:nth-child(4) .maiFill::after {
-  animation-duration: 25s; /* 融合局(识海遗蜕)第四根轴:道心 */
+.mai:nth-child(3).flowing .maiFill::after {
+  animation-duration: 1.6s;
+}
+
+.mai:nth-child(4).flowing .maiFill::after {
+  animation-duration: 1.9s; /* 融合局(识海遗蜕)第四根轴:道心 */
 }
 
 @keyframes maiFlow {
-  0%,
-  88% {
+  0% {
     opacity: 0;
     background-position: 0 130%;
   }
 
-  90% {
+  12% {
     opacity: 1;
   }
 
-  98% {
+  82% {
     opacity: 1;
   }
 
@@ -389,12 +419,30 @@
 }
 
 /* 视觉状态**只由 severity 驱动**(服务端派生,ADR-018 §1);缺省 = 不进危险态。 */
+/* 危险态整块换色,但**保留同一形态**(纵向亮芯 + 顶端渐隐):
+   风险靠颜色说话,不靠换一种画法说话 —— 换画法会让两个档读成两个组件。 */
 .caution .maiFill {
-  background: linear-gradient(180deg, rgba(196, 152, 62, 0.32), #b07f28);
+  background:
+    linear-gradient(
+      90deg,
+      transparent 18%,
+      rgba(255, 240, 210, 0.42) 44%,
+      rgba(255, 240, 210, 0.42) 56%,
+      transparent 82%
+    ),
+    linear-gradient(180deg, rgba(190, 148, 62, 0.42) 0%, #b0842e 15%, #a87c26 100%);
 }
 
 .danger .maiFill {
-  background: linear-gradient(180deg, rgba(180, 90, 74, 0.32), #ab4b3c);
+  background:
+    linear-gradient(
+      90deg,
+      transparent 18%,
+      rgba(255, 232, 226, 0.4) 44%,
+      rgba(255, 232, 226, 0.4) 56%,
+      transparent 82%
+    ),
+    linear-gradient(180deg, rgba(178, 92, 78, 0.42) 0%, #a94b3c 15%, #a2452f 100%);
 }
 
 /* 读数**不跟整屏走衬线**:数字要等宽才不会在滚动时跳动,而中文衬线字族多数不带
@@ -406,7 +454,7 @@
   font-family: ui-monospace, 'SF Mono', Menlo, monospace;
   font-size: 13px;
   font-variant-numeric: tabular-nums;
-  color: #4a5347;
+  color: #3c4849; /* 7.6:1 on 容器合成色(刀 2.5 为 7.4) */
   margin-top: -2px;
 }
 
@@ -464,7 +512,9 @@
   filter: drop-shadow(0 0 calc(var(--bell-seal, 0) * 10px) rgba(232, 196, 110, 0.9));
 }
 
-/* 印面:内切一层,与外层之间露出的那一线就是印边 */
+/* 印面:内切一层,与外层之间露出的那一线就是印边。
+   收敛批:刀 2.5 的近不透明暖象牙印面在数值区里读作**一块白色承载块**(徽章托底),
+   改为半透明玉色 —— 印**直接悬在数值区里**,底下的雾透得过来,与灵脉共处一片天。 */
 .sealFace {
   position: absolute;
   inset: 1.5px;
@@ -479,7 +529,7 @@
     0 78%,
     0 22%
   );
-  background: linear-gradient(160deg, rgba(251, 246, 233, 0.97), rgba(238, 229, 205, 0.95));
+  background: linear-gradient(160deg, rgba(240, 246, 244, 0.5), rgba(224, 234, 233, 0.42));
 }
 
 /* 印泥深浅 = 当前值:自下而上的一层极淡金,量仍读得出来,但让位给档名 */
@@ -497,14 +547,14 @@
   );
 }
 
-/* 极淡内圈 + 一层雾光:玉的层次靠光不靠纹样(明确不上复杂纹样) */
+/* 外圈只留**两层**:印边(`.seal` 的底色)+ 这一层极淡内环。
+   刀 2.5 在这里叠了内环描边 **和** 一层雾光高光,三层叠起来又把印读回「有托底的徽章」。
+   玉的层次靠光不靠纹样,而一层就够(明确不上复杂纹样)。 */
 .sealRing {
   position: absolute;
   inset: 5px;
   border-radius: 50%;
-  box-shadow:
-    inset 0 0 0 1px rgba(168, 132, 54, 0.16),
-    inset 0 3px 7px rgba(255, 253, 245, 0.75);
+  box-shadow: inset 0 0 0 1px rgba(150, 116, 44, 0.14);
 }
 
 .sealBody {
@@ -518,29 +568,29 @@
   line-height: 1.15;
 }
 
-/* 眉题:最轻的一档,只交代「这是哪根轴」 */
+/* 眉题:最轻的一档,只交代「这是哪根轴」。收敛批再弱一档 —— 玩家该先读到「初境」。 */
 .sealName {
-  font-size: 8px;
-  letter-spacing: 0.24em;
-  color: rgba(138, 116, 52, 0.75);
-  text-indent: 0.24em; /* 抵消末字后的字距,视觉居中 */
+  font-size: 7px;
+  letter-spacing: 0.26em;
+  color: rgba(92, 108, 106, 0.82); /* 3.3:1(刀 2.5 为 2.7,弱化靠字号不靠糊掉) */
+  text-indent: 0.26em; /* 抵消末字后的字距,视觉居中 */
 }
 
-/* 档名 = 印的主视觉 */
+/* 档名 = 印的**绝对**主视觉(收敛批:眉题与数字各降一档,让这里独占重量) */
 .sealBand {
-  font-size: 17px;
+  font-size: 19px;
   line-height: 1.1;
   letter-spacing: 0.04em;
-  color: #2f362c;
+  color: #1f2726;
   word-break: keep-all;
 }
 
-/* 数字降一档:小、淡、等宽(同灵脉读数口径) */
+/* 数字降到最轻:小、淡、等宽(同灵脉读数口径)—— 量仍读得出,但不与档名争 */
 .sealNum {
   font-family: ui-monospace, 'SF Mono', Menlo, monospace;
-  font-size: 10px;
+  font-size: 9px;
   font-variant-numeric: tabular-nums;
-  color: rgba(124, 132, 120, 0.9);
+  color: rgba(100, 114, 112, 0.92); /* 3.6:1(刀 2.5 为 3.0) */
 }
 
 /* 印同样消费 severity(境界恒 neutral 故实际不触发,但不为此写死 —— 换个世界把签名轴
@@ -668,9 +718,16 @@
     --bell-seal: 0;
   }
 
+  /* `.flowing .maiFill::after` 的特异性高于裸 `.maiFill::after` —— 这里必须**连同状态类**
+     一起写死,否则 reduced-motion 下亮芯照跑(AGENTS.md §5「新增效果不得开天窗」)。 */
   .cloud,
   .dot,
-  .maiFill::after {
+  .maiFill::after,
+  .flowing .maiFill::after,
+  .mai:nth-child(1).flowing .maiFill::after,
+  .mai:nth-child(2).flowing .maiFill::after,
+  .mai:nth-child(3).flowing .maiFill::after,
+  .mai:nth-child(4).flowing .maiFill::after {
     animation: none;
   }
 }

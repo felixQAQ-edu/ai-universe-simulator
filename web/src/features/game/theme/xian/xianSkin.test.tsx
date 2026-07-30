@@ -4,11 +4,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AttributeAxisMeta, AxisBand } from '../../../../api';
 import type { AvailableAction } from '../../../../types/schema';
 import { StatsPanel } from '../../StatsPanel';
-import { SkinContext } from '../contract';
+import { SkinContext, type AxisView } from '../contract';
 import { SkinRuntime, useSkinRuntime } from '../lifecycle';
 import { SKINS } from '../skins';
 import { XianActions } from './XianActions';
 import { XianAmbient } from './XianAmbient';
+import { XianStats } from './XianStats';
 
 // 修仙皮肤(刀 2)的测试。**双层口径(ADR-018 §5 Q8)**:
 //   ① 共享语义:value / displayName / 当前档 label 可读、severity 正确映射、缺省不崩;
@@ -201,6 +202,124 @@ describe('RealmSeal(境界印)· 签名轴形态分派', () => {
     );
     expect([...container.querySelectorAll('[aria-label]')]).toHaveLength(4);
     expect(screen.getByText('道心')).toBeInTheDocument();
+  });
+});
+
+// 收敛批:亮芯由「低频心跳」改为「数值变化的回应」(常态完全静止)。
+// 直打 `XianStats` 而不经 `StatsPanel` —— 这里要钉的是**形态层对值变化的反应**,
+// 插值本身是通用层的事(已有自己的用例),掺进来只会让时序不可控。
+describe('灵脉亮芯 · 只在数值变化时走一趟', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  const view = (key: string, displayName: string, value: number): AxisView => ({
+    key,
+    displayName,
+    value,
+    percent: value,
+    bandLabel: null,
+    severity: null,
+    a11yText: `${displayName} · ${value}`,
+    signature: false,
+  });
+
+  const nullRoot = { current: null };
+  const flowingCount = (c: HTMLElement) => c.querySelectorAll('[class*="flowing"]').length;
+
+  it('首次装载不流 —— init / 续局进来时脉是静的', () => {
+    const { container } = render(
+      <XianStats axes={[view('hp', '气血', 70)]} runtime={new SkinRuntime()} rootRef={nullRoot} />,
+    );
+    expect(flowingCount(container)).toBe(0);
+  });
+
+  it('值变了才流,单程走完自行退掉(不留常驻动画)', () => {
+    vi.useFakeTimers();
+    const { container, rerender } = render(
+      <XianStats axes={[view('hp', '气血', 70)]} runtime={new SkinRuntime()} rootRef={nullRoot} />,
+    );
+    expect(flowingCount(container)).toBe(0);
+
+    rerender(
+      <XianStats axes={[view('hp', '气血', 64)]} runtime={new SkinRuntime()} rootRef={nullRoot} />,
+    );
+    expect(flowingCount(container)).toBe(1);
+
+    act(() => vi.advanceTimersByTime(2500));
+    expect(flowingCount(container)).toBe(0); // 退回静止,不是一直亮着
+  });
+
+  it('只有真的动了的那根脉在流 —— 不是整块面板一起亮', () => {
+    vi.useFakeTimers();
+    const before = [view('hp', '气血', 70), view('mana', '灵力', 40)];
+    const { container, rerender } = render(
+      <XianStats axes={before} runtime={new SkinRuntime()} rootRef={nullRoot} />,
+    );
+    rerender(
+      <XianStats
+        axes={[view('hp', '气血', 64), view('mana', '灵力', 40)]}
+        runtime={new SkinRuntime()}
+        rootRef={nullRoot}
+      />,
+    );
+    expect(flowingCount(container)).toBe(1);
+    expect(
+      container.querySelector('[aria-label*="气血"]')!.getAttribute('class'),
+    ).toMatch(/flowing/);
+    expect(
+      container.querySelector('[aria-label*="灵力"]')!.getAttribute('class'),
+    ).not.toMatch(/flowing/);
+  });
+
+  // ★ ADR-018 §4.11-B(刀 4 立字)的守护:计时器**不挂 runtime**。
+  //
+  // 真实时序是「新数值到达 → 紧接着换回合」——两者本就同时发生(新回合带着新数值来)。
+  // 若把收尾计时器挂到 `runtime` 上:换回合 `teardown()` 清掉在途定时器 → `settled` 永不推进
+  // → 亮芯**卡在流动态永不退**,且无报错。反向那半(换回合后新变化没人重排)由后半段守。
+  //
+  // **变异验证已做(§4.13),两次才做对,两次都记下来**:
+  //   · 第一版测试把 teardown 放在计时器**跑完之后** → 变异下照样绿(假绿),已改成「在途换回合」;
+  //   · 第一版变异把 `runtime` 一并加进 effect 依赖 → 依赖变了就重排,等于顺手把缺陷修好了,
+  //     照样绿。**忠实的变异形状**是刀 3 那条缺陷的原样:计时器挂 `runtime`、**依赖不含 runtime**。
+  // 按此变异后本条变红(`expected 1 to be +0` —— 亮芯卡在流动态不退)。
+  it('值刚变就换回合:亮芯仍会按时退,之后的新变化仍会流(计时器不挂 runtime)', () => {
+    vi.useFakeTimers();
+    const r1 = new SkinRuntime();
+    const { container, rerender } = render(
+      <XianStats axes={[view('hp', '气血', 70)]} runtime={r1} rootRef={nullRoot} />,
+    );
+    rerender(<XianStats axes={[view('hp', '气血', 64)]} runtime={r1} rootRef={nullRoot} />);
+    expect(flowingCount(container)).toBe(1); // 在途:还没收尾
+
+    // 新回合:旧 runtime 被 teardown + 换新身份(GameScreen 的真实时序)
+    const r2 = new SkinRuntime();
+    r1.teardown();
+    rerender(<XianStats axes={[view('hp', '气血', 64)]} runtime={r2} rootRef={nullRoot} />);
+    act(() => vi.advanceTimersByTime(2500));
+    expect(flowingCount(container)).toBe(0); // ← 挂 runtime 的写法在这里卡住不退
+
+    rerender(<XianStats axes={[view('hp', '气血', 58)]} runtime={r2} rootRef={nullRoot} />);
+    expect(flowingCount(container)).toBe(1); // 第二回合照样流(不静默)
+    act(() => vi.advanceTimersByTime(2500));
+    expect(flowingCount(container)).toBe(0);
+  });
+
+  it('印不参与流动:凝结的那一方不跟着脉一起动', () => {
+    vi.useFakeTimers();
+    const seal = { ...view('realm', '境界', 20), signature: true };
+    const { container, rerender } = render(
+      <XianStats axes={[seal]} runtime={new SkinRuntime()} rootRef={nullRoot} />,
+    );
+    rerender(
+      <XianStats
+        axes={[{ ...seal, value: 34, percent: 34 }]}
+        runtime={new SkinRuntime()}
+        rootRef={nullRoot}
+      />,
+    );
+    expect(flowingCount(container)).toBe(0);
   });
 });
 
