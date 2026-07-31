@@ -45,23 +45,34 @@ const RIM_LEAD_S = 0.18;
 const TRACE = 'xian.bell';
 
 /**
- * 金色微粒的分布(12 粒:横位 % / 直径 px / 起始延迟 s / 单程时长 s / 透明度)。
+ * 升腾微粒的分布(12 粒:横位 % / 直径 px / 起始延迟 s / 单程时长 s / 透明度)。
  * **写死不随机**:一是渲染期调 `Math.random()` 不纯(重渲会让微粒瞬移,eslint 也拦);
  * 二是手挑一组疏密不匀的数比随机更可控 —— 随机常给出「三粒挤在一起」的坏排布。
+ *
+ * ── 收敛批把透明度整体压到约一半(0.22–0.50 → 0.11–0.25)────────────────────
+ * 刀 2/2.5 的强度是在**近不透明卡片**(--card alpha 0.94、正文同值)下定的:微粒从面板
+ * **背后**升起,被卡片挡掉约 94%,所以强一点无妨。本批把卡片改半透明(正文 0.42)之后,
+ * 同一批微粒会**穿过正文纸面**——实测一粒经过时正文背景亮度变化 **8.6%**,
+ * 那是一个缓慢移动的亮点直接落在阅读区里(AGENTS.md §4 正文即禁区 +
+ * 本轮「正文区的雾与粒子必须非常稳定」)。
+ *
+ * **修的是微粒强度,不是把纸面重新加厚** —— 加厚会把本批的主诉求(降低白卡片感)撤回去;
+ * 而且这也是减法方向。压到下表后同一测法为 **2.0–4.2%**(典型 2%),
+ * 天穹层在顶部与两侧的活气不受影响(那里没有纸面挡着,本就看得清)。
  */
 const DOTS = [
-  { left: 6, size: 2.4, delay: 0, dur: 21, opacity: 0.3 },
-  { left: 17, size: 3.6, delay: 7.5, dur: 16, opacity: 0.42 },
-  { left: 23, size: 2.0, delay: 3.2, dur: 25, opacity: 0.24 },
-  { left: 34, size: 4.1, delay: 11.4, dur: 18, opacity: 0.5 },
-  { left: 41, size: 2.7, delay: 1.8, dur: 23, opacity: 0.28 },
-  { left: 49, size: 3.2, delay: 9.1, dur: 15, opacity: 0.36 },
-  { left: 58, size: 2.2, delay: 5.6, dur: 26, opacity: 0.22 },
-  { left: 66, size: 3.9, delay: 2.4, dur: 19, opacity: 0.46 },
-  { left: 73, size: 2.5, delay: 10.2, dur: 22, opacity: 0.31 },
-  { left: 81, size: 3.4, delay: 6.3, dur: 17, opacity: 0.4 },
-  { left: 88, size: 2.1, delay: 4.1, dur: 24, opacity: 0.26 },
-  { left: 95, size: 3.0, delay: 8.7, dur: 20, opacity: 0.34 },
+  { left: 6, size: 2.4, delay: 0, dur: 21, opacity: 0.15 },
+  { left: 17, size: 3.6, delay: 7.5, dur: 16, opacity: 0.21 },
+  { left: 23, size: 2.0, delay: 3.2, dur: 25, opacity: 0.12 },
+  { left: 34, size: 4.1, delay: 11.4, dur: 18, opacity: 0.25 },
+  { left: 41, size: 2.7, delay: 1.8, dur: 23, opacity: 0.14 },
+  { left: 49, size: 3.2, delay: 9.1, dur: 15, opacity: 0.18 },
+  { left: 58, size: 2.2, delay: 5.6, dur: 26, opacity: 0.11 },
+  { left: 66, size: 3.9, delay: 2.4, dur: 19, opacity: 0.23 },
+  { left: 73, size: 2.5, delay: 10.2, dur: 22, opacity: 0.16 },
+  { left: 81, size: 3.4, delay: 6.3, dur: 17, opacity: 0.2 },
+  { left: 88, size: 2.1, delay: 4.1, dur: 24, opacity: 0.13 },
+  { left: 95, size: 3.0, delay: 8.7, dur: 20, opacity: 0.17 },
 ];
 
 export function XianAmbient({ runtime, rootRef, signatureTick, setRootClass }: AmbientProps) {
