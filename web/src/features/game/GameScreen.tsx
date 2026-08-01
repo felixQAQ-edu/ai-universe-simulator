@@ -175,6 +175,7 @@ function PlayingScreen() {
           dangerLevel={world.world.dangerLevel}
           title={world.world.title}
           tone={world.world.tone}
+          onBack={reset}
         />
 
         <StatsPanel

@@ -413,3 +413,30 @@
     animation: none;
   }
 }
+
+/* ── 返回键「离岗登记」(线 C 导航层)────────────────────────────────────
+ * 本世界语汇:方角零圆角 + 等宽编号感 + 阶跃反馈(`--t-dur` 0.09s / linear)。
+ * 做成登记表最上面那一栏的样子 —— 与 .duty 同一套表格语言,只是反着走(出去那一栏)。
+ * 去色后仍可辨:唯一的直角矩形 + 全大写字距 + 左侧竖线(表格的行首分隔线)。 */
+.back {
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--muted); /* 行首分隔线,同 .duty 的编号列语言 */
+  border-radius: 0;
+  background: rgba(14, 19, 24, 0.82);
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; /* 等宽:值班室的字都是打出来的 */
+  letter-spacing: 0.12em;
+  transition: background-color var(--t-dur) var(--t-ease);
+}
+
+.back:active {
+  opacity: 1; /* 不做淡出:本世界的反馈是阶跃换底,不是渐隐 */
+  background: var(--chip);
+  color: var(--text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .back {
+    transition: none;
+  }
+}

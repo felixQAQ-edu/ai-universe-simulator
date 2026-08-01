@@ -38,6 +38,8 @@ export const SKINS: Partial<Record<SkinId, WorldSkin>> = {
     screenClass: rules.screen,
     pausedClass: rules.paused,
     bannerImgClass: rules.cctvBreathe,
+    // 返回键「离岗登记」:方角 + 等宽 + 阶跃换底(class 令牌,非组件槽——见 contract.backClass)。
+    backClass: rules.back,
     Ambient: RulesAmbient,
     Stats: RulesStats,
     Actions: RulesActions,
@@ -62,6 +64,8 @@ export const SKINS: Partial<Record<SkinId, WorldSkin>> = {
     // 顶部场景图 = 钟鸣的**主承载面**(不透明、占屏最大、在视线起点);此处不挂持续动画,
     // 本世界的持续槽给了天穹层(流云 + 微粒同层)。
     bannerImgClass: xian.bannerGlow,
+    // 返回键「回身」:小玉牌(切角与玉简签同料、朝向相反)+ 衬线 + 缓出微亮。
+    backClass: xian.back,
     Ambient: XianAmbient,
     Stats: XianStats,
     Actions: XianActions,
@@ -80,6 +84,8 @@ export const SKINS: Partial<Record<SkinId, WorldSkin>> = {
     screenClass: waste.screen,
     pausedClass: waste.paused,
     bannerImgClass: waste.bannerImg,
+    // 返回键「撤离标牌」:磨损切角 + 一颗铆钉 + 按压下沉带迟滞。
+    backClass: waste.back,
     Ambient: WasteAmbient,
     Stats: WasteStats,
     Actions: WasteActions,
@@ -106,6 +112,11 @@ export const SKINS: Partial<Record<SkinId, WorldSkin>> = {
     pausedClass: cthu.paused,
     // 顶部场景图不挂持续动画:本世界的持续槽给了孢子。
     bannerImgClass: '',
+    // 返回键「折角便条」:纸边不均 + 微倾(与决策纸条反向)。
+    backClass: cthu.back,
+    // 时长不可信:按压过渡每次重新采样(与 valueRoll 同口径 ×random(0.82–1.22)),
+    // CSS 做不到「每次不同」,故由通用层每次求值写 --press-dur(三行 JS,不引库)。
+    backPressDurMs: () => Math.round(CTHU.dur(0.4) * 1000),
     Ambient: CthuAmbient,
     Stats: CthuStats,
     Actions: CthuActions,

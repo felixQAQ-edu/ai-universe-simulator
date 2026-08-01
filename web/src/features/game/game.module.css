@@ -57,6 +57,52 @@
   padding: 0 1rem 0.7rem;
 }
 
+/* 导航层(线 C):返回键与「第 N 回合」同排。行高由返回键的 44px 热区撑起,
+ * 状态文字垂直居中对齐 —— 返回键不额外推高 banner(bannerText 的下 padding 相应吃掉一点)。 */
+.phaseRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  /* 左移到与下方标题同一条视觉起线:按钮的 44px 热区比可见形态宽,负 margin 抵掉那点内边距。 */
+  margin-left: -0.55rem;
+}
+
+/* 返回键 · 通用降级形态。皮肤未配 backClass 时长这样 —— **照常渲染**:
+ * 导航不可缺席,没配形态只意味着它长得普通,不意味着玩家出不去。 */
+.back {
+  /* 移动优先热区:整块可点(不是只有图标),≥44×44 CSS px。 */
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  padding: 0 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--card) 70%, transparent);
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.72rem;
+  line-height: 1;
+  cursor: pointer;
+  /* 时间感令牌成对使用(ADR-018 §4.3);--press-dur 只有配了 backPressDurMs 的世界会写。 */
+  transition: opacity var(--press-dur, var(--t-dur, 0.15s)) var(--t-ease, ease);
+}
+
+.back:active {
+  opacity: 0.65;
+}
+
+.backGlyph {
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+.backText {
+  letter-spacing: 0.05em;
+}
+
 .phase {
   margin: 0;
   font-size: 0.7rem;
@@ -327,6 +373,13 @@
      方块照常显示,「正在打字」的指示不丢。 */
   .caret {
     animation: none;
+  }
+
+  /* 返回键(线 C):按压反馈的过渡一律停 —— 反馈本身不丢(:active 的终态照旧生效),
+     停的是插值过程。写死 0s 覆盖 `--press-dur`,免得配了 backPressDurMs 的世界
+     (克苏鲁「时长不可信」)在 reduce 下仍走随机时长。 */
+  .back {
+    transition: none;
   }
 }
 

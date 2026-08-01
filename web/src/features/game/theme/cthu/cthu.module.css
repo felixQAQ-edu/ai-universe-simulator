@@ -415,3 +415,37 @@
     animation: none;
   }
 }
+
+/* ── 返回键「折角便条」(线 C 导航层)──────────────────────────────────
+ * 本世界语汇:纸条边缘(四角圆角不均)+ 微倾斜 + **时长不可信**
+ * (按压过渡每次微随机,由 `backPressDurMs` 每次求值写 `--press-dur`,同 .note 的既有做法)。
+ * 与 .note 同料,缩成钉在页边的一张小便条,倾斜方向与决策纸条相反(它是要离开的那张)。
+ * 去色后仍可辨:唯一歪着的方块 + 四角圆角不均。
+ * **形态与阴影同源**(§4.10):投影走 drop-shadow。 */
+.back {
+  border: 1px solid rgba(120, 160, 140, 0.22);
+  border-radius: 2px 6px 3px 5px; /* 四角不均:撕下来又压平的 */
+  background: linear-gradient(174deg, rgba(16, 26, 22, 0.94), rgba(11, 18, 15, 0.92));
+  color: var(--muted);
+  letter-spacing: 0.06em;
+  transform: rotate(-1.2deg); /* 微倾:与决策纸条反向 */
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.42));
+  /* 时长不可信:`--press-dur` 由按下时写(每次不同),缺省回落 --t-dur。 */
+  transition:
+    border-color var(--press-dur, var(--t-dur)) var(--t-ease),
+    filter var(--press-dur, var(--t-dur)) var(--t-ease);
+}
+
+.back:active {
+  opacity: 1;
+  border-color: rgba(120, 160, 140, 0.42);
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* 连 `--press-dur` 一起写死:配了 backPressDurMs 的世界在 reduce 下仍会写那个变量,
+     只覆盖 --t-dur 挡不住它(修仙收敛批 `.flowing` 高特异性选择器同一教训)。 */
+  .back {
+    transition: none;
+  }
+}

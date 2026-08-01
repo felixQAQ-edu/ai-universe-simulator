@@ -1,4 +1,5 @@
 import type { DangerLevel } from '../../types/schema';
+import { BackButton } from './BackButton';
 import { dangerLabel } from './scene';
 import { useSkin } from './theme/contract';
 import styles from './game.module.css';
@@ -19,6 +20,7 @@ export function SceneBanner({
   dangerLevel,
   title,
   tone,
+  onBack,
 }: {
   /** 顶部底图路径;null = 未配图,不渲染图层(降级不塌)。 */
   sceneUrl: string | null;
@@ -26,6 +28,8 @@ export function SceneBanner({
   dangerLevel: DangerLevel;
   title: string;
   tone: string;
+  /** 返回选择屏(线 C)。缺省不渲染返回键。 */
+  onBack?: () => void;
 }) {
   const skin = useSkin()?.skin;
 
@@ -42,9 +46,15 @@ export function SceneBanner({
       {/* 图底渐变:融进正文背景 + 盖住底部(含右下角水印)+ 托住其上文字的可读性。 */}
       <div className={styles.bannerScrim} aria-hidden="true" />
       <div className={styles.bannerText}>
-        <p className={styles.phase}>
-          第 {turn} 回合 · 危险度 {dangerLabel(dangerLevel)}
-        </p>
+        {/* 导航层(线 C):返回键与「第 N 回合 · 危险度 X」同排 —— 该行左侧原本是空的,
+            且背景稳定(图底渐变已融进正文底),对比度可控;压在四张各不相同的氛围图顶部
+            则可读性无法保证。缺 onBack 时不渲染(组件测试不带 store 时的降级)。 */}
+        <div className={styles.phaseRow}>
+          {onBack && <BackButton onBack={onBack} />}
+          <p className={styles.phase}>
+            第 {turn} 回合 · 危险度 {dangerLabel(dangerLevel)}
+          </p>
+        </div>
         <h1 className={styles.title}>{title}</h1>
         <p className={styles.tone}>{tone}</p>
       </div>

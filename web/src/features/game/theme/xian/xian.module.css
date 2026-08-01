@@ -745,3 +745,35 @@
     animation: none;
   }
 }
+
+/* ── 返回键「回身」(线 C 导航层)──────────────────────────────────────
+ * 本世界语汇:对角切角(同玉简签的 clip-path)+ 衬线 + 缓出(`--t-dur` 0.55s 长尾)。
+ * 做成一枚**小玉牌**:与玉简签同一套切角,但只切左上/右下两角(签是右上/左下)——
+ * 同一世界的材质,反向的朝向,读作「往回」。
+ * 去色后仍可辨:唯一的斜切八边轮廓 + 衬线字。
+ * **形态与阴影同源**(§4.10):切角走 clip-path,故投影一律 drop-shadow。 */
+.back {
+  border: 1px solid rgba(58, 88, 92, 0.26);
+  border-radius: 0;
+  background: linear-gradient(175deg, rgba(255, 255, 255, 0.66), rgba(240, 244, 243, 0.5));
+  color: var(--muted);
+  font-family: Songti SC, SimSun, serif; /* 衬线:世界语言的核心,与整屏同源 */
+  letter-spacing: 0.08em;
+  clip-path: polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px);
+  filter: drop-shadow(0 1px 2px rgba(34, 59, 68, 0.16));
+  transition:
+    color var(--t-dur) var(--t-ease),
+    filter var(--t-dur) var(--t-ease);
+}
+
+.back:active {
+  opacity: 1; /* 不淡出:本世界的反馈是气机泛起(缓出微亮),不是变淡 */
+  color: var(--text);
+  filter: drop-shadow(0 0 4px rgba(184, 147, 63, 0.42));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .back {
+    transition: none;
+  }
+}

@@ -252,6 +252,27 @@ export interface WorldSkin {
   pausedClass: string;
   /** 顶部氛围图的附加 class(规则怪谈:监控呼吸 = 本屏唯一持续环境动效)。 */
   bannerImgClass: string;
+  /**
+   * 返回键的形态 class(线 C 导航层)。缺省 '' → 通用降级样式,**照常渲染**:
+   * 导航不可缺席,皮肤没配形态只意味着它长得普通,不意味着玩家出不去。
+   *
+   * ── 为什么是 token 而不是第三个组件槽 ─────────────────────────────────
+   * 刀 3(`Interlude`)与刀 4(`Prose`)开槽,是因为**DOM 结构本身必须不同**
+   * (电台是正文与决策圈之间的独立区块;文字异常必须作用在分片 span 上)。
+   * 返回键不是:四个世界的差异 100% 在 CSS(方角/切角/铆钉/纸条边缘),DOM 都是
+   * 同一个 `<button onClick={reset}>`。为它开槽 = 四套皮肤各抄一遍同一个按钮,
+   * **那是抽象腐坏的反方向** —— 拿刀 3/4 当先例乱开槽,正是这里要挡住的。
+   */
+  backClass: string;
+  /**
+   * 返回键按压过渡时长(ms),**每次按下求值**;缺省 = 不写 `--press-dur`,
+   * 行为与不配它的世界逐字相同。
+   *
+   * 这是**时间感参数**不是世界开关(任何世界都能给个常数),形状与 {@link ValueRoll.durationMs}
+   * 同源:皮肤给值、通用层施加。存在理由只有一个 —— 克苏鲁「节奏不可信」要求每次快慢略不同,
+   * 而 CSS 做不到「每次不同」(同 `CthuActions` 写 `--press-dur` 的既有先例,三行 JS 不引库)。
+   */
+  backPressDurMs?: number | (() => number);
   Ambient: ComponentType<AmbientProps>;
   Stats: ComponentType<StatsProps>;
   Actions: ComponentType<ActionsProps>;
