@@ -451,7 +451,8 @@
   border: 1px solid rgba(180, 150, 110, 0.3);
   border-radius: 0;
   background: linear-gradient(172deg, rgba(48, 40, 32, 0.94), rgba(34, 28, 23, 0.92));
-  color: var(--muted);
+  /* 同规则怪谈:用已校准的次级文字色,--muted 在铁皮底上只有 5.4:1(低于 §4.6 的 ≥6.3)。 */
+  color: var(--rule-idle);
   letter-spacing: 0.08em;
   clip-path: polygon(0 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%);
   /* 左上一颗铆钉(与告示牌同一颗钉子,只是这块牌小) */

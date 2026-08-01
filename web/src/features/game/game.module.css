@@ -63,8 +63,6 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  /* 左移到与下方标题同一条视觉起线:按钮的 44px 热区比可见形态宽,负 margin 抵掉那点内边距。 */
-  margin-left: -0.55rem;
 }
 
 /* 返回键 · 通用降级形态。皮肤未配 backClass 时长这样 —— **照常渲染**:

@@ -423,7 +423,9 @@
   border-left: 3px solid var(--muted); /* 行首分隔线,同 .duty 的编号列语言 */
   border-radius: 0;
   background: rgba(14, 19, 24, 0.82);
-  color: var(--muted);
+  /* 用已校准的次级文字色而非 --muted:--muted 在本世界是 #5f6d78,压在按钮自己的暗底上只有
+     3.5:1 —— 连 WCAG AA 都不到,更别说本项目 §4.6 的 ≥6.3 口径。导航控件不许比规则条目更难读。 */
+  color: var(--rule-idle);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace; /* 等宽:值班室的字都是打出来的 */
   letter-spacing: 0.12em;
   transition: background-color var(--t-dur) var(--t-ease);

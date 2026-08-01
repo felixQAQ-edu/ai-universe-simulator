@@ -756,7 +756,9 @@
   border: 1px solid rgba(58, 88, 92, 0.26);
   border-radius: 0;
   background: linear-gradient(175deg, rgba(255, 255, 255, 0.66), rgba(240, 244, 243, 0.5));
-  color: var(--muted);
+  /* 同上:--muted 在玉牌上 5.8:1,低于 §4.6 的 ≥6.3。--rule-idle(#444f4f)在玉牌底上实测
+     6.26 仍差一点(玉牌比规则条目更亮),故本处再压一档到 6.6 —— 只动这一个控件,不动共享 token。 */
+  color: #3f4a4a;
   font-family: Songti SC, SimSun, serif; /* 衬线:世界语言的核心,与整屏同源 */
   letter-spacing: 0.08em;
   clip-path: polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px);
