@@ -152,6 +152,22 @@ export function createGameStore(api: GameApi) {
     // 当前在途回合流(用于 reset / 防止过期流写回)。
     let activeStream: TurnStream | null = null;
 
+    // ── 在途 init/resume 的世代守卫 ────────────────────────────────────
+    // 与下面 chooseAction 里的 `stale()` 是**同一个模式、同一个洞**:异步结果回来时,
+    // 玩家可能已经不在那个上下文里了。回合流那条早就补了(activeStream 比对),
+    // init 与 resume 这两条一直没有 —— 它们的 promise 无人可关:`reset()` 关得掉流,
+    // 关不掉 `await api.initGame(...)`,fetch 也没带 AbortSignal。
+    //
+    // 后果不是「不完美」而是**背叛**:玩家取消/返回后,那次 world-gen(线上首局实测 ~120s)
+    // 照样落地,把他扔进他刚拒绝的世界,并 writeSavedId 冲掉他原来那局的存档指针。
+    // 故每次进入 init/resume 领一个世代号,回来时不符即**整段丢弃**(不 set、不写 saveId)。
+    //
+    // 服务端那次调用**拦不住**(plain POST 阻塞跑完 + GameSessionManager.create 无条件写盘),
+    // 这里守的是「客户端不被过期结果改写」,不是「让服务端停下」——两件事,别混。
+    let epoch = 0;
+    const nextEpoch = () => ++epoch;
+    const staleEpoch = (mine: number) => mine !== epoch;
+
     const discoveredIds = (rules: DiscoveredRule[]) => rules.map((r) => r.id);
 
     return {
@@ -178,9 +194,11 @@ export function createGameStore(api: GameApi) {
         if (get().status === 'initializing') return;
         activeStream?.close();
         activeStream = null;
+        const mine = nextEpoch();
         set({ ...INITIAL, status: 'initializing', lastArchetype: archetypes });
         try {
           const res = await api.initGame(archetypes);
+          if (staleEpoch(mine)) return; // 玩家已取消/返回:丢弃这次世界,连 saveId 都不记
           const attrs = res.world.character?.attributes ?? {};
           writeSavedId(res.saveId); // 起局成功即记住,起局即崩也能续(与后端 init 后写盘对齐)
           set({
@@ -202,6 +220,7 @@ export function createGameStore(api: GameApi) {
         } catch (e) {
           const msg = e instanceof GameApiError ? e.message : '世界生成失败,请重新生成';
           const code = e instanceof GameApiError ? e.code : null;
+          if (staleEpoch(mine)) return; // 已取消:失败也不该把玩家拽进错误屏
           set({ status: 'initError', errorMessage: msg, errorCode: code });
         }
       },
@@ -211,9 +230,11 @@ export function createGameStore(api: GameApi) {
         if (!saveId || get().status === 'initializing') return;
         activeStream?.close();
         activeStream = null;
+        const mine = nextEpoch();
         set({ ...INITIAL, status: 'initializing' });
         try {
           const res = await api.resumeGame(saveId);
+          if (staleEpoch(mine)) return; // 同 startGame:续局在途时返回,不得被拽回去
           const attrs = res.world.character?.attributes ?? {};
           const log = res.world.state?.log ?? [];
           // 续局散文补位:log 末条叙事(openingNarrative 不落盘)→ 兜底世界背景。
@@ -240,6 +261,9 @@ export function createGameStore(api: GameApi) {
             notice: ended ? null : `已从上次落笔处接续(第 ${res.world.state?.turn ?? 0} 回合)`,
           });
         } catch {
+          // 已取消:**尤其不能清 saveId** —— 玩家可能已经开了新局,
+          // 这时清的是那一局的指针(拿一次过期失败去删一个跟它无关的存档)。
+          if (staleEpoch(mine)) return;
           // 续局失败(404/损坏/网络):静默清 saveId 回到正常起局,不弹错误挡路。
           clearSavedId();
           set({ ...INITIAL, status: 'idle', resumableSaveId: null });
@@ -305,6 +329,10 @@ export function createGameStore(api: GameApi) {
       reset() {
         activeStream?.close();
         activeStream = null;
+        // 世代 +1 = 作废在途的 init/resume(「取消」与「游戏中返回」都经这里)。
+        // `resumableSaveId` 与 `archetypes` 刻意在 INITIAL 之外 —— 返回不弃局:
+        // 存档指针与已拉取的目录都留着,回到选择屏即见「继续上局」(ADR-015 Slice 2 的机制原样复用)。
+        nextEpoch();
         set({ ...INITIAL });
       },
     };
