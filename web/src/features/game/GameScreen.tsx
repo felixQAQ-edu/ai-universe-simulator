@@ -29,12 +29,26 @@ export function GameScreen() {
   return <PlayingScreen />;
 }
 
+// 等待期也是导航层的一部分(线 C):world-gen 首局线上实测 ~120s,在有「取消」之前,
+// 这段时间玩家唯一的出路是关浏览器 —— 那不是不方便,是产品级缺陷。
+//
+// 取消 = `reset()`:世代 +1 作废这次在途生成(**没有世代守卫,这个按钮是坏的**:
+// 迟到的世界会把玩家扔进他刚拒绝的世界并冲掉原存档指针,见 gameStore 世代守卫注释)。
+//
+// **已知代价**(如实记,本轮不做补偿):服务端那次胖调用拦不住 —— plain POST 阻塞跑完,
+// 且 GameSessionManager.create 无条件写盘 → 每次取消留一份客户端永远找不到的孤儿档;
+// ADR-016 软闸的日 init 计数在入口、早于生成 → 取消**照样吃一次 init 额度**
+// (玩家反复取消重开会撞日上限而不知原因)。两条均已入 backlog。
 function LoadingScreen() {
+  const reset = useGameStore((s) => s.reset);
   return (
     <main className={styles.screen}>
       <div className={styles.centered}>
         <div className={styles.spinner} />
         <p className={styles.muted}>世界正在生成……</p>
+        <button type="button" className={styles.linkBtn} onClick={reset}>
+          取消
+        </button>
       </div>
     </main>
   );

@@ -1215,6 +1215,8 @@
   color: #5a6862;
 }
 
+/* 次级出口(等待期「取消」/ 错误屏「换个世界」)。两处都是**导航控件**,
+ * 故与返回键同一条热区口径:≥44×44 CSS px,整块可点。 */
 .linkBtn {
   background: none;
   border: none;
@@ -1223,6 +1225,9 @@
   cursor: pointer;
   text-decoration: underline;
   -webkit-tap-highlight-color: transparent;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 0.75rem;
 }
 
 /* 结局画面 ----------------------------------------------------------- */
