@@ -10,16 +10,23 @@
 
 let cached: boolean | null = null;
 
+/**
+ * 读一个 query 参数(不缓存)。**本仓库读取 `window.location` 的唯一实现**——
+ * 新增读取需求一律经这里,不要在别处再开一个 `window.location`(Taro 迁移时只降级本文件)。
+ */
+export function queryFlag(name: string): string | null {
+  try {
+    if (typeof window === 'undefined') return null;
+    return new URLSearchParams(window.location.search).get(name);
+  } catch {
+    return null;
+  }
+}
+
 /** 本次会话是否处于 debug 模式(读一次,之后不再解析 URL)。 */
 export function isDebug(): boolean {
   if (cached !== null) return cached;
-  try {
-    cached =
-      typeof window !== 'undefined' &&
-      new URLSearchParams(window.location.search).get('debug') === '1';
-  } catch {
-    cached = false;
-  }
+  cached = queryFlag('debug') === '1';
   return cached;
 }
 
