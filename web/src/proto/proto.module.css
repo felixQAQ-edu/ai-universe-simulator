@@ -1,0 +1,169 @@
+/* 线 B1 原型 · 融合入口拖拽手势。**只服务手势验证,不是视觉稿**——
+ * 抓起=抬起+加深阴影,磁吸=边框高亮+轻微位移,无粒子/无发光/无材质变化(本刀范围)。
+ * 生产 game.module.css 一行未动;本文件随原型一起来去。 */
+
+.protoScreen {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 1rem 1rem 8rem; /* 底部留白:给固定读数条,且保证列表可滚动 */
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-height: 100dvh;
+}
+
+.protoHeader h1 {
+  font-size: 1.5rem;
+  margin: 0.2rem 0;
+}
+
+.protoNote {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin: 0;
+  line-height: 1.6;
+}
+
+/* ── 调参面板(真机上不重新部署就能试手感)──────────────────────────── */
+.tuner {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card);
+}
+
+.tunerToggle {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  padding: 0.6rem 0.8rem;
+  font: inherit;
+  font-size: 0.85rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tunerBody {
+  padding: 0 0.8rem 0.7rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.tunerRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+}
+
+.tunerLabel {
+  flex: 1;
+  color: var(--muted);
+}
+
+.tunerValue {
+  min-width: 4.2rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.tunerBtn {
+  min-width: 2.2rem;
+  min-height: 2.2rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--chip);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ── 卡列 ────────────────────────────────────────────────────────────
+ * touch-action: pan-y 是本原型的承重设定:纵向滚动仍由浏览器原生处理(带惯性),
+ * 横向手势留给我们判定 —— 不写死 none,免得把「玩家默认手势」一并没收。 */
+.list {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.dragCard {
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* 抓起态:抬起 + 阴影加深(不做别的)。 */
+.lifted {
+  z-index: 30;
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.42);
+  cursor: grabbing;
+}
+
+/* 原位淡轮廓 */
+.ghost {
+  position: absolute;
+  border: 1px dashed var(--muted);
+  border-radius: 14px;
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+/* 合法目标:朴素边框高亮 */
+.targetOk {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* 可提交:高亮更实一档(仍不做材质变化) */
+.targetArmed {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* 无效目标:不磁吸,靠近轻微排斥(位移在 JS 里给),这里只压低存在感 */
+.targetBad {
+  opacity: 0.55;
+}
+
+/* ── 读数条(固定底部,pointer-events:none 不挡拖拽)──────────────── */
+.hud {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  background: rgba(0, 0, 0, 0.78);
+  color: #d8f0d8;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.66rem;
+  line-height: 1.5;
+  padding: 0.4rem 0.6rem calc(0.4rem + env(safe-area-inset-bottom, 0px));
+  white-space: pre;
+  overflow-x: auto;
+  z-index: 100;
+}
+
+.hudLog {
+  color: #c9c2b0;
+  opacity: 0.9;
+}
+
+.result {
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  padding: 0.6rem 0.8rem;
+  font-size: 0.9rem;
+  background: var(--accent-soft);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lifted {
+    box-shadow: 0 14px 32px rgba(0, 0, 0, 0.42);
+  }
+}
