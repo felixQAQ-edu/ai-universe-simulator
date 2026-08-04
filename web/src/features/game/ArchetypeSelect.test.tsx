@@ -2,7 +2,6 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { ArchetypeSummary } from '../../api';
 import { ArchetypeCard, FusionCard } from './ArchetypeSelect';
-import { INITIAL_FUSION_STAGES, nextFusionStages, type FusionStages } from './fusion';
 
 // 选择屏卡片(ADR-008 决策 4):可玩卡渲染钩子/标签 + 点击触发 onChoose(→ startGame);
 // 未开放卡灰显「敬请期待」、不可点。store 接线(loadArchetypes/startGame/lastArchetype)
@@ -61,8 +60,6 @@ describe('ArchetypeCard', () => {
   });
 });
 
-// ── 融合入口 = 渗漏卡 + 误入手势(ADR-013 决策 4)──
-
 const CULTIVATION: ArchetypeSummary = {
   archetype: 'cultivation',
   displayName: '修仙',
@@ -71,87 +68,63 @@ const CULTIVATION: ArchetypeSummary = {
   active: true,
 };
 
-describe('误入手势(长按)', () => {
-  it('长按(≥600ms)触发 onLongPress,且随后的 click 不触发 onChoose(不误入局)', () => {
-    vi.useFakeTimers();
+// ── 融合入口 = 把一张卡拖到另一张上(ADR-019;ADR-013 决策 4 的长按误入手势本轮退役)──
+// 退役理由是技术性的:拖拽抓起 180ms 是长按 600ms 的**真子集**,并存只能靠让长按永不触发。
+// 手势本身的钉子在 fusion/useFusionDrag.test.tsx,这里只钉卡片这一侧的接线。
+
+describe('拖拽接线(卡片侧)', () => {
+  it('可拖卡:pointerdown 交给手势层;抓起过的那一次 click 被吞掉(不误入世界)', () => {
     const onChoose = vi.fn();
-    const onLongPress = vi.fn();
-    render(<ArchetypeCard summary={CULTIVATION} onChoose={onChoose} onLongPress={onLongPress} />);
+    const onPointerDown = vi.fn();
+    let swallow = true;
+    render(
+      <ArchetypeCard
+        summary={CULTIVATION}
+        onChoose={onChoose}
+        drag={{
+          ref: () => {},
+          onPointerDown,
+          shouldSwallowClick: () => swallow,
+          state: null,
+        }}
+      />,
+    );
     const card = screen.getByRole('button');
-
     fireEvent.pointerDown(card);
-    vi.advanceTimersByTime(650);
-    fireEvent.pointerUp(card);
-    fireEvent.click(card); // 长按释放后浏览器仍会派发 click —— 必须被吞掉
+    expect(onPointerDown).toHaveBeenCalledTimes(1);
 
-    expect(onLongPress).toHaveBeenCalledTimes(1);
+    fireEvent.click(card); // 抓起过 → 吞掉
     expect(onChoose).not.toHaveBeenCalled();
-    vi.useRealTimers();
-  });
 
-  it('短按(<600ms)不触发 onLongPress,click 照常进入世界(单击零回归)', () => {
-    vi.useFakeTimers();
-    const onChoose = vi.fn();
-    const onLongPress = vi.fn();
-    render(<ArchetypeCard summary={CULTIVATION} onChoose={onChoose} onLongPress={onLongPress} />);
-    const card = screen.getByRole('button');
-
-    fireEvent.pointerDown(card);
-    vi.advanceTimersByTime(200);
-    fireEvent.pointerUp(card);
+    swallow = false; // 普通单击 → 照常进世界(单击语义零回归)
     fireEvent.click(card);
-
-    expect(onLongPress).not.toHaveBeenCalled();
     expect(onChoose).toHaveBeenCalledTimes(1);
-    vi.useRealTimers();
   });
 
-  // 组合表状态机(ADR-014):per-combo 独立,一次长按推进全部机。
-  const SHIHAI = 'cultivation×rules_creepy';
-  const RENFANG = 'rules_creepy×apocalypse';
-  const press = (stages: FusionStages, ...archetypes: string[]) =>
-    archetypes.reduce((s, a) => nextFusionStages(s, a), stages);
+  it('拖拽角色只改 class 不改 DOM 结构(ADR-018 §4.17:差异只在样式 → 样式令牌)', () => {
+    const bind = (state: 'dragging' | 'valid' | 'invalid' | null) => ({
+      ref: () => {},
+      onPointerDown: () => {},
+      shouldSwallowClick: () => false,
+      state,
+    });
+    const plain = render(<ArchetypeCard summary={CULTIVATION} onChoose={vi.fn()} drag={bind(null)} />);
+    const plainHtml = plain.container.innerHTML;
+    plain.unmount();
 
-  it('状态机(识海):依次长按 修仙 → 规则怪谈 才渗出;顺序不对不推进;渗出后保持', () => {
-    // 正序:修仙 → 规则怪谈 → 识海 revealed。
-    let s = press(INITIAL_FUSION_STAGES, 'cultivation', 'rules_creepy');
-    expect(s[SHIHAI]).toBe('revealed');
-    // 顺序不对:先规则怪谈、再修仙 → 识海不渗出(修仙重 armed)。
-    s = press(INITIAL_FUSION_STAGES, 'rules_creepy', 'cultivation');
-    expect(s[SHIHAI]).toBe('armed');
-    // armed 后按无关卡不推进。
-    s = press(INITIAL_FUSION_STAGES, 'cultivation', 'cthulhu');
-    expect(s[SHIHAI]).toBe('armed');
-    // 渗出后保持(不因再长按回退)。
-    s = press(INITIAL_FUSION_STAGES, 'cultivation', 'rules_creepy', 'cultivation', 'apocalypse');
-    expect(s[SHIHAI]).toBe('revealed');
-  });
-
-  it('状态机(守则即补给):依次长按 规则怪谈 → 末日 才渗出', () => {
-    let s = press(INITIAL_FUSION_STAGES, 'rules_creepy', 'apocalypse');
-    expect(s[RENFANG]).toBe('revealed');
-    // 顺序不对:先末日不推进。
-    s = press(INITIAL_FUSION_STAGES, 'apocalypse', 'cthulhu');
-    expect(s[RENFANG]).toBe('idle');
-  });
-
-  it('交叉序列:「长按规则怪谈」在两台机语义不同,各自匹配、互不误触发', () => {
-    // 修仙 → 末日:两台机都不渗出(识海差第二步、本对差第一步)。
-    let s = press(INITIAL_FUSION_STAGES, 'cultivation', 'apocalypse');
-    expect(s[SHIHAI]).toBe('armed');
-    expect(s[RENFANG]).toBe('idle');
-    // 规则怪谈 → 末日:只渗出「守则即补给」,识海不受影响(规则怪谈对识海是第二步、需先修仙)。
-    s = press(INITIAL_FUSION_STAGES, 'rules_creepy', 'apocalypse');
-    expect(s[RENFANG]).toBe('revealed');
-    expect(s[SHIHAI]).toBe('idle');
-    // 修仙 → 规则怪谈:渗出识海;同一按规则怪谈同时是本对第一步(armed)——独立推进、互不干扰。
-    s = press(INITIAL_FUSION_STAGES, 'cultivation', 'rules_creepy');
-    expect(s[SHIHAI]).toBe('revealed');
-    expect(s[RENFANG]).toBe('armed');
+    for (const state of ['dragging', 'valid', 'invalid'] as const) {
+      const r = render(<ArchetypeCard summary={CULTIVATION} onChoose={vi.fn()} drag={bind(state)} />);
+      const el = r.container.querySelector('button')!;
+      expect(el.className).not.toBe(plain.container.querySelector('button')?.className);
+      // 结构一致:去掉 class 属性后与中性态逐字相等。
+      const strip = (h: string) => h.replace(/ class="[^"]*"/g, '');
+      expect(strip(r.container.innerHTML)).toBe(strip(plainHtml));
+      r.unmount();
+    }
   });
 });
 
-describe('FusionCard(渗漏卡,ADR-014 参数化)', () => {
+describe('FusionCard(融合卡 = 渗漏卡形态保留,ADR-014 参数化)', () => {
   it('识海卡:渲染三层撕裂标题(修仙/规则怪谈/识海遗蜕)+ 渗漏标签,点击触发 onChoose(→ 双值 init)', () => {
     const onChoose = vi.fn();
     render(<FusionCard combo="cultivation×rules_creepy" onChoose={onChoose} />);

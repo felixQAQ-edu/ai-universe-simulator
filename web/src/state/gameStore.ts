@@ -12,6 +12,7 @@ import type {
   ClientWorld,
   DiscoveredRule,
   EndingPayload,
+  FusionCombo,
   GameApi,
   TurnStream,
 } from '../api';
@@ -39,6 +40,12 @@ export interface GameState {
   status: GameStatus;
   /** 选择屏目录(可选世界 + 未开放占位);来自 GET /api/archetypes。 */
   archetypes: ArchetypeSummary[];
+  /**
+   * 已登记的融合组合(ADR-019 只读投影,与目录同一次请求)。选择屏拖拽入口据它判定
+   * 「拖 A 到 B 上」是否合法 —— 合法性真相源在后端 registry,前端不自备组合表。
+   * 空表(老后端 / 加载失败)= 一律判无效组合:拖不出融合,但选择屏照常可用。
+   */
+  fusions: FusionCombo[];
   archetypesLoading: boolean;
   /** 选择屏目录加载失败提示(可重试)。 */
   archetypesError: string | null;
@@ -174,6 +181,7 @@ export function createGameStore(api: GameApi) {
       ...INITIAL,
       // 目录状态在 INITIAL 之外维护 —— reset/startGame 不应清掉已拉取的可选世界列表。
       archetypes: [] as ArchetypeSummary[],
+      fusions: [] as FusionCombo[],
       archetypesLoading: false,
       archetypesError: null,
       // 同样在 INITIAL 之外:reset(换个世界)不该抹掉「继续上局」入口。
@@ -183,8 +191,8 @@ export function createGameStore(api: GameApi) {
         if (get().archetypesLoading || get().archetypes.length > 0) return;
         set({ archetypesLoading: true, archetypesError: null });
         try {
-          const list = await api.listArchetypes();
-          set({ archetypes: list, archetypesLoading: false });
+          const catalog = await api.listArchetypes();
+          set({ archetypes: catalog.archetypes, fusions: catalog.fusions, archetypesLoading: false });
         } catch {
           set({ archetypesLoading: false, archetypesError: '世界列表加载失败,请重试' });
         }
@@ -330,7 +338,7 @@ export function createGameStore(api: GameApi) {
         activeStream?.close();
         activeStream = null;
         // 世代 +1 = 作废在途的 init/resume(「取消」与「游戏中返回」都经这里)。
-        // `resumableSaveId` 与 `archetypes` 刻意在 INITIAL 之外 —— 返回不弃局:
+        // `resumableSaveId` 与目录两表(`archetypes`/`fusions`)刻意在 INITIAL 之外 —— 返回不弃局:
         // 存档指针与已拉取的目录都留着,回到选择屏即见「继续上局」(ADR-015 Slice 2 的机制原样复用)。
         nextEpoch();
         set({ ...INITIAL });

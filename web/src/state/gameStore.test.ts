@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type {
   ArchetypeSummary,
+  FusionCombo,
   EndingPayload,
   GameApi,
   InitResult,
@@ -92,6 +93,10 @@ const INIT_RESULT: InitResult = {
   ],
 };
 
+const FUSION_LIST: FusionCombo[] = [
+  { host: 'cultivation', foreign: 'rules_creepy', key: 'cultivation×rules_creepy' },
+];
+
 const ARCHETYPE_LIST: ArchetypeSummary[] = [
   { archetype: 'rules_creepy', displayName: '规则怪谈', tagline: '一纸诡异守则', vibeTag: '诡异 · 高危', active: true },
   { archetype: 'apocalypse', displayName: '末日生存', tagline: '废土求生', vibeTag: '荒凉 · 绝境', active: true },
@@ -107,7 +112,7 @@ function makeApi(
   const api: GameApi = {
     async listArchetypes() {
       if (listBehavior === 'fail') throw new GameApiError('archetypes_failed', '世界列表加载失败');
-      return ARCHETYPE_LIST;
+      return { archetypes: ARCHETYPE_LIST, fusions: FUSION_LIST };
     },
     async initGame() {
       if (initBehavior === 'fail') throw new GameApiError('world_gen_failed', '世界生成失败');
@@ -321,6 +326,8 @@ describe('loadArchetypes', () => {
     expect(s.archetypes.map((a) => a.archetype)).toEqual(['rules_creepy', 'apocalypse', 'cultivation']);
     expect(s.archetypes.filter((a) => a.active)).toHaveLength(2);
     expect(s.archetypesError).toBeNull();
+    // ADR-019:组合表与目录同一次请求就位(选择屏拖拽据它判合法性,不自备组合表)。
+    expect(s.fusions).toEqual(FUSION_LIST);
   });
 
   it('失败 → archetypesError,可重试', async () => {
@@ -339,6 +346,7 @@ describe('loadArchetypes', () => {
     store.getState().reset();
     expect(store.getState().status).toBe('idle');
     expect(store.getState().archetypes).toHaveLength(3); // 目录未被清
+    expect(store.getState().fusions).toEqual(FUSION_LIST); // 组合表同样留着
   });
 });
 

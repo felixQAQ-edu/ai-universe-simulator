@@ -8,11 +8,13 @@ export type {
   ClientWorld,
   DiscoveredRule,
   EndingPayload,
+  FusionCombo,
   GameApi,
   InitResult,
   StreamError,
   TurnDelta,
   TurnStream,
+  WorldCatalog,
 } from './contract';
 export { GameApiError } from './contract';
 export { createH5GameApi, gameApi } from './h5GameApi';

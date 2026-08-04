@@ -54,6 +54,27 @@ export interface ArchetypeSummary {
 }
 
 /**
+ * 一对已登记的融合组合(后端 `GET /api/archetypes` 的 `fusions` 只读投影,ADR-019)。
+ * 选择屏据它判定「拖 A 到 B 上」是否合法 —— **合法性的真相源在后端 registry**,
+ * 前端不再自备一份组合表(双真相源会漂移,后果具体:玩家拖出一个后端 400 的组合)。
+ * per-combo 的展示文案(融合卡标题/tagline)仍在前端,那是展示层。
+ */
+export interface FusionCombo {
+  /** 承接者(有序双值里在前,ADR-012/013)。 */
+  host: Archetype;
+  /** 被揉入者。 */
+  foreign: Archetype;
+  /** 组合键 `host×foreign`(方向敏感;与封面/卡文案同键)。 */
+  key: string;
+}
+
+/** 选择屏目录响应(世界表 + 组合表**同一次请求**,不会两个响应不同步)。 */
+export interface WorldCatalog {
+  archetypes: ArchetypeSummary[];
+  fusions: FusionCombo[];
+}
+
+/**
  * 一个行为档的显式值区间(#3 数值行为化,后端 init 下发)。{@link min}/{@link max} 是 inclusive 闭区间,
  * axisRole 无关——前端只需 `min ≤ value ≤ max` 即可解析当前档(无须懂 depletion/accumulation);各档连续、
  * 覆盖整个值域。`narrationHint` 不下发(仅服务端注入 prompt)。
@@ -174,10 +195,11 @@ export class GameApiError extends Error {
  */
 export interface GameApi {
   /**
-   * 取可选世界目录(选择屏第一屏,ADR-008 决策 4)。已激活在前 + 已知未开放占位在后。
+   * 取可选世界目录(选择屏第一屏,ADR-008 决策 4)+ 已登记融合组合(ADR-019 只读投影)。
+   * 世界表:已激活在前 + 已知未开放占位在后;组合表:host 在前、顺序确定。
    * @throws GameApiError 网络/协议失败(选择屏据此出重试)。
    */
-  listArchetypes(): Promise<ArchetypeSummary[]>;
+  listArchetypes(): Promise<WorldCatalog>;
 
   /**
    * 起一局新世界(INITIALIZING,ADR-007)。阻塞直到 world-gen 完成。

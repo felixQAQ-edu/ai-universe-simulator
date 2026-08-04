@@ -42,7 +42,7 @@ const RESUME_RESULT: InitResult = {
 function makeApi(resume: InitResult | 'fail'): GameApi {
   return {
     async listArchetypes() {
-      return [];
+      return { archetypes: [], fusions: [] };
     },
     async initGame() {
       return { ...RESUME_RESULT, saveId: 's-new', openingNarrative: '开场。' };

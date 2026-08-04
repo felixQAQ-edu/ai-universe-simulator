@@ -1,8 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { useGameStore } from '../../state/gameStore';
 import type { ArchetypeSummary } from '../../api';
-import { FUSION_GESTURES, INITIAL_FUSION_STAGES, nextFusionStages, type FusionStages } from './fusion';
+import { fusionKey, isFusionAllowed } from './fusion/drag';
+import { useFusionDrag } from './fusion/useFusionDrag';
 import { cardTheme } from './theme/registry';
+import { reducedMotion } from './theme/motion';
+import type { Archetype } from '../../types/schema';
 import styles from './game.module.css';
 
 // 世界选择第一屏(产品门面,ADR-008 决策 4)。玩家进游戏 → 看见可玩世界 → 选一个 →
@@ -11,17 +14,22 @@ import styles from './game.module.css';
 // 守 ADR-003 边界:纯展示 + store 调用,无平台 IO(目录经 store.loadArchetypes → api/ 适配层),
 // 永不渲染 isTrue/hiddenLogic(选择屏本就只有玩家可见的 displayName/tagline/vibeTag)。
 //
-// ── 融合入口 = 渗漏卡 + 误入手势(ADR-013 决策 4;ADR-014 泛化为组合表)──
-// 融合卡初始不显;玩家依次【长按】某组合的两张卡(像摩挲卡片察觉异样)→ 该组合的渗漏卡
-// 从卡列中「渗」出(纯 CSS 渗透动画)。单击进入各世界完全不变(零回归)。
-// 手势组合表在 fusion.ts(per-combo 独立状态机,交叉序列不误触发);纯组件 state、零持久化。
-// 点融合卡 → startGame(该组合有序双值,host 在前,接 ADR-013 init)。
-
-// 卡片氛围 class 由**单一主题注册表**给出(ADR-018 §4.1 收编原私有 `vibeClass`,
-// 它此前无测试、无显式降级);未登记世界 → '' 中性卡,与旧行为一致。
+// ── 融合入口 = 把一张卡拖到另一张上(ADR-019;线 B1 真机验通)────────────────
+// **被拖者 = foreign,承接者 = host** —— 动作本身表达语义,松手直接生成有序双值
+// `[host, foreign]` 喂 init(ADR-013 已立 host 在前),不新增字段。
+// 合法组合来自后端 `fusions` 只读投影(ADR-019),前端不自备组合表 ——
+// 否则玩家能拖出一个后端 400 的组合。
+//
+// **ADR-013 决策 4 的「误入手势」(依次长按两张卡)本轮退役**(理由见 ADR-019 §7):
+// 拖拽抓起 180ms 是长按 600ms 的**真子集**,两者并存只能靠「让长按永不触发」——
+// 那是「长按已死但代码还留着」的最坏形态。**渗漏卡的形态与 CSS 保留**,
+// 改由拖拽揉合产出(复用的是形式,变化的是解释)。
+//
+// 卡片氛围 class 由**单一主题注册表**给出(ADR-018 §4.1);未登记世界 → '' 中性卡。
 
 export function ArchetypeSelect() {
   const archetypes = useGameStore((s) => s.archetypes);
+  const fusions = useGameStore((s) => s.fusions);
   const loading = useGameStore((s) => s.archetypesLoading);
   const error = useGameStore((s) => s.archetypesError);
   const loadArchetypes = useGameStore((s) => s.loadArchetypes);
@@ -29,15 +37,40 @@ export function ArchetypeSelect() {
   const resumableSaveId = useGameStore((s) => s.resumableSaveId);
   const resumeGame = useGameStore((s) => s.resumeGame);
 
-  // 误入手势(纯组件 state,零持久化 —— 离开选择屏即遗忘,回来要重新「误入」)。
-  const [fusionStages, setFusionStages] = useState<FusionStages>(INITIAL_FUSION_STAGES);
+  /** 已揉出的融合组合键(纯组件 state、零持久化 —— 离开选择屏即遗忘,回来要重新拖)。 */
+  const [fused, setFused] = useState<readonly string[]>([]);
+  /** 无效组合的一句提示(不弹 Toast;下一次成功手势即散)。 */
+  const [rejectNote, setRejectNote] = useState<string | null>(null);
 
   useEffect(() => {
     void loadArchetypes();
   }, [loadArchetypes]);
 
+  const canFuse = useCallback(
+    (host: string, foreign: string) => isFusionAllowed(fusions, host, foreign),
+    [fusions],
+  );
+
+  const onCommit = useCallback((host: string, foreign: string) => {
+    const key = fusionKey(host, foreign);
+    setRejectNote(null);
+    setFused((f) => (f.includes(key) ? f : [...f, key]));
+  }, []);
+
+  // 落在无效目标上松手 → 一句提示,不挡路(排斥回弹由手势层做,不弹 Toast)。
+  // 在**松手**时报而不是悬停时报:悬停即报 = 路过一张卡就被念一句。
+  const onReject = useCallback(() => setRejectNote('两个世界尚无法彼此容纳。'), []);
+
+  const drag = useFusionDrag({ canFuse, onCommit, onReject, reduced: reducedMotion() });
+
   const active = archetypes.filter((a) => a.active);
   const locked = archetypes.filter((a) => !a.active);
+
+  const dragStateOf = (id: string): CardDragState => {
+    if (drag.view.draggingId === id) return 'dragging';
+    if (drag.view.targetId === id) return drag.view.valid ? 'valid' : 'invalid';
+    return null;
+  };
 
   return (
     <main className={styles.screen}>
@@ -45,6 +78,7 @@ export function ArchetypeSelect() {
         <p className={styles.phase}>AI Universe Simulator</p>
         <h1 className={styles.title}>选择你的世界</h1>
         <p className={styles.muted}>每一个世界都由 AI 即时生成,真假难辨,不可回头。</p>
+        {rejectNote && <p className={styles.fusionNote}>{rejectNote}</p>}
       </header>
 
       {/* 续局入口(ADR-015 Slice 2):localStorage 有上局 saveId 才显;失败由 store 静默清 saveId 回到本屏。 */}
@@ -74,11 +108,16 @@ export function ArchetypeSelect() {
               key={a.archetype}
               summary={a}
               onChoose={() => startGame(a.archetype)}
-              onLongPress={() => setFusionStages((s) => nextFusionStages(s, a.archetype))}
+              drag={{
+                ref: drag.registerCard(a.archetype),
+                onPointerDown: (e) => drag.onPointerDown(a.archetype, e),
+                shouldSwallowClick: () => drag.shouldSwallowClick(a.archetype),
+                state: dragStateOf(a.archetype),
+              }}
             />
           ))}
-          {FUSION_GESTURES.filter((g) => fusionStages[g.key] === 'revealed').map((g) => (
-            <FusionCard key={g.key} combo={g.key} onChoose={() => startGame(g.pair)} />
+          {fused.map((key) => (
+            <FusionCard key={key} combo={key} onChoose={() => startGame(pairOf(key))} />
           ))}
           {locked.map((a) => (
             <ArchetypeCard key={a.archetype} summary={a} onChoose={() => startGame(a.archetype)} />
@@ -89,44 +128,38 @@ export function ArchetypeSelect() {
   );
 }
 
-/** 长按判定时长(ms):短于它=单击进入(照旧),长于它=摩挲卡片(误入手势)。 */
-const LONG_PRESS_MS = 600;
+/** 组合键 → 有序双值(host 在前,ADR-012/013)。 */
+function pairOf(key: string): Archetype[] {
+  return key.split('×') as Archetype[];
+}
+
+/** 卡片在拖拽中的角色(纯样式令牌;差异只在样式故不开组件槽,ADR-018 §4.17)。 */
+export type CardDragState = 'dragging' | 'valid' | 'invalid' | null;
+
+export interface CardDragBinding {
+  ref: (el: HTMLElement | null) => void;
+  onPointerDown: (e: ReactPointerEvent<HTMLElement>) => void;
+  /** 抓起后那一次 click 必须吞掉(否则松手即进世界)。 */
+  shouldSwallowClick: () => boolean;
+  state: CardDragState;
+}
 
 /** 单张氛围卡片(纯展示)。已激活=可点钩子卡;未激活=灰显「敬请期待」。导出供组件测试。 */
 export function ArchetypeCard({
   summary,
   onChoose,
-  onLongPress,
+  drag,
 }: {
   summary: ArchetypeSummary;
   onChoose: () => void;
-  /** 长按回调(误入手势,ADR-013);缺省=无手势语义。长按后释放的 click 不触发 onChoose。 */
-  onLongPress?: () => void;
+  /** 融合拖拽接线;缺省=不可拖(未开放卡、纯展示用例)。 */
+  drag?: CardDragBinding;
 }) {
   const { archetype, displayName, tagline, vibeTag, active } = summary;
-  const timer = useRef<number | null>(null);
-  const longPressFired = useRef(false);
 
-  const startPress = () => {
-    if (!onLongPress) return;
-    longPressFired.current = false;
-    timer.current = window.setTimeout(() => {
-      longPressFired.current = true;
-      onLongPress();
-    }, LONG_PRESS_MS);
-  };
-  const cancelPress = () => {
-    if (timer.current !== null) {
-      window.clearTimeout(timer.current);
-      timer.current = null;
-    }
-  };
   const handleClick = () => {
-    // 长按已触发手势 → 吞掉随后的 click,不进入世界(单击语义不变)。
-    if (longPressFired.current) {
-      longPressFired.current = false;
-      return;
-    }
+    // 抓起过 → 吞掉随后的 click,不进入世界(单击语义不变)。
+    if (drag?.shouldSwallowClick()) return;
     onChoose();
   };
 
@@ -144,13 +177,18 @@ export function ArchetypeCard({
   return (
     <button
       type="button"
-      className={`${styles.card} ${cardTheme(archetype).cardClass}`}
+      ref={drag?.ref}
+      className={[
+        styles.card,
+        cardTheme(archetype).cardClass,
+        drag ? styles.cardDraggable : '',
+        drag?.state ? DRAG_CLASS[drag.state] : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
       onClick={handleClick}
-      onPointerDown={startPress}
-      onPointerUp={cancelPress}
-      onPointerLeave={cancelPress}
-      onPointerCancel={cancelPress}
-      onContextMenu={(e) => onLongPress && e.preventDefault()}
+      onPointerDown={drag?.onPointerDown}
+      onContextMenu={(e) => drag && e.preventDefault()}
     >
       <div className={styles.cardTop}>
         <h2 className={styles.cardTitle}>{displayName}</h2>
@@ -161,8 +199,14 @@ export function ArchetypeCard({
   );
 }
 
+const DRAG_CLASS: Record<NonNullable<CardDragState>, string> = {
+  dragging: styles.cardDragging,
+  valid: styles.cardTargetValid,
+  invalid: styles.cardTargetInvalid,
+};
+
 /**
- * per-combo 渗漏卡**文案**(ADR-014 参数化;展示层配置,不入后端)。
+ * per-combo 融合卡**文案**(ADR-014 参数化;展示层配置,不入后端)。
  * 卡片氛围 class 不在这里 —— 它与单体卡同源,由主题注册表按组合键给出(ADR-018 §4.1)。
  */
 const FUSION_CARDS: Record<
@@ -182,9 +226,10 @@ const FUSION_CARDS: Record<
 };
 
 /**
- * 渗漏卡(融合入口,ADR-013 决策 4;ADR-014 参数化):视觉异常的「多出来的一张卡」——
- * 两世界氛围互噬,标题在「世界A/世界B/融合定稿名」间闪烁撕裂浮现(三层叠放,CSS 轮换
- * opacity,不引动画库)。点击 → 发该组合有序双值 init。导出供组件测试。
+ * 融合卡(揉合的产物;ADR-013 决策 4 立的渗漏卡形态原样保留,ADR-019 只换触发方式):
+ * 视觉异常的「多出来的一张卡」——两世界氛围互噬,标题在「世界A/世界B/融合定稿名」间
+ * 闪烁撕裂浮现(三层叠放,CSS 轮换 opacity,不引动画库)。点击 → 发该组合有序双值 init。
+ * 导出供组件测试。
  */
 export function FusionCard({ combo, onChoose }: { combo: string; onChoose: () => void }) {
   const card = FUSION_CARDS[combo];

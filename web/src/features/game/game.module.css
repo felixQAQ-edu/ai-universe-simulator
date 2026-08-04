@@ -517,6 +517,39 @@
   transform: translateY(0) scale(0.995);
 }
 
+/* ── 融合拖拽的四个样式令牌(ADR-019 入口;差异只在样式故不开组件槽,ADR-018 §4.17)──
+ * `touch-action: pan-y` 是这套手势的地基(ADR-018 §4.20):纵向滚动仍走浏览器原生、带惯性,
+ * 横向留给判定 —— 写 `none` 等于没收玩家在这一屏的默认手势。抓起之后挡滚动靠
+ * 非 passive 的 touchmove + preventDefault(touch-action 在触摸序列开始时就定死,中途改无效)。 */
+.cardDraggable {
+  touch-action: pan-y;
+}
+
+/* 抓起:抬起来一点(位移由 JS 逐帧写 transform,这里只给层级与投影,不与之打架)。 */
+.cardDragging {
+  z-index: 30;
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.35);
+  cursor: grabbing;
+}
+
+/* 合法目标:接得住(边缘亮起来);非法:推开一点(边缘转冷)。位移同样由 JS 写。 */
+.cardTargetValid {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent), 0 8px 22px rgba(0, 0, 0, 0.22);
+}
+
+.cardTargetInvalid {
+  border-color: var(--line);
+  opacity: 0.72;
+}
+
+/* 无效组合的一句话(不弹 Toast、不挡路;下一次成功手势即散)。 */
+.fusionNote {
+  margin: 0.5rem 0 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
 .cardList .card:nth-child(1) {
   animation-delay: 0.04s;
 }

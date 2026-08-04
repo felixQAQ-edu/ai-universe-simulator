@@ -42,7 +42,7 @@ function deferredApi() {
   let releaseResume: ((mode: 'ok' | 'fail') => void) | null = null;
   const api: GameApi = {
     async listArchetypes() {
-      return [];
+      return { archetypes: [], fusions: [] };
     },
     initGame() {
       return new Promise<InitResult>((resolve) => {
@@ -112,7 +112,7 @@ describe('世代守卫 · startGame', () => {
     let reject: ((e: unknown) => void) | null = null;
     const api: GameApi = {
       async listArchetypes() {
-        return [];
+        return { archetypes: [], fusions: [] };
       },
       initGame() {
         return new Promise<InitResult>((_res, rej) => {

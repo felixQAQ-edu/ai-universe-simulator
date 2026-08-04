@@ -3,13 +3,13 @@
 // 逻辑/状态层只 import contract.ts 的接口与 createH5GameApi 返回的实例,不碰本文件内部。
 
 import type {
-  ArchetypeSummary,
   EndingPayload,
   GameApi,
   InitResult,
   StreamError,
   TurnDelta,
   TurnStream,
+  WorldCatalog,
 } from './contract';
 import { GameApiError } from './contract';
 import { getDeviceId } from './deviceId';
@@ -19,7 +19,7 @@ import type { Archetype } from '../types/schema';
 /** 默认基址空串 → 相对路径 `/api/...`,经 Vite dev proxy / 同源部署到后端。 */
 export function createH5GameApi(baseUrl = ''): GameApi {
   return {
-    async listArchetypes(): Promise<ArchetypeSummary[]> {
+    async listArchetypes(): Promise<WorldCatalog> {
       let resp: Response;
       try {
         resp = await fetch(`${baseUrl}/api/archetypes`, { method: 'GET' });
@@ -29,8 +29,13 @@ export function createH5GameApi(baseUrl = ''): GameApi {
       if (!resp.ok) {
         throw new GameApiError('archetypes_failed', `世界列表加载失败(HTTP ${resp.status})`);
       }
-      const data = (await safeJson(resp)) as { archetypes?: ArchetypeSummary[] } | null;
-      return Array.isArray(data?.archetypes) ? data.archetypes : [];
+      const data = (await safeJson(resp)) as Partial<WorldCatalog> | null;
+      // 两张表各自容错:老后端(无 fusions 字段)→ 空组合表 = 拖拽一律判无效组合,
+      // 不报错、不阻断选择屏(同 severity 四种缺省一律安全降级的口径,ADR-018)。
+      return {
+        archetypes: Array.isArray(data?.archetypes) ? data.archetypes : [],
+        fusions: Array.isArray(data?.fusions) ? data.fusions : [],
+      };
     },
 
     async initGame(archetypes: Archetype | readonly Archetype[]): Promise<InitResult> {

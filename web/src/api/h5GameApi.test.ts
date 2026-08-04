@@ -134,24 +134,38 @@ describe('initGame', () => {
 });
 
 describe('listArchetypes', () => {
-  it('解析 {archetypes:[...]} → 数组', async () => {
+  it('解析 {archetypes:[...], fusions:[...]} → 两张表(ADR-019:目录与组合表同一次请求)', async () => {
     const payload = {
       archetypes: [
         { archetype: 'rules_creepy', displayName: '规则怪谈', tagline: 'x', vibeTag: '诡异', active: true },
         { archetype: 'cultivation', displayName: '修仙', tagline: null, vibeTag: null, active: false },
       ],
+      fusions: [{ host: 'cultivation', foreign: 'rules_creepy', key: 'cultivation×rules_creepy' }],
     };
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(200, payload)));
 
-    const list = await api.listArchetypes();
+    const { archetypes: list, fusions } = await api.listArchetypes();
     expect(list).toHaveLength(2);
     expect(list[0]).toMatchObject({ archetype: 'rules_creepy', active: true });
     expect(list[1].active).toBe(false);
+    expect(fusions).toEqual([{ host: 'cultivation', foreign: 'rules_creepy', key: 'cultivation×rules_creepy' }]);
   });
 
-  it('异常响应体 → 空数组兜底', async () => {
+  it('异常响应体 → 两张表各自空兜底', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(200, { nope: 1 })));
-    expect(await api.listArchetypes()).toEqual([]);
+    expect(await api.listArchetypes()).toEqual({ archetypes: [], fusions: [] });
+  });
+
+  it('老后端(有世界表、无 fusions 字段)→ 空组合表,拖不出融合但选择屏照常可用', async () => {
+    const payload = {
+      archetypes: [
+        { archetype: 'rules_creepy', displayName: '规则怪谈', tagline: 'x', vibeTag: '诡异', active: true },
+      ],
+    };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(200, payload)));
+    const catalog = await api.listArchetypes();
+    expect(catalog.archetypes).toHaveLength(1);
+    expect(catalog.fusions).toEqual([]);
   });
 
   it('非 2xx → GameApiError', async () => {
