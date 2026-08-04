@@ -75,6 +75,27 @@ class ArchetypeRegistryTest {
 		}
 	}
 
+	/**
+	 * ADR-019 只读投影:融合组合目录与 {@code isFusionSupported} **同一个真相源**——
+	 * 逐条回喂 registry 自己的合法性判定,防「投影了一份别的表」;
+	 * 顺序确定(`Map.of` 无序,故实现按 key 排序,消费方与测试都不依赖不保证的顺序)。
+	 */
+	@Test
+	void listFusionCombosProjectsRegisteredCombosInStableOrder() {
+		List<FusionSummary> combos = registry.listFusionCombos();
+		assertThat(combos.stream().map(FusionSummary::key))
+				.containsExactly("cultivation×rules_creepy", "rules_creepy×apocalypse");
+		for (FusionSummary c : combos) {
+			assertThat(registry.isFusionSupported(c.host(), c.foreign()))
+					.as("投影的每一对都真的可融合:%s", c.key()).isTrue();
+			assertThat(c.key()).isEqualTo(c.host() + "×" + c.foreign());
+			// host 在前(ADR-012/013 有序双值);反向组合未登记 → 前端拖反方向应被拒。
+			assertThat(registry.isFusionSupported(c.foreign(), c.host()))
+					.as("方向敏感,反向未登记:%s", c.key()).isFalse();
+		}
+		assertThat(registry.listFusionCombos()).as("重复调用顺序一致").isEqualTo(combos);
+	}
+
 	@Test
 	void cultivationHasHpManaRealmWithCorrectAxisRolesAndNoTruthRules() {
 		ArchetypeMeta m = registry.meta("cultivation");

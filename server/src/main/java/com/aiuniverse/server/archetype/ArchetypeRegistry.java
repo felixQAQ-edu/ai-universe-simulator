@@ -308,6 +308,23 @@ public class ArchetypeRegistry {
 		return List.copyOf(out);
 	}
 
+	/**
+	 * 已登记融合组合目录(ADR-019 只读投影):选择屏据它判定「拖 A 到 B 上」是否合法,
+	 * 不再在前端硬编码一份组合表(双真相源会漂移,后果具体——玩家拖出一个后端 400 的组合)。
+	 *
+	 * <p><b>顺序确定</b>:{@code FUSION_COMBOS} 是 {@code Map.of(...)}(<b>无序</b>,迭代顺序不保证也不稳定),
+	 * 故这里按 key 排序后再下发——消费方与测试都不该依赖一个不保证的顺序。
+	 * 与 {@link #listForSelection()} 同源、同一次请求下发(天然不会两个响应不同步)。
+	 */
+	public List<FusionSummary> listFusionCombos() {
+		List<FusionSummary> out = new ArrayList<>();
+		for (String key : new java.util.TreeSet<>(FUSION_COMBOS.keySet())) {
+			int sep = key.indexOf('×');
+			out.add(new FusionSummary(key.substring(0, sep), key.substring(sep + 1), key));
+		}
+		return List.copyOf(out);
+	}
+
 	// ── 元数据条目(内联;加模式在此加一条)─────────────────────────────
 
 	/** 规则怪谈:hp/san=体力/理智,真假规则形态。补它让两模式走同一元数据驱动路径(不让规则怪谈成特例)。 */
