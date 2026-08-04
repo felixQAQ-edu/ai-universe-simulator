@@ -58,6 +58,14 @@ interface PressSession {
 /** 归位过渡时长(ms);reduced-motion 下为 0(瞬时归位)。 */
 const RETURN_MS = 260;
 
+/** 量一张卡此刻在视口里的位置(未登记 → null)。 */
+function measure(cards: Map<string, HTMLElement>, id: string): Rect | null {
+  const el = cards.get(id);
+  if (!el) return null;
+  const r = el.getBoundingClientRect();
+  return { left: r.left, top: r.top, width: r.width, height: r.height };
+}
+
 /** 清掉磁吸/排斥留下的位移(拖动卡自己除外 —— 它的 transform 由逐帧写)。 */
 function clearTargetTransforms(cards: Map<string, HTMLElement>, except: HTMLElement | null): void {
   for (const [, el] of cards) {
@@ -77,13 +85,24 @@ export interface FusionDragView {
   armed: boolean;
 }
 
+/** 提交那一刻两张卡的视口位置(揉合动画的作画依据)。 */
+export interface CommitRects {
+  host: Rect;
+  foreign: Rect;
+}
+
 const IDLE_VIEW: FusionDragView = { draggingId: null, targetId: null, valid: false, armed: false };
 
 export interface UseFusionDragOptions {
   /** 这一对能不能揉(host = 被拖到的那张,foreign = 被拖者)。 */
   canFuse: (host: string, foreign: string) => boolean;
-  /** 松手且可提交时回调(host 在前 —— 有序双值直接喂 init)。 */
-  onCommit: (host: string, foreign: string) => void;
+  /**
+   * 松手且可提交时回调(host 在前 —— 有序双值直接喂 init)。
+   * 第三参是两张卡此刻在视口里的位置:揉合动画要在**真卡原位**上作画,
+   * 而量位置的能力只有手势层有(卡片 DOM 登记在这里)——
+   * 调用方不必再自备一份 ref 表(那会是同一件事的第二份拷贝)。
+   */
+  onCommit: (host: string, foreign: string, rects: CommitRects | null) => void;
   /**
    * 松手在**非法目标**上时回调(排斥回弹由手势层做,这里只是给一句提示的机会)。
    * 刻意在**松手**时报而不是悬停时报:悬停即报会让玩家路过一张卡就被念一句。
@@ -242,8 +261,13 @@ export function useFusionDrag({
 
       // 提交放在归位之后:揉合动画会自己接管两张卡的呈现。
       if (commit && d.targetId) {
-        if (d.armed && d.valid) onCommitRef.current(d.targetId, d.id);
-        else if (!d.valid) onRejectRef.current?.(d.targetId, d.id);
+        if (d.armed && d.valid) {
+          const host = measure(cardEls.current, d.targetId);
+          const foreign = measure(cardEls.current, d.id);
+          onCommitRef.current(d.targetId, d.id, host && foreign ? { host, foreign } : null);
+        } else if (!d.valid) {
+          onRejectRef.current?.(d.targetId, d.id);
+        }
       }
     },
     [resetTargetStyles],

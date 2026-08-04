@@ -543,6 +543,12 @@
   opacity: 0.72;
 }
 
+/* 揉合期间原卡让位:覆盖层在同一位置画它的投影,演完即归位 —— 原卡不消耗。
+ * 用 visibility 而不是 display:留着占位,列表不会在动画中途跳一下。 */
+.cardYielding {
+  visibility: hidden;
+}
+
 /* 无效组合的一句话(不弹 Toast、不挡路;下一次成功手势即散)。 */
 .fusionNote {
   margin: 0.5rem 0 0;

@@ -1,0 +1,233 @@
+/* 五拍揉合的舞台与四套碎解材质(ADR-019 §3;样板间冻结成果整体搬入)。
+ *
+ * 只在选择屏活 1 秒 —— 入口允许强视觉,**局内不得出现这套东西**(ADR-019 §1)。
+ * 材质在「轮廓 / 边缘 / 尺寸分布」三个维度上拉开(第四个维度「运动倾向」在 physics.ts);
+ * 形态与阴影同源(ADR-018 §4.10):有 clip-path 的一律用 drop-shadow,不用 box-shadow。 */
+
+.stage {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none; /* 揉合期间不吃点击:手势另由 enabled=false 停摆 */
+}
+
+/* 两张卡的「投影」——画在真卡原位上;真卡在动画期间让位,演完归位不消耗。 */
+.face {
+  position: absolute;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  will-change: transform, opacity;
+}
+
+.face[data-mat='rules'] {
+  background: #0e1318;
+  border-color: rgba(123, 163, 196, 0.45);
+}
+.face[data-mat='waste'] {
+  background: #170f07;
+  border-color: rgba(192, 122, 58, 0.45);
+}
+.face[data-mat='cthulhu'] {
+  background: #070d0b;
+  border-color: rgba(95, 143, 120, 0.4);
+}
+.face[data-mat='xian'] {
+  background: #e2e7e1;
+  border-color: rgba(120, 105, 60, 0.4);
+}
+
+/* 碎片场:与卡面同位同尺寸,碎片按百分比落位。 */
+.field {
+  position: absolute;
+  overflow: visible;
+}
+
+.shard {
+  position: absolute;
+  display: block;
+  transform: rotate(var(--rot, 0deg));
+  will-change: transform, opacity;
+}
+
+/* 世界核:两卡中心的中点,揉合的落点。 */
+.core {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  margin: -11px 0 0 -11px;
+  border-radius: 50%;
+  opacity: 0;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.15) 62%, transparent 72%);
+  box-shadow: 0 0 24px 6px rgba(255, 255, 255, 0.32);
+}
+
+/* ═══ 规则怪谈:硬边直角、档位化尺寸、空心框 + 淡填充 + 中段切口截面 ═══ */
+.field[data-mat='rules'] .sh_plate {
+  background:
+    linear-gradient(180deg, rgba(123, 163, 196, 0.19), rgba(90, 128, 160, 0.13)),
+    repeating-linear-gradient(0deg, rgba(180, 212, 236, 0.14) 0 1px, transparent 1px 3px);
+  border: 1px solid rgba(170, 205, 230, 0.85);
+  box-shadow: 0 0 7px rgba(123, 163, 196, 0.3), inset 0 0 5px rgba(123, 163, 196, 0.16);
+}
+
+/* 一道短促的亮扫描线,截在片体中段、不贯穿 —— 切口的截面。 */
+.field[data-mat='rules'] .sh_plate::after {
+  content: '';
+  position: absolute;
+  left: 18%;
+  right: 18%;
+  top: 42%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(214, 234, 248, 0.9), transparent);
+}
+
+.field[data-mat='rules'] .sh_strip {
+  background: linear-gradient(90deg, transparent, rgba(194, 205, 213, 0.9), transparent);
+}
+
+/* ═══ 末日:多角不规则、粗糙、尺寸跨度最大 ═══ */
+.field[data-mat='waste'] .sh_plate {
+  background: linear-gradient(140deg, #a9662f, #6d3a20 62%, #4a2614);
+  clip-path: polygon(12% 0, 72% 4%, 100% 34%, 92% 78%, 54% 100%, 16% 90%, 0 46%);
+  /* clip-path 之后只有 drop-shadow 跟得上实际轮廓(ADR-018 §4.10);
+     这里用内嵌暗角表现粗糙,不外挂 box-shadow(那会画出矩形辉光)。 */
+  box-shadow: inset -2px -2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.field[data-mat='waste'] .sh_grit {
+  background: #c07a3a;
+  border-radius: 40% 60% 55% 45%;
+}
+
+.field[data-mat='waste'] .sh_grit.isAlt {
+  background: #6b3a22;
+}
+
+/* ═══ 克苏鲁:全模糊、极端长宽比、方向趋同 ═══ */
+.field[data-mat='cthulhu'] .sh_fiber {
+  background: transparent;
+  border-top: 2px solid rgba(120, 168, 142, 0.75);
+  border-radius: 50% / 100% 100% 0 0; /* 浅弧:被水流拖出的弯 */
+  filter: blur(0.8px);
+  overflow: visible;
+}
+
+/* 湿感:弧下的一层挂液。 */
+.field[data-mat='cthulhu'] .sh_fiber::before {
+  content: '';
+  position: absolute;
+  inset: -1px 8% auto 8%;
+  height: 5px;
+  background: linear-gradient(180deg, rgba(90, 140, 116, 0.5), transparent);
+  border-radius: 50% / 100% 100% 0 0;
+  filter: blur(1.6px);
+}
+
+/* 单次分叉(仅 3 条):一条支流,不再往下分、不成网。 */
+.field[data-mat='cthulhu'] .sh_fiber[data-branch]::after {
+  content: '';
+  position: absolute;
+  right: -2%;
+  top: 0;
+  width: 42%;
+  height: 7px;
+  border-top: 2px solid rgba(120, 168, 142, 0.55);
+  border-radius: 50% / 100% 100% 0 0;
+  transform-origin: left top;
+  transform: rotate(var(--branch, 16deg));
+  filter: blur(0.8px);
+}
+
+/* 黏连(仅 2 处、只在两条之间):第二条自同一端引出并渐隐。 */
+.field[data-mat='cthulhu'] .sh_fiber[data-pair]::after {
+  content: '';
+  position: absolute;
+  left: 6%;
+  top: 1px;
+  width: 78%;
+  height: 6px;
+  border-top: 2px solid rgba(120, 168, 142, 0.4);
+  border-radius: 50% / 100% 100% 0 0;
+  transform-origin: left top;
+  transform: rotate(var(--pair, 10deg));
+  filter: blur(1.1px);
+  mask-image: linear-gradient(90deg, #000, transparent);
+}
+
+.field[data-mat='cthulhu'] .sh_wisp {
+  background: radial-gradient(ellipse, rgba(52, 96, 78, 0.85), transparent 70%);
+  border-radius: 50%;
+  filter: blur(6px);
+}
+
+/* ═══ 修仙:薄透、浅弧收尖、边缘先化光;光丝是介质不是主体 ═══ */
+.field[data-mat='xian'] .sh_plate {
+  background:
+    linear-gradient(
+      162deg,
+      rgba(236, 244, 238, 0.9),
+      rgba(150, 190, 174, 0.86) 52%,
+      rgba(106, 148, 132, 0.8)
+    ),
+    radial-gradient(ellipse at 34% 30%, rgba(255, 255, 255, 0.55), transparent 62%);
+  border: none;
+  border-radius: 50% 50% 50% 50% / 100% 100% 100% 100%;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    inset 0 -2px 3px rgba(58, 92, 80, 0.45),
+    0 1px 3px rgba(0, 0, 0, 0.3),
+    0 0 6px 1px rgba(255, 244, 214, 0.38);
+}
+
+.field[data-mat='xian'] .sh_plate[data-arc='1'] {
+  border-radius: 46% 54% 50% 50% / 82% 88% 90% 84%;
+}
+.field[data-mat='xian'] .sh_plate[data-arc='2'] {
+  border-radius: 60% 40% 55% 45% / 100% 96% 88% 100%;
+}
+.field[data-mat='xian'] .sh_plate[data-arc='3'] {
+  border-radius: 38% 62% 46% 54% / 110% 92% 84% 112%;
+}
+
+/* 化光的那道金:只在弧的一侧、且外糊,不是围一圈边框。 */
+.field[data-mat='xian'] .sh_plate::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-top: 1px solid rgba(184, 147, 63, 0.7);
+  border-radius: inherit;
+  filter: blur(0.6px);
+}
+
+.field[data-mat='xian'] .sh_thread {
+  background: transparent;
+  border-top: 1px solid rgba(184, 147, 63, 0.62);
+  border-radius: 50% / 100% 100% 0 0;
+  filter: blur(0.4px);
+}
+
+.field[data-mat='xian'] .sh_thread::after {
+  content: '';
+  position: absolute;
+  left: 38%;
+  right: 38%;
+  top: -1px;
+  height: 1.6px;
+  background: linear-gradient(90deg, transparent, rgba(255, 250, 228, 0.6), transparent);
+  filter: blur(1px);
+}
+
+.field[data-mat='xian'] .sh_wisp {
+  background: radial-gradient(ellipse, rgba(255, 252, 240, 0.9), transparent 68%);
+  border-radius: 50%;
+  filter: blur(5px);
+}
+
+/* reduced-motion:碎片一律不出场(降级路径只做重叠 + 停顿 + 淡入,由 JS 侧走 degraded)。
+ * CSS 侧再钉一道,免得任何一条 tween 漏网时碎片仍然闪现。 */
+@media (prefers-reduced-motion: reduce) {
+  .shard {
+    display: none;
+  }
+}

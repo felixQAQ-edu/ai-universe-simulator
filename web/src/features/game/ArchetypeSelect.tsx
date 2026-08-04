@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { useGameStore } from '../../state/gameStore';
 import type { ArchetypeSummary } from '../../api';
-import { fusionKey, isFusionAllowed } from './fusion/drag';
-import { useFusionDrag } from './fusion/useFusionDrag';
+import { fusionKey, isFusionAllowed, type Rect } from './fusion/drag';
+import { FusionMerge } from './fusion/FusionMerge';
+import { materialOf } from './fusion/shards';
+import { useFusionDrag, type CommitRects } from './fusion/useFusionDrag';
 import { cardTheme } from './theme/registry';
 import { reducedMotion } from './theme/motion';
 import type { Archetype } from '../../types/schema';
@@ -39,6 +41,10 @@ export function ArchetypeSelect() {
 
   /** 已揉出的融合组合键(纯组件 state、零持久化 —— 离开选择屏即遗忘,回来要重新拖)。 */
   const [fused, setFused] = useState<readonly string[]>([]);
+  /** 正在演的那一组揉合(null = 没有)。**同时只允许一组**:它在场时手势整体停摆。 */
+  const [merging, setMerging] = useState<Merging | null>(null);
+  /** 刚揉出来、待聚焦一次的那张卡(聚焦只做一次,之后归玩家)。 */
+  const [focusKey, setFocusKey] = useState<string | null>(null);
   /** 无效组合的一句提示(不弹 Toast;下一次成功手势即散)。 */
   const [rejectNote, setRejectNote] = useState<string | null>(null);
 
@@ -51,17 +57,45 @@ export function ArchetypeSelect() {
     [fusions],
   );
 
-  const onCommit = useCallback((host: string, foreign: string) => {
-    const key = fusionKey(host, foreign);
-    setRejectNote(null);
+  const revealFusion = useCallback((key: string) => {
     setFused((f) => (f.includes(key) ? f : [...f, key]));
+    setFocusKey(key);
   }, []);
+
+  const onCommit = useCallback(
+    (host: string, foreign: string, rects: CommitRects | null) => {
+      const key = fusionKey(host, foreign);
+      setRejectNote(null);
+      // 量不到位置(理论上不该发生)→ 不演动画,直接给卡:入口的视觉是加分项,
+      // 「拖成了」这件事本身不能因为动画演不了就丢掉。
+      if (!rects) {
+        revealFusion(key);
+        return;
+      }
+      setMerging({ key, host, foreign, hostRect: rects.host, foreignRect: rects.foreign });
+    },
+    [revealFusion],
+  );
 
   // 落在无效目标上松手 → 一句提示,不挡路(排斥回弹由手势层做,不弹 Toast)。
   // 在**松手**时报而不是悬停时报:悬停即报 = 路过一张卡就被念一句。
   const onReject = useCallback(() => setRejectNote('两个世界尚无法彼此容纳。'), []);
 
-  const drag = useFusionDrag({ canFuse, onCommit, onReject, reduced: reducedMotion() });
+  const drag = useFusionDrag({
+    canFuse,
+    onCommit,
+    onReject,
+    // 揉合期间手势整体停摆(护栏:同时只允许一组融合动画运行,动画未结束不可再拖)。
+    enabled: merging === null,
+    reduced: reducedMotion(),
+  });
+  /** 揉合演完:原卡归位(被揉碎的是投影不是世界本体),融合卡落位并获得一次聚焦。 */
+  const onMergeDone = useCallback(() => {
+    setMerging((m) => {
+      if (m) revealFusion(m.key);
+      return null;
+    });
+  }, [revealFusion]);
 
   const active = archetypes.filter((a) => a.active);
   const locked = archetypes.filter((a) => !a.active);
@@ -113,19 +147,45 @@ export function ArchetypeSelect() {
                 onPointerDown: (e) => drag.onPointerDown(a.archetype, e),
                 shouldSwallowClick: () => drag.shouldSwallowClick(a.archetype),
                 state: dragStateOf(a.archetype),
+                // 揉合期间原卡让位给覆盖层上的投影;演完即归位(不消耗)。
+                yielding: merging !== null && (merging.host === a.archetype || merging.foreign === a.archetype),
               }}
             />
           ))}
           {fused.map((key) => (
-            <FusionCard key={key} combo={key} onChoose={() => startGame(pairOf(key))} />
+            <FusionCard
+              key={key}
+              combo={key}
+              onChoose={() => startGame(pairOf(key))}
+              focusOnMount={focusKey === key}
+            />
           ))}
           {locked.map((a) => (
             <ArchetypeCard key={a.archetype} summary={a} onChoose={() => startGame(a.archetype)} />
           ))}
         </div>
       )}
+      {merging && (
+        <FusionMerge
+          host={merging.host}
+          foreign={merging.foreign}
+          hostRect={merging.hostRect}
+          foreignRect={merging.foreignRect}
+          // 减弱动效,或任一侧没有登记材质 → 降级(重叠 + 停顿 + 淡入,不碎裂不旋转)。
+          degraded={reducedMotion() || !materialOf(merging.host) || !materialOf(merging.foreign)}
+          onDone={onMergeDone}
+        />
+      )}
     </main>
   );
+}
+
+interface Merging {
+  key: string;
+  host: string;
+  foreign: string;
+  hostRect: Rect;
+  foreignRect: Rect;
 }
 
 /** 组合键 → 有序双值(host 在前,ADR-012/013)。 */
@@ -142,6 +202,8 @@ export interface CardDragBinding {
   /** 抓起后那一次 click 必须吞掉(否则松手即进世界)。 */
   shouldSwallowClick: () => boolean;
   state: CardDragState;
+  /** 揉合期间让位给覆盖层上的投影(演完归位,原卡不消耗)。 */
+  yielding?: boolean;
 }
 
 /** 单张氛围卡片(纯展示)。已激活=可点钩子卡;未激活=灰显「敬请期待」。导出供组件测试。 */
@@ -183,6 +245,7 @@ export function ArchetypeCard({
         cardTheme(archetype).cardClass,
         drag ? styles.cardDraggable : '',
         drag?.state ? DRAG_CLASS[drag.state] : '',
+        drag?.yielding ? styles.cardYielding : '',
       ]
         .filter(Boolean)
         .join(' ')}
@@ -231,12 +294,27 @@ const FUSION_CARDS: Record<
  * 闪烁撕裂浮现(三层叠放,CSS 轮换 opacity,不引动画库)。点击 → 发该组合有序双值 init。
  * 导出供组件测试。
  */
-export function FusionCard({ combo, onChoose }: { combo: string; onChoose: () => void }) {
+export function FusionCard({
+  combo,
+  onChoose,
+  focusOnMount = false,
+}: {
+  combo: string;
+  onChoose: () => void;
+  /** 刚被揉出来 → 获得一次聚焦(只此一次,之后归玩家)。 */
+  focusOnMount?: boolean;
+}) {
+  const ref = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (focusOnMount) ref.current?.focus({ preventScroll: false });
+  }, [focusOnMount]);
+
   const card = FUSION_CARDS[combo];
   if (!card) return null; // 未配文案的组合不渲染(登记齐组合表 + 卡文案再上)
   return (
     <button
       type="button"
+      ref={ref}
       className={`${styles.card} ${cardTheme(combo).cardClass}`}
       onClick={onChoose}
       aria-label={card.ariaLabel}

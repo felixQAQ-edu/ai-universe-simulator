@@ -25,7 +25,7 @@ function Harness({
   canFuse = () => true,
   enabled = true,
 }: {
-  onCommit: (host: string, foreign: string) => void;
+  onCommit: (...args: unknown[]) => void;
   onReject?: (host: string, foreign: string) => void;
   canFuse?: (host: string, foreign: string) => boolean;
   enabled?: boolean;
@@ -73,7 +73,13 @@ describe('抓起与提交', () => {
     render(<Harness onCommit={onCommit} />);
     dragAOntoB();
     // 拖的是 a、落在 b 上 → host=b、foreign=a(有序双值 host 在前,ADR-013)
-    expect(onCommit).toHaveBeenCalledExactlyOnceWith('b', 'a');
+    expect(onCommit).toHaveBeenCalledTimes(1);
+    expect(onCommit.mock.calls[0].slice(0, 2)).toEqual(['b', 'a']);
+    // 第三参 = 两张卡此刻的视口位置(揉合动画在真卡原位上作画;量位置的能力只手势层有)。
+    expect(onCommit.mock.calls[0][2]).toEqual({
+      host: RECTS.b,
+      foreign: RECTS.a,
+    });
   });
 
   it('非法组合:落在目标上松手也不提交(玩家拖不出一个后端 400 的组合)', () => {
