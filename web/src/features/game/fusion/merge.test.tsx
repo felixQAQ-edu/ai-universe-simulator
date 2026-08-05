@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import gsap from 'gsap';
 import { BEATS, TOTAL_MS } from './physics';
 import { SHARDS, materialOf } from './shards';
 import { FusionMerge } from './FusionMerge';
@@ -67,6 +68,36 @@ describe('FusionMerge', () => {
     expect(stage.querySelectorAll('i[data-kind]')).toHaveLength(
       SHARDS.xian.length + SHARDS.rules.length,
     );
+  });
+
+  /**
+   * **这条是冒烟抓到的真缺陷留下的钉子**(ADR-018 §4.14 一族):
+   * 第一版用 `.${styles.faceHost}` / `.${styles.fieldHost}` 取元素,而 CSS Modules 里
+   * 根本没有这两条规则 → 值是 undefined、选择器退化成 `.undefined`,而两个 div 的 class
+   * 恰好都字面写着 "undefined" —— host 与 foreign **双双指向同一个元素**、碎片场一个也取不到,
+   * **四套材质一枚碎片都没动**;可卡面照常挤压、世界核照常出现,**画面上完全像是成功的**,
+   * 唯一的报错是 GSAP 一句「target not found」。
+   *
+   * 「碎片在 DOM 里」证明不了任何事,**「碎片身上真的挂了 tween」才是**。
+   */
+  it('每一枚碎片身上都真的挂上了 tween(不是「渲染出来了」就算数)', () => {
+    render(<FusionMerge host="cultivation" foreign="rules_creepy" hostRect={HOST} foreignRect={FOREIGN} onDone={vi.fn()} />);
+    const shards = [...screen.getByTestId('fusion-merge').querySelectorAll<HTMLElement>('i[data-kind]')];
+    expect(shards).toHaveLength(SHARDS.xian.length + SHARDS.rules.length);
+    const without = shards.filter((el) => gsap.getTweensOf(el).length === 0);
+    expect(without).toHaveLength(0);
+  });
+
+  it('两侧是两个不同的元素(定位一旦退化成同一个,一侧的材质就整套消失)', () => {
+    render(<FusionMerge host="cultivation" foreign="rules_creepy" hostRect={HOST} foreignRect={FOREIGN} onDone={vi.fn()} />);
+    const stage = screen.getByTestId('fusion-merge');
+    const h = stage.querySelector('[data-role="field"][data-side="host"]');
+    const f = stage.querySelector('[data-role="field"][data-side="foreign"]');
+    expect(h).not.toBeNull();
+    expect(f).not.toBeNull();
+    expect(h).not.toBe(f);
+    expect(h!.querySelectorAll('i[data-kind]')).toHaveLength(SHARDS.xian.length);
+    expect(f!.querySelectorAll('i[data-kind]')).toHaveLength(SHARDS.rules.length);
   });
 
   it('降级路径:不碎裂、不旋转 —— 一枚碎片都不渲染(reduced-motion / 未登记材质)', () => {

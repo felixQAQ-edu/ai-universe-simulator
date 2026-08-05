@@ -37,6 +37,13 @@
   border-color: rgba(120, 105, 60, 0.4);
 }
 
+/* 注:host / foreign 两侧的**元素定位不走 CSS Modules 类名**,走 `data-side` 属性(见 FusionMerge)。
+ * 教训:第一版用 `.${styles.faceHost}` 取元素,而 CSS 里根本没有 `.faceHost` 这条规则 →
+ * `styles.faceHost` 是 undefined、选择器退化成 `.undefined`,而两个 div 的 class 恰好都字面
+ * 写着 "undefined" —— 两侧双双指向同一个元素、碎片场一个也取不到,**四套材质一枚碎片都没动**,
+ * 可画面上卡面照常挤压、世界核照常出现,**看上去完全像是成功的**。唯一的报错是 GSAP 的
+ * 「target not found」(空目标)。这属 ADR-018 §4.14 一族:失败是静默的。 */
+
 /* 碎片场:与卡面同位同尺寸,碎片按百分比落位。 */
 .field {
   position: absolute;

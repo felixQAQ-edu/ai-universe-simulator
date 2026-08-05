@@ -77,10 +77,13 @@ export function FusionMerge({
     const el = root.current;
     if (!el) return;
     const ctx = gsap.context(() => {
+      // **元素定位走 data 属性,不走 CSS Modules 类名**:类名里少一条规则,
+      // 选择器就会退化成 `.undefined` 而两个 div 恰好都能匹配上 —— 静默取到同一个元素
+      // (第一版正是这样,四套材质一枚碎片没动却看着像成功,详见 fusion.module.css 顶部注)。
       const q = (sel: string) => el.querySelector<HTMLElement>(sel);
-      const cardH = q(`.${styles.faceHost}`);
-      const cardF = q(`.${styles.faceForeign}`);
-      const core = q(`.${styles.core}`);
+      const cardH = q('[data-role="face"][data-side="host"]');
+      const cardF = q('[data-role="face"][data-side="foreign"]');
+      const core = q('[data-role="core"]');
       if (!cardH || !cardF || !core) return;
 
       // 世界核落在两卡中心的中点 —— 两个世界真的是在「它们之间」撞出来的。
@@ -90,7 +93,7 @@ export function FusionMerge({
 
       const runtimes = (field: HTMLElement | null): Runtime[] => {
         if (!field) return [];
-        const list = Array.from(field.querySelectorAll<HTMLElement>(`.${styles.shard}`));
+        const list = Array.from(field.querySelectorAll<HTMLElement>('i[data-kind]'));
         return list.map((node, i) => {
           const r = node.getBoundingClientRect();
           return {
@@ -119,8 +122,8 @@ export function FusionMerge({
         return;
       }
 
-      const rH = runtimes(q(`.${styles.fieldHost}`));
-      const rF = runtimes(q(`.${styles.fieldForeign}`));
+      const rH = runtimes(q('[data-role="field"][data-side="host"]'));
+      const rF = runtimes(q('[data-role="field"][data-side="foreign"]'));
 
       const s = BEATS.squeeze / 1000;
       // 拍 1 挤压:两张卡被拉向接触中心,压扁、略微扭曲。
@@ -202,14 +205,16 @@ export function FusionMerge({
 
   return (
     <div className={styles.stage} ref={root} aria-hidden="true" data-testid="fusion-merge">
-      <div className={`${styles.face} ${styles.faceHost}`} data-mat={hostMat ?? ''} style={face(hostRect)} />
+      <div className={styles.face} data-role="face" data-side="host" data-mat={hostMat ?? ''} style={face(hostRect)} />
       <div
-        className={`${styles.face} ${styles.faceForeign}`}
+        className={styles.face}
+        data-role="face"
+        data-side="foreign"
         data-mat={foreignMat ?? ''}
         style={face(foreignRect)}
       />
       {hostMat && (
-        <div className={`${styles.field} ${styles.fieldHost}`} data-mat={hostMat} style={face(hostRect)}>
+        <div className={styles.field} data-role="field" data-side="host" data-mat={hostMat} style={face(hostRect)}>
           {SHARDS[hostMat].map((s, i) => (
             <ShardEl key={i} s={s} i={i} mat={hostMat} />
           ))}
@@ -217,7 +222,9 @@ export function FusionMerge({
       )}
       {foreignMat && (
         <div
-          className={`${styles.field} ${styles.fieldForeign}`}
+          className={styles.field}
+          data-role="field"
+          data-side="foreign"
           data-mat={foreignMat}
           style={face(foreignRect)}
         >
@@ -228,6 +235,7 @@ export function FusionMerge({
       )}
       <div
         className={styles.core}
+        data-role="core"
         style={{
           left: (hostRect.left + foreignRect.left) / 2 + hostRect.width / 2,
           top: (hostRect.top + foreignRect.top) / 2 + hostRect.height / 2,
