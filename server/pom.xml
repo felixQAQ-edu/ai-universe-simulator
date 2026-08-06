@@ -28,6 +28,13 @@
 	</scm>
 	<properties>
 		<java.version>21</java.version>
+		<!--
+		  部署身份:构建时由 -Dgit.sha=<sha> 注入,进 build-info.properties → /actuator/info。
+		  缺省 unknown 是刻意的:Docker 多阶段构建拿不到 .git(.dockerignore 排除),
+		  故 SHA 只能靠构建参数传;没传就显示 unknown —— 那本身就是「这次部署没走文档里那条命令」
+		  的可见信号,好过静默显示一个假值(见 runbook §3.1.5)。
+		-->
+		<git.sha>unknown</git.sha>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -56,6 +63,24 @@
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
+				<executions>
+					<!--
+					  build-info:生成 META-INF/build-info.properties(版本 + 构建时间 + 下面这个 commit),
+					  由 actuator 的 info 端点原样吐出。存在理由=让「线上跑的是哪个 commit」
+					  变成一条 curl 能回答的问题 —— 这个坑已摔过两次(runbook §3.1.5 靠比对 bundle 哈希、
+					  §3.1.6 靠翻启动日志才取证)。纯构建期元数据,不进任何业务路径。
+					-->
+					<execution>
+						<goals>
+							<goal>build-info</goal>
+						</goals>
+						<configuration>
+							<additionalProperties>
+								<commit>${git.sha}</commit>
+							</additionalProperties>
+						</configuration>
+					</execution>
+				</executions>
 			</plugin>
 		</plugins>
 	</build>

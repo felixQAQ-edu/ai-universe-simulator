@@ -5,19 +5,30 @@ spring:
 server:
   port: 8080
 
-# ── 平台探针(ADR-015 Slice 3):actuator 只开 health,其余一律不暴露 ──────────
+# ── 平台探针 + 部署身份(ADR-015 Slice 3):actuator 只开 health 与 info ────────
 # liveness  = GET /actuator/health/liveness (进程活着)
 # readiness = GET /actuator/health/readiness(可接流量)
 # 平台不分两组探针时用 GET /actuator/health 即可。
+#
+# info = GET /actuator/info,回「线上跑的是哪个 commit」(build.commit,构建期由
+# -Dgit.sha 注入,见 server/pom.xml)。这个坑已摔过两次(runbook §3.1.5 / §3.1.6),
+# 此前唯一的取证手段是比对前端 bundle 哈希 / 翻启动日志。
+# 暴露清单**只加 info 一项**:env / configprops / beans 才是真暴露面,一律不开。
 management:
   endpoints:
     web:
       exposure:
-        include: health
+        include: health,info
   endpoint:
     health:
       probes:
         enabled: true
+  info:
+    # 只放构建信息(版本/时间/commit);env 贡献者保持关闭,免得把配置泄露出去。
+    build:
+      enabled: true
+    env:
+      enabled: false
 
 # ── 运行模型 provider 配置表(ADR-001 §5.1 的 Java 落地)──────────────────────
 # 换 provider 只改这张表。真实 API key 永远只进环境变量(api-key-env 指向变量名),

@@ -18,7 +18,12 @@ COPY server/pom.xml ./
 RUN mvn -q -B dependency:go-offline
 COPY server/src ./src
 COPY --from=web /build/dist ./src/main/resources/static/
-RUN mvn -q -B package -DskipTests
+# 部署身份:.dockerignore 排除 .git(刻意——构建上下文不该带版本库),故构建层无法自己
+# 读出 commit,只能由外部传入:`fly deploy --build-arg GIT_SHA=...`(runbook §3.1.5 给了整条命令)。
+# 没传 = unknown,而 /actuator/info 显示 unknown 本身就是「这次部署没走那条命令」的可见信号。
+ARG GIT_SHA=unknown
+# 测试仍由 CI 跑(.github/workflows/ci.yml);构建镜像不重跑测试是对的,别把 -DskipTests 去掉。
+RUN mvn -q -B package -DskipTests -Dgit.sha="${GIT_SHA}"
 
 # ── 3. 运行层(JRE 21;非 root;落盘卷挂 /data)───────────────────────
 FROM eclipse-temurin:21-jre
