@@ -46,9 +46,14 @@ fly volumes create wanjie_data --app wanjie-ai --region syd --size 1
 ### 2.1 首次部署
 
 ```sh
-fly deploy --ha=false
+fly deploy --ha=false \
+  --build-arg GIT_SHA="$(git rev-parse --short HEAD)$(git diff --quiet HEAD || echo -dirty)"
 ```
 - `--ha=false` **必带**:Fly 默认给新 app 起 2 台机做高可用,单副本内存表语义会被打破。
+- `--build-arg GIT_SHA=...` **必带**:线上靠它自报家门(`/actuator/info` 的 `build.commit`),
+  §3.1.5 的前置检查全指望这一条;漏了不会报错、只会显示 `unknown`(那时 SHA 检查失效,只能退回比对 bundle 哈希)。
+  用 `git diff --quiet HEAD` 而非 `git diff --quiet`:后者**看不见已 `git add` 但未提交的改动**,
+  会在「暂存后直接部署」这个最容易发生的场景里报出假的干净(实测确认)。
 - 预期:远程构建(首次 Maven 依赖预热层无缓存,**8–15 分钟**正常;之后重建 2–5 分钟)
   → 推镜像 → 起 1 台机 → health check 通过 → `deployed successfully`。
 - 部署完核对:
@@ -124,14 +129,42 @@ application.yml 默认 mock;secret 本质是加密 env,切阶段不用改已审�
 
 ```sh
 fly secrets list     # 应见两个名字(只显示摘要,无明文)
-fly deploy --ha=false
+fly deploy --ha=false \
+  --build-arg GIT_SHA="$(git rev-parse --short HEAD)$(git diff --quiet HEAD || echo -dirty)"
 ```
 
 ### 3.1.5 镜像换新前置检查(每次 `fly deploy` 后、功能冒烟前必做)
 
 > **弯路教训立字(2026-07-22,ADR-016 首轮冒烟)**:同源单容器一个镜像同时打包 web dist + server jar,`fly deploy` 若未真正换镜像(缓存命中 / 部署失败静默 / 部署了别的 commit),线上跑的仍是旧产物——功能级冒烟会得出**假阴性**(如成本闸门「设了阈值不触发」,实为旧镜像根本没闸门代码,secret 只是没人读的 env)。当时误判为前端 header 注入 bug,靠 **bundle 哈希对比**才坐实是部署陈旧。
+>
+> **口径升级(2026-08-06)**:改用 **commit SHA 直接比对**——它回答的是同一个问题,但**直接问、直接答**,不必绕道产物指纹。下面的 bundle 哈希法**降为退路**(SHA 显示 `unknown` 时用),**两套口径不并存**:默认只跑 SHA 那条。
+
+**部署命令必须带上 SHA**(否则线上无从知道自己是谁):
+
+```sh
+# GIT_SHA 带 -dirty 后缀:工作区不干净时 SHA 会撒谎(它指向的 commit 不含你未提交的改动)
+fly deploy --ha=false \
+  --build-arg GIT_SHA="$(git rev-parse --short HEAD)$(git diff --quiet HEAD || echo -dirty)"
+```
 
 功能冒烟**之前**先跑这条零成本检查,确认镜像真换了:
+
+```sh
+# 1) 线上自报家门
+curl -s https://wanjie-ai.fly.dev/actuator/info
+# 2) 本地期望值
+git rev-parse --short HEAD
+```
+
+**判定(三档,别只看「有没有回值」)**:
+
+- **`build.commit` == 本地 SHA** → 镜像确实换成了你要的那个,继续 §3.2。
+- **不等** → 部署陈旧或部署了别的 commit,**重新 deploy,别往下验**(这正是 2026-07-22 那次的形状)。
+- **`unknown` 或 `-dirty`** → `unknown` = 这次 deploy **没走上面那条命令**(漏了 `--build-arg`),此时 SHA 检查失效、**退回下面的 bundle 哈希法**;`-dirty` = 部署的是**未提交的工作区**,线上跑的东西在仓库里找不到对应 commit,冒烟结论无法复现,**先提交再重部署**。
+
+> 为什么 SHA 会缺省成 `unknown` 而不是构建失败:`.dockerignore` 刻意排除 `.git`(构建上下文不带版本库),构建层无法自读 commit,只能靠 `--build-arg` 传。**让它显示 `unknown` 而不是编个假值,是刻意的**——假 SHA 会让本检查得出**假阴性**,而假阴性正是这一节要治的病。实现见 `server/pom.xml`(`build-info` + `${git.sha}`)与 `Dockerfile`(`ARG GIT_SHA`)。
+
+**退路(仅当 `build.commit` 为 `unknown`)**——原 bundle 哈希法:
 
 ```sh
 # 1) 本地把待部署分支构建一次,记下 dist 的 bundle 哈希
@@ -140,7 +173,7 @@ fly deploy --ha=false
 curl -s https://wanjie-ai.fly.dev/ | grep -o 'assets/index-[^"]*\.js'
 ```
 
-哈希一致才继续 §3.2。（本批还可加验前端接线证据:线上 bundle `grep -c X-Device-Id` 应回 `2` = init + turn 两处。）
+> 退路的**已知弱点**(也是升级 SHA 的理由之一):bundle 哈希只覆盖**前端**——纯后端改动不改 dist,哈希一致并不能证明 jar 换了;且它证明不了「换成了**哪个** commit」,只能证明「与本地这次构建相同」。（另:验前端接线证据仍可用,如线上 bundle `grep -c X-Device-Id` 应回 `2` = init + turn 两处。）
 
 ### 3.1.6 secret 完整性检查(每次 `fly deploy` 后、功能冒烟前必做)
 
@@ -158,7 +191,7 @@ fly secrets list --app <app 名>
 
 1. **该有的都在** —— 真 key 阶段必须同时看到 `DEEPSEEK_API_KEY` **与** `AIUNIVERSE_LLM_ACTIVE`。
    只设 key 不设 active = `application.yml` 默认 `active: mock` 仍生效,**线上跑的是 mock**(它不读 key,所以「key 设了」不构成任何证据)。
-2. **状态皆 `Deployed`** —— 若显示 `Staged`(用了 `--stage` 后还没 deploy),secret 尚未生效,先 `fly deploy --ha=false`。
+2. **状态皆 `Deployed`** —— 若显示 `Staged`(用了 `--stage` 后还没 deploy),secret 尚未生效,先按 §2.1 那条完整命令重新 deploy(**带 `--build-arg`**,别在这里省成 `fly deploy --ha=false`)。
 3. **值确实正确** —— `fly secrets list` **只显摘要不显明文**,故它证不了值对不对。要证只有一条路:看启动日志与实际行为。
 
 ```sh

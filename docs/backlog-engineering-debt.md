@@ -86,27 +86,49 @@ ADR-005 的承重接缝(`TokenStream` → `SseEmitter`)由 `GameController` 原�
 
 ---
 
-## 第 2 层 · 工程卫生(挂账,便宜且有面试价值)
+## 第 2 层 · 工程卫生 —— ✅ 三条已全部落地(2026-08-06,`chore/ci-and-buildinfo`)
 
-### 2.1 无 CI —— 且 Docker 构建 `-DskipTests`,测试挂了的版本照样能部署
+> **为什么这一层被提到第 1 层前面做**(Felix 裁定):它改变的不是某一个功能,
+> 而是**以后每一次工作的安全边界** —— 有了 CI,测试红的 commit 推不上线;
+> 有了 commit SHA,部署漂移一眼可见。第 0 层那扇门、`-DskipTests` 那半边、
+> 部署陈旧那两次,**都是同一种依赖:靠人记得**。这一刀就是把两处「靠记得」换成「靠机制」。
+> 第 1 层(线程池 / 内容审核)仍挂账。
 
-**这是本层里唯一带「现在就在流血」性质的一条。** 仓库**没有 `.github/`**,
-而 `Dockerfile:21` 是 `mvn -q -B package -DskipTests`:
+### 2.1 ✅ 无 CI —— 已建(2026-08-06,`9b5be1c`)
 
-> **今天,`main` 上一个把 314 个测试全跑红的 commit,可以被 `fly deploy` 一路推上线,全程无人喊停。**
+**原症状(本层里唯一带「当时就在流血」性质的一条)**:仓库**没有 `.github/`**,
+而 `Dockerfile:21` 是 `mvn -q -B package -DskipTests` ——
+
+> **`main` 上一个把 314 个测试全跑红的 commit,可以被 `fly deploy` 一路推上线,全程无人喊停。**
 
 唯一在挡的是「Felix 每次都记得先在本地跑测试」——这跟第 0 层那扇门是同一种依赖(**靠人记得**)。
 `-DskipTests` 本身在多阶段构建里是**对的**(构建镜像不该重跑测试,那是 CI 的活),
 错的是**CI 那一半从来没建**,于是「跳过」变成了「没人跑过」。
 
-**方向**:GitHub Actions 补齐后端 `mvn test` / 前端 `npm test` + `tsc` + `lint` + `build` /
-依赖扫描 / 镜像构建(**构建成功即产物,但 push 仍由 Felix 亲手**——守 AGENTS.md
-「花钱与对外动作 Felix 亲手」)。**顺带值得一并办的**:golden parity 与 prompt lockstep
-这两条项目最重的护城河目前只在本地跑,进了 CI 才算真的守住。
+**已落地**(`.github/workflows/ci.yml`,三个 job):server `mvnw test` 314 /
+web `lint` + `tsc -b` + `test` 350 + `build` / deps `npm audit`。触发 = push `main` + PR。
+**golden parity 与 prompt lockstep 这两条最重的护城河从此在 CI 里跑**(此前只在本地)。
+**刻意不做**:自动部署(`fly deploy` 仍 Felix 亲手)、镜像构建上传(暂无 registry 需求)。
+`Dockerfile` 的 `-DskipTests` **保留不动**——它本身是对的,补的是缺失的那一半。
 
-### 2.2 `/actuator/info` 未暴露 —— 暴露 commit SHA 可自动化「镜像换新前置检查」
+**审计门槛的取舍**(不设一个天天红、没人处理的门):**阻塞门只看生产依赖的 high/critical**
+(`npm audit --omit=dev --audit-level=high`)——红了就一定有人动手,因为那意味着玩家浏览器里
+真跑着有洞的代码;**构建/测试期依赖只报不挡**(它们不进 dist、玩家侧攻击面为零,而更新极频繁,
+拿它挡合并会训练我们忽略红色)。
 
-**现状**:`application.yml` 的 `management.endpoints.web.exposure.include` **只有 `health`**,
+**变异验证**(§4.13,**不许只看到绿就宣布成功**):四条闸门逐条把它弄红再验回绿——
+server 故意失败用例 → `BUILD FAILURE` 且 `Tests run: 315, Failures: 1`、退出码 1;
+web 故意失败用例 → 退出码 1;类型错误 → `tsc -b` 退出码 1;未用变量 → `lint` 退出码 1;
+四条清理后一律回 0。**取证边界如实记**:这证明的是**命令本身会失败**(GitHub Actions 的步骤
+正是据退出码判红),**不等于工作流接线正确**(YAML 语法 / 触发器 / runner 只能由推上去的第一次
+真实运行来证)——故「第一次真实跑绿」列为本条的收尾验收项,见 §2.1 收尾。
+
+**收尾验收(待第一次真实运行)**:push 后确认 GitHub 上三个 job 都真的跑起来并转绿;
+若因语法或 action 版本失败,当场修,**不要因为「本地都验过了」而假定它一定能跑**。
+
+### 2.2 ✅ `/actuator/info` 暴露 commit SHA —— 已落地(2026-08-06,`410b265`)
+
+**原症状**:`application.yml` 的 `management.endpoints.web.exposure.include` **只有 `health`**,
 `info` 既未暴露、也没配 build-info(Maven 需 `spring-boot-maven-plugin` 的 `build-info` goal 才会生成)。
 
 **为什么这条便宜得离谱却价值不低**:我们**已经在这个坑里摔过两次**——
@@ -115,11 +137,38 @@ ADR-005 的承重接缝(`TokenStream` → `SseEmitter`)由 `GameController` 原�
 两次的形状一样:**「先证明环境是你以为的那个,再验功能」,而当时没有任何一条命令能直接回答这个问题**。
 一个带 commit SHA 与构建时间的 `/actuator/info`,把那次靠 bundle 哈希做的人工取证变成一条 `curl`。
 
-**开工时须一并想清楚的**(不是反对,是别顺手漏了):`info` 端点公开可读,
-SHA 与构建时间属**低敏信息**(仓库本身私有,SHA 泄露不构成攻击面),但**别顺手把
-`env` / `configprops` / `beans` 一起放出去**——那才是真暴露。exposure 清单只加 `info` 一项。
+**已落地**:`pom.xml` 加 `build-info` 执行(`additionalProperties.commit = ${git.sha}`,缺省 `unknown`)/
+`application.yml` exposure 加 `info` **一项**并显式 `management.info.env.enabled: false` /
+`Dockerfile` 加 `ARG GIT_SHA` 透传 `-Dgit.sha`。**后端逻辑零动,纯构建配置**。
+安全面按原计划守住:`env` / `configprops` / `beans` **一律没开**(实测 `/actuator/env` 仍 404)。
 
-### 2.3 ✅ npm audit —— 已复核,**0 个影响生产依赖**(答案已得,只剩取舍)
+**`.git` 拿不到怎么解决(这是本条唯一的真难点,如实报)**:`.dockerignore` **刻意排除 `.git`**
+(构建上下文不该带版本库),所以 `git-commit-id-plugin` 一类「构建时自己读 `.git`」的方案
+**在多阶段构建里根本不可用**;放开 `.dockerignore` 让 `.git` 进构建上下文是**用更大的代价换更小的便利**。
+唯一干净的路是**外部传入构建参数**。
+
+**对现有 `fly deploy` 流程的影响(有,必须说清)**:部署命令从 `fly deploy --ha=false` 变成
+
+```sh
+fly deploy --ha=false \
+  --build-arg GIT_SHA="$(git rev-parse --short HEAD)$(git diff --quiet HEAD || echo -dirty)"
+```
+
+runbook 里**三处 `fly deploy` 全部同步**(§2.1 首次部署 / §3.1.4 真 key 阶段 / §3.1.6 的回指),
+**不留一条不带参数的旧命令**——留着就等于留了一条会让检查失效的捷径。
+
+**没传会怎样 = 显示 `unknown`,而这是刻意选的**:让它**可见地不知道**,好过编一个假 SHA;
+假值会让 §3.1.5 得出**假阴性**,而假阴性正是这一节要治的病(与 [ADR-018 §4.14
+「观测工具本身需要被验证」](adr/ADR-018-base-world-visual-migration-and-severity-contract.md) 同族)。
+`-dirty` 后缀同理:工作区不干净时 SHA 会撒谎(它指向的 commit 不含未提交的改动)。
+**顺带实测发现并修正**:`git diff --quiet` **看不见已 `git add` 但未提交的改动**,
+在「暂存后直接部署」这个最容易发生的场景里会报出假的干净 → 改用 `git diff --quiet HEAD`。
+
+**本地实证**:传 SHA → `build.commit=338a6a4` 与 `git rev-parse --short HEAD` **一致**;
+不传 → `unknown`;`/actuator/health` 照常 `UP`;`/actuator/env` **404**;server 314 绿。
+**取证边界**:线上真实读数须待下次 `fly deploy`(§2.1 那次发布正好是它的第一次用武之地)。
+
+### 2.3 ✅ npm audit —— 复核后确认 **0 个影响生产依赖**,并已同批升级归零(2026-08-06)
 
 外部审查说「21 个告警」;**2026-08-06 在当前 lockfile 上实测为 3 个 high,且全部不在生产依赖里**
 (读数出入可能来自不同时间点或不同 `--omit` 口径,以现测为准):
@@ -133,9 +182,14 @@ SHA 与构建时间属**低敏信息**(仓库本身私有,SHA 泄露不构成攻
 玩家侧攻击面为零;真实风险面是**构建机与测试环境**(postcss 那条是任意 `.map` 文件读取,
 需攻击者能控制 CSS 源——在我们的构建里不成立)。
 
-**剩下的只是取舍**:`npm audit fix` 可直接升(两者都是传递依赖的补丁位),
-**但请与 CI(§2.1)同批做**——否则升完没有任何东西替你验证 vite build 与 jsdom 测试仍然全绿。
-在那之前**不必单独开一轮**,也不必因为面板上有红字而焦虑。
+**已升级**(2026-08-06,`338a6a4`,按原计划与 CI 同批):`npm audit fix` →
+postcss 8.5.15→8.5.26 / undici 7.28.0→7.29.0(连带 nanoid / browserslist / brace-expansion 补丁位),
+**只动 `package-lock.json`,`package.json` 零改**(全是传递依赖的补丁级提升)。
+`npm audit` 全量 **0 vulnerabilities**;server 314 + web 350 全绿、lint/tsc/build 全过;
+**dist bundle 哈希未变**(`index-CxT44S0n.js`)= 产物逐字未受影响。
+
+**定性:这不是补漏,是清噪音**——生产侧本来就是 0,升级的真实收益是让 CI 里那条
+「只报不挡」的全量 audit **从今天起是干净的**,以后再红就一定是新东西(有基线才有信号)。
 
 ---
 
