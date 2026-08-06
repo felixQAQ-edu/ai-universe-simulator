@@ -18,7 +18,7 @@ SSE/流式 web 栈见 [ADR-005](../docs/adr/ADR-005-sse-web-stack-mvc-thin-seam.
   `OpenAiStreamDecoder`(纯 SSE 解析)/ `OpenAiCompatLlmClient`(真实 DeepSeek,JDK `HttpClient`)/ `MockLlmClient`(离线回退)/
   `LlmClientConfig`(按 `active` 选实现)/ `LlmException`(统一降级)
 - `moderation/` — 内容审核网关接缝(ADR-004 未定),`NoopModerationGateway` 占位放行
-- `web/` — 薄传输适配层,唯一碰 `SseEmitter` 的地方;换 WebFlux 只动这层
+- `web/` — 薄传输适配层,唯一碰 `SseEmitter` 的地方(`GameController`);换 WebFlux 只动这层
 - `platform/` — CloudBase / 微信薄适配层占位(ADR-002),骨架阶段空置
 
 ## 本地运行
@@ -26,25 +26,17 @@ SSE/流式 web 栈见 [ADR-005](../docs/adr/ADR-005-sse-web-stack-mvc-thin-seam.
 ./mvnw spring-boot:run        # 起服务(默认端口 8080)
 ```
 
-## SSE 冒烟
-```bash
-curl -N http://localhost:8080/api/dev/echo-stream \
-  -H 'Content-Type: application/json' \
-  -d '{"prompt":"雨夜便利店"}'
-# 预期:mock 文本逐字流式返回(每字一个 data: 事件),证明 SSE 通路成立
-```
+## SSE 冒烟(已退役)
+> 骨架期的 `POST /api/dev/echo-stream`(任意 prompt 直连 `LlmClient` 逐字流)**已删除**。
+> 它绕过 ADR-016 成本闸门(闸门只装在 `init`/`turn` 两个入口),线上可达即等于预算被架空。
+> SSE 通路现由真实回合端点 `POST /api/game/{saveId}/turn` 承载,逐字流式冒烟见下方整局闭环。
 
 ## 接真实 DeepSeek(手动集成冒烟)
-单测不打真实 API(确定性、零成本)。真实逐字流式靠这条手动冒烟验证:
+单测不打真实 API(确定性、零成本)。真实逐字流式靠整局闭环冒烟(下一节)验证:
 ```bash
 export DEEPSEEK_API_KEY=<你的 key>          # 只进环境变量,绝不写进 yaml / 代码 / 提交
 # 把 application.yml 的 aiuniverse.llm.active 改成 deepseek-v4-flash(或用 -D 覆盖):
 ./mvnw spring-boot:run -Dspring-boot.run.arguments=--aiuniverse.llm.active=deepseek-v4-flash
-
-curl -N http://localhost:8080/api/dev/echo-stream \
-  -H 'Content-Type: application/json' \
-  -d '{"prompt":"用一句话描述雨夜便利店的诡异氛围"}'
-# 预期:DeepSeek 生成的文本逐字 data: 事件流式返回,证明真实 token 流过 TokenStream 接缝 → SSE
 ```
 缺 key / 网络失败 / 非 200 / 流中断都收口成 `LlmException` 干净降级(不泄露 key / 原始异常给前端)。
 
