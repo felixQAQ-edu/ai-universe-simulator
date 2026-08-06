@@ -1,0 +1,113 @@
+# CI —— 补上 Dockerfile 里 `-DskipTests` 跳过的那一半。
+#
+# 为什么存在:同源单容器的镜像构建刻意不跑测试(那是 CI 的活,不是构建镜像的活),
+# 但 CI 这一半此前从来没建 —— 于是「跳过」实际变成了「没人跑过」,
+# 一个把测试全跑红的 commit 可以被 `fly deploy` 一路推上线,全程无人喊停。
+# 唯一在挡的是「每次都记得先在本地跑测试」,而这份文件就是把那句「记得」换成机制。
+#
+# 刻意不做(不是遗漏):
+#   - 不自动部署。`fly deploy` 仍由 Felix 亲手(AGENTS.md「花钱与对外动作 Felix 亲手」)。
+#   - 不构建/上传镜像。暂无 registry 需求,加了只是每次 PR 白烧几分钟。
+# 版本对齐:JDK 21 / Node 22 跟 Dockerfile 走(**跑的必须是产物构建用的那套**,
+# 不是开发机上碰巧装着的那套 —— 本机 node 是 v26,与线上不同,以 Dockerfile 为准)。
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# 同一分支上新推送即取消旧跑,省额度也省等待。
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  server:
+    name: server · mvn test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      # golden parity(字节级)与 prompt lockstep 这两条护城河此前只在本地跑,
+      # 从这里起才算真的守住 —— 它们就在这个 suite 里。
+      - name: Test
+        working-directory: server
+        run: ./mvnw -B test
+
+  web:
+    name: web · lint + tsc + test + build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install
+        working-directory: web
+        run: npm ci
+
+      - name: Lint
+        working-directory: web
+        run: npm run lint
+
+      # 单列一步而非只靠 `npm run build`(build = `tsc -b && vite build`):
+      # 类型错误要报在「类型检查」这一步上,而不是混在打包失败里。
+      - name: Type check
+        working-directory: web
+        run: npx tsc -b
+
+      - name: Test
+        working-directory: web
+        run: npm test
+
+      - name: Build
+        working-directory: web
+        run: npm run build
+
+  audit:
+    name: deps · npm audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install
+        working-directory: web
+        run: npm ci
+
+      # 【门槛设在哪,以及为什么】
+      # 阻塞门 = 只看**生产依赖**的 high/critical。理由:这个门必须是「红了就一定有人动手」的,
+      # 否则它会变成天天红、人人略过的背景噪音 —— 那比没有门更糟(它会训练我们忽略红色)。
+      # 生产依赖出 high = 玩家浏览器里真的跑着有洞的代码,那一定值得当场停下。
+      - name: Audit (production deps · 阻塞)
+        working-directory: web
+        run: npm audit --omit=dev --audit-level=high
+
+      # 开发/构建期依赖(vite→postcss、jsdom→undici 之类)**不进 dist、玩家侧攻击面为零**,
+      # 风险面只是构建机与测试环境;而这类包更新极频繁,拿它挡合并会天天红。
+      # 故:只报不挡 —— 读数留在日志里,升级时机由人判断(与依赖升级同批做,见 F)。
+      - name: Audit (all deps · 只报不挡)
+        working-directory: web
+        run: npm audit || true
