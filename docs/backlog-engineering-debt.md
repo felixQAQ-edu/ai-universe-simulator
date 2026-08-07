@@ -123,8 +123,15 @@ web 故意失败用例 → 退出码 1;类型错误 → `tsc -b` 退出码 1;未
 正是据退出码判红),**不等于工作流接线正确**(YAML 语法 / 触发器 / runner 只能由推上去的第一次
 真实运行来证)——故「第一次真实跑绿」列为本条的收尾验收项,见 §2.1 收尾。
 
-**收尾验收(待第一次真实运行)**:push 后确认 GitHub 上三个 job 都真的跑起来并转绿;
-若因语法或 action 版本失败,当场修,**不要因为「本地都验过了」而假定它一定能跑**。
+**✅ 收尾验收:第一次真实运行已跑绿**([run 31149392363](https://github.com/felixQAQ-edu/ai-universe-simulator/actions/runs/31149392363),
+`main@3411afe`,push 触发,全程 **51s**):三个 job 全绿 —— web 47s / server 38s / deps 16s。
+**至此本地变异验证证明不了的那一环(YAML 语法 / 触发器 / runner 接线)已被真实运行证明。**
+
+**且不是「绿因为它什么都没做」**(§4.13「绿有两种解释」,故逐条查了 job 日志而非只看对勾):
+server 日志实见 `Tests run: 314, Failures: 0` + `BUILD SUCCESS`;web 实见 `Tests 350 passed`
+(29 个测试文件)+ `✓ built in 388ms`;audit 两步实见 `found 0 vulnerabilities`
+(**阻塞的生产依赖那步与只报不挡的全量那步都是 0** —— 后者是 F 升级换来的干净基线,
+以后再红就一定是新东西)。
 
 ### 2.2 ✅ `/actuator/info` 暴露 commit SHA —— 已落地(2026-08-06,`410b265`)
 
