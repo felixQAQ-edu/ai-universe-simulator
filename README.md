@@ -61,5 +61,6 @@
 - [docs/ROADMAP.md](docs/ROADMAP.md) — 开发计划总览(中央档案:阶段、周度日志、ADR 索引)
 - [docs/CONTEXT.md](docs/CONTEXT.md) — 术语 / 统一 JSON Schema / 跨模块约定(约定的真理之源)
 - [docs/adr/](docs/adr/) — 技术决策记录
+- [docs/world-catalog-and-experience-modes.md](docs/world-catalog-and-experience-modes.md) — 世界目录与体验模式(浮世 / 深界:分类归属与大厅立字;成本分级另见世界库 backlog)
 - [AGENTS.md](AGENTS.md) — agent 常驻约束(工作流纪律 + 前端动效约束)
 - [bakeoff/FINDINGS.md](bakeoff/FINDINGS.md) — 验证过程中的实测发现
