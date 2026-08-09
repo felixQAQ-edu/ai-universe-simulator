@@ -145,4 +145,44 @@ class WorldGenPromptBuilderTest {
 		assertThat(p).contains("完整 world JSON");
 		assertThat(p).contains("hp/hunger"); // 修复点名本模式数值轴
 	}
+
+	// ── ADR-020 刀 2 · 结局条数派生槽(B2)+《寻常》种子池 ─────────────────────
+
+	/**
+	 * 派生槽 parity 线:四个既有世界一律拿缺省 {@code "2-3"} = 抽槽前的常量原值,
+	 * <b>这一行是四世界 world-gen prompt 逐字节零回归的守护点</b>(同 ADR-014 参数化融合骨架的证法)。
+	 */
+	@Test
+	void endingCountSlotDefaultsToPreExtractionConstantForAllFourWorlds_ADR020() {
+		for (String a : List.of("rules_creepy", "apocalypse", "cthulhu", "cultivation")) {
+			assertThat(builder.buildWorldPrompt(a))
+					.as("%s 结局条数须仍是抽槽前的 2-3", a)
+					.contains("- endings:2-3 个,含至少一个");
+		}
+	}
+
+	/** 《寻常》拿 {@code "5-6"}(区间而非精确 6:精确计数对生成脆,守 ADR-007 头号失败模式)。 */
+	@Test
+	void ordinaryLifeGetsWiderEndingCountRange_ADR020() {
+		String p = builder.buildWorldPrompt("life_sim");
+		assertThat(p).contains("- endings:5-6 个,含至少一个");
+		assertThat(p).doesNotContain("- endings:2-3 个");
+	}
+
+	/**
+	 * 《寻常》种子池:开局家庭种子**随机且不公平**(四条难度不同),但公平性硬约束逐字在场——
+	 * 「不是好牌局的圆满打个折」。约束抽成常量、每次只注入被挑中的那一条种子 → prompt 里<b>恰好一次</b>。
+	 */
+	@Test
+	void ordinaryLifeSeedCarriesFairStartConstraintExactlyOnce_ADR020() {
+		for (int i = 0; i < 20; i++) { // 种子随机挑 → 多跑几次覆盖池中各条
+			String p = builder.buildWorldPrompt("life_sim");
+			assertThat(p).contains("任何一种开局都必须能通向圆满结局")
+					.contains("不是好牌局的圆满打个折");
+			assertThat(p.split("任何一种开局都必须能通向圆满结局", -1).length - 1)
+					.as("公平性硬约束在 prompt 里恰好出现一次").isEqualTo(1);
+			// 种子仍守既有格式:末尾的危险等级没有被硬约束挤断(骨架据它取 dangerLevel)。
+			assertThat(p).containsPattern("危险等级 (low|medium|high|extreme)。【开局公平性");
+		}
+	}
 }
