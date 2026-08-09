@@ -242,6 +242,11 @@ public final class WorldGenPromptBuilder {
 		return WORLD_GEN_DIRECTIVES.getOrDefault(archetype, "");
 	}
 
+	/**
+	 * ⚠️ 结局回收那一条的措辞真理源是 {@code docs/world-ordinary-life-writing-standards.md} §三
+	 * (「东西还在、人不在了,认得它的只有你和玩家」/ 不做回收清单)。
+	 * <b>两处不得漂移:先改那份文件再同步本槽,不得反向。</b>
+	 */
 	private static final Map<String, String> WORLD_GEN_DIRECTIVES = Map.of("life_sim", """
 
 
@@ -261,8 +266,9 @@ public final class WorldGenPromptBuilder {
 			  ⚠️ 绝不写成「早逝完全由开局种子决定」:那让气力跑在轨道上,玩家重玩几局就会发现做什么都不影响寿命,
 			  前面所有相关选择被追认为无效。目标是【回头看有伏笔、当下看无从避免】两条同时成立。
 			- 【结局文字可以回收一条,且只回收一条】回收的是早期埋下的某个具体的物或某一句话,
-			  且必须以「别人不知道」的方式出现(例如抽屉里那张没用过的火车票)——不解释、不点破、不加说明,
-			  更不要列一份回收清单;回收永远不加分、不标记。
+			  且必须以「别人不知道」的方式出现——【东西还在、人不在了,认得它的只有你和玩家】;
+			  不解释、不点破、不加说明,更不要列一份回收清单(列出来等于系统指认了记忆点);
+			  回收永远不加分、不标记。
 			- 【condition 一律用中文轴名】气力 / 热望 / 路口 / 牵挂——绝不写 vigor / longing / crossroads / ties。\
 			""".formatted(ENDING_COUNTS.get("life_sim")));
 

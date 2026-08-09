@@ -212,9 +212,9 @@ class TurnPromptBuilderTest {
 		}
 	}
 
-	/** 《寻常》拿到逐回合写作标准;本刀落五件(措辞铁律六条待创意稿原文,未写)。 */
+	/** 《寻常》拿到逐回合写作标准,六件齐(措辞铁律六条另由 lockstep 用例逐条守)。 */
 	@Test
-	void ordinaryLifeTurnDirectiveCarriesFiveOfSixItems_ADR020() {
+	void ordinaryLifeTurnDirectiveCarriesAllSixItems_ADR020() {
 		String p = builder.buildTurnPrompt(engineFor("life_sim"), "A", "行动");
 		String slot = p.substring(p.indexOf("【一生制 · 每回合写作标准"));
 
@@ -222,15 +222,17 @@ class TurnPromptBuilderTest {
 		assertThat(slot).contains("0-6 岁压进 1 个回合").contains("一年一个回合")
 				.contains("最后几年一回合一天").contains("40-55 回合")
 				.contains("绝不显示岁数");
-		// (2) 每回合第一句落在带年代刻度的物上。
-		assertThat(slot).contains("带年代刻度的物").contains("饭盒");
+		// (2) 措辞铁律六条在场(逐条 lockstep 见 writingStandardsLockstepBetweenDocAndTurnSlot_ADR020)。
+		assertThat(slot).contains("【措辞铁律六条】").contains("自带年代刻度").contains("饭盒");
+		// (7) 回收的埋与中(文件 §三)。
+		assertThat(slot).contains("命中三四处").contains("写了不用可惜");
 		// (3) 退化判据可数 + 两条语义锁 + 路口写法不同。
 		assertThat(slot).contains("连续 5 个回合").contains("新的人、新的地点、或新的时间约定")
 				.contains("「照常上班」合格").contains("给老同学回个电话")
 				.contains("仍是四个真实的动作")
 				.contains("你还想不想选择").contains("人生还给不给你大的选择");
 		// (4) 三处留白 + 口头禅只写一次、系统不得复述。
-		assertThat(slot).contains("备注的那两个字").contains("那个谁").contains("口头禅")
+		assertThat(slot).contains("备注的两个字").contains("那个谁").contains("口头禅")
 				.contains("系统不得复述或指认它");
 		// (5) 承诺作用域:数值承诺必兑现 / 人生承诺可落空。
 		assertThat(slot).contains("数值承诺必兑现").contains("人生承诺可落空");
@@ -254,6 +256,40 @@ class TurnPromptBuilderTest {
 				.contains("那扇门关上时没听见声音")     // crossroads
 				.contains("碗一直摆四副");            // ties
 		assertThat(p).doesNotContain("的具体感受");
+	}
+
+	/**
+	 * lockstep 守护:措辞铁律六条的真理源是 {@code docs/world-ordinary-life-writing-standards.md} §一,
+	 * 逐字注入本槽。文件那句「两处不得漂移」若只写在文档与注释里,就只是**期待**——这里把它变成会红的测试:
+	 * 六条的标题句必须在两处一字不差地都在。(同 prompts/*.md 与运行时副本的 lockstep 惯例。)
+	 */
+	@Test
+	void writingStandardsLockstepBetweenDocAndTurnSlot_ADR020() throws java.io.IOException {
+		String doc = null;
+		for (java.nio.file.Path p : List.of(
+				java.nio.file.Path.of("..", "docs", "world-ordinary-life-writing-standards.md"),
+				java.nio.file.Path.of("docs", "world-ordinary-life-writing-standards.md"))) {
+			if (java.nio.file.Files.exists(p)) {
+				doc = java.nio.file.Files.readString(p);
+				break;
+			}
+		}
+		assertThat(doc).as("写作标准文件必须在(它是真理源)").isNotNull();
+
+		String prompt = builder.buildTurnPrompt(engineFor("life_sim"), "A", "行动");
+		for (String law : List.of(
+				"选项里不出现态度词。",
+				"每个回合的第一句话必须自带年代刻度。",
+				"四个选项里至少有一个是「最常见的那种做法」。",
+				"回收种子必须藏在最不起眼的选项位置。",
+				"重要的事不给专门回合。",
+				"留白优先于精确。")) {
+			assertThat(doc).as("文件 §一 应含铁律:%s", law).contains(law);
+			assertThat(prompt).as("槽内应逐字含铁律:%s", law).contains(law);
+		}
+		// §三 回收命中率同样两处一致(本刀补进槽的那条)。
+		assertThat(doc).contains("命中三四处");
+		assertThat(prompt).contains("命中三四处").contains("写了不用可惜");
 	}
 
 	/** 两个槽互斥:融合局只出 %8$s,单体局只出 %9$s —— 任何一局都不会同时拿到两段(ADR-020 §10 不得合并)。 */
