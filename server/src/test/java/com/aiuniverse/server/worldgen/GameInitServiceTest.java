@@ -237,8 +237,9 @@ class GameInitServiceTest {
 		LlmClient neverCalled = (req, sink) -> {
 			throw new AssertionError("未开放模式不应触发 world-gen");
 		};
-		// life_sim ∈ 枚举但本批未激活 → 未开放(仍 400)。
-		assertThatThrownBy(() -> initService(neverCalled, sessions, new CountingModeration()).init("life_sim"))
+		// cyberpunk ∈ 枚举但未激活 → 未开放(仍 400)。
+		// 原样本 life_sim 已由 ADR-020 刀 1 激活 → 换 cyberpunk 继续守这条(守护意图不变,不删断言)。
+		assertThatThrownBy(() -> initService(neverCalled, sessions, new CountingModeration()).init("cyberpunk"))
 				.isInstanceOf(IllegalArgumentException.class)
 				.hasMessageContaining("未开放");
 		assertThat(sessions.activeCount()).isZero();
@@ -318,9 +319,10 @@ class GameInitServiceTest {
 		LlmClient neverCalled = (req, sink) -> {
 			throw new AssertionError("非法/未开放成员不应触发 world-gen");
 		};
-		// 组合含未开放成员(life_sim)→ 未开放;含未知成员 → 非法。两者均 400、早于 world-gen。
+		// 组合含未开放成员(cyberpunk)→ 未开放;含未知成员 → 非法。两者均 400、早于 world-gen。
+		// 原样本 life_sim 已由 ADR-020 刀 1 激活 → 换 cyberpunk 继续守这条(守护意图不变,不删断言)。
 		assertThatThrownBy(() -> initService(neverCalled, sessions, new CountingModeration())
-				.init(List.of("cultivation", "life_sim")))
+				.init(List.of("cultivation", "cyberpunk")))
 				.isInstanceOf(IllegalArgumentException.class)
 				.hasMessageContaining("未开放");
 		assertThatThrownBy(() -> initService(neverCalled, sessions, new CountingModeration())

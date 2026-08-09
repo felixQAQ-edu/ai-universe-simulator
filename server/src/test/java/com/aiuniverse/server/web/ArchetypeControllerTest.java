@@ -12,7 +12,7 @@ import com.aiuniverse.server.archetype.FusionSummary;
 
 /**
  * {@code GET /api/archetypes} 薄端点(ADR-008 决策 4 选择 UI 数据源 + ADR-019 融合组合只读投影):
- * 包 registry 的两张表为 {@code {archetypes:[...], fusions:[...]}},六条世界齐(四已激活含修仙 + 两占位)、
+ * 包 registry 的两张表为 {@code {archetypes:[...], fusions:[...]}},六条世界齐(五已激活含《寻常》+ 一占位)、
  * active 标志对;融合组合与 registry 同源、host 在前。
  */
 class ArchetypeControllerTest {
@@ -26,7 +26,7 @@ class ArchetypeControllerTest {
 		assertThat(list.stream().map(ArchetypeSummary::archetype))
 				.containsExactly("rules_creepy", "apocalypse", "cthulhu", "cultivation", "life_sim", "cyberpunk");
 		assertThat(list.stream().filter(ArchetypeSummary::active).map(ArchetypeSummary::archetype))
-				.containsExactly("rules_creepy", "apocalypse", "cthulhu", "cultivation");
+				.containsExactly("rules_creepy", "apocalypse", "cthulhu", "cultivation", "life_sim");
 	}
 
 	/** ADR-019:合法组合与世界目录**同一次请求**下发(分两个端点 = 两个可能不同步的响应)。 */

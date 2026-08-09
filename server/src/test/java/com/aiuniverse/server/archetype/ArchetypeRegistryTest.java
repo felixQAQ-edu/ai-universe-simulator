@@ -58,18 +58,18 @@ class ArchetypeRegistryTest {
 	@Test
 	void listForSelectionPutsActiveFirstThenInactivePlaceholders() {
 		List<ArchetypeSummary> list = registry.listForSelection();
-		// 已激活四条(含克苏鲁 + 修仙)在前 + 已知未开放两条占位在后。
+		// 已激活五条(含克苏鲁 + 修仙 + ADR-020《寻常》)在前 + 已知未开放一条占位在后。
 		assertThat(list.stream().map(ArchetypeSummary::archetype))
 				.containsExactly("rules_creepy", "apocalypse", "cthulhu", "cultivation", "life_sim", "cyberpunk");
-		// 已激活四条在前、可选、钩子/标签齐。
-		for (ArchetypeSummary s : list.subList(0, 4)) {
+		// 已激活五条在前、可选、钩子/标签齐。
+		for (ArchetypeSummary s : list.subList(0, 5)) {
 			assertThat(s.active()).as("已激活可选:%s", s.archetype()).isTrue();
 			assertThat(s.displayName()).isNotBlank();
 			assertThat(s.tagline()).as("可选卡片有钩子:%s", s.archetype()).isNotBlank();
 			assertThat(s.vibeTag()).as("可选卡片有标签:%s", s.archetype()).isNotBlank();
 		}
-		// 占位两条在后、不可选、仍有中文名(渲染「敬请期待」)。
-		for (ArchetypeSummary s : list.subList(4, 6)) {
+		// 占位一条在后、不可选、仍有中文名(渲染「敬请期待」)。
+		for (ArchetypeSummary s : list.subList(5, 6)) {
 			assertThat(s.active()).as("未开放占位:%s", s.archetype()).isFalse();
 			assertThat(s.displayName()).isNotBlank();
 		}
@@ -167,22 +167,83 @@ class ArchetypeRegistryTest {
 		assertThat(registry.isActive("apocalypse")).isTrue();
 		assertThat(registry.isActive("cthulhu")).isTrue();
 		assertThat(registry.isActive("cultivation")).as("修仙本批激活可玩").isTrue();
-		// 已知但未激活(占位枚举)→ init 应 400「未开放」。
-		assertThat(registry.isActive("life_sim")).isFalse();
+		assertThat(registry.isActive("life_sim")).as("《寻常》ADR-020 刀 1 激活既有占位").isTrue();
+		// 已知但未激活(占位枚举)→ init 应 400「未开放」。life_sim 激活后 cyberpunk 是仅存的守护样本。
 		assertThat(registry.isActive("cyberpunk")).isFalse();
 		// 未知 id 既不已知也不已激活。
 		assertThat(registry.isActive("not_an_archetype")).isFalse();
-		assertThat(registry.activeMetas()).hasSize(4);
+		assertThat(registry.activeMetas()).hasSize(5);
 	}
 
 	@Test
 	void metaThrowsForInactiveArchetype() {
+		// 守「已知但未激活 → meta() 抛异常」。原样本 life_sim 已由 ADR-020 激活 → 换 cyberpunk 继续守这条。
 		try {
-			registry.meta("life_sim");
+			registry.meta("cyberpunk");
 			assertThat(false).as("未激活 archetype 应抛异常").isTrue();
 		} catch (IllegalArgumentException expected) {
-			assertThat(expected.getMessage()).contains("life_sim");
+			assertThat(expected.getMessage()).contains("cyberpunk");
 		}
+	}
+
+	// ── ADR-020《寻常》:一生制世界族首个实例(刀 1 后端登记)────────────────────
+
+	/**
+	 * ADR-020 §3 的承重点:两条「归零不死」轴必须真的被算进<b>非致命集</b>(引擎硬保证 ≤0 既不触底致死、
+	 * 也不触发结局极性 gate),不靠提示词自律;气力是唯一致命轴。
+	 */
+	@Test
+	void ordinaryLifeLongingAndCrossroadsAreNonLethalResourceAxes_ADR020() {
+		ArchetypeMeta m = registry.meta("life_sim");
+		assertThat(m.displayName()).as("对外名复用既有占位").isEqualTo("人生模拟");
+		assertThat(m.attributes().stream().map(AttributeAxis::key))
+				.containsExactly("vigor", "longing", "crossroads", "ties");
+
+		// 热望 / 路口 = depletion + lethal=false(resource);牵挂 = accumulation;气力 = 唯一致命轴。
+		assertThat(ArchetypeRegistry.nonLethalKeys(m.attributes()))
+				.as("归零不死两轴进非致命集").containsExactlyInAnyOrder("longing", "crossroads");
+		assertThat(ArchetypeRegistry.accumulationKeys(m.attributes())).containsExactly("ties");
+		assertThat(m.attributes().stream().filter(AttributeAxis::isLethal).map(AttributeAxis::key))
+				.as("气力是唯一致命轴").containsExactly("vigor");
+		assertThat(axis(m, "longing").isAccumulation()).as("热望是会掉的 depletion,非 accumulation").isFalse();
+		assertThat(axis(m, "crossroads").isAccumulation()).isFalse();
+	}
+
+	/**
+	 * ADR-018 severity 派生(不手写):两条非致命 depletion 轴与纯累积的牵挂全 NEUTRAL——
+	 * 归零不死的轴绝不能被渲染成危险态;只有致命的气力最低档 DANGER、次低 CAUTION。
+	 */
+	@Test
+	void ordinaryLifeSeverityDerivesNeutralForNonLethalAxes_ADR018() {
+		ArchetypeMeta m = registry.meta("life_sim");
+		for (String key : List.of("longing", "crossroads", "ties")) {
+			assertThat(axis(m, key).bandRanges().stream().map(AttributeAxis.BandRange::severity))
+					.as("%s 归零不死/纯累积 → 全 neutral", key)
+					.containsOnly(AttributeAxis.Severity.NEUTRAL);
+		}
+		// 气力(致命 depletion):bandRanges 按 min 升序 → 表头 = 最低档。
+		List<AttributeAxis.BandRange> vigor = axis(m, "vigor").bandRanges();
+		assertThat(vigor.get(0).severity()).as("气力最低档 danger").isEqualTo(AttributeAxis.Severity.DANGER);
+		assertThat(vigor.get(1).severity()).as("气力次低档 caution").isEqualTo(AttributeAxis.Severity.CAUTION);
+		assertThat(vigor.get(2).severity()).isEqualTo(AttributeAxis.Severity.NEUTRAL);
+	}
+
+	/**
+	 * ADR-020 §5 逐字锁:热望决定「你还想不想选择」(内,意愿)、路口决定「人生还给不给你大的选择」
+	 * (外,机会)。两条 hint <b>不得写成同义句</b>——这里钉住各自的语义关键词互不出现,
+	 * 防后续写作把两轴混成一件事。
+	 */
+	@Test
+	void longingAndCrossroadsHintsAreNotInterchangeable_ADR020() {
+		ArchetypeMeta m = registry.meta("life_sim");
+		String longing = axis(m, "longing").behaviorHint();
+		String crossroads = axis(m, "crossroads").behaviorHint();
+		assertThat(longing).contains("意愿").doesNotContain("外部");
+		assertThat(crossroads).contains("外部").doesNotContain("意愿");
+		assertThat(longing).isNotEqualTo(crossroads);
+		// 两条都须明写「归零不死」,免得后续被当成致命轴写(与 §3 的引擎保证同口径)。
+		assertThat(longing).contains("归零不死");
+		assertThat(crossroads).contains("归零不死");
 	}
 
 	// ── ADR-012 混合模式轴合并(修仙 × 规则怪谈,host=修仙;纯函数、暂未接线)────────
