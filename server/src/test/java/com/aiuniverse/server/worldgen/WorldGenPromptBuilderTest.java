@@ -185,4 +185,51 @@ class WorldGenPromptBuilderTest {
 			assertThat(p).containsPattern("危险等级 (low|medium|high|extreme)。【开局公平性");
 		}
 	}
+
+	// ── ADR-020 §10 · world-gen 侧 per-archetype 指令槽 ────────────────────────
+
+	/**
+	 * 槽的 parity 线:未登记世界拿空串,且 {@code %8$s} 挂在骨架<b>末行行尾</b>而非独占一行——
+	 * 独占一行时空串会多留一个换行,四世界 prompt 当场不再逐字节相同。这条同时钉住「不多留换行」。
+	 */
+	@Test
+	void worldGenDirectiveSlotIsEmptyForFourWorldsAndLeavesNoBlankLine_ADR020() {
+		for (String a : List.of("rules_creepy", "apocalypse", "cthulhu", "cultivation")) {
+			String p = builder.buildWorldPrompt(a);
+			assertThat(p).as("%s 不该拿到任何 per-archetype world-gen 指令", a)
+					.doesNotContain("【本世界专属");
+			// 骨架末行紧接「按以下种子生成世界」,中间不得多出空行(空串槽的 parity 证据)。
+			assertThat(p).contains("隐藏逻辑只进 hiddenLogic。\n\n按以下种子生成世界");
+		}
+	}
+
+	/**
+	 * 《寻常》的 E:六条结局池 + 极性 + 早逝三段式 + 回收一条 + 中文轴名。
+	 * 按 ADR-020 §10 补记的「读几次」判据,这些都是<b>一辈子只读一次</b>的东西 → 落 world-gen 槽;
+	 * 逐回合生效的(密度表 / 铁律 / 退化判据 / 留白 / 承诺作用域 / 收束气力下限)归 event-loop 槽(刀 3)。
+	 */
+	@Test
+	void ordinaryLifeWorldGenDirectiveCarriesEndingPoolAndEarlyDeath_ADR020() {
+		String p = builder.buildWorldPrompt("life_sim");
+		assertThat(p).contains("【本世界专属 · 结局池与早逝");
+		// 六条结局齐 + 三种极性都出现。
+		for (String t : List.of("寿终·圆满", "寿终·有憾", "寿终·无人", "早逝", "自动播放", "未竟")) {
+			assertThat(p).as("结局池缺 %s", t).contains(t);
+		}
+		assertThat(p).contains("outcome=success").contains("outcome=failure").contains("outcome=neutral");
+		// B1 立字分工(ADR-020 §8 补记):气力归零=早逝 / 寿终=走完回合表未归零。
+		assertThat(p).contains("气力归零 = 早逝").contains("老死不是生命力耗到零");
+		// 早逝三段式 + 明确否决「完全由种子决定」。
+		assertThat(p).contains("早逝三段式").contains("绝不写成「早逝完全由开局种子决定」");
+		// 回收一条且只回收一条,且不解释。
+		assertThat(p).contains("只回收一条").contains("不解释、不点破");
+		// condition 用中文轴名(pickFailureEnding 按中文名 contains 匹配,写英文 key 会错配)。
+		assertThat(p).contains("气力 / 热望 / 路口 / 牵挂");
+		assertThat(p).doesNotContain("condition 例:vigor");
+		// 逐回合的东西不许提前混进 world-gen 槽(「读几次」判据的守护点,刀 3 才写它们)。
+		// 注意只看槽内:worldview 里那句时间结构概述("40-55 回合,回合密度不匀速")是 B 的一部分、合法。
+		String slot = p.substring(p.indexOf("【本世界专属"));
+		assertThat(slot).as("回合密度六段表属 event-loop 槽").doesNotContain("回合密度");
+		assertThat(slot).as("收束气力下限属 event-loop 槽").doesNotContain("最后 3-5 回合");
+	}
 }

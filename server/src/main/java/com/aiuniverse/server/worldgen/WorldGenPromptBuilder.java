@@ -76,7 +76,7 @@ public final class WorldGenPromptBuilder {
 			- openingNarrative:开场散文整段(中文,把玩家带入场景、营造贴合本模式的氛围),不剧透隐藏机制。
 
 			【泄露硬约束】绝不把 isTrue / hiddenLogic 的内容,或规则真伪/正确解法,写进 background / tone /
-			玩家可见的 rules.content / openingNarrative / availableActions 等任何玩家可见字段。隐藏逻辑只进 hiddenLogic。
+			玩家可见的 rules.content / openingNarrative / availableActions 等任何玩家可见字段。隐藏逻辑只进 hiddenLogic。%8$s
 			""";
 
 	/**
@@ -221,6 +221,51 @@ public final class WorldGenPromptBuilder {
 		return ENDING_COUNTS.getOrDefault(archetype, DEFAULT_ENDING_COUNT);
 	}
 
+	/**
+	 * per-archetype <b>world-gen 侧</b>可选指令槽(ADR-020 §10,仿 ADR-014 {@code extraDirectives};
+	 * 形状同 {@code %6$s rulesDirective})。<b>缺省空串 → 四个既有世界的 world-gen prompt 逐字节零回归</b>
+	 * ——注意 {@code %8$s} 挂在骨架末行<b>行尾</b>而非独占一行:独占一行时空串会多留一个换行,parity 当场破。
+	 *
+	 * <p><b>⚠️ 与 event-loop 侧那个同形槽的职责切分(ADR-020 §10 补记,判据是「读几次」不是「是什么内容」)</b>:
+	 * <ul>
+	 *   <li><b>本槽(world-gen)= 一辈子只读一次的东西</b>:结局池、极性表、早逝三段式;</li>
+	 *   <li><b>event-loop 槽 = 逐回合生效的东西</b>:回合密度表、措辞铁律、退化判据、留白禁令、
+	 *       承诺作用域、收束阶段气力下限。</li>
+	 * </ul>
+	 * 用「读几次」而不是「是什么内容」当判据,是因为前者<b>可数</b>——后来者不会犯迷糊,
+	 * 两个槽也就不会长成同一个杂物抽屉的两份拷贝。
+	 *
+	 * <p>凡是<b>多个世界共用</b>的指令一律回骨架,不得在槽里各抄一份(ADR-008「安全规矩全在骨架、
+	 * 绝不 per-mode 重抄」;ADR-020 已知代价 5)。
+	 */
+	private static String worldGenDirectives(String archetype) {
+		return WORLD_GEN_DIRECTIVES.getOrDefault(archetype, "");
+	}
+
+	private static final Map<String, String> WORLD_GEN_DIRECTIVES = Map.of("life_sim", """
+
+
+			【本世界专属 · 结局池与早逝(《寻常》,ADR-020)】
+			- 结局从以下六条里产出(骨架要求 %s 条,故至少产出其中五条);【寿终·圆满】与【早逝】两条必出——
+			  前者是本世界唯一的 success 落点,后者是致命轴触底时引擎兜底要命中的那一条:
+			  1) 寿终·圆满(outcome=success):一辈子走完了,该在的人还在,想做的事做成过几件。
+			     condition 例:回合走到尽头、【气力】仍在 15 以上未归零,且【牵挂】处于较深的位置。
+			  2) 寿终·有憾(outcome=neutral):走完了,但有一两件事一直没做成、有一句话一直没说出口。
+			  3) 寿终·无人(outcome=failure):走完了,身边没有人送——condition 绑【牵挂】极低。
+			  4) 早逝(outcome=failure):【气力】归零——意外或疾病把一辈子截断在中途。
+			  5) 自动播放(outcome=failure):【热望】归零之后余生照常过完,他再没有为自己选择过一次。
+			  6) 未竟(outcome=neutral):【路口】很早就关死了,后半生没有哪个选择改变过什么。
+			- 【气力归零 = 早逝;寿终 = 走完回合表、气力低但未归零】——老死不是生命力耗到零,
+			  是故事走完了而你还剩一点;耗到零的是意外与病,那才是早逝。
+			- 【早逝三段式】种子设定倾向(早期回合埋一句身体信号)→ 累积选择调制 → 任何单次选择都不具决定性。
+			  ⚠️ 绝不写成「早逝完全由开局种子决定」:那让气力跑在轨道上,玩家重玩几局就会发现做什么都不影响寿命,
+			  前面所有相关选择被追认为无效。目标是【回头看有伏笔、当下看无从避免】两条同时成立。
+			- 【结局文字可以回收一条,且只回收一条】回收的是早期埋下的某个具体的物或某一句话,
+			  且必须以「别人不知道」的方式出现(例如抽屉里那张没用过的火车票)——不解释、不点破、不加说明,
+			  更不要列一份回收清单;回收永远不加分、不标记。
+			- 【condition 一律用中文轴名】气力 / 热望 / 路口 / 牵挂——绝不写 vigor / longing / crossroads / ties。\
+			""".formatted(ENDING_COUNTS.get("life_sim")));
+
 	/** per-combo 融合场景种子池(ADR-013/014;key = {@code host×foreign})。识海遗蜕 / 缺页的人防工程。 */
 	private static final Map<String, List<String>> FUSION_SEED_POOLS = Map.of(
 			"cultivation×rules_creepy", List.of(
@@ -250,7 +295,7 @@ public final class WorldGenPromptBuilder {
 		ArchetypeMeta meta = registry.meta(archetype);
 		String prompt = SKELETON.formatted(
 				meta.displayName(), meta.worldview(), axesSpec(meta.attributes()), meta.ruleForm(), archetype,
-				rulesDirective(meta), endingCount(archetype));
+				rulesDirective(meta), endingCount(archetype), worldGenDirectives(archetype));
 		return prompt
 				+ "\n按以下种子生成世界,只回 JSON:\n"
 				+ "模式:" + meta.displayName() + "(单体,archetype=" + archetype + ")\n"
