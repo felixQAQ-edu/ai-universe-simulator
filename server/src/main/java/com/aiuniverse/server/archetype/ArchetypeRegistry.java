@@ -18,8 +18,8 @@ import org.springframework.stereotype.Component;
  * <ul>
  *   <li><b>已知</b> = CONTEXT §三.4 枚举的 5 个 id(rules_creepy/life_sim/cultivation/cyberpunk/apocalypse);
  *       非已知 → init 400(非法 archetype)。</li>
- *   <li><b>已激活</b> = 本批有元数据可生成的(rules_creepy + apocalypse + cthulhu + cultivation);已知但未激活
- *       (life_sim / cyberpunk)→ init 400「未开放」(占位枚举,等各自独立批 + 独立 world-gen 冒烟)。</li>
+ *   <li><b>已激活</b> = 本批有元数据可生成的(rules_creepy + apocalypse + cthulhu + cultivation + life_sim);
+ *       已知但未激活(cyberpunk)→ init 400「未开放」(占位枚举,等各自独立批 + 独立 world-gen 冒烟)。</li>
  * </ul>
  *
  * <p>本类<b>纯数据</b>(无 IO、无 LLM),元数据内联(便于单测钉结构、零 FS 依赖)。
@@ -42,7 +42,7 @@ public class ArchetypeRegistry {
 	private static final Map<String, String> INACTIVE_DISPLAY_NAMES;
 	static {
 		Map<String, String> m = new LinkedHashMap<>();
-		m.put("life_sim", "人生模拟");
+		// life_sim 已于 ADR-020 刀 1 激活(《寻常》复用既有占位 id,对外名仍「人生模拟」)→ 本表删去那一行。
 		m.put("cyberpunk", "赛博朋克");
 		INACTIVE_DISPLAY_NAMES = Collections.unmodifiableMap(m);
 	}
@@ -55,6 +55,7 @@ public class ArchetypeRegistry {
 		register(apocalypse());
 		register(cthulhu());
 		register(cultivation());
+		register(ordinaryLife());
 	}
 
 	private void register(ArchetypeMeta meta) {
@@ -468,5 +469,82 @@ public class ArchetypeRegistry {
 						+ "不是攻略);hiddenLogic 是只有引擎能看的真实判定(触发条件 + hp/灵力/境界 后果);discovered 标记"
 						+ "已顿悟 / 印证的法则(顿悟一条 → 点亮,可能助益突破或避开凶险)。",
 				false); // 心法守则型(rules 不带 isTrue,ADR-009 F-013)
+	}
+
+	/**
+	 * 人生模拟《寻常》(ADR-020,<b>一生制世界族</b>第一个实例;非恐怖线首个世界):一局从出生玩到死亡,
+	 * 回合密度随生命呼吸(幼年压缩 / 选择密集期一年一回合 / 中段加速 / 末段重新变密)。
+	 * key <b>复用既有占位 {@code life_sim}</b>(裁定三:对外名仍「人生模拟」,世界名「寻常」进 {@code world.title}),
+	 * 故 KNOWN / {@code schema.ts} / CONTEXT §三.4 全部无需改动。
+	 *
+	 * <p><b>四轴</b>——本世界的关键结构在于「归零不死」两条轴(ADR-020 §3):
+	 * <ul>
+	 *   <li><b>气力 vigor</b> = {@code stable}(depletion + lethal):唯一致命轴,{@code ≤0} 触底 = 一生走到尽头。
+	 *       早逝三段式(§8)属提示词层,不在元数据。</li>
+	 *   <li><b>热望 longing</b> / <b>路口 crossroads</b> = {@code resource}(depletion + {@code lethal=false}):
+	 *       <b>引擎硬保证</b> {@code ≤0} 既不触底致死、也不触发结局极性 gate(ADR-010 决策 2 的既有机制,
+	 *       修仙灵力真机验过)。归零后局照常继续,只是选项退化(§4 的可数判据属提示词层,归刀 3)。</li>
+	 *   <li><b>牵挂 ties</b> = {@code accumulating}:纯累积、{@code ≤0} 不致死,且<b>不标 perilAtHigh</b>——
+	 *       牵挂深不是危险(对照克苏鲁禁忌知识双刃),故 severity 全 NEUTRAL。</li>
+	 * </ul>
+	 *
+	 * <p><b>热望与路口的语义差(ADR-020 §5 逐字锁,不得写成同义句)</b>:
+	 * 热望决定<b>「你还想不想选择」</b>(内,意愿);路口决定<b>「人生还给不给你大的选择」</b>(外,机会)。
+	 * 路口归零后仍是四个真实动作,只是没有一个会改变什么。
+	 *
+	 * <p><b>刀 1 范围</b>:worldview / ruleForm 只给本世界的底子;§2 的<b>回合密度切分表</b>与结局池归<b>刀 2</b>,
+	 * 一生制的每回合指令(时间尺度 / 退化判据 / 留白禁令 / 承诺作用域)归<b>刀 3</b> 的 per-archetype 指令槽。
+	 */
+	private static ArchetypeMeta ordinaryLife() {
+		return new ArchetypeMeta(
+				"life_sim",
+				"人生模拟",
+				"一生只有一次,而它大部分时候都很寻常。",
+				"平常 · 一生",
+				"《寻常》——一个普通人的一生:出生在一座说不上好也说不上坏的城市,上学、工作、成家、老去。"
+						+ "没有异常、没有超自然、没有敌人;推着人走的是时间、家人、钱、身体,以及那些当时看着不要紧、"
+						+ "回头才知道是分岔口的日子。一局覆盖完整生命周期,每个回合可能推进一年或更久。"
+						+ "氛围克制、具体、不煽情——重量来自日常细节本身,不来自戏剧化的意外。",
+				List.of(
+						// 唯一致命轴:一生的身体账。早逝由提示词按三段式落(种子倾向→累积调制→单次不决定),
+						// 引擎只管 ≤0 触底,不懂「衰老」。
+						AttributeAxis.stable("vigor", "气力").withBands(
+								band(100, "康健", "身体不提醒你它的存在,做什么都还使得上劲"),
+								band(50, "耗损", "起身慢半拍、久坐腰酸,熬过的夜都要还回来"),
+								band(20, "衰弱", "走一段就得歇,病躲不开了,身体开始替你做决定")),
+						// 归零不死(一):内在的「想不想」。引擎不因它 ≤0 判死、也不据它 gate 结局。
+						AttributeAxis.resource("longing", "热望",
+								"热望是「你还想不想为自己选一次」的内在意愿:被反复的妥协、疲惫、把自己往后排的日子磨低;"
+										+ "被久违的念头、重逢、一件真正想做且做成了的事点回来。由你在 stateUpdate 给出升降后的新绝对值。"
+										+ "【归零不死】热望归零不致死,也不是失败结局——它只意味着人还在过日子,但已经不再为自己伸手。")
+								.withBands(
+										band(100, "炽热", "还有真正想做的事,想起来就坐不住"),
+										band(50, "转淡", "说服自己「算了」的次数,比说服自己「去吧」多"),
+										band(20, "熄了", "什么都行、都可以——不是不快乐,是不再想要")),
+						// 归零不死(二):外在的「给不给」。与热望刻意不可互换(§5)。
+						AttributeAxis.resource("crossroads", "路口",
+								"路口是「人生还给不给你大的选择」的外部余量:随年岁、已选定的路、落定的责任与既成事实而收窄;"
+										+ "只有变故、迁徙、失去或从头再来这类事,才可能重新打开一个岔口。由你在 stateUpdate 给出新绝对值。"
+										+ "【归零不死】路口归零不致死——此后仍给玩家四个真实动作,只是没有一个会改变什么;"
+										+ "差别在他是个什么样的人,不在于会发生什么。")
+								.withBands(
+										band(100, "岔口尚多", "前面还有好几条路,选哪条都还来得及"),
+										band(50, "路已收窄", "有些门关上的时候,你并没有听见声音"),
+										band(20, "只剩一条", "日子照常过,只是没有哪个选择还能改变什么")),
+						// 纯累积、非双刃:牵挂深不是危险(对照 knowledge),故不标 perilAtHigh → 全档 neutral。
+						AttributeAxis.accumulating("ties", "牵挂",
+								"牵挂是累积型的:与人长久相处、照顾与被照顾、共同经历的日子使之上涨(只涨或持平,"
+										+ "不因一次疏远回落);牵挂越深,选择就越不只是自己的事,离别的代价也越重。"
+										+ "【纯累积·不致死】牵挂低不是失败,只是「谁也不必等你」;初值给低位(如 5–20,尚未与谁真正绑在一起)。")
+								.withBands(
+										band(0, "轻身", "谁也不必等你,你也不必等谁"),
+										band(31, "有所系", "有几个名字会让你多看一眼手机"),
+										band(61, "深系", "你的很多事,已经不只是你自己的事"))),
+				"生活的常理与代价(非真假守则,不要输出 isTrue):如「有些话当时不说,以后就没有场合说了」"
+						+ "「钱能解决的事,拖着会变成钱也解决不了的事」「身体给过的信号,只会越来越不客气」。"
+						+ "content 是玩家在过日子里逐渐明白的道理(读起来是人生经验与代价,不是攻略);"
+						+ "hiddenLogic 是只有引擎能看的真实判定(触发条件 + 气力/热望/路口/牵挂 后果);"
+						+ "discovered 标记已经「懂了」的那几条(懂了一条 → 点亮,往往是付出代价之后)。",
+				false); // 生活常理型(rules 不带 isTrue,同修仙的心法守则口径,ADR-009 F-013)
 	}
 }
