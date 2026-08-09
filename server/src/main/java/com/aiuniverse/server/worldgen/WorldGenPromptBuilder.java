@@ -34,7 +34,10 @@ public final class WorldGenPromptBuilder {
 		this.registry = registry;
 	}
 
-	/** 通用骨架(模式无关,单点维护)。注入变量:displayName / worldview / 数值轴清单 / ruleForm / archetype id。 */
+	/**
+	 * 通用骨架(模式无关,单点维护)。注入变量:displayName / worldview / 数值轴清单 / ruleForm / archetype id
+	 * / rules 措辞 / <b>结局条数区间</b>({@code %7$s},见 {@link #ENDING_COUNTS})。
+	 */
 	private static final String SKELETON = """
 			你是"通用生成引擎(UG Engine)"的世界生成模块。你一次性产出完整世界:
 			world + character 初值 + rules(规则/法则,形态见下)+ endings + 初始 availableActions + openingNarrative。
@@ -55,7 +58,7 @@ public final class WorldGenPromptBuilder {
 			  - id 用【整数】,从 1 连续编号;
 			  - content 是给玩家看的规则/生存法则原文(中文,见上方规则形态);
 			  - hiddenLogic 是【只有引擎能看】的真实机制(触发条件 + 上述数值轴的后果),discovered 初始一律 false。
-			- endings:2-3 个,含至少一个"存活/成功"与一个"失败"结局:
+			- endings:%7$s 个,含至少一个"存活/成功"与一个"失败"结局:
 			  - id 用【snake_case 英文字符串】(如 survive_dawn、starved、lost_mind),【不是数字】——注意与 rules[].id(整数)区分;
 			  - title 必填(中文短标题 4-8 字);description 一句中文结局描述;condition 可判定的中文条件;reached 初始 false;
 			  - 【outcome 必填·结局极性】每个 ending 必须标 outcome ∈ {success, failure, neutral}:
@@ -178,6 +181,27 @@ public final class WorldGenPromptBuilder {
 					"宗门大比前夜,玩家是被同门排挤的废灵根弟子,意外得了一卷残破心法;危险等级 medium",
 					"渡劫将至,玩家是闭关冲击筑基的修士,洞外却有仇家循着灵气波动逼近;危险等级 high"));
 
+	/**
+	 * 单体结局条数区间(ADR-020 刀 2 · B2 派生槽,比照融合路径 {@link #endingCountRange}):
+	 * <b>缺省 {@code "2-3"} = 抽槽前的常量原值</b>,故四个既有世界的 world-gen prompt <b>逐字节零回归</b>
+	 * (同 ADR-014 参数化融合骨架时的 parity 证法)。
+	 *
+	 * <p><b>为什么是查表而不是像融合那样按致命轴数算</b>:融合路径的公式(致命轴 n → {@code n+1}~{@code n+2})
+	 * 套到单体上会把规则怪谈(hp/san 两条致命轴)算成 {@code "3-4"} ≠ 原值 {@code "2-3"} —— <b>公式一致</b>
+	 * 反而<b>破坏 parity</b>。单体的条数从来不是从轴数推出来的,它就是个 per-world 的编辑决定。
+	 *
+	 * <p>《寻常》给 {@code "5-6"} 而<b>不给精确的 "6"</b>:骨架既有形状是区间,而 world-gen JSON 首过失败
+	 * 是头号失败模式(ADR-007)—— 精确计数对生成脆,区间给模型留出收敛余地。
+	 */
+	private static final Map<String, String> ENDING_COUNTS = Map.of("life_sim", "5-6");
+
+	private static final String DEFAULT_ENDING_COUNT = "2-3";
+
+	/** 派生槽 %7$s:该 archetype 的结局条数区间;未登记 → 缺省 {@code "2-3"}(= 抽槽前常量,守 parity)。 */
+	private static String endingCount(String archetype) {
+		return ENDING_COUNTS.getOrDefault(archetype, DEFAULT_ENDING_COUNT);
+	}
+
 	/** per-combo 融合场景种子池(ADR-013/014;key = {@code host×foreign})。识海遗蜕 / 缺页的人防工程。 */
 	private static final Map<String, List<String>> FUSION_SEED_POOLS = Map.of(
 			"cultivation×rules_creepy", List.of(
@@ -207,7 +231,7 @@ public final class WorldGenPromptBuilder {
 		ArchetypeMeta meta = registry.meta(archetype);
 		String prompt = SKELETON.formatted(
 				meta.displayName(), meta.worldview(), axesSpec(meta.attributes()), meta.ruleForm(), archetype,
-				rulesDirective(meta));
+				rulesDirective(meta), endingCount(archetype));
 		return prompt
 				+ "\n按以下种子生成世界,只回 JSON:\n"
 				+ "模式:" + meta.displayName() + "(单体,archetype=" + archetype + ")\n"
