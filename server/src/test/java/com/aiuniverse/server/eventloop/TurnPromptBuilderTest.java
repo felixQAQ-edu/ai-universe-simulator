@@ -182,4 +182,96 @@ class TurnPromptBuilderTest {
 		assertThat(p).contains("{坏的}");
 		assertThat(p).contains("纯 JSON");
 	}
+
+	// ── ADR-020 刀 3 · event-loop 侧 per-archetype 指令槽(%9$s)──────────────
+
+	/** 单体局引擎(指定 archetype,attributes 按其轴集给中位值)。 */
+	private Engine engineFor(String archetype) {
+		ObjectNode world = mapper.createObjectNode();
+		world.putArray("archetypes").add(archetype);
+		ObjectNode attrs = world.putObject("character").putObject("attributes");
+		new ArchetypeRegistry().meta(archetype).attributes().forEach(a -> attrs.put(a.key(), 66));
+		world.putArray("rules");
+		world.putArray("endings");
+		return new Engine(world, mapper);
+	}
+
+	/**
+	 * 槽的 parity 线:四个既有世界拿空串,且 {@code %9$s} 挂骨架<b>末行行尾</b>而非独占一行——
+	 * 独占一行时空串会多留一个换行,四世界回合 prompt 当场不再逐字节相同。
+	 */
+	@Test
+	void turnDirectiveSlotIsEmptyForFourWorldsAndLeavesNoBlankLine_ADR020() {
+		for (String a : List.of("rules_creepy", "apocalypse", "cthulhu", "cultivation")) {
+			String p = builder.buildTurnPrompt(engineFor(a), "A", "行动");
+			assertThat(p).as("%s 不该拿到 per-archetype 回合指令", a)
+					.doesNotContain("【一生制 · 每回合写作标准");
+			// 空串槽不得多留换行:骨架文本块自带一个结尾 \n,拼接处再加 "\n\n" → 恰好三个。
+			// %9$s 若独占一行,这里会变成四个,parity 当场破。
+			assertThat(p).contains("与死活状态矛盾的结局。\n\n\n世界设定与当前状态");
+		}
+	}
+
+	/** 《寻常》拿到逐回合写作标准;本刀落五件(措辞铁律六条待创意稿原文,未写)。 */
+	@Test
+	void ordinaryLifeTurnDirectiveCarriesFiveOfSixItems_ADR020() {
+		String p = builder.buildTurnPrompt(engineFor("life_sim"), "A", "行动");
+		String slot = p.substring(p.indexOf("【一生制 · 每回合写作标准"));
+
+		// (1) 密度六段 + 40-55 + 不显示岁数。
+		assertThat(slot).contains("0-6 岁压进 1 个回合").contains("一年一个回合")
+				.contains("最后几年一回合一天").contains("40-55 回合")
+				.contains("绝不显示岁数");
+		// (2) 每回合第一句落在带年代刻度的物上。
+		assertThat(slot).contains("带年代刻度的物").contains("饭盒");
+		// (3) 退化判据可数 + 两条语义锁 + 路口写法不同。
+		assertThat(slot).contains("连续 5 个回合").contains("新的人、新的地点、或新的时间约定")
+				.contains("「照常上班」合格").contains("给老同学回个电话")
+				.contains("仍是四个真实的动作")
+				.contains("你还想不想选择").contains("人生还给不给你大的选择");
+		// (4) 三处留白 + 口头禅只写一次、系统不得复述。
+		assertThat(slot).contains("备注的那两个字").contains("那个谁").contains("口头禅")
+				.contains("系统不得复述或指认它");
+		// (5) 承诺作用域:数值承诺必兑现 / 人生承诺可落空。
+		assertThat(slot).contains("数值承诺必兑现").contains("人生承诺可落空");
+		// (6) 收束气力下限。
+		assertThat(slot).contains("气力不得低于 15");
+
+		// 一辈子只读一次的东西不许混进本槽(「读几次」判据的守护点,它们在 world-gen 侧)。
+		assertThat(slot).as("结局池属 world-gen 槽").doesNotContain("outcome=success");
+		assertThat(slot).as("早逝三段式属 world-gen 槽").doesNotContain("早逝三段式");
+	}
+
+	/** 《寻常》四条新轴有专属中文意象,不落到寡淡的「<中文名>的具体感受」缺省。 */
+	@Test
+	void ordinaryLifeAxesHaveOwnImagery_ADR020() {
+		String p = builder.buildTurnPrompt(engineFor("life_sim"), "A", "行动");
+		for (String key : List.of("vigor", "longing", "crossroads", "ties")) {
+			assertThat(p).doesNotContain(key + "):" + "气力的具体感受");
+		}
+		assertThat(p).contains("爬到三楼要停一下")   // vigor
+				.contains("电视开着,没在看")          // longing
+				.contains("那扇门关上时没听见声音")     // crossroads
+				.contains("碗一直摆四副");            // ties
+		assertThat(p).doesNotContain("的具体感受");
+	}
+
+	/** 两个槽互斥:融合局只出 %8$s,单体局只出 %9$s —— 任何一局都不会同时拿到两段(ADR-020 §10 不得合并)。 */
+	@Test
+	void fusionAndArchetypeSlotsAreMutuallyExclusive_ADR020() {
+		ObjectNode world = mapper.createObjectNode();
+		world.putArray("archetypes").add("cultivation").add("rules_creepy");
+		ObjectNode attrs = world.putObject("character").putObject("attributes");
+		new ArchetypeRegistry().fusedAxes("cultivation", "rules_creepy")
+				.forEach(a -> attrs.put(a.key(), 66));
+		world.putArray("rules");
+		world.putArray("endings");
+		String fused = builder.buildTurnPrompt(new Engine(world, mapper), "A", "行动");
+		assertThat(fused).contains("【融合世界 · 每回合裁决与收敛】")
+				.doesNotContain("【一生制 · 每回合写作标准");
+
+		String single = builder.buildTurnPrompt(engineFor("life_sim"), "A", "行动");
+		assertThat(single).contains("【一生制 · 每回合写作标准")
+				.doesNotContain("【融合世界 · 每回合裁决与收敛】");
+	}
 }

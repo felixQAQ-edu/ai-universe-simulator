@@ -47,7 +47,13 @@ public final class TurnPromptBuilder {
 			"hunger", "饥饿/腹中空乏/虚脱无力(如「饿得手指发抖」)",
 			"knowledge", "对禁忌真相的洞悉/脑中挥之不去的低语与灼烧(如「那些符号在脑海里反复灼烧」)",
 			"mana", "灵力/法力/真元的充盈或枯竭(如「灵力将尽,真元空乏」「丹田一空」)",
-			"realm", "修为境界/对天地大道的领悟/根基(如「丹田气海又凝实了几分」「隐隐触到了瓶颈」)");
+			"realm", "修为境界/对天地大道的领悟/根基(如「丹田气海又凝实了几分」「隐隐触到了瓶颈」)",
+			// ADR-020《寻常》四轴(刀 3):没有超自然,意象一律落在身体、日常物件与人际的具体处
+			// (缺条目会回落「<中文名>的具体感受」,那对本世界太寡淡)。
+			"vigor", "身体的余量/走得动走不动/夜里睡不睡得着(如「爬到三楼要停一下」「醒得越来越早」)",
+			"longing", "还想不想为自己动一下的那口气(如「想去看看,又觉得算了」「电视开着,没在看」)",
+			"crossroads", "眼前还剩多少条路/还来不来得及改(如「那扇门关上时没听见声音」「现在换,好像也晚了」)",
+			"ties", "谁在等你、你惦记着谁(如「手机响一声就去看」「碗一直摆四副」)");
 
 	/**
 	 * 融合局的 per-combo 意象换皮 override(ADR-013 Slice D;key = {@code host×foreign})。换皮轴的叙事口吻
@@ -101,7 +107,7 @@ public final class TurnPromptBuilder {
 			  【结局必须匹配角色死活·硬约束】结局不得与角色当前真实处境矛盾:当代表角色存续的核心数值濒零
 			  (如 hp/气血等 depletion 轴 ≤ 约 10),或叙事中角色已濒死 / 重伤垂危 / 理智崩解 / 油尽灯枯 / 陨落时,
 			  只能命中【失败 / 死亡 / 陨落类】结局,绝不给【成功 / 圆满 / 凯旋类】结局;成功类结局仅当角色确实安然存续
-			  且达成目标时才命中。宁可返回 null(让游戏继续)也不要给与死活状态矛盾的结局。%8$s
+			  且达成目标时才命中。宁可返回 null(让游戏继续)也不要给与死活状态矛盾的结局。%8$s%9$s
 			""";
 
 	/**
@@ -143,6 +149,66 @@ public final class TurnPromptBuilder {
 			String recoveryCosts,   // 恢复代价示例
 			String extraDirectives) { // per-combo 附加指令(接在 (4) 之后;空串=无附加)
 	}
+
+	/**
+	 * per-archetype <b>event-loop 侧</b>可选指令槽(ADR-020 §10 补记;单体局注入 {@code %9$s},
+	 * <b>缺省空串 → 四个既有世界的回合 prompt 逐字节零回归</b>)。形状同 world-gen 侧那个槽
+	 * ({@code WorldGenPromptBuilder.worldGenDirectives}):{@code %9$s} 挂骨架<b>末行行尾</b>,
+	 * 独占一行时空串会多留一个换行、parity 当场破。
+	 *
+	 * <p><b>⚠️ 与融合槽 {@code %8$s} 是两个槽,不得合并</b>(ADR-020 §10):注入时机与消费方不同,
+	 * 合并会把 ADR-014 的 per-combo parity 线拖进单体路径。二者互斥注入(融合局只出 {@code %8$s},
+	 * 单体局只出 {@code %9$s}),故任何一局都不会同时拿到两段。
+	 *
+	 * <p><b>本槽收什么(「读几次」判据,ADR-020 §10 补记)</b>:<b>逐回合生效</b>的东西——
+	 * 回合密度表 / 措辞铁律 / 退化判据 / 留白禁令 / 承诺作用域 / 收束气力下限。
+	 * 一辈子只读一次的(结局池 / 极性表 / 早逝三段式)归 <b>world-gen 侧</b>那个槽,不在这里。
+	 */
+	private static String archetypeTurnDirective(String archetype) {
+		return TURN_DIRECTIVES.getOrDefault(archetype, "");
+	}
+
+	/**
+	 * 《寻常》逐回合指令(ADR-020 刀 3)。六件里本刀落五件;
+	 * <b>措辞铁律六条(第 2 件)待创意稿原文,留空位未写</b>——不自拟写作标准冒充创意稿。
+	 *
+	 * <p><b>留白禁令的立字理由</b>(§6):生成模型<b>天然倾向补全</b>——这不是审美风险,是生成层的
+	 * <b>默认行为</b>;同 ADR-018 §5 Q3「用人工形近字允许表、不用运行时 Unicode 相似度推断」——
+	 * <b>不能指望模型自己克制</b>,故写成显式禁令而非期待。
+	 *
+	 * <p><b>承诺作用域</b>(§7)⚠️ <b>本条不得外溢到有资源经济的世界</b>:它与 F-017
+	 * (deal-what-you-promise)不冲突,<b>只因为《寻常》没有资源经济</b>。
+	 */
+	private static final Map<String, String> TURN_DIRECTIVES = Map.of("life_sim", """
+
+
+			【一生制 · 每回合写作标准(《寻常》,ADR-020)】
+			(1)【回合密度 · 随生命呼吸】一局覆盖从出生到死亡,全程 40-55 回合,密度不匀速——
+			    0-6 岁压进 1 个回合;7-18 岁每回合 2-3 年;19-30 岁一年一个回合(选择最密的一段);
+			    31-55 岁每回合 3-5 年、遇大事另起事件回合;56-75 岁每回合 2-3 年;最后几年一回合一天。
+			    ⚠️【绝不显示岁数】年龄是设计用的标注,玩家看不见——不要写「三十五岁那年」「你 42 岁」,
+			    也不要写回合序号或时间跨度说明。时间流逝只靠具体的物与事透出来。
+			(2)【每回合第一句必须落在一件带年代刻度的物上】饭盒 / 报名表 / 第一份工资的信封 /
+			    电视音量 / 换手机——用具体的物开场,不要用「转眼十年过去」「生活仍在继续」这类抽象处境句。
+			(3)【选项退化 · 可数判据】当【热望】已归零,此后连续 5 个回合,每个回合的四个选项
+			    【都不得引入任何新的人、新的地点、或新的时间约定】。
+			    「照常上班」合格;「给老同学回个电话」不合格(引入了人);
+			    「下周去看看那套房」不合格(引入了时间约定)。
+			    ⚠️【路口归零的写法不同,不得与热望混淆】当【路口】归零,选项【仍是四个真实的动作】,
+			    只是没有一个会改变什么——差别在他是个什么样的人,不在于会发生什么;不要把选项写成
+			    发呆、放弃、或事务待办清单。两条语义锁:【热望】=「你还想不想选择」;
+			    【路口】=「人生还给不给你大的选择」。
+			(4)【三处留白 · 硬禁令,不得补全】旧手机里【备注的那两个字】、「给谁打个电话」的【那个谁】、
+			    母亲那句【口头禅】——这三处永远不写出内容,不要替玩家填、不要暗示、不要事后解释。
+			    母亲的口头禅只在埋点的那一个回合被具体写出一次,此后【系统不得复述或指认它】,
+			    只能在回收的那一个回合原样再出现一次(不加说明、不点破)。
+			(5)【承诺作用域】凡选项承诺了【数值变化】的,必须在 stateUpdate 里兑现(不许发空头牌);
+			    只有「人生里的没做成」这一类可以落空——玩家选的是好意,没成行是后来发生在他身上的事,
+			    不是他选的(如「说下个月一定回,然后打开订票的页面」)。两者别混:数值承诺必兑现,
+			    人生承诺可落空。
+			(6)【收束阶段的气力下限】进入最后 3-5 个回合(走向寿终)时,【气力不得低于 15】——
+			    老死不是生命力耗到零,是故事走完了而你还剩一点;耗到零的是意外与病,那才是早逝。\
+			""");
 
 	/** per-combo 融合回合文案槽(key = {@code host×foreign})。 */
 	private static final Map<String, FusionTurnCopy> FUSION_TURN_COPY = Map.of(
@@ -205,7 +271,7 @@ public final class TurnPromptBuilder {
 	 * {@link ArchetypeRegistry#fusedAxes})+ 融合模式名 + per-combo 意象换皮 + 融合回合指令。
 	 */
 	private record TurnContext(String modeName, List<AttributeAxis> axes, Map<String, String> imageryOverrides,
-			boolean fused, String comboKey) {
+			boolean fused, String comboKey, String archetype) {
 	}
 
 	/** 主调用提示(不开 json_object):prose 先行 + 哨兵 + 尾巴。按本局 archetype(单体/融合)注入数值轴/模式名。 */
@@ -220,7 +286,8 @@ public final class TurnPromptBuilder {
 				SentinelSplitter.SENTINEL, // %5$s 哨兵
 				stateUpdateAxes(ctx.axes()), // %6$s stateUpdate 数值轴字段(融合局含全部融合轴)
 				behaviorReminder(ctx.axes()), // %7$s 特殊行为轴维护提醒(衰减/累积/联动;无则空)
-				ctx.fused() ? fusionTurnDirective(ctx.comboKey()) : ""); // %8$s 融合裁决+收敛指令(单体=空串,逐字不变)
+				ctx.fused() ? fusionTurnDirective(ctx.comboKey()) : "", // %8$s 融合裁决+收敛指令(单体=空串,逐字不变)
+				ctx.fused() ? "" : archetypeTurnDirective(ctx.archetype())); // %9$s per-archetype 单体指令(缺省空串)
 		return system
 				+ "\n\n世界设定与当前状态(state 是真理之源):\n"
 				+ engine.contextJson()
@@ -255,11 +322,12 @@ public final class TurnPromptBuilder {
 				String modeName = registry.meta(first).displayName() + " × " + registry.meta(second).displayName()
 						+ "(融合世界)";
 				return new TurnContext(modeName, registry.fusedAxes(first, second),
-						FUSION_IMAGERY.getOrDefault(comboKey, Map.of()), true, comboKey);
+						FUSION_IMAGERY.getOrDefault(comboKey, Map.of()), true, comboKey, null);
 			}
 		}
-		ArchetypeMeta meta = registry.isActive(first) ? registry.meta(first) : registry.meta("rules_creepy");
-		return new TurnContext(meta.displayName(), meta.attributes(), Map.of(), false, null);
+		String archetype = registry.isActive(first) ? first : "rules_creepy";
+		ArchetypeMeta meta = registry.meta(archetype);
+		return new TurnContext(meta.displayName(), meta.attributes(), Map.of(), false, null, archetype);
 	}
 
 	/** 「- key(中文名):意象」逐轴。融合局的换皮轴用 per-combo override 口吻(如 san=道心)。 */
