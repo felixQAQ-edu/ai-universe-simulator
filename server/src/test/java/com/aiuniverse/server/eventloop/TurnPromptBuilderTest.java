@@ -218,9 +218,12 @@ class TurnPromptBuilderTest {
 		String p = builder.buildTurnPrompt(engineFor("life_sim"), "A", "行动");
 		String slot = p.substring(p.indexOf("【一生制 · 每回合写作标准"));
 
-		// (1) 密度六段 + 40-55 + 不显示岁数。
-		assertThat(slot).contains("0-6 岁压进 1 个回合").contains("一年一个回合")
-				.contains("最后几年一回合一天").contains("40-55 回合")
+		// (1) 一生制时钟(刀 5 起:回合号→阶段的**机制**,取代原「年龄段→占几回合」的**描述**)。
+		// ⚠️ 原断言查的是被删掉的那张描述表(「0-6 岁压进 1 个回合」等)——F-020 证伪的正是它,
+		// 两个口径不得并存,故断言随之换成兑现语义的三件:回合号 / 阶段名 / 必须推进。
+		assertThat(slot).contains("现在是第 1 回合").contains("【幼年】")
+				.contains("本回合必须推进时间,这是硬要求不是风格建议")
+				.contains("比上一回合更晚")
 				.contains("绝不显示岁数");
 		// (2) 措辞铁律六条在场(逐条 lockstep 见 writingStandardsLockstepBetweenDocAndTurnSlot_ADR020)。
 		assertThat(slot).contains("【措辞铁律六条】").contains("自带年代刻度").contains("饭盒");

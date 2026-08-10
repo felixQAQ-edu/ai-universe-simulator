@@ -164,8 +164,15 @@ public final class TurnPromptBuilder {
 	 * 回合密度表 / 措辞铁律 / 退化判据 / 留白禁令 / 承诺作用域 / 收束气力下限。
 	 * 一辈子只读一次的(结局池 / 极性表 / 早逝三段式)归 <b>world-gen 侧</b>那个槽,不在这里。
 	 */
-	private static String archetypeTurnDirective(String archetype) {
-		return TURN_DIRECTIVES.getOrDefault(archetype, "");
+	private static String archetypeTurnDirective(String archetype, int nextTurn) {
+		String template = TURN_DIRECTIVES.get(archetype);
+		if (template == null) {
+			return ""; // 四个既有世界:与开槽前逐字节一致(parity 线)
+		}
+		LifeStage stage = LifeStage.of(nextTurn);
+		return template.formatted(nextTurn, stage.label(), stage.ageRange(), stage.advanceClause(),
+				LifeStage.CONVERGE_FROM, LifeStage.CONVERGE_TO, LifeStage.FINAL_STAGE_FROM_TURN,
+				LifeStage.EXIT_ACTION_ID);
 	}
 
 	/**
@@ -186,9 +193,12 @@ public final class TurnPromptBuilder {
 
 
 			【一生制 · 每回合写作标准(《寻常》,ADR-020)】
-			(1)【回合密度 · 随生命呼吸】一局覆盖从出生到死亡,全程 40-55 回合,密度不匀速——
-			    0-6 岁压进 1 个回合;7-18 岁每回合 2-3 年;19-30 岁一年一个回合(选择最密的一段);
-			    31-55 岁每回合 3-5 年、遇大事另起事件回合;56-75 岁每回合 2-3 年;最后几年一回合一天。
+			(1)【本回合的时间坐标 · 一生制时钟】现在是第 %1$d 回合,他正处于【%2$s】(设计标注:%3$s)。
+			    ⚠️【本回合必须推进时间,这是硬要求不是风格建议】%4$s——本回合结束时,
+			    叙事必须已经落在一个【比上一回合更晚】的时间点上。
+			    【绝不允许】两个回合停在同一天、同一顿饭、同一次谈话里把一件事说完;
+			    上一回合正在发生的事,本回合应当【已经过去了】,写的是它之后的日子。
+			    全局预期在第 %5$d-%6$d 回合走到寿终:每往后一个回合,都要比上一个更靠近一生的尽头。
 			    ⚠️【绝不显示岁数】年龄是设计用的标注,玩家看不见——不要写「三十五岁那年」「你 42 岁」,
 			    也不要写回合序号或时间跨度说明。时间流逝只靠具体的物与事透出来。
 			(2)【措辞铁律六条】每一回合的叙事与选项都须同时守住这六条:
@@ -221,11 +231,22 @@ public final class TurnPromptBuilder {
 			    只有「人生里的没做成」这一类可以落空——玩家选的是好意,没成行是后来发生在他身上的事,
 			    不是他选的(如「说下个月一定回,然后打开订票的页面」)。两者别混:数值承诺必兑现,
 			    人生承诺可落空。
-			(6)【收束阶段的气力下限】进入最后 3-5 个回合(走向寿终)时,【气力不得低于 15】——
-			    老死不是生命力耗到零,是故事走完了而你还剩一点;耗到零的是意外与病,那才是早逝。
+			(6)【收束阶段的气力下限】一旦进入【末段】(第 %7$d 回合起)或【收束段】(见第 8 条),
+			    【气力不得低于 15】——老死不是生命力耗到零,是故事走完了而你还剩一点;
+			    耗到零的是意外与病,那才是早逝。
 			(7)【回收的埋与中】一局埋七八处,【命中三四处】——不得因「写了不用可惜」提高命中率:
 			    玩家一旦能分辨什么是伏笔、什么只是人生发生过,这个世界就失效了。
-			    回收永远不加分、不标记、不解释,一旦系统指出来,它就死了。\
+			    回收永远不加分、不标记、不解释,一旦系统指出来,它就死了。
+			(8)【「就到这里」与收束段】选项 %8$s 是他自己决定不再往前争取的那一项(由系统按人生阶段给出,
+			    不必你产出;它不是菜单功能,是人生里的一个动作)。玩家一旦选了它:
+			    · 【不立刻结局】——从本回合起进入【收束段】,用 3-5 个回合走到寿终结局;
+			    · 收束段里【不再展开新的人、新的地点、新的事件】,只把已经埋下的东西收一收;
+			    · 【必须在 stateUpdate 的 timeline 里写明】「已进入收束段(第 k 回合 / 共 3-5 回合)」,
+			      此后每回合据 timeline 里的 k 递进,到第 3-5 回合【必须】给出 ending(寿终类);
+			    · ⚠️ timeline 是你跨回合唯一记得住这件事的地方,【漏写等于收束段丢失】。
+			(9)【不得回声刚发生过的动作】本回合正文中已经发生、已经做完的动作,
+			    【不得作为本回合的可选项再次出现】——他已经把消息发出去了,选项里就不能再有「把消息发出去」。
+			    选项永远是【下一步】,不是刚才那一步。\
 			""");
 
 	/** per-combo 融合回合文案槽(key = {@code host×foreign})。 */
@@ -305,7 +326,9 @@ public final class TurnPromptBuilder {
 				stateUpdateAxes(ctx.axes()), // %6$s stateUpdate 数值轴字段(融合局含全部融合轴)
 				behaviorReminder(ctx.axes()), // %7$s 特殊行为轴维护提醒(衰减/累积/联动;无则空)
 				ctx.fused() ? fusionTurnDirective(ctx.comboKey()) : "", // %8$s 融合裁决+收敛指令(单体=空串,逐字不变)
-				ctx.fused() ? "" : archetypeTurnDirective(ctx.archetype())); // %9$s per-archetype 单体指令(缺省空串)
+				// %9$s per-archetype 单体指令(缺省空串)。传的是**正在生成的那一回合**(= turn()+1,
+				// 与骨架末行「请推进第 N 回合」同一个 N),一生制时钟据它算阶段。
+				ctx.fused() ? "" : archetypeTurnDirective(ctx.archetype(), engine.turn() + 1));
 		return system
 				+ "\n\n世界设定与当前状态(state 是真理之源):\n"
 				+ engine.contextJson()
