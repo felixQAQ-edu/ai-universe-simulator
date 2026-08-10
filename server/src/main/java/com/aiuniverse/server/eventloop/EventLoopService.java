@@ -229,9 +229,48 @@ public class EventLoopService implements TurnExecutor {
 	private void updateActionsFromParsed(GameSession session, ObjectNode parsed) {
 		JsonNode actions = parsed.get("availableActions");
 		if (actions != null && actions.isArray() && !actions.isEmpty()) {
-			session.setCurrentActions((ArrayNode) actions.deepCopy());
+			ArrayNode next = (ArrayNode) actions.deepCopy();
+			appendLifeExitAction(session, next);
+			session.setCurrentActions(next);
 		}
 	}
+
+	/**
+	 * 一生制「就到这里」出口(ADR-020 刀 5 · B,路径 (c) 服务端追加)。
+	 *
+	 * <p><b>为什么在这里、而不是让 AI 产出</b>(Felix 2026-08-10 裁定):让模型自己每回合记得
+	 * 给这一项,等于用<b>模型自律</b>去修「模型自律守不住」——而 F-020 刚刚证伪的就是这个。
+	 * 追加在<b>校验之后</b>,故 {@code TURN_SCHEMA} 的 {@code maxItems 4} 一字未动
+	 * (不放行动校验层);{@link GameSession#isLegalAction} 按 {@code currentActions} 放行,
+	 * 前端按同一份 delta 渲染,<b>两侧都零改动</b>。
+	 *
+	 * <p><b>措辞随人生阶段查表</b>(ADR-020 §2 补记第 2 条):它同时是「时钟是否生效」的
+	 * <b>可见证据</b>——T10 与 T90 的文字必然不同,因为是查出来的。
+	 * <b>幼年 / 少年不追加</b>(§2 补记第 1 条的修订:出口的前提是你有一个可以放弃的人生)。
+	 *
+	 * <p>结局回合({@code status != ongoing})不追加——那时局已经结束,再给出口没有意义。
+	 */
+	private void appendLifeExitAction(GameSession session, ArrayNode actions) {
+		Engine engine = session.engine();
+		if (!"ongoing".equals(engine.status())) {
+			return;
+		}
+		if (!LIFETIME_EXIT_ARCHETYPES.contains(engine.world().path("archetypes").path(0).asString(""))
+				|| engine.world().path("archetypes").size() != 1) {
+			return; // 只对单体一生制世界生效;融合局不追加(融合路径一行不动)
+		}
+		LifeStage stage = LifeStage.of(engine.turn() + 1); // 这组选项通向的那一回合
+		if (!stage.hasExit()) {
+			return;
+		}
+		actions.addObject()
+				.put("id", LifeStage.EXIT_ACTION_ID)
+				.put("text", stage.exitText())
+				.put("hint", LifeStage.EXIT_HINT);
+	}
+
+	/** 提供「就到这里」出口的一生制世界(ADR-020 §1 族级约定;目前只有《寻常》)。 */
+	private static final java.util.Set<String> LIFETIME_EXIT_ARCHETYPES = java.util.Set.of("life_sim");
 
 	private String actionTextOf(GameSession session, String actionId) {
 		ArrayNode actions = session.currentActions();
