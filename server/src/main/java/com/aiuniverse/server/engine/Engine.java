@@ -691,6 +691,29 @@ public class Engine {
 		return List.copyOf(issues);
 	}
 
+	/**
+	 * <b>纯增量写入口</b>(ADR-020 刀 7):让<b>落账前</b>改写了 {@code stateUpdate} 的服务层
+	 * 把这次干预记进 {@code issues},从而随 {@code toPersistedState} 落盘、经 {@code restore} 回载 ——
+	 * 冒烟后可直接从 {@code /data/<saveId>.json} 取出核对,不必去翻 `fly logs`
+	 * (ROADMAP v5.8 已立字:统计主要消费 `/data` 卷)。
+	 *
+	 * <p><b>现有行为零动</b>:{@code apply} / 构造器 / 落盘格式一字不改,
+	 * {@code EngineGoldenTest} 直喂 Engine 且从不调用本方法 → golden 不受影响。
+	 * 形状同 ADR-015 Slice 1 的 {@code restore}(现有行为零动 + 纯增量入口)。
+	 *
+	 * <p>⚠️ <b>本方法不是通用日志后门,不得这么用。</b>
+	 * <b>{@code issues} 的语义是「引擎侧的数值异常记录」</b>(跳变过大 / 结局极性 gate 改判 /
+	 * 收束下限钳制),**不是**「哪里想记一笔就记一笔」的地方。
+	 * 一个 public 的写入口天然会被后续所有「想留个痕」的调用点消费,
+	 * 然后 {@code issues} 从异常记录变成大杂烩 —— 而刀 8 冒烟正是靠数这里面某一类的条数来判断
+	 * 「提示词侧够不够」,**混进无关条目那条读法当场失效**。
+	 * <b>本刀唯一调用方 = {@code EventLoopService} 的收束气力下限钳制点。</b>
+	 * 新增调用方须在 ADR 里说明它为何属于「数值异常」。
+	 */
+	public void recordIssue(String message) {
+		issues.add(message);
+	}
+
 	public List<ObjectNode> log() {
 		return List.copyOf(log);
 	}
