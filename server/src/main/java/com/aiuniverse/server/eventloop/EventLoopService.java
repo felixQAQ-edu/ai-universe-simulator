@@ -149,6 +149,7 @@ public class EventLoopService implements TurnExecutor {
 	/** 落账 + 发事件(消毒)。先 apply(数值/规则/结局),再据 status 发 delta / ending。 */
 	private TurnResult settle(GameSession session, ObjectNode parsed, String actionId, TurnEventSink sink) {
 		Engine engine = session.engine();
+		clampClosingVigorFloor(session, parsed);
 		List<String> leak = engine.apply(parsed, actionId);
 		if (!leak.isEmpty()) {
 			log.warn("[event-loop] save={} T{} 泄露遥测命中(非实时拦截,§1c):{}",
@@ -263,10 +264,94 @@ public class EventLoopService implements TurnExecutor {
 		if (!stage.hasExit()) {
 			return;
 		}
+		boolean pressed = exitAlreadyPressed(engine);
 		actions.addObject()
 				.put("id", LifeStage.EXIT_ACTION_ID)
-				.put("text", stage.exitText())
-				.put("hint", LifeStage.EXIT_HINT);
+				.put("text", pressed ? LifeStage.EXIT_TEXT_AFTER : stage.exitText())
+				.put("hint", pressed ? LifeStage.EXIT_HINT_AFTER : LifeStage.EXIT_HINT);
+	}
+
+	/**
+	 * 「就到这里」是否已经被按过(ADR-020 刀 7 · F-021 故障 ① 的<b>硬信号</b>)。
+	 *
+	 * <p><b>为什么不用 {@code timeline}</b>:刀 5 让模型往 {@code timeline} 里写「已进入收束段(第 k 回合…)」,
+	 * 那是<b>软的</b> —— 模型漏写就没了(槽内那句「漏写等于收束段丢失」就是它软的自陈)。
+	 *
+	 * <p><b>硬载体是玩家选过的动作 id 本身</b>:{@code Engine.apply} 每回合把 {@code playerAction} 记进 log;
+	 * 超出 {@code LOG_KEEP} 后 {@code compressLog} 把它折成 {@code [T64选X]} 串进 {@code logSummary}。
+	 * 两者<b>都落盘、都经 restore 回来</b> → 本判定<b>零新状态、跨压缩、跨续局、跨 redeploy</b>。
+	 *
+	 * <p>id 是我方指定的 {@code X}(避开骨架的 A/B/C/D),故子串匹配不会与别的动作混。
+	 */
+	private boolean exitAlreadyPressed(Engine engine) {
+		for (ObjectNode e : engine.log()) {
+			if (LifeStage.EXIT_ACTION_ID.equals(e.path("playerAction").asString(""))) {
+				return true;
+			}
+		}
+		// 折叠后的旧回合只剩 [T{n}选{id}] 这一种形态,故子串即判据。
+		return engine.logSummary().contains("选" + LifeStage.EXIT_ACTION_ID);
+	}
+
+	/** ADR-020 §8 补记:收束阶段气力下限。 */
+	private static final double CLOSING_VIGOR_FLOOR = 15;
+
+	private static final String VIGOR_KEY = "vigor";
+
+	/**
+	 * 收束阶段气力下限的<b>钳制兜底</b>(ADR-020 刀 7 · B②,F-021 故障 ③)。
+	 *
+	 * <p><b>⚠️ 明确是兜底,不是主力。</b> 主力是 B①(给气力补 {@code behaviorHint},每回合提醒);
+	 * 本条只在主力没兜住时接一下,并<b>记一条 issue</b>。
+	 *
+	 * <p><b>两条同刀的理由(ADR-020 §8 补记二)</b>:只做 ① → 下次不过仍分不清是「写了还是不够」
+	 * 还是「软的本来不行」;只做 ② → 永远不知道 ① 会不会自己解决。
+	 * <b>两条一起才能读出信息</b> —— 冒烟后看这条 issue 有没有被触发:
+	 * <b>未触发 = ① 够了,本方法是可观察的死代码;触发了 = 软的确实不行,本方法在干活。</b>
+	 * (该读法已写进刀 8 冒烟清单,否则 issue 记了没人看。)
+	 *
+	 * <p><b>位置</b>:{@code validateTurn} 之后、{@code Engine.apply} 之前改写 {@code parsed} 的
+	 * {@code stateUpdate} —— 与刀 5 出口追加<b>同一层同一手法</b>;
+	 * <b>Engine 现有行为零动</b>({@code EngineGoldenTest} 直喂 Engine,不经本服务;
+	 * 唯一新增是 {@code Engine.recordIssue} 这个纯增量写入口)。
+	 *
+	 * <p><b>触发条件</b>:单体《寻常》局 + 已进入末段(第 {@code FINAL_STAGE_FROM_TURN} 回合起)
+	 * <b>或</b>已按过「就到这里」(收束段)+ 模型给的气力 {@code < 15}。
+	 * 抬到 15 而非更高:gate 阈值 10 /「衰弱」档边界 20 之间的那 5 点余量(ADR-020 §8 补记)。
+	 */
+	private void clampClosingVigorFloor(GameSession session, ObjectNode parsed) {
+		Engine engine = session.engine();
+		if (!LIFETIME_EXIT_ARCHETYPES.contains(engine.world().path("archetypes").path(0).asString(""))
+				|| engine.world().path("archetypes").size() != 1) {
+			return;
+		}
+		int nextTurn = engine.turn() + 1;
+		boolean closing = nextTurn >= LifeStage.FINAL_STAGE_FROM_TURN || exitAlreadyPressed(engine);
+		if (!closing) {
+			return;
+		}
+		JsonNode upd = parsed.get("stateUpdate");
+		if (upd == null || !upd.isObject() || !upd.has(VIGOR_KEY)) {
+			return; // 模型没给气力 → Engine 缺省保留当前值,不在这里臆造
+		}
+		double proposed = upd.get(VIGOR_KEY).asDouble();
+		if (proposed >= CLOSING_VIGOR_FLOOR) {
+			return;
+		}
+		((ObjectNode) upd).put(VIGOR_KEY, CLOSING_VIGOR_FLOOR);
+		// 记进引擎 issues(纯增量入口 Engine.recordIssue):随 toPersistedState 落盘、经 restore 回载,
+		// 故冒烟后可直接从 /data/<saveId>.json 取出核对,不必翻 fly logs。
+		// ⚠️ 措辞要能【一眼分辨是钳制】且带原值 —— 刀 8 冒烟靠数这行的触发次数判「B① 够不够」,
+		//    与 Engine 自己那条「跳变过大 60->15(需复核)」必须读得出区别,含糊不得。
+		// ⚠️ issues 不进 snapshot() → 模型看不见自己被钳制(F-020 挂账,本刀不修)。
+		engine.recordIssue("T" + nextTurn + " " + VIGOR_KEY + " 收束下限钳制 " + fmtVigor(proposed)
+				+ "->" + fmtVigor(CLOSING_VIGOR_FLOOR));
+		log.warn("[event-loop] save={} T{} 收束阶段气力 {} 低于下限 {},已钳制(§8 兜底)",
+				session.saveId(), nextTurn, fmtVigor(proposed), fmtVigor(CLOSING_VIGOR_FLOOR));
+	}
+
+	private static String fmtVigor(double v) {
+		return v == Math.rint(v) ? String.valueOf((long) v) : String.valueOf(v);
 	}
 
 	/** 提供「就到这里」出口的一生制世界(ADR-020 §1 族级约定;目前只有《寻常》)。 */
