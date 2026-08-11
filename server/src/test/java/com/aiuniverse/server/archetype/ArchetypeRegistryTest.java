@@ -246,6 +246,33 @@ class ArchetypeRegistryTest {
 		assertThat(crossroads).contains("归零不死");
 	}
 
+	/**
+	 * F-023 修法守护:热望的<b>跌必须挂在时钟上</b>,<b>不得再写需要看得见历史的条件</b>。
+	 *
+	 * <p>三次真机冒烟热望一次都没降到零(刀 4 升到 99 / 刀 6 缓降到 58 / 刀 8 缓降后回升),
+	 * 勘察确证根因有二:(a) 跌 3 条中 2 条要累积、涨 3 条全为单次且无限定词 —— 单方向倾斜;
+	 * (b) <b>更根本</b>:「反复的妥协」「把自己往后排的日子」需要模型看得见历史,而
+	 * {@code compressLog}({@code LOG_KEEP=4})之外只剩 {@code [T85选C]} ——
+	 * <b>它在结构上无法评估那两条</b>(同源 F-020 §0.1)。<b>不是写得不够狠,是写了它执行不了的条件。</b>
+	 *
+	 * <p>对照组 {@code crossroads} 同为 {@code resource}、同引擎却降得下来,差异全在措辞:
+	 * 路口跌挂「随年岁」(随时间自动、无需判断)、涨写「只有…才可能」(限定词 + 罕见事件)。
+	 * 故本条钉住热望照同一形状重写后的三个要件。
+	 */
+	@Test
+	void longingDeclineIsAnchoredToTheClockNotToInvisibleHistory_F023() {
+		String longing = axis(registry.meta("life_sim"), "longing").behaviorHint();
+
+		// (1) 跌挂时钟:模型每回合都拿得到「当前处于哪个人生阶段」,无须回看历史。
+		assertThat(longing).contains("随年岁").contains("人生阶段");
+		// (2) 涨被限定死(照路口句式),不再是日常可及的单次事件。
+		assertThat(longing).contains("只有").contains("才可能");
+		// (3) 行为侧只保留【单回合可判】的那条 —— 四个选项就在眼前,不需要历史。
+		assertThat(longing).contains("本回合");
+		// (4) ⚠️ 回归闸:不得再出现需要累积判断的措辞(模型看不见,写了也执行不了)。
+		assertThat(longing).doesNotContain("反复").doesNotContain("连续");
+	}
+
 	// ── ADR-012 混合模式轴合并(修仙 × 规则怪谈,host=修仙;纯函数、暂未接线)────────
 
 	@Test
