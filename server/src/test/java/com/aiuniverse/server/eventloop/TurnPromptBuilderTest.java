@@ -230,10 +230,19 @@ class TurnPromptBuilderTest {
 		// (7) 回收的埋与中(文件 §三)。
 		assertThat(slot).contains("命中三四处").contains("写了不用可惜");
 		// (3) 退化判据可数 + 两条语义锁 + 路口写法不同。
-		assertThat(slot).contains("连续 5 个回合").contains("新的人、新的地点、或新的时间约定")
-				.contains("「照常上班」合格").contains("给老同学回个电话")
+		// ⚠️ F-023 续:判据由「归零后连续 5 个回合」改为**挂 bands 三档逐档收紧** ——
+		// 原触发点(归零)四次冒烟一次都没达成过(从 72 到 0 需要的回合数超过局长本身),
+		// 「一条永远等不到触发条件的立字,等于不存在」。故此处断言随之换成分档三条,
+		// 原措辞的断言一并删除(两个口径不得并存,同刀 5 换掉密度表那次)。
+		assertThat(slot).contains("【炽热】").contains("【转淡】").contains("【熄了】")
+				.contains("至多 1 个").contains("一个都不得")
+				.contains("新的人、新的地点、或新的时间约定")
+				.contains("「照常上班」不算引入").contains("给老同学回个电话")
+				.contains("每回合数一遍") // 可数性:本条唯一不能丢的性质
 				.contains("仍是四个真实的动作")
 				.contains("你还想不想选择").contains("人生还给不给你大的选择");
+		assertThat(slot).as("归零触发的旧口径必须删干净,不得与分档并存")
+				.doesNotContain("已归零,此后连续 5 个回合");
 		// (4) 三处留白 + 口头禅只写一次、系统不得复述。
 		assertThat(slot).contains("备注的两个字").contains("那个谁").contains("口头禅")
 				.contains("系统不得复述或指认它");
