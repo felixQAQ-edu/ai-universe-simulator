@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 import com.aiuniverse.server.archetype.ArchetypeMeta;
 import com.aiuniverse.server.archetype.ArchetypeRegistry;
 import com.aiuniverse.server.archetype.AttributeAxis;
+import com.aiuniverse.server.archetype.LifetimeFamily;
 import com.aiuniverse.server.engine.Engine;
 
 /**
@@ -172,7 +173,13 @@ public final class TurnPromptBuilder {
 		LifeStage stage = LifeStage.of(nextTurn);
 		return template.formatted(nextTurn, stage.label(), stage.ageRange(), stage.advanceClause(),
 				LifeStage.CONVERGE_FROM, LifeStage.CONVERGE_TO, LifeStage.FINAL_STAGE_FROM_TURN,
-				LifeStage.EXIT_ACTION_ID);
+				LifeStage.EXIT_ACTION_ID,
+				// %9$s–%11$s 族级片段(ADR-021 刀 1):词只存在 LifetimeFamily 一处,世界层在原位引用。
+				// 断行由引用点自供(见 LifetimeFamily.aliveAtTheEnd 的两个换行槽)——words 一份、排版各自为政,
+				// 「一份拷贝」与「逐字节零回归」才能同时成立。
+				LifetimeFamily.NO_AGE_DISPLAY,
+				LifetimeFamily.NO_DEDICATED_TURN,
+				LifetimeFamily.aliveAtTheEnd("", "\n    "));
 	}
 
 	/**
@@ -199,8 +206,7 @@ public final class TurnPromptBuilder {
 			    【绝不允许】两个回合停在同一天、同一顿饭、同一次谈话里把一件事说完;
 			    上一回合正在发生的事,本回合应当【已经过去了】,写的是它之后的日子。
 			    全局预期在第 %5$d-%6$d 回合走到寿终:每往后一个回合,都要比上一个更靠近一生的尽头。
-			    ⚠️【绝不显示岁数】年龄是设计用的标注,玩家看不见——不要写「三十五岁那年」「你 42 岁」,
-			    也不要写回合序号或时间跨度说明。时间流逝只靠具体的物与事透出来。
+			    %9$s
 			(2)【措辞铁律六条】每一回合的叙事与选项都须同时守住这六条:
 			    1. 选项里不出现态度词。
 			       「敷衍」「认真」「什么都没说」——凡是需要玩家自己脑补动作的,都要换成能被看见的那个动作。
@@ -211,8 +217,7 @@ public final class TurnPromptBuilder {
 			       不是懦弱选项,是普遍选项——回自己座位、划走、上楼。玩家选它的时候不该觉得自己在认输。
 			    4. 回收种子必须藏在最不起眼的选项位置。
 			       如果它是四个里最抢眼的那个,玩家会知道它重要,然后它就死了。
-			    5. 重要的事不给专门回合。
-			       挤进一个正在讲别的事的回合里。
+			    5. %10$s
 			    6. 留白优先于精确。
 			       「备注了两个字」不写是哪两个字;「给谁打个电话」不指定是谁。凡是能让玩家自己填的,都不要填。
 			(3)【选项退化 · 可数判据】按【热望】当前所处的档逐档收紧(当前档已在上文
@@ -237,8 +242,7 @@ public final class TurnPromptBuilder {
 			    不是他选的(如「说下个月一定回,然后打开订票的页面」)。两者别混:数值承诺必兑现,
 			    人生承诺可落空。
 			(6)【收束阶段的气力下限】一旦进入【末段】(第 %7$d 回合起)或【收束段】(见第 8 条),
-			    【气力不得低于 15】——老死不是生命力耗到零,是故事走完了而你还剩一点;
-			    耗到零的是意外与病,那才是早逝。
+			    【气力不得低于 15】——%11$s
 			(7)【回收的埋与中】一局埋七八处,【命中三四处】——不得因「写了不用可惜」提高命中率:
 			    玩家一旦能分辨什么是伏笔、什么只是人生发生过,这个世界就失效了。
 			    回收永远不加分、不标记、不解释,一旦系统指出来,它就死了。

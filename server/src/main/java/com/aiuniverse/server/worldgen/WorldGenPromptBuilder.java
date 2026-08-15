@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 import com.aiuniverse.server.archetype.ArchetypeMeta;
 import com.aiuniverse.server.archetype.ArchetypeRegistry;
 import com.aiuniverse.server.archetype.AttributeAxis;
+import com.aiuniverse.server.archetype.LifetimeFamily;
 
 /**
  * 组装 world-gen 胖调用提示(ADR-007 线上格式:<b>纯 JSON + json_object + 无哨兵</b>)。运行时真理之源
@@ -260,8 +261,7 @@ public final class WorldGenPromptBuilder {
 			  4) 早逝(outcome=failure):【气力】归零——意外或疾病把一辈子截断在中途。
 			  5) 自动播放(outcome=failure):【热望】归零之后余生照常过完,他再没有为自己选择过一次。
 			  6) 未竟(outcome=neutral):【路口】很早就关死了,后半生没有哪个选择改变过什么。
-			- 【气力归零 = 早逝;寿终 = 走完回合表、气力低但未归零】——老死不是生命力耗到零,
-			  是故事走完了而你还剩一点;耗到零的是意外与病,那才是早逝。
+			- 【气力归零 = 早逝;寿终 = 走完回合表、气力低但未归零】——%s
 			- 【早逝三段式】种子设定倾向(早期回合埋一句身体信号)→ 累积选择调制 → 任何单次选择都不具决定性。
 			  ⚠️ 绝不写成「早逝完全由开局种子决定」:那让气力跑在轨道上,玩家重玩几局就会发现做什么都不影响寿命,
 			  前面所有相关选择被追认为无效。目标是【回头看有伏笔、当下看无从避免】两条同时成立。
@@ -270,7 +270,10 @@ public final class WorldGenPromptBuilder {
 			  不解释、不点破、不加说明,更不要列一份回收清单(列出来等于系统指认了记忆点);
 			  回收永远不加分、不标记。
 			- 【condition 一律用中文轴名】气力 / 热望 / 路口 / 牵挂——绝不写 vigor / longing / crossroads / ties。\
-			""".formatted(ENDING_COUNTS.get("life_sim")));
+			""".formatted(ENDING_COUNTS.get("life_sim"),
+			// 族级片段 ③(ADR-021 刀 1):与 TurnPromptBuilder 那处引用<b>同一份词</b>——本刀合并的正是这两份拷贝。
+			// 断行槽给「\n  」+ 空串:本处断在「耗到零,」之后、续行 2 空格(回合侧断点与缩进都不同)。
+			LifetimeFamily.aliveAtTheEnd("\n  ", "")));
 
 	/** per-combo 融合场景种子池(ADR-013/014;key = {@code host×foreign})。识海遗蜕 / 缺页的人防工程。 */
 	private static final Map<String, List<String>> FUSION_SEED_POOLS = Map.of(

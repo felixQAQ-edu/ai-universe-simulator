@@ -3,6 +3,13 @@
 > **本文件是《寻常》(`life_sim`)写作标准的真理源。**
 > ADR-020 刀 3 把「措辞铁律六条」逐字注入 event-loop 侧 per-archetype 指令槽。
 > **两处不得漂移**:若日后修改,先改本文件再同步 prompt,不得反向。
+>
+> **⚠️ 本文件是 per-world 的**(ADR-021 刀 1)。对**一生制族内每个世界都成立**的原则
+> (不显示岁数 / 重要的事不给专门回合 / 最后一回合是活着的)已上提到族层,
+> 真理源见 [`lifetime-family-writing-standards.md`](lifetime-family-writing-standards.md);
+> 代码里对应 `server/.../archetype/LifetimeFamily.java`。
+> 下面「措辞铁律六条」的**第 5 条即族级原则之一**——编号与六条的结构留在本文件(世界层),
+> **词**归族层单点维护(ADR-021 裁定二:六条不拆、刀 1 不动)。
 
 ---
 
