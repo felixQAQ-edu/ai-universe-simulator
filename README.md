@@ -64,6 +64,7 @@
 - [docs/CONTEXT.md](docs/CONTEXT.md) — 术语 / 统一 JSON Schema / 跨模块约定(约定的真理之源)
 - [docs/adr/](docs/adr/) — 技术决策记录
 - [docs/world-catalog-and-experience-modes.md](docs/world-catalog-and-experience-modes.md) — 世界目录与体验模式(浮世 / 深界:分类归属与大厅立字;成本分级另见世界库 backlog)
-- [docs/world-ordinary-life-writing-standards.md](docs/world-ordinary-life-writing-standards.md) — 《寻常》写作标准(措辞铁律六条 / 三处留白 / 回收铁律)= 该世界写作标准的**真理源**,逐字注入 `TurnPromptBuilder` 指令槽;**两处不得漂移:先改本文件再同步 prompt**
+- [docs/world-ordinary-life-writing-standards.md](docs/world-ordinary-life-writing-standards.md) — 《寻常》写作标准(措辞铁律六条 / 三处留白 / 回收铁律)= 该世界写作标准的**真理源**,逐字注入 `TurnPromptBuilder` 指令槽;**两处不得漂移:先改本文件再同步 prompt**。**per-world**;族级原则见下一条
+- [docs/lifetime-family-writing-standards.md](docs/lifetime-family-writing-standards.md) — 一生制**族级**写作标准(不显示岁数 / 重要的事不给专门回合 / 最后一回合是活着的)= 对族内**每个**世界都成立的原则,代码里对应 `archetype/LifetimeFamily.java` 的具名片段,世界层在原位引用(ADR-021 刀 1);**两处不得漂移由 `LifetimeFamilyLockstepTest` 守护**
 - [AGENTS.md](AGENTS.md) — agent 常驻约束(工作流纪律 + 前端动效约束)
 - [bakeoff/FINDINGS.md](bakeoff/FINDINGS.md) — 验证过程中的实测发现
