@@ -167,11 +167,56 @@ public final class LifetimeFamily {
 			    全局预期在第 %6$d-%7$d 回合走到%8$s:每往后一个回合,都要比上一个更靠近一生的尽头。\
 			""";
 
+	/** 族级片段的引用侧。 */
+	public enum Side {
+		/** event-loop 侧(逐回合)。 */
+		TURN,
+		/** world-gen 侧(一辈子只读一次)。 */
+		WORLD_GEN
+	}
+
 	/**
-	 * 全部族级片段的<b>词</b>(去掉换行槽与排版),供 lockstep 两个方向使用:
-	 * (1) 与真理源文件对拍,防两处漂移;(2) 遍历族成员的 prompt,<b>漏引任一条即变红</b>。
+	 * 一条族级片段 + <b>它该出现在哪几侧</b>。
+	 *
+	 * <p><b>⚠️ 为什么要显式声明侧(ADR-021 刀 3 补,Felix 2026-08-15 裁定一)</b>:
+	 * 刀 1 的 lockstep 查的是 {@code turnPrompt + worldGenPrompt} 的<b>合并串</b> ——
+	 * 于是「最后一回合是活着的」(两侧都引用)只要<b>任一侧还在</b>就算过,
+	 * <b>单侧漏引不会响</b>。那条守护<b>声称</b>在验「族成员引用了全部片段」,
+	 * 实际验的是「至少有一处引用了」——**检查范围本来就比它声称的小**。
+	 *
+	 * <p>这是刚立的那条纪律(**凡是遍历清单的守护,清单本身必须另有一条守护**,ADR-018 §4.13)的
+	 * <b>第一个实例,且形态更早一层</b>:不是清单被削减,而是<b>清单里每条的检查范围从一开始就不足</b>。
+	 *
+	 * <p><b>⚠️ 刀 1 只有一个族成员时这个空隙无法被发现</b> —— 它要到本刀新增第二个族成员、
+	 * 两侧引用面第一次可能不一致时,才有条件暴露。
+	 *
+	 * <p><b>不要把它改回合并串</b>:合并串确实更简洁,而这正是它的问题。
 	 */
+	public record Fragment(String words, Set<Side> sides) {
+		public Fragment {
+			sides = Set.copyOf(sides);
+			if (sides.isEmpty()) {
+				throw new IllegalStateException("族级片段必须至少声明一个引用侧,否则它谁也不守");
+			}
+		}
+	}
+
+	/**
+	 * 全部族级片段 + 各自的引用侧。lockstep 三个方向使用:
+	 * (1) 与真理源文件对拍,防两处漂移;(2) <b>逐侧</b>遍历族成员的 prompt,漏引任一条即变红;
+	 * (3) 清单本身按身份钉死,防「把某一条从清单里摘掉」。
+	 */
+	public static List<Fragment> fragments() {
+		return List.of(
+				new Fragment(NO_AGE_DISPLAY, Set.of(Side.TURN)),
+				new Fragment(NO_DEDICATED_TURN, Set.of(Side.TURN)),
+				// 唯一两侧都引用的一条 —— 也正是刀 1 那个空隙藏身之处。
+				new Fragment(ALIVE_AT_THE_END, Set.of(Side.TURN, Side.WORLD_GEN)),
+				new Fragment(CLOCK_CONTRACT, Set.of(Side.TURN)));
+	}
+
+	/** 全部族级片段的<b>词</b>(不带侧信息);源码级对拍与禁词检查用。 */
 	public static List<String> fragmentWords() {
-		return List.of(NO_AGE_DISPLAY, NO_DEDICATED_TURN, ALIVE_AT_THE_END, CLOCK_CONTRACT);
+		return fragments().stream().map(Fragment::words).toList();
 	}
 }

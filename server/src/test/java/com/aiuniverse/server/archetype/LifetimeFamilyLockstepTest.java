@@ -6,6 +6,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 
@@ -88,13 +89,18 @@ class LifetimeFamilyLockstepTest {
 	 */
 	@Test
 	void fragmentRosterIsPinnedByIdentity() {
-		assertThat(LifetimeFamily.fragmentWords())
+		assertThat(LifetimeFamily.fragments())
 				.as("族级片段清单被削减 = 那一条从此不再被任何 lockstep 检查")
 				.containsExactlyInAnyOrder(
-						LifetimeFamily.NO_AGE_DISPLAY,
-						LifetimeFamily.NO_DEDICATED_TURN,
-						LifetimeFamily.ALIVE_AT_THE_END,
-						LifetimeFamily.CLOCK_CONTRACT);
+						new LifetimeFamily.Fragment(LifetimeFamily.NO_AGE_DISPLAY,
+								Set.of(LifetimeFamily.Side.TURN)),
+						new LifetimeFamily.Fragment(LifetimeFamily.NO_DEDICATED_TURN,
+								Set.of(LifetimeFamily.Side.TURN)),
+						// 侧集也一并钉住:把 WORLD_GEN 从这一条上摘掉 = 那一侧从此不被检查
+						new LifetimeFamily.Fragment(LifetimeFamily.ALIVE_AT_THE_END,
+								Set.of(LifetimeFamily.Side.TURN, LifetimeFamily.Side.WORLD_GEN)),
+						new LifetimeFamily.Fragment(LifetimeFamily.CLOCK_CONTRACT,
+								Set.of(LifetimeFamily.Side.TURN)));
 	}
 
 	@Test
@@ -112,18 +118,35 @@ class LifetimeFamilyLockstepTest {
 		}
 	}
 
+	/**
+	 * 每个族成员**在每一个声明的侧**都必须真的引用该片段。
+	 *
+	 * <p><b>⚠️ 刀 3 由「合并串」改为「逐侧」(Felix 2026-08-15 裁定一)</b>:
+	 * 原版查的是 {@code turnPrompt + worldGenPrompt} 的合并串 —— 于是「最后一回合是活着的」
+	 * (两侧都引用)<b>只要任一侧还在就算过,单侧漏引不会响</b>。
+	 * 它<b>声称</b>在验「族成员引用了全部片段」,实际验的是「至少有一处引用了」。
+	 *
+	 * <p>这是「凡是遍历清单的守护,清单本身必须另有一条守护」(ADR-018 §4.13)的**第一个实例**,
+	 * 且形态更早一层:<b>不是清单被削减,而是清单里每条的检查范围从一开始就不足</b>。
+	 * <b>⚠️ 刀 1 只有一个族成员时它无法被发现</b> —— 要到第二个族成员出现、
+	 * 两侧引用面第一次可能不一致时才有条件暴露。
+	 *
+	 * <p><b>不要改回合并串。</b> 合并串确实更简洁,而这正是它的问题。
+	 */
 	@Test
-	void everyLifetimeMemberReferencesEveryFragment() {
+	void everyLifetimeMemberReferencesEveryFragmentOnEveryDeclaredSide() {
 		assertThat(LifetimeFamily.lifetimeMembers()).as("族成员表非空").isNotEmpty();
 		for (String archetype : LifetimeFamily.lifetimeMembers()) {
-			String turnPrompt = turn.buildTurnPrompt(engine(archetype), "A", "行动");
-			String worldPrompt = worldGen.buildWorldPrompt(archetype);
-			String both = turnPrompt + "\n" + worldPrompt;
-			for (String fragment : LifetimeFamily.fragmentWords()) {
-				for (String seg : fixedSegments(fragment)) {
-					assertThat(words(both))
-							.as("族成员 %s 的世界层模板漏引了族级片段:%s", archetype, seg)
-							.contains(seg);
+			Map<LifetimeFamily.Side, String> bySide = Map.of(
+					LifetimeFamily.Side.TURN, turn.buildTurnPrompt(engine(archetype), "A", "行动"),
+					LifetimeFamily.Side.WORLD_GEN, worldGen.buildWorldPrompt(archetype));
+			for (LifetimeFamily.Fragment fragment : LifetimeFamily.fragments()) {
+				for (LifetimeFamily.Side side : fragment.sides()) {
+					for (String seg : fixedSegments(fragment.words())) {
+						assertThat(words(bySide.get(side)))
+								.as("族成员 %s 在 %s 侧漏引了族级片段:%s", archetype, side, seg)
+								.contains(seg);
+					}
 				}
 			}
 		}
@@ -133,7 +156,7 @@ class LifetimeFamilyLockstepTest {
 	 * <b>族级片段的词只许出现在族层源文件里</b> —— 防「世界层把词抄回去」。
 	 *
 	 * <p><b>⚠️ 这一条是变异验证逼出来的</b>(ADR-018 §4.13):第一版只有
-	 * {@link #everyLifetimeMemberReferencesEveryFragment},而它查的是「词在不在渲染结果里」——
+	 * {@link #everyLifetimeMemberReferencesEveryFragmentOnEveryDeclaredSide},而它查的是「词在不在渲染结果里」——
 	 * 于是把世界层模板的 {@code %10$s} 退回硬编码原文时,**测试照样是绿的**:词确实还在,
 	 * 只是又变回了一份拷贝。**那正是本刀要治的病,而守护看不见它。**
 	 * 故补这一条源码级断言:词只能来自族层,世界层模板里不许有第二份。
