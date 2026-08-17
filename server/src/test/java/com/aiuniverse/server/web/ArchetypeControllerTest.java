@@ -22,11 +22,12 @@ class ArchetypeControllerTest {
 	@Test
 	void listWrapsRegistrySelectionUnderArchetypesKey() {
 		List<ArchetypeSummary> list = controller.list().archetypes();
-		assertThat(list).hasSize(6);
+		assertThat(list).hasSize(7);
 		assertThat(list.stream().map(ArchetypeSummary::archetype))
-				.containsExactly("rules_creepy", "apocalypse", "cthulhu", "cultivation", "life_sim", "cyberpunk");
+				.containsExactly("rules_creepy", "apocalypse", "cthulhu", "cultivation", "life_sim", "animal_life",
+						"cyberpunk");
 		assertThat(list.stream().filter(ArchetypeSummary::active).map(ArchetypeSummary::archetype))
-				.containsExactly("rules_creepy", "apocalypse", "cthulhu", "cultivation", "life_sim");
+				.containsExactly("rules_creepy", "apocalypse", "cthulhu", "cultivation", "life_sim", "animal_life");
 	}
 
 	/** ADR-019:合法组合与世界目录**同一次请求**下发(分两个端点 = 两个可能不同步的响应)。 */

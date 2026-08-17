@@ -217,7 +217,8 @@ class LifetimeFamilyLockstepTest {
 			"apocalypse", Map.of("hp", 100, "hunger", 100),
 			"cthulhu", Map.of("hp", 100, "san", 90, "knowledge", 10),
 			"cultivation", Map.of("hp", 100, "mana", 50, "realm", 20),
-			"life_sim", Map.of("vigor", 60, "longing", 50, "crossroads", 40, "ties", 50));
+			"life_sim", Map.of("vigor", 60, "longing", 50, "crossroads", 40, "ties", 50),
+			"animal_life", Map.of("body", 60, "warmth", 50, "ground", 40, "close", 30));
 
 	private Engine engine(String archetype) {
 		ObjectNode world = mapper.createObjectNode();

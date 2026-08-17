@@ -55,7 +55,9 @@ public final class LifetimeFamily {
 	 * {@code WORLD_GEN_DIRECTIVES} 的 key):那两张忘了登记的后果是「没有这段指令」(可见的降级),
 	 * 本表忘了登记的后果是<b>功能静默不生效</b> —— 两者性质不同,不合并。
 	 */
-	private static final Map<String, String> WORLD_FAMILY = Map.of("life_sim", LIFETIME);
+	private static final Map<String, String> WORLD_FAMILY = Map.of(
+			"life_sim", LIFETIME,
+			"animal_life", LIFETIME);
 
 	/** 该 archetype 是否为一生制族成员(族层片段的引用义务由 lockstep 据此清单强制)。 */
 	public static boolean isLifetime(String archetype) {

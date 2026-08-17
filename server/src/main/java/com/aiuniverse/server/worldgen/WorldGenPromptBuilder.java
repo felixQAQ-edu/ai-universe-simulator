@@ -191,6 +191,13 @@ public final class WorldGenPromptBuilder {
 					"散修游历至一座荒废的上古洞府,洞门上残留着未散尽的禁制灵光;危险等级 high",
 					"宗门大比前夜,玩家是被同门排挤的废灵根弟子,意外得了一卷残破心法;危险等级 medium",
 					"渡劫将至,玩家是闭关冲击筑基的修士,洞外却有仇家循着灵气波动逼近;危险等级 high"),
+			"animal_life", List.of(
+					// ⚠️ 种子给的是【屋里那一家】的形态差异(什么样的屋、什么样的人、有没有别的动物),
+					// 不是动物本身 —— 动物是谁由 world-gen 自己长出来。
+					"一室一厅,门边一双鞋、椅子上一件外套,靠墙一个碗;屋里只有你一只;危险等级 high",
+					"老楼三层,家里两个人一高一低,你的碗摆在洗衣机旁边;危险等级 high",
+					"屋里还有一只比你早来的,床脚那块地方原本是它的;危险等级 high",
+					"独居的一双鞋总在夜里回来,那盏灯常年不关;危险等级 extreme"),
 			"life_sim", List.of(
 					"1985 年北方工业城,父亲车间三班倒、母亲会计,家里存折有数目;独子;隔壁楼有个同岁的女孩;"
 							+ "危险等级 low" + FAIR_START,
@@ -213,7 +220,7 @@ public final class WorldGenPromptBuilder {
 	 * <p>《寻常》给 {@code "5-6"} 而<b>不给精确的 "6"</b>:骨架既有形状是区间,而 world-gen JSON 首过失败
 	 * 是头号失败模式(ADR-007)—— 精确计数对生成脆,区间给模型留出收敛余地。
 	 */
-	private static final Map<String, String> ENDING_COUNTS = Map.of("life_sim", "5-6");
+	private static final Map<String, String> ENDING_COUNTS = Map.of("life_sim", "5-6", "animal_life", "5-6");
 
 	private static final String DEFAULT_ENDING_COUNT = "2-3";
 
@@ -248,7 +255,42 @@ public final class WorldGenPromptBuilder {
 	 * (「东西还在、人不在了,认得它的只有你和玩家」/ 不做回收清单)。
 	 * <b>两处不得漂移:先改那份文件再同步本槽,不得反向。</b>
 	 */
-	private static final Map<String, String> WORLD_GEN_DIRECTIVES = Map.of("life_sim", """
+	private static final Map<String, String> WORLD_GEN_DIRECTIVES = Map.of(
+			"animal_life", """
+
+
+			【本世界专属 · 误读回收与结局池(《动物人生》,ADR-021)】
+			- 【核心机制 · 误读回收】屋里段建立的每一条规律在屋里【都是对的】,到了外面一条条失效;
+			  【系统绝不提示规律变了,只让它撞上】。建议的四条对应关系(rules 与 hiddenLogic 据此写):
+			  金属声=门要开 → 那是别人的钥匙,门不会开(抬头,不是,反复几次);
+			  靠近人=有吃的 → 有人会踢、会拿东西砸(撞上一次,身子掉);
+			  叫=有人来 → 叫会引来更坏的东西(叫完之后处境变糟);
+			  那个位置=安全 → 那里现在有别的东西占着(去了,被赶走)。
+			  ⚠️【失效不是一次性的】有的规律要撞两三次才真正改掉,而【有一条永远改不掉】——
+			  就是「金属声抬头」,它到死都还在。那一句是这个世界的记忆点,不要让它被改掉。
+			- 结局从以下六条里产出(骨架要求 %s 条,故至少产出其中五条);【熬过去了】与【撞上】两条必出——
+			  前者是本世界唯一的 success 落点,后者是致命轴触底时引擎兜底要命中的那一条:
+			  1) 熬过去了(outcome=success):身子自然耗尽,而它认得的地方还在。
+			     condition 例:回合走到尽头、【身子】仍在 15 以上未归零,且【地面】处于较高的位置。
+			  2) 冬天(outcome=neutral):【暖】长期低位之后,身子耗尽。
+			  3) 太近了(outcome=failure):【近人】高位,而【身子】归零。
+			     ⚠️ 这一条【必须存在】——它是本世界的特有失败:因为你还敢靠近人。没有它,双刃轴形同虚设。
+			  4) 撞上(outcome=failure):【身子】中途归零(意外)。
+			  5) 走回去了(outcome=neutral):末段选择返回旧地之后,身子耗尽。
+			     ⚠️【标 neutral 不标 success】回到那栋楼不会有人在,但它也不是失败——【这个模糊是故意的】。
+			  6) 没有名字的(outcome=failure):身子耗尽,而【地面】处于低位。
+			- 【身子归零 = 撞上;老死 = 走完回合表、身子低但未归零】——%s
+			- 【绝不解释断裂的原因】不是搬家、不是生病、不是不要你了——background / rules / openingNarrative /
+			  任何结局文字里,【任何时候都不给原因】。这不是留悬念,是这个世界的成立条件:
+			  旁白只写动物感知得到的,而动物读不懂人类。
+			- 【结局文字可以回收一条,且只回收一条】回收的是早年在屋里学会的某一条规律,
+			  且必须以「别人不知道」的方式出现——东西还在、人不在了,认得它的只有你和玩家;
+			  不解释、不点破、不加说明,更不要列一份回收清单。回收永远不加分、不标记。
+			- 【condition 一律用中文轴名】身子 / 暖 / 地面 / 近人——绝不写 body / warmth / ground / close。\
+			""".formatted(ENDING_COUNTS.get("animal_life"),
+					// 族级片段 ③ —— 与《寻常》引用【同一份词】;断行槽同 world-gen 侧口径。
+					LifetimeFamily.aliveAtTheEnd("\n  ", "")),
+			"life_sim", """
 
 
 			【本世界专属 · 结局池与早逝(《寻常》,ADR-020)】

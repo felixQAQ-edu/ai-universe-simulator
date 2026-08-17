@@ -120,7 +120,7 @@ class LifeStageParameterizationTest {
 	 */
 	@Test
 	void lifetimeMembershipHasASingleSourceOfTruth() {
-		assertThat(LifetimeFamily.lifetimeMembers()).containsExactly("life_sim");
+		assertThat(LifetimeFamily.lifetimeMembers()).containsExactlyInAnyOrder("life_sim", "animal_life");
 		// 出口 id 留全局:它是 id 不是措辞(裁定一)——玩家看不见,换世界没有理由换。
 		assertThat(LifeStageTable.EXIT_ACTION_ID).isEqualTo("X");
 	}
@@ -161,6 +161,60 @@ class LifeStageParameterizationTest {
 		// 归零不死两轴与累积轴都不在致命集里(ADR-020 §3 / ADR-021 刀 1 登记)。
 		assertThat(ArchetypeRegistry.nonLethalKeys(axes)).containsExactlyInAnyOrder("longing", "crossroads");
 		assertThat(ArchetypeRegistry.accumulationKeys(axes)).containsExactly("ties");
+	}
+
+	/**
+	 * <b>一个一生制世界的 prompt 里,不得出现别的一生制世界的阶段名</b> —— 把冒烟探针自动化。
+	 *
+	 * <p><b>⚠️ 这是变异验证逼出来的第四次</b>(刀 1 → 刀 2 → 刀 2 → 本条,ADR-018 §4.13 那条常驻纪律):
+	 * 把 {@code animal_life} 映射到《寻常》那张表时,<b>登记面对拍照样通过</b>(键还在)、
+	 * <b>全部测试照样绿</b>,而动物的 prompt 里会出现「31-55 岁」这种人类段式 ——
+	 * 那条探针<b>只对人眼可见,没有任何断言在看</b>。
+	 *
+	 * <p>加载期已补一条更根本的(key 必须等于表自称的 archetype,见 {@code LifeStageTables} 静态块);
+	 * 本条是它在 prompt 层的第二道 —— <b>因为「挂错表」不止「键写错」一种走法</b>
+	 * (照抄一张表的内容也会走到同一个坑,而那时 key 是对的)。
+	 */
+	@Test
+	void noLifetimeWorldLeaksAnotherWorldsStageNames() {
+		var registry = new ArchetypeRegistry();
+		var builder = new TurnPromptBuilder(registry);
+		for (String archetype : LifetimeFamily.lifetimeMembers()) {
+			String prompt = builder.buildTurnPrompt(engineFor(registry, archetype), "A", "行动");
+			for (String other : LifetimeFamily.lifetimeMembers()) {
+				if (other.equals(archetype)) {
+					continue;
+				}
+				// ⚠️ 只查【对方独有】的段名:两张表合法地共用「末段」这种通用段名,
+				// 拿它当判据会误报(同 ADR-018 §4.18:调的是指标,不是守护的意图)。
+				var mine = LifeStageTables.of(archetype).stages().stream()
+						.map(LifeStage::label).collect(java.util.stream.Collectors.toSet());
+				for (LifeStage stage : LifeStageTables.of(other).stages()) {
+					if (mine.contains(stage.label())) {
+						continue;
+					}
+					assertThat(prompt)
+							.as("%s 的 prompt 里出现了 %s 独有的阶段名「%s」——时钟表挂错了世界",
+									archetype, other, stage.label())
+							.doesNotContain("【" + stage.label() + "】");
+				}
+				assertThat(prompt)
+						.as("%s 的 prompt 里出现了 %s 的终点词", archetype, other)
+						.doesNotContain("回合走到" + LifeStageTables.of(other).terminalWord());
+			}
+		}
+	}
+
+	private static com.aiuniverse.server.engine.Engine engineFor(ArchetypeRegistry registry, String archetype) {
+		var mapper = new tools.jackson.databind.ObjectMapper();
+		var world = mapper.createObjectNode();
+		world.put("schemaVersion", "0.4");
+		world.putArray("archetypes").add(archetype);
+		var attrs = world.putObject("character").putObject("attributes");
+		registry.meta(archetype).attributes().forEach(a -> attrs.put(a.key(), 50));
+		world.putArray("rules");
+		world.putArray("endings");
+		return new com.aiuniverse.server.engine.Engine(world, mapper);
 	}
 
 	/** 表结构良构由构造器保证:断段 / 末段不开放 → 加载即抛,不留给运行时。 */

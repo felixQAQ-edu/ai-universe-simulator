@@ -65,9 +65,72 @@ final class LifeStageTables {
 			"他",      // 人称词槽
 			"寿终");   // 终点词槽
 
-	private static final Map<String, LifeStageTable> TABLES = Map.of(ORDINARY_LIFE.archetype(), ORDINARY_LIFE);
+	/**
+	 * 《动物人生》(`animal_life`)的时钟表 —— ADR-021 刀 3。
+	 *
+	 * <p><b>⚠️ 五段,不是叙事上的三段(Felix 2026-08-15 裁定 A)</b>:创意稿的「屋里 / 断裂 / 外面」是
+	 * <b>叙事结构</b>;拿它直接填时钟表会让<b>外面 28 个回合共用同一句推进要求</b> ——
+	 * 等于外面段<b>没有时钟</b>,而那正是 F-020 立的字「缺的不是三条指令,是一个时钟」的
+	 * <b>同一个错误的第二次</b>。故按创意稿的密度表切成五段。
+	 * <b>段数是时钟的粒度,不是叙事的粒度。</b>
+	 *
+	 * <p><b>⚠️ 刻意不拆六段</b>:幼年(一回合几天)与成年(一回合数月)的密度切换
+	 * <b>写进「屋里」段的 {@code advanceClause}</b> —— <b>一段之内允许有变化,那正是 advanceClause 该说的事</b>。
+	 *
+	 * <p>14 + 3 + 10 + 14 + 4 = <b>45</b>,收敛窗口 45–48;末段起点 42。
+	 * 三个「不是。」递减级的位置与本表精确吻合:T19 在外面·早期、T34 在外面·中期、T45 在末段。
+	 *
+	 * <p><b>⚠️ {@code exitText} 五段全 null —— 动物没有「就到这里」出口</b>(裁定 B):
+	 * 创意稿逐字要求末段是「一个<b>没有「走」的菜单</b>,玩家自己读出来这是尽头,<b>系统不提示</b>」,
+	 * 而服务端追加第五项 X <b>就是系统提示</b> —— 机制与设计直接冲突,不是措辞问题;
+	 * 且「趴下」是尾巴句的核心动词(全稿六次逐字不动、在「不许动的字」清单里),
+	 * 做成菜单项等于<b>把它从落幅降级为选项</b>。
+	 * <b>这个否定是本 ADR 的一个真读数</b>:「就到这里」由此判定<b>不是一生制的族级机制,
+	 * 是《寻常》的世界机制</b>(立字六复用率读数已据此修正)。
+	 */
+	private static final LifeStageTable ANIMAL_LIFE = new LifeStageTable(
+			"animal_life",
+			List.of(
+					// T1-14:世界小而确定,规律可以学会。幼年与成年的密度切换写在 advanceClause 里。
+					new LifeStage(1, 14, "屋里", "还在屋里的日子",
+							"最初三个回合一回合几天(还没睁开眼到刚被带到这里),此后一回合约数月", null),
+					// T15-17:同一天。光在地板上 → 光在墙上 → 天黑。
+					new LifeStage(15, 17, "断裂", "被丢下的那几天",
+							"这三个回合是【同一天】:光在地板上、光挪到墙上、天黑;"
+									+ "本回合只比上一回合晚几个钟头,绝不写出「这一天」三个字,让光自己走", null),
+					// T18-27:一回合数周。
+					new LifeStage(18, 27, "外面·早期", "刚出来那阵",
+							"本回合比上一回合晚约数周", null),
+					// T28-41:一回合一季。
+					new LifeStage(28, 41, "外面·中期", "在外面",
+							"本回合比上一回合晚约一季(靠风、毛、白天的长短透出来,绝不报季数)", null),
+					// T42+:一回合一天。
+					new LifeStage(42, Integer.MAX_VALUE, "末段", "最后那些天",
+							"本回合比上一回合晚一天到数日", null)),
+			45,  // convergeFrom:14+3+10+14+4 = 45
+			48,  // convergeTo:三段边界清晰,不需要《寻常》那 10 个回合的宽度(那是六段递进累积误差的产物)
+			42,  // finalStageFromTurn
+			// ⚠️ 出口五段全 null,故以下三条出口措辞永不被读到;留空串而非编造措辞。
+			"", "", "",
+			"它",     // 人称词槽
+			"老死");  // 终点词槽
+
+	private static final Map<String, LifeStageTable> TABLES = Map.of(
+			ORDINARY_LIFE.archetype(), ORDINARY_LIFE,
+			ANIMAL_LIFE.archetype(), ANIMAL_LIFE);
 
 	static {
+		// ⚠️ key 必须与表自称的 archetype 一致 —— 否则「某个世界挂了别人的时钟表」不会有任何信号。
+		// 本条由 ADR-021 刀 3 的变异验证逼出来:把 animal_life 映射到《寻常》那张表时,
+		// 登记面对拍照样通过(键还在)、全部 371 个测试照样绿,而动物的 prompt 里会出现「31-55 岁」——
+		// **探针只对人眼可见,没有任何断言在看**。故把它做成加载即抛。
+		TABLES.forEach((key, table) -> {
+			if (!key.equals(table.archetype())) {
+				throw new IllegalStateException(
+						"一生制时钟表挂错了世界:key=" + key + " 但表自称 " + table.archetype()
+								+ "(那个世界会拿到别人的人生阶段,而这不会有任何信号)");
+			}
+		});
 		if (!TABLES.keySet().equals(LifetimeFamily.lifetimeMembers())) {
 			throw new IllegalStateException(
 					"一生制时钟表登记面与族成员表不一致:表=" + TABLES.keySet()

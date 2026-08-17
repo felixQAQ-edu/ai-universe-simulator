@@ -58,18 +58,19 @@ class ArchetypeRegistryTest {
 	@Test
 	void listForSelectionPutsActiveFirstThenInactivePlaceholders() {
 		List<ArchetypeSummary> list = registry.listForSelection();
-		// 已激活五条(含克苏鲁 + 修仙 + ADR-020《寻常》)在前 + 已知未开放一条占位在后。
+		// 已激活六条(含克苏鲁 + 修仙 +《寻常》+ ADR-021《动物人生》)在前 + 已知未开放一条占位在后。
 		assertThat(list.stream().map(ArchetypeSummary::archetype))
-				.containsExactly("rules_creepy", "apocalypse", "cthulhu", "cultivation", "life_sim", "cyberpunk");
-		// 已激活五条在前、可选、钩子/标签齐。
-		for (ArchetypeSummary s : list.subList(0, 5)) {
+				.containsExactly("rules_creepy", "apocalypse", "cthulhu", "cultivation", "life_sim", "animal_life",
+						"cyberpunk");
+		// 已激活六条在前、可选、钩子/标签齐。
+		for (ArchetypeSummary s : list.subList(0, 6)) {
 			assertThat(s.active()).as("已激活可选:%s", s.archetype()).isTrue();
 			assertThat(s.displayName()).isNotBlank();
 			assertThat(s.tagline()).as("可选卡片有钩子:%s", s.archetype()).isNotBlank();
 			assertThat(s.vibeTag()).as("可选卡片有标签:%s", s.archetype()).isNotBlank();
 		}
 		// 占位一条在后、不可选、仍有中文名(渲染「敬请期待」)。
-		for (ArchetypeSummary s : list.subList(5, 6)) {
+		for (ArchetypeSummary s : list.subList(6, 7)) {
 			assertThat(s.active()).as("未开放占位:%s", s.archetype()).isFalse();
 			assertThat(s.displayName()).isNotBlank();
 		}
@@ -172,7 +173,7 @@ class ArchetypeRegistryTest {
 		assertThat(registry.isActive("cyberpunk")).isFalse();
 		// 未知 id 既不已知也不已激活。
 		assertThat(registry.isActive("not_an_archetype")).isFalse();
-		assertThat(registry.activeMetas()).hasSize(5);
+		assertThat(registry.activeMetas()).hasSize(6);
 	}
 
 	@Test
