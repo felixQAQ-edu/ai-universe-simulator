@@ -56,6 +56,35 @@ public class ArchetypeRegistry {
 		register(cthulhu());
 		register(cultivation());
 		register(ordinaryLife());
+		assertLifetimeWorldsHaveExactlyOneLethalAxis();
+	}
+
+	/**
+	 * <b>一生制世界必须恰好有一条致命轴,否则构造期抛</b>(ADR-021 刀 2 · 裁定二)。
+	 *
+	 * <p><b>为什么要有这条</b>:一生制的「收束阶段下限钳制」(ADR-020 §8)是<b>对着那一条命轴</b>说的;
+	 * 若某个一生制世界有两条致命轴,「下限」指哪条<b>没有答案</b>,而代码会挑一条继续跑 ——
+	 * <b>那又是一个静默失效</b>。
+	 *
+	 * <p><b>⚠️ 而本刀存在的一半理由就是修 {@code VIGOR_KEY} 那个静默失效
+	 * (动物的致命轴不叫 vigor,钳制对它直接 return 且不报错)——
+	 * 若修完换来另一个静默失效,等于白修。</b> 故把它做成加载即响。
+	 *
+	 * <p><b>约束是一生制族的,不是全局的</b>:{@code rules_creepy} 两条致命轴(hp/san)照常,
+	 * 它不属这个族、也没有收束下限这回事。
+	 */
+	private void assertLifetimeWorldsHaveExactlyOneLethalAxis() {
+		for (ArchetypeMeta meta : active.values()) {
+			if (!LifetimeFamily.isLifetime(meta.id())) {
+				continue;
+			}
+			Set<String> lethal = lethalKeys(meta.attributes());
+			if (lethal.size() != 1) {
+				throw new IllegalStateException(
+						"一生制世界必须恰好一条致命轴(收束下限钳制才有唯一对象):" + meta.id()
+								+ " 实际 " + lethal.size() + " 条 " + lethal);
+			}
+		}
 	}
 
 	private void register(ArchetypeMeta meta) {
@@ -278,6 +307,24 @@ public class ArchetypeRegistry {
 		Set<String> keys = new LinkedHashSet<>();
 		for (AttributeAxis a : axes) {
 			if (!a.isAccumulation() && !a.isLethal()) {
+				keys.add(a.key());
+			}
+		}
+		return keys;
+	}
+
+	/**
+	 * <b>致命</b> depletion 轴 key 集合(ADR-021 刀 2):{@code depletion && lethal} ——
+	 * 与 {@link #nonLethalKeys} 互补、与 {@link #accumulationKeys} 不交。保序。
+	 *
+	 * <p>补这一个是因为该判据此前<b>在 {@code WorldGenPromptBuilder} 里手写了两遍</b>
+	 * ({@code lethalAxisNames} / {@code endingCountRange}),而刀 2 又需要第三处
+	 * (一生制世界的收束下限钳制要知道「气力」是哪条轴,不能再硬编码 {@code "vigor"})。
+	 */
+	public static Set<String> lethalKeys(List<AttributeAxis> axes) {
+		Set<String> keys = new LinkedHashSet<>();
+		for (AttributeAxis a : axes) {
+			if (!a.isAccumulation() && a.isLethal()) {
 				keys.add(a.key());
 			}
 		}

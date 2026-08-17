@@ -47,12 +47,13 @@ public final class LifetimeFamily {
 	/**
 	 * 世界 → 族 映射。
 	 *
-	 * <p><b>⚠️ 过渡形态,刀 2 收编</b>(ADR-021 裁定三):这是仓库里<b>第四张</b>同类硬编码世界名表
-	 * (前三张:{@code TURN_DIRECTIVES} / {@code WORLD_GEN_DIRECTIVES} 的 key、
-	 * {@code EventLoopService.LIFETIME_EXIT_ARCHETYPES}),与刀 2「解硬编码」的方向<b>相反</b>。
-	 * 本刀仍选它,是因为另两条路都更差:动 {@code ArchetypeMeta} 加 family 字段会越过刀 1
-	 * 「只搬位置不改内容」的红线;由「有没有登记族层内容」隐式派生则退回 per-world 拷贝、违背本刀目的。
-	 * <b>刀 2 一并收编</b>——届时与 {@code LIFETIME_EXIT_ARCHETYPES} 合并,或一起提到 {@code ArchetypeMeta}。
+	 * <p><b>刀 2 已收编(ADR-021 裁定三兑现)</b>:原 {@code EventLoopService.LIFETIME_EXIT_ARCHETYPES}
+	 * 与本表同集同义(那张的注释自陈是「一生制世界」),已合并到这里 —— <b>「谁是一生制世界」现在只有一处答案</b>。
+	 * {@code LifeStageTables} 的登记面在类加载时对拍本表,少一张时钟表即抛。
+	 *
+	 * <p><b>⚠️ 仍与「有没有登记内容」的隐式表刻意分开</b>({@code TURN_DIRECTIVES} /
+	 * {@code WORLD_GEN_DIRECTIVES} 的 key):那两张忘了登记的后果是「没有这段指令」(可见的降级),
+	 * 本表忘了登记的后果是<b>功能静默不生效</b> —— 两者性质不同,不合并。
 	 */
 	private static final Map<String, String> WORLD_FAMILY = Map.of("life_sim", LIFETIME);
 
@@ -125,10 +126,52 @@ public final class LifetimeFamily {
 			"老死不是生命力耗到零,%1$s是故事走完了而你还剩一点;%2$s耗到零的是意外与病,那才是早逝。";
 
 	/**
+	 * 族级原则 ④【一生制时钟契约】——<b>ADR-021 刀 2 上提(路 2),族层第四条片段</b>。
+	 *
+	 * <p><b>为什么刀 1 没上提、刀 2 上提了</b>:刀 1 收窄的理由是「它的词全部来自人类专有的
+	 * {@code LifeStage}」。刀 2 参数化之后<b>数据侧</b>(阶段名 / 区间 / 推进句 / 收敛窗口)不再人类专有;
+	 * 剩下的两处人类专有是<b>语言选择</b>——人称(「他」vs 动物的「它」)与终点词(「寿终」vs「老死」)。
+	 * 故按 Felix 2026-08-15 裁定三走路 2:<b>上提并再开两个词槽</b>。
+	 * (否决路 1「不上提」:每个一生制世界各写一句时钟文本,<b>直接回到刀 1 要治的病</b>;
+	 * 否决路 3「只提无人称的几句」:拆一句话为两段,最碎。)
+	 *
+	 * <p><b>⚠️ 由此升一条族层设计口径(ADR-021 立字二补记)</b>:
+	 * <b>族级片段普遍需要「词槽」—— 族层持有句式与逻辑,per-world 差异靠槽注入。</b>
+	 * 证据是同一形状<b>第二次</b>出现:{@link #aliveAtTheEnd} 的换行槽 + 本条的人称 / 终点词槽。
+	 * 两次都不是临时补丁,而是这套抽象的<b>固有形态</b>——
+	 * 族层要装的从来不是「一模一样的字」,是<b>一模一样的句式与逻辑</b>。
+	 *
+	 * @param nextTurn      正在生成的那一回合(= {@code engine.turn() + 1})
+	 * @param pronoun       人称词槽(per-world,取自时钟表)
+	 * @param label         当前阶段名
+	 * @param spanNote      当前阶段的设计标注(⚠️ 绝不显示给玩家)
+	 * @param advanceClause 兑现语义的推进要求
+	 * @param convergeFrom  收敛窗口下界
+	 * @param convergeTo    收敛窗口上界
+	 * @param terminalWord  终点词槽(per-world,取自时钟表)
+	 */
+	public static String clockContract(int nextTurn, String pronoun, String label, String spanNote,
+			String advanceClause, int convergeFrom, int convergeTo, String terminalWord) {
+		return CLOCK_CONTRACT.formatted(nextTurn, pronoun, label, spanNote, advanceClause,
+				convergeFrom, convergeTo, terminalWord);
+	}
+
+	/** {@link #clockContract} 的词本体(带 8 个槽,其中 %2$s 人称 / %8$s 终点词是 per-world 词槽)。 */
+	static final String CLOCK_CONTRACT =
+			"""
+			【本回合的时间坐标 · 一生制时钟】现在是第 %1$d 回合,%2$s正处于【%3$s】(设计标注:%4$s)。
+			    ⚠️【本回合必须推进时间,这是硬要求不是风格建议】%5$s——本回合结束时,
+			    叙事必须已经落在一个【比上一回合更晚】的时间点上。
+			    【绝不允许】两个回合停在同一天、同一顿饭、同一次谈话里把一件事说完;
+			    上一回合正在发生的事,本回合应当【已经过去了】,写的是它之后的日子。
+			    全局预期在第 %6$d-%7$d 回合走到%8$s:每往后一个回合,都要比上一个更靠近一生的尽头。\
+			""";
+
+	/**
 	 * 全部族级片段的<b>词</b>(去掉换行槽与排版),供 lockstep 两个方向使用:
 	 * (1) 与真理源文件对拍,防两处漂移;(2) 遍历族成员的 prompt,<b>漏引任一条即变红</b>。
 	 */
 	public static List<String> fragmentWords() {
-		return List.of(NO_AGE_DISPLAY, NO_DEDICATED_TURN, ALIVE_AT_THE_END);
+		return List.of(NO_AGE_DISPLAY, NO_DEDICATED_TURN, ALIVE_AT_THE_END, CLOCK_CONTRACT);
 	}
 }

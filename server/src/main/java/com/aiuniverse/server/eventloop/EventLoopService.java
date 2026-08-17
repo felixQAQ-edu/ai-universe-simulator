@@ -8,6 +8,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import com.aiuniverse.server.archetype.ArchetypeRegistry;
+import com.aiuniverse.server.archetype.LifetimeFamily;
 import com.aiuniverse.server.engine.Engine;
 import com.aiuniverse.server.engine.GameSchemas;
 import com.aiuniverse.server.llm.ChatRequest;
@@ -47,18 +49,31 @@ public class EventLoopService implements TurnExecutor {
 	private final TurnPromptBuilder promptBuilder;
 	private final ObjectMapper mapper;
 	private final QuotaGate quota;
+	private final ArchetypeRegistry registry;
 
 	/** 无闸门形态(ADR-016 之前行为;既有测试调用点零改)。 */
 	public EventLoopService(LlmClient llm, TurnPromptBuilder promptBuilder, ObjectMapper mapper) {
 		this(llm, promptBuilder, mapper, QuotaGate.NOOP);
 	}
 
-	@Autowired
 	public EventLoopService(LlmClient llm, TurnPromptBuilder promptBuilder, ObjectMapper mapper, QuotaGate quota) {
+		this(llm, promptBuilder, mapper, quota, new ArchetypeRegistry());
+	}
+
+	/**
+	 * 全参形态(ADR-021 刀 2 增 {@code registry}:收束下限钳制要问「这个世界的命轴是哪条」,
+	 * 那是<b>世界元数据</b>)。缺省重载补一个 {@code new ArchetypeRegistry()} ——
+	 * registry 是无状态只读表,多一个实例无害,而<b>既有 15 个测试调用点因此零改</b>
+	 * (同 {@code SessionStore.NOOP} / {@code QuotaGate.NOOP} 的既定接缝形态)。
+	 */
+	@Autowired
+	public EventLoopService(LlmClient llm, TurnPromptBuilder promptBuilder, ObjectMapper mapper,
+			QuotaGate quota, ArchetypeRegistry registry) {
 		this.llm = llm;
 		this.promptBuilder = promptBuilder;
 		this.mapper = mapper;
 		this.quota = quota;
+		this.registry = registry;
 	}
 
 	@Override
@@ -256,19 +271,19 @@ public class EventLoopService implements TurnExecutor {
 		if (!"ongoing".equals(engine.status())) {
 			return;
 		}
-		if (!LIFETIME_EXIT_ARCHETYPES.contains(engine.world().path("archetypes").path(0).asString(""))
-				|| engine.world().path("archetypes").size() != 1) {
+		LifeStageTable table = lifetimeTable(engine);
+		if (table == null) {
 			return; // 只对单体一生制世界生效;融合局不追加(融合路径一行不动)
 		}
-		LifeStage stage = LifeStage.of(engine.turn() + 1); // 这组选项通向的那一回合
+		LifeStage stage = table.stageAt(engine.turn() + 1); // 这组选项通向的那一回合
 		if (!stage.hasExit()) {
 			return;
 		}
 		boolean pressed = exitAlreadyPressed(engine);
 		actions.addObject()
-				.put("id", LifeStage.EXIT_ACTION_ID)
-				.put("text", pressed ? LifeStage.EXIT_TEXT_AFTER : stage.exitText())
-				.put("hint", pressed ? LifeStage.EXIT_HINT_AFTER : LifeStage.EXIT_HINT);
+				.put("id", LifeStageTable.EXIT_ACTION_ID)
+				.put("text", pressed ? table.exitTextAfter() : stage.exitText())
+				.put("hint", pressed ? table.exitHintAfter() : table.exitHint());
 	}
 
 	/**
@@ -285,18 +300,16 @@ public class EventLoopService implements TurnExecutor {
 	 */
 	private boolean exitAlreadyPressed(Engine engine) {
 		for (ObjectNode e : engine.log()) {
-			if (LifeStage.EXIT_ACTION_ID.equals(e.path("playerAction").asString(""))) {
+			if (LifeStageTable.EXIT_ACTION_ID.equals(e.path("playerAction").asString(""))) {
 				return true;
 			}
 		}
 		// 折叠后的旧回合只剩 [T{n}选{id}] 这一种形态,故子串即判据。
-		return engine.logSummary().contains("选" + LifeStage.EXIT_ACTION_ID);
+		return engine.logSummary().contains("选" + LifeStageTable.EXIT_ACTION_ID);
 	}
 
 	/** ADR-020 §8 补记:收束阶段气力下限。 */
 	private static final double CLOSING_VIGOR_FLOOR = 15;
-
-	private static final String VIGOR_KEY = "vigor";
 
 	/**
 	 * 收束阶段气力下限的<b>钳制兜底</b>(ADR-020 刀 7 · B②,F-021 故障 ③)。
@@ -321,30 +334,37 @@ public class EventLoopService implements TurnExecutor {
 	 */
 	private void clampClosingVigorFloor(GameSession session, ObjectNode parsed) {
 		Engine engine = session.engine();
-		if (!LIFETIME_EXIT_ARCHETYPES.contains(engine.world().path("archetypes").path(0).asString(""))
-				|| engine.world().path("archetypes").size() != 1) {
+		LifeStageTable table = lifetimeTable(engine);
+		if (table == null) {
 			return;
 		}
+		// 致命轴 key 从 registry 取,不再硬编码 "vigor"(ADR-021 刀 2 · C:那条硬编码对动物人生
+		// 【直接 return 且不报错】= 静默失效)。registry 构造期已断言一生制世界恰好一条致命轴。
+		// ⚠️ 刻意走 registry 而不是从引擎的轴集反推:那样会依赖「这一局的引擎被正确播种」,
+		//    而 2 参构造的引擎(golden parity 默认:全 depletion 全致命)会反推出 4 条轴 —— 本刀实测踩过。
+		//    「哪条是这个世界的命轴」是【世界元数据】,不是会话状态。
+		String vigorKey = ArchetypeRegistry.lethalKeys(registry.meta(archetypeOf(engine)).attributes())
+				.iterator().next();
 		int nextTurn = engine.turn() + 1;
-		boolean closing = nextTurn >= LifeStage.FINAL_STAGE_FROM_TURN || exitAlreadyPressed(engine);
+		boolean closing = nextTurn >= table.finalStageFromTurn() || exitAlreadyPressed(engine);
 		if (!closing) {
 			return;
 		}
 		JsonNode upd = parsed.get("stateUpdate");
-		if (upd == null || !upd.isObject() || !upd.has(VIGOR_KEY)) {
+		if (upd == null || !upd.isObject() || !upd.has(vigorKey)) {
 			return; // 模型没给气力 → Engine 缺省保留当前值,不在这里臆造
 		}
-		double proposed = upd.get(VIGOR_KEY).asDouble();
+		double proposed = upd.get(vigorKey).asDouble();
 		if (proposed >= CLOSING_VIGOR_FLOOR) {
 			return;
 		}
-		((ObjectNode) upd).put(VIGOR_KEY, CLOSING_VIGOR_FLOOR);
+		((ObjectNode) upd).put(vigorKey, CLOSING_VIGOR_FLOOR);
 		// 记进引擎 issues(纯增量入口 Engine.recordIssue):随 toPersistedState 落盘、经 restore 回载,
 		// 故冒烟后可直接从 /data/<saveId>.json 取出核对,不必翻 fly logs。
 		// ⚠️ 措辞要能【一眼分辨是钳制】且带原值 —— 刀 8 冒烟靠数这行的触发次数判「B① 够不够」,
 		//    与 Engine 自己那条「跳变过大 60->15(需复核)」必须读得出区别,含糊不得。
 		// ⚠️ issues 不进 snapshot() → 模型看不见自己被钳制(F-020 挂账,本刀不修)。
-		engine.recordIssue("T" + nextTurn + " " + VIGOR_KEY + " 收束下限钳制 " + fmtVigor(proposed)
+		engine.recordIssue("T" + nextTurn + " " + vigorKey + " 收束下限钳制 " + fmtVigor(proposed)
 				+ "->" + fmtVigor(CLOSING_VIGOR_FLOOR));
 		log.warn("[event-loop] save={} T{} 收束阶段气力 {} 低于下限 {},已钳制(§8 兜底)",
 				session.saveId(), nextTurn, fmtVigor(proposed), fmtVigor(CLOSING_VIGOR_FLOOR));
@@ -354,8 +374,24 @@ public class EventLoopService implements TurnExecutor {
 		return v == Math.rint(v) ? String.valueOf((long) v) : String.valueOf(v);
 	}
 
-	/** 提供「就到这里」出口的一生制世界(ADR-020 §1 族级约定;目前只有《寻常》)。 */
-	private static final java.util.Set<String> LIFETIME_EXIT_ARCHETYPES = java.util.Set.of("life_sim");
+	/**
+	 * 本局若是<b>单体一生制</b>世界则返回它的时钟表,否则 {@code null}(融合局一行不动)。
+	 *
+	 * <p><b>ADR-021 刀 2 · B</b>:原先这里是第四张硬编码世界名表
+	 * {@code LIFETIME_EXIT_ARCHETYPES = Set.of("life_sim")},与 {@code LifetimeFamily.WORLD_FAMILY}
+	 * <b>同集同义</b>(那张的注释自陈是「一生制世界」)—— 已合并,<b>「谁是一生制世界」现在只有一处答案</b>。
+	 */
+	private LifeStageTable lifetimeTable(Engine engine) {
+		if (engine.world().path("archetypes").size() != 1) {
+			return null;
+		}
+		String archetype = archetypeOf(engine);
+		return LifetimeFamily.isLifetime(archetype) ? LifeStageTables.of(archetype) : null;
+	}
+
+	private static String archetypeOf(Engine engine) {
+		return engine.world().path("archetypes").path(0).asString("");
+	}
 
 	private String actionTextOf(GameSession session, String actionId) {
 		ArrayNode actions = session.currentActions();

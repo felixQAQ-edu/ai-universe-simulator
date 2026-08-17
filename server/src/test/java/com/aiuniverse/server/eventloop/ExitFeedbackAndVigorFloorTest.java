@@ -36,6 +36,9 @@ import tools.jackson.databind.node.ObjectNode;
  */
 class ExitFeedbackAndVigorFloorTest {
 
+	/** 《寻常》时钟表(ADR-021 刀 2);本文件断言意图一字未改,只把常量来源从全局改为查表。 */
+	private static final LifeStageTable ORDINARY = LifeStageTables.of("life_sim");
+
 	private final ObjectMapper mapper = new ObjectMapper();
 	private final TurnPromptBuilder prompts = new TurnPromptBuilder(new ArchetypeRegistry());
 
@@ -101,7 +104,7 @@ class ExitFeedbackAndVigorFloorTest {
 
 	private JsonNode exitOf(ObjectNode delta) {
 		for (JsonNode n : delta.path("availableActions")) {
-			if (LifeStage.EXIT_ACTION_ID.equals(n.path("id").asString(""))) {
+			if (LifeStageTable.EXIT_ACTION_ID.equals(n.path("id").asString(""))) {
 				return n;
 			}
 		}
@@ -120,16 +123,16 @@ class ExitFeedbackAndVigorFloorTest {
 		assertThat(before).isNotNull();
 		String textBefore = before.path("text").asString("");
 		String hintBefore = before.path("hint").asString("");
-		assertThat(hintBefore).isEqualTo(LifeStage.EXIT_HINT);
+		assertThat(hintBefore).isEqualTo(ORDINARY.exitHint());
 
-		JsonNode after = exitOf(turn(s, LifeStage.EXIT_ACTION_ID, 60)); // 按下 X
+		JsonNode after = exitOf(turn(s, LifeStageTable.EXIT_ACTION_ID, 60)); // 按下 X
 		assertThat(after).isNotNull();
 
 		// F-021 故障 ① 的直接表征是「三次副标题一字不差」——故 hint 必须变。
 		assertThat(after.path("hint").asString("")).isNotEqualTo(hintBefore)
-				.isEqualTo(LifeStage.EXIT_HINT_AFTER);
+				.isEqualTo(ORDINARY.exitHintAfter());
 		assertThat(after.path("text").asString("")).isNotEqualTo(textBefore)
-				.isEqualTo(LifeStage.EXIT_TEXT_AFTER);
+				.isEqualTo(ORDINARY.exitTextAfter());
 	}
 
 	/**
@@ -143,10 +146,10 @@ class ExitFeedbackAndVigorFloorTest {
 		for (int i = 0; i < 9; i++) {
 			turn(s, "A", 60);
 		}
-		turn(s, LifeStage.EXIT_ACTION_ID, 60);
+		turn(s, LifeStageTable.EXIT_ACTION_ID, 60);
 		ObjectNode d = turn(s, "A", 60);
 		assertThat(exitOf(d)).as("按过之后出口仍应在场(再按一次是确认,不是 bug)").isNotNull();
-		assertThat(s.hasAction(LifeStage.EXIT_ACTION_ID)).isTrue();
+		assertThat(s.hasAction(LifeStageTable.EXIT_ACTION_ID)).isTrue();
 	}
 
 	/**
@@ -160,15 +163,15 @@ class ExitFeedbackAndVigorFloorTest {
 		for (int i = 0; i < 9; i++) {
 			turn(s, "A", 60);
 		}
-		turn(s, LifeStage.EXIT_ACTION_ID, 60);
+		turn(s, LifeStageTable.EXIT_ACTION_ID, 60);
 		for (int i = 0; i < 6; i++) {
 			turn(s, "A", 60); // 把那一回合挤出 LOG_KEEP 窗口
 		}
-		assertThat(s.engine().logSummary()).contains("选" + LifeStage.EXIT_ACTION_ID);
+		assertThat(s.engine().logSummary()).contains("选" + LifeStageTable.EXIT_ACTION_ID);
 		assertThat(s.engine().log()).noneSatisfy(e ->
-				assertThat(e.path("playerAction").asString("")).isEqualTo(LifeStage.EXIT_ACTION_ID));
+				assertThat(e.path("playerAction").asString("")).isEqualTo(LifeStageTable.EXIT_ACTION_ID));
 		JsonNode exit = exitOf(turn(s, "A", 60));
-		assertThat(exit.path("hint").asString("")).isEqualTo(LifeStage.EXIT_HINT_AFTER);
+		assertThat(exit.path("hint").asString("")).isEqualTo(ORDINARY.exitHintAfter());
 	}
 
 	@Test
@@ -178,9 +181,9 @@ class ExitFeedbackAndVigorFloorTest {
 		for (int i = 0; i < 9; i++) {
 			turn(s, "A", 60);
 		}
-		turn(s, LifeStage.EXIT_ACTION_ID, 60);
+		turn(s, LifeStageTable.EXIT_ACTION_ID, 60);
 		assertThat(s.engine().timeline()).doesNotContain("收束段");
-		assertThat(exitOf(turn(s, "A", 60)).path("hint").asString("")).isEqualTo(LifeStage.EXIT_HINT_AFTER);
+		assertThat(exitOf(turn(s, "A", 60)).path("hint").asString("")).isEqualTo(ORDINARY.exitHintAfter());
 	}
 
 	// ── ③ §8 气力下限 ──────────────────────────────────────────────
@@ -206,7 +209,7 @@ class ExitFeedbackAndVigorFloorTest {
 		for (int i = 0; i < 9; i++) {
 			turn(s, "A", 60);
 		}
-		turn(s, LifeStage.EXIT_ACTION_ID, 60); // 按下出口 → 收束段
+		turn(s, LifeStageTable.EXIT_ACTION_ID, 60); // 按下出口 → 收束段
 		turn(s, "A", 3);
 		assertThat(s.engine().attribute("vigor")).isEqualTo(15.0);
 	}

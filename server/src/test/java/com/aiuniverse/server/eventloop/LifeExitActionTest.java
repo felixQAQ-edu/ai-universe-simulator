@@ -31,6 +31,9 @@ import tools.jackson.databind.node.ObjectNode;
  */
 class LifeExitActionTest {
 
+	/** 《寻常》时钟表(ADR-021 刀 2);本文件断言意图一字未改,只把常量来源从全局改为查表。 */
+	private static final LifeStageTable ORDINARY = LifeStageTables.of("life_sim");
+
 	private final ObjectMapper mapper = new ObjectMapper();
 	private final TurnPromptBuilder prompts = new TurnPromptBuilder(new ArchetypeRegistry());
 
@@ -105,7 +108,7 @@ class LifeExitActionTest {
 
 	private JsonNode exitOf(ObjectNode delta) {
 		for (JsonNode n : delta.path("availableActions")) {
-			if (LifeStage.EXIT_ACTION_ID.equals(n.path("id").asString(""))) {
+			if (LifeStageTable.EXIT_ACTION_ID.equals(n.path("id").asString(""))) {
 				return n;
 			}
 		}
@@ -125,7 +128,7 @@ class LifeExitActionTest {
 		JsonNode exit = exitOf(delta);
 		assertThat(exit).isNotNull();
 		assertThat(exit.path("text").asString("")).isEqualTo("不再往下想了,就这样过"); // 青年措辞
-		assertThat(exit.path("hint").asString("")).isEqualTo(LifeStage.EXIT_HINT);
+		assertThat(exit.path("hint").asString("")).isEqualTo(ORDINARY.exitHint());
 		// id 避开骨架规定的 A/B/C/D,故与 AI 产出的任何一项都不会撞。
 		assertThat(exit.path("id").asString("")).isEqualTo("X").isNotIn("A", "B", "C", "D");
 	}
@@ -138,7 +141,7 @@ class LifeExitActionTest {
 		}
 		// GameSession.hasAction(守卫 1)按 currentActions 放行 —— 追加项必须真的能被选中,
 		// 否则玩家点了会被拒掉(那才是「看起来有效、实际是坏的」控件)。
-		assertThat(s.hasAction(LifeStage.EXIT_ACTION_ID)).isTrue();
+		assertThat(s.hasAction(LifeStageTable.EXIT_ACTION_ID)).isTrue();
 	}
 
 	@Test

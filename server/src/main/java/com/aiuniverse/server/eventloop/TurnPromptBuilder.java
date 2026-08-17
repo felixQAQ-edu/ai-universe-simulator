@@ -170,16 +170,28 @@ public final class TurnPromptBuilder {
 		if (template == null) {
 			return ""; // 四个既有世界:与开槽前逐字节一致(parity 线)
 		}
-		LifeStage stage = LifeStage.of(nextTurn);
-		return template.formatted(nextTurn, stage.label(), stage.ageRange(), stage.advanceClause(),
-				LifeStage.CONVERGE_FROM, LifeStage.CONVERGE_TO, LifeStage.FINAL_STAGE_FROM_TURN,
-				LifeStage.EXIT_ACTION_ID,
+		LifeStageTable table = LifeStageTables.of(archetype);
+		if (table == null) {
+			// 非一生制世界登记了回合指令模板:照旧只喂族层无关的槽,时钟相关槽一律空。
+			// (刀 1 之前这条管道被焊死在《寻常》的时钟上 —— ADR-021 立字六勘察补充二,本刀解开。)
+			return template.formatted(nextTurn, "", "", "", 0, 0, 0, LifeStageTable.EXIT_ACTION_ID,
+					LifetimeFamily.NO_AGE_DISPLAY, LifetimeFamily.NO_DEDICATED_TURN,
+					LifetimeFamily.aliveAtTheEnd("", "\n    "), "");
+		}
+		LifeStage stage = table.stageAt(nextTurn);
+		return template.formatted(nextTurn, stage.label(), stage.spanNote(), stage.advanceClause(),
+				table.convergeFrom(), table.convergeTo(), table.finalStageFromTurn(),
+				LifeStageTable.EXIT_ACTION_ID,
 				// %9$s–%11$s 族级片段(ADR-021 刀 1):词只存在 LifetimeFamily 一处,世界层在原位引用。
 				// 断行由引用点自供(见 LifetimeFamily.aliveAtTheEnd 的两个换行槽)——words 一份、排版各自为政,
 				// 「一份拷贝」与「逐字节零回归」才能同时成立。
 				LifetimeFamily.NO_AGE_DISPLAY,
 				LifetimeFamily.NO_DEDICATED_TURN,
-				LifetimeFamily.aliveAtTheEnd("", "\n    "));
+				LifetimeFamily.aliveAtTheEnd("", "\n    "),
+				// %12$s 族级时钟契约(ADR-021 刀 2 上提):句式与逻辑在族层,
+				// 人称与终点词是 per-world 词槽,取自本世界的时钟表。
+				LifetimeFamily.clockContract(nextTurn, table.pronoun(), stage.label(), stage.spanNote(),
+						stage.advanceClause(), table.convergeFrom(), table.convergeTo(), table.terminalWord()));
 	}
 
 	/**
@@ -200,12 +212,7 @@ public final class TurnPromptBuilder {
 
 
 			【一生制 · 每回合写作标准(《寻常》,ADR-020)】
-			(1)【本回合的时间坐标 · 一生制时钟】现在是第 %1$d 回合,他正处于【%2$s】(设计标注:%3$s)。
-			    ⚠️【本回合必须推进时间,这是硬要求不是风格建议】%4$s——本回合结束时,
-			    叙事必须已经落在一个【比上一回合更晚】的时间点上。
-			    【绝不允许】两个回合停在同一天、同一顿饭、同一次谈话里把一件事说完;
-			    上一回合正在发生的事,本回合应当【已经过去了】,写的是它之后的日子。
-			    全局预期在第 %5$d-%6$d 回合走到寿终:每往后一个回合,都要比上一个更靠近一生的尽头。
+			(1)%12$s
 			    %9$s
 			(2)【措辞铁律六条】每一回合的叙事与选项都须同时守住这六条:
 			    1. 选项里不出现态度词。

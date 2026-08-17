@@ -41,15 +41,60 @@ class LifetimeFamilyLockstepTest {
 	private static final Path STANDARDS = Path.of("..", "docs", "lifetime-family-writing-standards.md");
 
 	/**
-	 * 归一化:去掉换行槽 {@code %N$s}、markdown 引用符 {@code >} 与全部空白——比的是<b>词</b>,不是排版。
+	 * 归一化:去掉 markdown 引用符 {@code >} 与全部空白——比的是<b>词</b>,不是排版。
 	 *
-	 * <p><b>⚠️ 引用符必须去掉</b>:真理源文件把三条原则写成 blockquote,续行开头带 {@code >};
-	 * 只去空白的话,两行之间会残留一个 {@code >} 把词切断。第一版正是漏了这一条而变红 ——
-	 * <b>是断言写错、不是代码错</b>(同 ADR-018 §4.18 一族:指标与被测对象不匹配)。
-	 * 片段本身不含 {@code >},故去掉它对片段侧是无损的。
+	 * <p><b>⚠️ 引用符必须去掉</b>:真理源文件把原则写成 blockquote,续行开头带 {@code >};
+	 * 只去空白的话,两行之间会残留一个 {@code >} 把词切断(刀 1 第一版正是漏了这一条而变红 ——
+	 * <b>断言写错、不是代码错</b>,同 ADR-018 §4.18)。片段本身不含 {@code >},故无损。
 	 */
 	private static String words(String s) {
-		return s.replaceAll("%\\d+\\$s", "").replace(">", "").replaceAll("\\s+", "");
+		return s.replace(">", "").replaceAll("\\s+", "");
+	}
+
+	/**
+	 * 把带槽的片段拆成<b>固定段</b>(槽与槽之间的字面文本)。
+	 *
+	 * <p><b>⚠️ 刀 2 逼出来的</b>:刀 1 的片段只有<b>换行槽</b>(槽里是空白),整条掐掉槽即可对拍;
+	 * 刀 2 的时钟契约有<b>内容槽</b>(回合号 / 人称 / 阶段名 / 终点词),
+	 * 掐掉之后剩下的串<b>根本不是渲染结果的子串</b>——渲染结果那些位置填的是值。
+	 * 故改为逐<b>固定段</b>比对:每一段都必须在目标文本里出现。
+	 */
+	private static List<String> fixedSegments(String fragment) {
+		return java.util.Arrays.stream(fragment.split("%\\d+\\$[dsu]"))
+				.map(LifetimeFamilyLockstepTest::words)
+				.filter(seg -> seg.length() >= MIN_SEGMENT)
+				.toList();
+	}
+
+	/**
+	 * 固定段的最小长度。<b>⚠️ 由一次误报定下来的</b>:阈值取 4 时,时钟契约切出的碎片
+	 * 「回合走到」<b>在世界层模板里撞了车</b> —— 那处是《寻常》收束段那句
+	 * 「用 3-5 个回合走到寿终结局」,和族级片段<b>毫无关系,只是四个汉字恰好重合</b>。
+	 * 中文里四字串的区分度太低,守护会<b>喊狼来了</b>。
+	 *
+	 * <p>取 8 之后保留的都是有区分度的长段(如「每往后一个回合,都要比上一个更靠近一生的尽头。」),
+	 * 而<b>「把词抄回去」这种回退必然会复现整条片段、因而必然复现这些长段</b> —— 守护强度不减。
+	 * 同 ADR-018 §4.18:<b>调的是指标,不是守护的意图</b>。
+	 */
+	private static final int MIN_SEGMENT = 8;
+
+	/**
+	 * <b>族级片段清单本身必须被钉住</b> —— 防「把某一条从清单里摘掉」这种回退。
+	 *
+	 * <p><b>⚠️ 这是变异验证逼出来的第三次</b>:把时钟契约从 {@link LifetimeFamily#fragmentWords()}
+	 * 里删掉时,<b>全部 lockstep 照样绿</b> —— 因为它们全都遍历这份清单,<b>清单短了就不再检查那一条</b>。
+	 * 这与「守护测试假绿」同族但更隐蔽:<b>守护没坏,是它的检查范围被悄悄缩小了</b>。
+	 * 故按身份(不是按数量)逐条钉死。
+	 */
+	@Test
+	void fragmentRosterIsPinnedByIdentity() {
+		assertThat(LifetimeFamily.fragmentWords())
+				.as("族级片段清单被削减 = 那一条从此不再被任何 lockstep 检查")
+				.containsExactlyInAnyOrder(
+						LifetimeFamily.NO_AGE_DISPLAY,
+						LifetimeFamily.NO_DEDICATED_TURN,
+						LifetimeFamily.ALIVE_AT_THE_END,
+						LifetimeFamily.CLOCK_CONTRACT);
 	}
 
 	@Test
@@ -59,9 +104,11 @@ class LifetimeFamilyLockstepTest {
 				.as("族级片段非空(空表会让本测试假绿)")
 				.isNotEmpty();
 		for (String fragment : LifetimeFamily.fragmentWords()) {
-			assertThat(doc)
-					.as("族级片段的词必须逐字出现在真理源文件里(两处不得漂移):%s", fragment)
-					.contains(words(fragment));
+			for (String seg : fixedSegments(fragment)) {
+				assertThat(doc)
+						.as("族级片段的词必须逐字出现在真理源文件里(两处不得漂移):%s", seg)
+						.contains(seg);
+			}
 		}
 	}
 
@@ -73,9 +120,11 @@ class LifetimeFamilyLockstepTest {
 			String worldPrompt = worldGen.buildWorldPrompt(archetype);
 			String both = turnPrompt + "\n" + worldPrompt;
 			for (String fragment : LifetimeFamily.fragmentWords()) {
-				assertThat(words(both))
-						.as("族成员 %s 的世界层模板漏引了族级片段:%s", archetype, fragment)
-						.contains(words(fragment));
+				for (String seg : fixedSegments(fragment)) {
+					assertThat(words(both))
+							.as("族成员 %s 的世界层模板漏引了族级片段:%s", archetype, seg)
+							.contains(seg);
+				}
 			}
 		}
 	}
@@ -97,10 +146,12 @@ class LifetimeFamilyLockstepTest {
 		for (Path src : worldLayerSources) {
 			String code = words(Files.readString(src));
 			for (String fragment : LifetimeFamily.fragmentWords()) {
-				assertThat(code)
-						.as("族级片段的词不得出现在世界层源文件 %s 里(必须经 LifetimeFamily 引用):%s",
-								src.getFileName(), fragment)
-						.doesNotContain(words(fragment));
+				for (String seg : fixedSegments(fragment)) {
+					assertThat(code)
+							.as("族级片段的词不得出现在世界层源文件 %s 里(必须经 LifetimeFamily 引用):%s",
+									src.getFileName(), seg)
+							.doesNotContain(seg);
+				}
 			}
 		}
 	}
@@ -113,9 +164,11 @@ class LifetimeFamilyLockstepTest {
 			String both = turn.buildTurnPrompt(engine(archetype), "A", "行动") + "\n"
 					+ worldGen.buildWorldPrompt(archetype);
 			for (String fragment : LifetimeFamily.fragmentWords()) {
-				assertThat(words(both))
-						.as("非族成员 %s 不该出现族级片段", archetype)
-						.doesNotContain(words(fragment));
+				for (String seg : fixedSegments(fragment)) {
+					assertThat(words(both))
+							.as("非族成员 %s 不该出现族级片段:%s", archetype, seg)
+							.doesNotContain(seg);
+				}
 			}
 		}
 	}

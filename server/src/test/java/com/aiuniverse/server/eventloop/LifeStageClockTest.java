@@ -26,42 +26,48 @@ class LifeStageClockTest {
 	private final ObjectMapper mapper = new ObjectMapper();
 	private final TurnPromptBuilder builder = new TurnPromptBuilder(new ArchetypeRegistry());
 
+	/**
+	 * 《寻常》的时钟表(ADR-021 刀 2:enum 的 values() 是类级单例 → 改为按 archetype 查表)。
+	 * <b>本文件的断言意图一条未改</b>,只是「阶段从哪来」由全局常量变成了这张表。
+	 */
+	private static final LifeStageTable ORDINARY = LifeStageTables.of("life_sim");
+
 	// ── 表本身(纯函数)────────────────────────────────────────────────
 
 	@Test
 	void stageTableBoundariesAreExact_ADR020Knife5() {
 		// 反解自 ADR-020 §2 密度表;⚠️ 暮年段(T36-43)是刀 5 新增的,原表没有(见 §2 订正块)。
-		assertThat(LifeStage.of(1)).isEqualTo(LifeStage.CHILDHOOD);
-		assertThat(LifeStage.of(2)).isEqualTo(LifeStage.ADOLESCENCE);
-		assertThat(LifeStage.of(7)).isEqualTo(LifeStage.ADOLESCENCE);
-		assertThat(LifeStage.of(8)).isEqualTo(LifeStage.YOUTH);
-		assertThat(LifeStage.of(19)).isEqualTo(LifeStage.YOUTH);
-		assertThat(LifeStage.of(20)).isEqualTo(LifeStage.MIDLIFE);
-		assertThat(LifeStage.of(27)).isEqualTo(LifeStage.MIDLIFE);
-		assertThat(LifeStage.of(28)).isEqualTo(LifeStage.OLD_AGE);
-		assertThat(LifeStage.of(35)).isEqualTo(LifeStage.OLD_AGE);
-		assertThat(LifeStage.of(36)).isEqualTo(LifeStage.TWILIGHT);
-		assertThat(LifeStage.of(43)).isEqualTo(LifeStage.TWILIGHT);
-		assertThat(LifeStage.of(44)).isEqualTo(LifeStage.FINAL);
+		assertThat(ORDINARY.stageAt(1).label()).isEqualTo("幼年");
+		assertThat(ORDINARY.stageAt(2).label()).isEqualTo("少年");
+		assertThat(ORDINARY.stageAt(7).label()).isEqualTo("少年");
+		assertThat(ORDINARY.stageAt(8).label()).isEqualTo("青年");
+		assertThat(ORDINARY.stageAt(19).label()).isEqualTo("青年");
+		assertThat(ORDINARY.stageAt(20).label()).isEqualTo("中年");
+		assertThat(ORDINARY.stageAt(27).label()).isEqualTo("中年");
+		assertThat(ORDINARY.stageAt(28).label()).isEqualTo("老年");
+		assertThat(ORDINARY.stageAt(35).label()).isEqualTo("老年");
+		assertThat(ORDINARY.stageAt(36).label()).isEqualTo("暮年");
+		assertThat(ORDINARY.stageAt(43).label()).isEqualTo("暮年");
+		assertThat(ORDINARY.stageAt(44).label()).isEqualTo("末段");
 		// 刀 4 那局跑到 200 回合仍未收束 —— 时钟对越界回合必须仍有定义(不抛、不回落幼年)。
-		assertThat(LifeStage.of(200)).isEqualTo(LifeStage.FINAL);
+		assertThat(ORDINARY.stageAt(200).label()).isEqualTo("末段");
 	}
 
 	@Test
 	void stageTableCoversEveryTurnWithoutGapOrOverlap() {
 		for (int t = 1; t <= 300; t++) {
-			assertThat(LifeStage.of(t)).as("T%d 必须落在且只落在一个阶段", t).isNotNull();
+			assertThat(ORDINARY.stageAt(t)).as("T%d 必须落在且只落在一个阶段", t).isNotNull();
 		}
 	}
 
 	@Test
 	void exitAbsentInChildhoodAndAdolescenceOnly_AndWordingIsUnique() {
 		// ADR-020 §2 补记第 1 条的修订(Felix 2026-08-10):出口的前提是你有一个可以放弃的人生。
-		assertThat(LifeStage.CHILDHOOD.hasExit()).isFalse();
-		assertThat(LifeStage.ADOLESCENCE.hasExit()).isFalse();
+		assertThat(ORDINARY.stageAt(1).hasExit()).isFalse();
+		assertThat(ORDINARY.stageAt(2).hasExit()).isFalse();
 
 		Set<String> wordings = new HashSet<>();
-		for (LifeStage s : LifeStage.values()) {
+		for (LifeStage s : ORDINARY.stages()) {
 			if (s.hasExit()) {
 				assertThat(s.exitText()).isNotBlank();
 				assertThat(wordings.add(s.exitText())).as("%s 的出口措辞与别的阶段重复了", s).isTrue();
@@ -77,22 +83,22 @@ class LifeStageClockTest {
 	 */
 	@Test
 	void exitWordingDiffersAcrossDistantTurns_visibleClockProbe() {
-		assertThat(LifeStage.of(10).exitText()).isNotEqualTo(LifeStage.of(90).exitText());
-		assertThat(LifeStage.of(10).exitText()).isEqualTo("不再往下想了,就这样过"); // 青年
-		assertThat(LifeStage.of(90).exitText()).isEqualTo("不等了");               // 末段
+		assertThat(ORDINARY.stageAt(10).exitText()).isNotEqualTo(ORDINARY.stageAt(90).exitText());
+		assertThat(ORDINARY.stageAt(10).exitText()).isEqualTo("不再往下想了,就这样过"); // 青年
+		assertThat(ORDINARY.stageAt(90).exitText()).isEqualTo("不等了");               // 末段
 	}
 
 	@Test
 	void exitCopyIsAnInWorldActionNotAUiControl_ADR020Decision4() {
 		// §2 补记第 4 条:是选项不是菜单项。UI 措辞一律不得出现。
-		for (LifeStage s : LifeStage.values()) {
+		for (LifeStage s : ORDINARY.stages()) {
 			if (s.hasExit()) {
 				assertThat(s.exitText())
 						.doesNotContain("结束").doesNotContain("退出").doesNotContain("游戏")
 						.doesNotContain("菜单").doesNotContain("放弃本局");
 			}
 		}
-		assertThat(LifeStage.EXIT_HINT).doesNotContain("结束").doesNotContain("游戏");
+		assertThat(ORDINARY.exitHint()).doesNotContain("结束").doesNotContain("游戏");
 	}
 
 	// ── 注入(prompt 侧)──────────────────────────────────────────────
