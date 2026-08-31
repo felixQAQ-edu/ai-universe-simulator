@@ -359,6 +359,27 @@ boolean submit(String saveId, Runnable work);
 | `capacity_exceeded` | 与 `quota_exceeded` 同族后缀,读起来像一道配额 —— 而立字 1 的全部工作就是把它和配额分开。 |
 | **`server_at_capacity`** | **采纳**。与 `busy` 不可能看错,与 `quota_exceeded` 不同族,「谁满了」一目了然。 |
 
+⚠️ **刀 1 顺带定的第二个码:`service_unavailable`**(Felix 2026-08-31 追加裁定,见实施步骤刀 1 §5)。
+它是**前端的状态兜底**(`status >= 500` 且 body 里没有 code),**不是任何一处后端主动发的码** ——
+覆盖反代 502/504、容器启动窗口、Spring 默认 `/error` 那族**裸 5xx**。
+
+| | `server_at_capacity` | `service_unavailable` |
+|---|---|---|
+| 谁发的 | 后端准入**主动**发(刀 2:503 + 结构化 body) | 前端**状态兜底**(5xx 且 body 无 code) |
+| 情形 | **满了** —— 名额被占完,服务本身是好的 | **坏了 / 正在部署** —— 服务这会儿不在 |
+| 玩家下一步 | **过几秒**再点一次(秒级,我们确实知道) | 稍后再试(**时长不知道,故不给数字**) |
+
+⚠️ **不许把这两个合并成一个码。** 形状同本裁定开头那条(`busy` 不得复用):
+「满了」与「坏了」给玩家的**下一步动作不同**,而合并之后
+**连「玩家收到了错的解释」这件事都观察不到** —— 它连看错的机会都不给。
+
+⚠️ **由此再立一条禁令,因为它是日后最顺手的一次「简化」**:
+**不许在状态兜底层写 `503 → server_at_capacity`。** 那条规则会把 **Fly 网关的 503**
+(与准入毫无关系)也贴上「此刻同时进行的回合太多,请过几秒再点一次」——
+一句**在那个情形下确凿是错的**建议。准入拒绝之所以能被认出来,靠的是它**自己带 body**,
+不是靠状态码;**「body 优先压过状态兜底」这条链序是它的唯一保障**(刀 1 有变异验证钉住)。
+与 §5.1 那条「不许把 `RejectedExecutionException` 映射成 `server_at_capacity`」**同族同源**。
+
 #### 裁定 4 · 玩家可见文案与呈现形态
 
 **文案定稿:「此刻同时进行的回合太多,请过几秒再点一次」**
@@ -375,6 +396,21 @@ boolean submit(String saveId, Runnable work);
   ⚠️ **诚实记**:今天该集合的两个分支可见行为几乎相同(`:321-326` 都回 `awaiting` + notice,
   差别只在 message 为空时的兜底文案),故「加进集合」主要是**声明意图**而非改变行为。
   仍然要加——那个集合是这类错误的**清单**,漏登记会让下一个读它的人以为这个 code 不可恢复。
+
+**刀 1 追加的两条兜底文案**(同走 `notice` 黄条 + 决策圈保留可点,呈现形态与上面一致):
+
+- **`service_unavailable`:「服务暂时不可用,请稍后再试」**
+  ⚠️ **不写「过几秒」** —— 部署窗口与网关故障的时长**不是一个量级**,
+  **给错的时间预期比不给更糟**。「过几秒」是 `server_at_capacity` 的专属,
+  因为**只有那一条我们确实知道它是秒级的**。
+- **`session_not_found`:「会话已失效,返回后点『继续上局』可接续」**
+  ⚠️ 文案里的两个动作**都必须是玩家真做得到的**,已逐一核对:
+  「返回」= `BackButton`(`web/src/features/game/BackButton.tsx:43`,按钮上的字就是「返回」)
+  经 `SceneBanner` 渲染在游戏屏顶部(`GameScreen.tsx:192` 传 `onBack={reset}`);
+  「继续上局」= `ArchetypeSelect.tsx:121` 的按钮,而 `reset()` **刻意不清 `resumableSaveId`**
+  (线 C 立字「退出不弃局」),故返回之后它必定在。
+  ⚠️ **不写「回首页」** —— 按钮上没有这三个字,让玩家找一个不存在的标签比不给指引更糟。
+  ⚠️ 这条文案在刀 2 给 404 补了结构化 body 之后**仍然有用**:兜底表是常驻设施,不是过渡物。
 
 #### 裁定 5 · 准入原语与在途数是不是同一个东西
 
@@ -425,8 +461,12 @@ boolean submit(String saveId, Runnable work);
 6. **准入是 per-instance 的**:多副本时每个实例各有 N,与 ADR-016 内存日计数**同一条约束、同一条失效条件**。
 7. **前端映射搬家的代价**:`sse.ts` 变薄(回到它自陈的边界),`h5GameApi.ts` 变厚一段;
    `http_${status}` 那族兜底仍在(且必须在,见最终决策 §7)。
-   ⚠️ 兜底那族**本刀不会变干净** —— 部署与反代层的裸状态码(502/504…)仍会以
-   「请求失败(HTTP 5xx)」的形态出现,只是不再是**唯一**的形态。
+   ⚠️ **订正(刀 1 追加 5xx 与 404 两条兜底文案之后,2026-08-31)**:原措辞
+   「兜底那族**本刀不会变干净** —— 部署与反代层的裸状态码(502/504…)仍会以
+   『请求失败(HTTP 5xx)』的形态出现,只是不再是**唯一**的形态」**已不成立**,
+   原措辞留此备查、不并存两个口径。刀 1 之后:**5xx 那一族与 404 都说人话**
+   (`service_unavailable` / `session_not_found`),`http_${status}` 退居**最后兜底**;
+   真正还裸着的是**非 404 的 4xx 与其他杂状态**——尤其是已知代价 8 那个内容协商可能返的 **406**。
 8. **`POST /api/game/{saveId}/turn` 的返回类型要从 `ResponseEntity<SseEmitter>` 放宽到 `ResponseEntity<?>`**,
    以便同一端点既能返 SSE 又能返 JSON 错误体。
    ⚠️ **实施注意(必须由断言钉住,不许留给冒烟发现)**:前端请求头带 `Accept: text/event-stream`(`sse.ts:62`),
@@ -467,23 +507,126 @@ boolean submit(String saveId, Runnable work);
 ### 刀 1 · 前端语义映射(纯前端,零后端风险,可独立冒烟)
 
 1. `sse.ts`:删 `httpErrorCode`(连同 `409 → busy` 死映射,立字 10);非 2xx 时把**状态码与 body 原文**
-   交给上层(契约形态刀 1 提、审过再写)。`sse.ts` 自此不认识任何业务 code。
-2. `h5GameApi.ts` 的 `onError`:搬 `resumeGame:80-87` 的现成口径(**body 有 code 优先取,否则状态兜底**)
-   + 现成 `safeJson`;兜底表保留 `404 → session_not_found`。
-3. `gameStore.ts:152`:`RECOVERABLE_TURN_ERRORS` 加新 code(前端先容错,同 `fusions` 空表兜底的先例)。
+   交给上层。`sse.ts` 自此不认识任何**由 HTTP 状态翻译而来**的业务 code。
+
+   **契约定稿(Felix 2026-08-31 审过)**:`onError` 收一个**判别联合** `SseFailure`,
+   `http` 分支**没有任何 code 字段**——sse.ts 拿不到一个地方去写业务码,这是**构造保证不是纪律**:
+
+   ```ts
+   export type SseFailure =
+     | { kind: 'http'; status: number; body: string }                       // 非 2xx:状态 + body 原文
+     | { kind: 'transport'; reason: 'network' | 'no_body'; message: string }; // 传输事实
+   ```
+
+   ⚠️ **`network` / `no_body` 留在 sse.ts(裁定,不是遗漏)**:立字 10 逐字是「不得再把 HTTP **状态**
+   翻译成业务 code」,这两条**不是状态翻译**——它们是传输事实,且 `network` 这个词
+   `h5GameApi.ts:27/54/78` 自己就在用,是**共享的传输词汇**。行为逐字不变。
+   ⚠️ 类型落 `sse.ts` 自身,**不进 `contract.ts` 也不进 `index.ts`**:那是 ADR-003 的
+   provider-agnostic 边界,让它学会 HTTP 状态与 body 原文等于把传输细节顶穿到边界上。
+2. `h5GameApi.ts` 的 `onError`:搬 `resumeGame:80-87` 的现成口径(**body 有 code 优先取,否则状态兜底**),
+   `code` 与 `message` **各自独立兜底**(故「code 取自 body、message 取自状态兜底」是允许的混合)。
+   优先级链**写死**:
+
+   ```
+   transport                  → { code: reason, message }        ← 与刀 1 之前逐字相同
+   http 且 body 有 error.code → 取 body 的 code(message 同取,缺则退该状态的兜底文案)
+   http 且 status === 404     → session_not_found  「会话已失效,返回后点『继续上局』可接续」
+   http 且 status >= 500      → service_unavailable「服务暂时不可用,请稍后再试」
+   http 其他                  → http_${status}     「请求失败(HTTP ${status})」  ← 最后兜底,保留
+   ```
+
+   ⚠️ **`status >= 500` 不枚举** 500/502/503/504(枚举会留缝)。
+   ⚠️ **body 优先永远压过状态兜底**,链序不可反:503 带 `server_at_capacity` body → 得
+   `server_at_capacity`(刀 2 的准入拒绝);503 裸 → 得 `service_unavailable`(网关/默认 `/error`)。
+   **同一个状态两种读法,各有一条测试**(裁定 3 那条「不许在状态兜底层写 `503 → server_at_capacity`」
+   的落地保障就是这条链序)。
+   ⚠️ **解析 body 原文用 `safeParse(text)`,`safeJson(resp)` 一个字不改**:后者入参是 `Response`、
+   字符串路径用不上,而把它改成 `safeParse(await resp.text())` 会让 init/resume **全部现有测试桩当场失效**
+   (那些桩只有 `json:`,没有 `text:`)。两个函数**各写一行互相指认的注释**说清为什么是两个 ——
+   它们吃的是**不同类型的输入**,不是同一个判断的两份拷贝(非 ADR-018 §4.1 的两份真相)。
+3. `gameStore.ts:152`:`RECOVERABLE_TURN_ERRORS` 加 **`server_at_capacity`** 与 **`service_unavailable`**
+   (前端先容错,同 `fusions` 空表兜底的先例;`server_at_capacity` 在刀 1 上线时后端还不会发,这是有意的)。
 4. **测试处置**:
    - `h5GameApi.test.ts:248`(HTTP 404 → `session_not_found`)——**行为类,继续守**(它经公开 API 断言,与映射住哪一层无关)。
    - `h5GameApi.test.ts:235`(`error` 事件 → `onError`)——载荷用的是 `illegal_action`,而刀 2 后该 code 不再走 SSE;
      **测试意图(SSE error 帧 → onError)仍活**,把载荷换成仍活的 code(如 `busy`)即可,**不删**。
-   - 新增:body 带 code → 取 body 的 code;body 无 code / 非 JSON → 按状态兜底;503 + 新 code → `onError` 拿到该 code。
-5. **⚠️ 刀 1 不是纯脚手架**:**部署层与反代层的状态码今天全是裸的** ——
-   `fly deploy` 期间正在玩的那一局,收到的就是「**请求失败(HTTP 502)**」。
-   **那条真的会发生,而且已经发生过**;刀 1 单独上线就把它变成一句人话。
-   ⚠️ **订正**:本 ADR 初稿在这里举的是 `@Valid @NotBlank actionId` 的 400,并称它「已经在线上流血」——
-   **说过头了**。前端只发 `availableActions` 里的 id,那条是**潜在路径,正常玩不到**;
-   502 那条才是真的在发生。原措辞留此备查,不并存两个口径。
+   - ⚠️ **补裸桩只补 `:249`(turn 的 404),不碰 `:172`**:后者是 `listArchetypes` 的用例,
+     那条路径在 `h5GameApi.ts:29-31` 就 `throw` 了,**根本走不到 `.text()`**,补它是范围外动作。
+     补桩「不算动行为类测试」(断言意图与语句都不动),**但须证明它没被补软**:
+     摘掉 404 兜底 → `:249` 必须变红。**补桩最经典的失效方式就是把一条还在守的测试变成永远绿的。**
+   - 新增:body 带 code → 取 body 的;无 body / 非 JSON → 按状态兜底;404 裸 → `session_not_found`;
+     502 裸 → `service_unavailable`;**503 带 `server_at_capacity` body → 得该 code**;
+     **503 裸 → `service_unavailable`**(同状态两种读法各一条);418 → `http_418` 最后兜底仍在。
+   - **变异验证两条**:① 摘掉「body 优先」那一步 → 带 `server_at_capacity` body 的 503 用例必须变红
+     (若照常通过,说明这条链序**根本没被守着**);② 把 `httpErrorCode` 加回 `sse.ts` → 源码级断言必须变红。
+   - **源码级断言**(照 ADR-021 刀 1 族层 / 刀 2 `"vigor"` 的先例):`sse.ts` 源文件不得含
+     `session_not_found` / `busy` / `http_` / `service_unavailable` / `server_at_capacity`。
+     ⚠️ **它是唯一一条「有人把 `httpErrorCode` 加回来」会变红的断言** —— 纯行为测试抓不到:
+     映射搬回下层、上层原样透传,**公开 API 的可见行为可以完全一样**。
+     ⚠️ **取证边界**:web 侧此前**没有读源码测试的先例**(server 有),故实现时先验 `node:fs`
+     在 vitest jsdom env 下可读;读不到则退到「只留构造保证 + 类型上写死注释」,
+     并**明说这条没有断言看着**,不假装有。
+5. **⚠️ 刀 1 不是纯脚手架 —— 但它的价值不在 502**(2026-08-31 二次订正;历次措辞留此备查,不并存多个口径)。
 
-**不准顺手做**:不碰后端一个字;不改 `TurnStream` 四类事件的契约(ADR-003);不动 `busy` 的现有语义。
+   **一次订正(初稿 → 一稿)**:初稿在这里举的是 `@Valid @NotBlank actionId` 的 400,并称它「已经在线上流血」——
+   **说过头了**。前端只发 `availableActions` 里的 id,那条是**潜在路径,正常玩不到**。
+
+   **二次订正(一稿 → 现行)**:一稿改举的 502 ——「`fly deploy` 期间正在玩的那一局,
+   收到的就是『请求失败(HTTP 502)』,刀 1 单独上线就把它变成一句人话」—— **同样站不住**:
+   Fly 网关的 502 **不带** `{error:{code,message}}` body,而一稿给刀 1 的映射只有「body 有 code 优先取」
+   这一条,**那句话一个字都不会变**。⚠️ 这是 Claude 判错了方向,记在这里免得日后被当成已验证的理由引用。
+
+   **现行(Felix 裁定走 (a))**:**刀 1 补一条 `status >= 500` 的通用状态兜底**
+   (`service_unavailable`,裁定 3/4)—— 至此 502/504 那族说人话,
+   刀 1 才有**独立于刀 2 的、玩家可见的**价值。
+   **同批把 404 的文案一并补上**(`session_not_found`,裁定 4)。理由**只有一条,且与部署频率无关**:
+   **兜底表是常驻设施,不是过渡物** —— 刀 2 给 404 补了结构化 body 之后,这张表仍是 body 缺失时的兜底;
+   而同一张表里 5xx 一句人话、404 一条裸串「请求失败(HTTP 404)」,**后人看不出哪个是有意的**。
+
+   ⚠️ **一条事实订正,必须记,因为差点被拿去设计冒烟**:本裁定推导时曾以为
+   「`GameSessionManager.get()` 是纯 map 查、没有懒加载 → **每次部署之后旧页签点回合就是 404**」。
+   **源码不支持这个推论**(2026-08-31 复核):`GameSessionManager` 有
+   `@PostConstruct reloadFromStore()`(`:50-55`),`FileSessionStore` 是 `@Service`(`:53`)、
+   `loadAll()` 扫落盘目录下全部 `.json` —— **会话跨 deploy 从卷回载回来**,
+   这正是 [ADR-015](ADR-015-overseas-deployment-form-factor.md) 附录 B 冒烟 ⑧
+   「续局两档全过 …… **redeploy 后续局(卷跨 deploy 保留实证)**」验过的那件事。
+   故 **404 不是「每次 deploy 都在制造」的高频错误**;它的真实来源是**卷/档层面出问题**
+   (卷未挂载、`AIUNIVERSE_SESSION_STORE_DIR` 配错、坏档被 `loadAll` 跳过留尸检)。
+   ⚠️ **补文案的结论不变**(理由是上面那条「常驻设施」,本就不依赖频率);
+   **变的是冒烟**:「deploy 完拿旧页签点一个回合」**不是** 404 的确定性触发手段 ——
+   那样点是能正常续上的,照它去冒烟会**验不出东西还以为代码坏了**
+   (与 [runbook §3.1.5](../phase3-fly-deploy-runbook.md)「先证明环境是你以为的那个」同族)。
+   404 的确定性触发配方见下面的冒烟节。
+
+**刀 1 冒烟(Felix 亲手,可独立于刀 2 上线后进行)**
+
+⚠️ **前置照 [runbook §3.1.5](../phase3-fly-deploy-runbook.md)**:先 `curl /actuator/info` 比对 commit SHA
+——「没生效」也可能只是**部署陈旧**,那个坑摔过(ADR-016 冒烟首轮把部署陈旧误判成注入 bug)。
+
+⚠️ **两条兜底在线上都不是确定性可触发的**(404 见步骤 5 的事实订正;5xx 要等网关真的坏)。
+**故确定性验收放在本地**,线上那条降为机会性。⚠️ 走 **mock provider 即可,不花 LLM 的钱**:
+这两条都在**请求进不去**时触发,压根到不了模型。
+
+- **本地 A(确定性,5xx → `service_unavailable`)**:`npm run dev` + 后端起着 → 正常起一局到有决策圈
+  → **停掉后端** → 点一个选项 → Vite proxy 连不上后端会返一个 5xx
+  → 期望 notice 黄条显示「**服务暂时不可用,请稍后再试**」,而**不是**「请求失败(HTTP 5xx)」。
+  ⚠️ 若 proxy 返的**不是** 5xx,**记下实际状态码** —— 那条读数本身有用(它决定 `http_${status}`
+  兜底桶里到底还剩什么),不要当成失败草草带过。
+- **本地 B(确定性,404 → `session_not_found`)**:起一局到有决策圈 → **停后端**
+  → 删掉 `server/data/<saveId>.json`(本地默认落盘目录 `./data`,`application.yml:46`;
+  saveId 见起局响应或该目录下的文件名)→ **重启后端**(`@PostConstruct` 回载不到它)
+  → 回原页签点一个选项 → 期望 notice 显示「**会话已失效,返回后点『继续上局』可接续**」,
+  且**决策圈仍可点**、点「返回」后选择屏**确有**「继续上局」(文案指的两个动作都真做得到)。
+  ⚠️ **不能靠改 `localStorage` 触发** —— `chooseAction` 用的是 **store 里的 `saveId`**
+  (`gameStore.ts:282`)不是 localStorage,改它对回合请求毫无影响
+  (改 localStorage 只影响**续局**路径,而那条走 `GameApiError`、**刀 1 根本没碰**,且 store 是静默清档)。
+- **线上(机会性,不阻塞收口)**:`fly deploy` 滚动窗口里正在玩的那一局,回合请求若撞上网关 5xx,
+  notice 应是「服务暂时不可用,请稍后再试」。**撞上了记一笔,撞不上不阻塞** —— 它按定义就不可确定性触发。
+- **回归**:正常一局从头玩到结局,四类 SSE 事件与 `busy` 的现有语义**一个字没变**。
+
+**不准顺手做**:不碰后端一个字;不改 `TurnStream` 四类事件的契约(ADR-003);不动 `busy` 的现有语义;
+不动 `sse.ts` 的帧解析逻辑(`indexOfFrameBoundary` / `parseFrame` / buffer 累积 / microtask 注册窗口 /
+headers 合并)——**只摘语义那一段**;不预建刀 2 的任何东西(不写准入类、不加 `aiuniverse.turn.*` 配置)。
 
 ### 刀 2 · 后端准入 + 守卫 1 前移 + 观测面
 
