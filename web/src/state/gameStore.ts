@@ -148,8 +148,23 @@ const INITIAL = {
  * 可恢复的回合错误 code(展示提示、留在 awaiting,不算整局失败)。
  * quota_exceeded(ADR-016):守卫 0 在相位 CAS 之前拒绝,会话服务端停留 AWAITING——
  * 次日额度恢复同一局可续,故按可恢复处理(notice 展示「明天再来」文案)。
+ *
+ * server_at_capacity / service_unavailable(ADR-022 裁定 4):前者是刀 2 的并发准入拒绝
+ * (拒绝发生在池线程之前,**会话相位零触碰**),后者是 5xx 的状态兜底(部署窗口 / 网关故障)——
+ * 两者都不动服务端状态,玩家原地再点一次即可,故可恢复。
+ * ⚠️ server_at_capacity 在刀 1 上线时后端**还不会发**,这是**有意的前端先容错**
+ * (同 fusions 空表兜底的先例);漏登记会让下一个读这张清单的人以为它不可恢复。
+ * ⚠️ 诚实记:今天两个分支的可见行为几乎相同(下面 onError 都回 awaiting + notice,
+ * 差别只在 message 为空时的兜底文案),故「加进集合」主要是**声明意图**而非改变行为。
  */
-const RECOVERABLE_TURN_ERRORS = new Set(['illegal_action', 'busy', 'session_not_found', 'quota_exceeded']);
+const RECOVERABLE_TURN_ERRORS = new Set([
+  'illegal_action',
+  'busy',
+  'session_not_found',
+  'quota_exceeded',
+  'server_at_capacity',
+  'service_unavailable',
+]);
 
 /**
  * 用注入的 GameApi 建一个 store。生产用默认 gameApi;测试传 mock api + 合成 TurnStream。

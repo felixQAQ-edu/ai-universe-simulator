@@ -6,6 +6,10 @@
 // 标准做法,且把传输细节关在 api/ 内,逻辑层依旧只见 TurnStream(ADR-003 边界不受影响)。
 //
 // 本模块只做「字节流 → (event,data) 帧」的纯传输解析;语义映射在 h5GameApi.ts。
+//
+// ADR-022 立字 10:**本模块不得把 HTTP 状态翻译成业务 code**。非 2xx 只上报「状态码 + body 原文」,
+// 「这在业务上是什么」由 h5GameApi.ts 决定。这条不是靠自觉——`SseFailure` 的 http 分支里
+// 根本没有 code 字段(构造保证),另有一条源码级断言钉住(见 h5GameApi.test.ts)。
 
 /** 一条解析出来的 SSE 帧。data 是拼接后的原始字符串(通常是一行 JSON)。 */
 export interface SseFrame {
@@ -13,10 +17,23 @@ export interface SseFrame {
   data: string;
 }
 
+/**
+ * 一次 SSE 请求的失败。只报「发生了什么」,不解释「这在业务上是什么」(ADR-022 立字 10)。
+ *
+ * ⚠️ `transport` 的 `reason` 是**传输事实**不是业务 code:`network` 这个词
+ * h5GameApi.ts 自己的三处 fetch catch 也在用,是共享的传输词汇;立字 10 的射程是
+ * 「HTTP **状态** → 业务 code」,不含这两条,故它们留在本模块、行为逐字不变。
+ */
+export type SseFailure =
+  /** 非 2xx。body = 响应体原文(读不到则空串);**本模块不解析它、也不据 status 下任何业务判断**。 */
+  | { kind: 'http'; status: number; body: string }
+  /** 传输层失败:网络不通 / 2xx 但无可读流。 */
+  | { kind: 'transport'; reason: 'network' | 'no_body'; message: string };
+
 export interface SseHandlers {
   onFrame(frame: SseFrame): void;
-  /** HTTP/网络/解析层失败(非 2xx、断流、fetch reject)。 */
-  onError(err: { code: string; message: string }): void;
+  /** HTTP/网络/解析层失败(非 2xx、断流、fetch reject)。语义由上层赋予。 */
+  onError(failure: SseFailure): void;
   /** 流自然结束或出错后,统一收口(只触发一次)。 */
   onClose(): void;
 }
@@ -48,9 +65,9 @@ export function streamSsePost(
     handlers.onClose();
   };
 
-  const fail = (code: string, message: string) => {
+  const fail = (failure: SseFailure) => {
     if (closed) return;
-    handlers.onError({ code, message });
+    handlers.onError(failure);
     finish();
   };
 
@@ -65,11 +82,12 @@ export function streamSsePost(
     })
       .then(async (resp) => {
         if (!resp.ok) {
-          fail(httpErrorCode(resp.status), `请求失败(HTTP ${resp.status})`);
+          // 只交状态码与 body 原文:不解析、不翻译(ADR-022 立字 10)。
+          fail({ kind: 'http', status: resp.status, body: await readErrorBody(resp) });
           return;
         }
         if (!resp.body) {
-          fail('no_body', '响应无可读流');
+          fail({ kind: 'transport', reason: 'no_body', message: '响应无可读流' });
           return;
         }
         const reader = resp.body.getReader();
@@ -98,7 +116,11 @@ export function streamSsePost(
           finish(); // 主动取消,不算错误。
           return;
         }
-        fail('network', e instanceof Error ? e.message : '网络错误');
+        fail({
+          kind: 'transport',
+          reason: 'network',
+          message: e instanceof Error ? e.message : '网络错误',
+        });
       });
   });
 
@@ -137,8 +159,17 @@ function parseFrame(raw: string): SseFrame | null {
   return { event, data: dataLines.join('\n') };
 }
 
-function httpErrorCode(status: number): string {
-  if (status === 404) return 'session_not_found';
-  if (status === 409) return 'busy';
-  return `http_${status}`;
+/**
+ * 读非 2xx 的 body 原文;**任何读不到的情形一律空串**(body 已被消费、流中途出错、
+ * 或拿到的根本不是一个规规矩矩的 Response)。
+ *
+ * ⚠️ 这个 try/catch 不是防御性废话:若让它抛,异常会落进外层 `.catch`,
+ * 于是一个 HTTP 错误会被报成一条 `network` —— **不是静默,是说假话**,比不报更难查。
+ */
+async function readErrorBody(resp: Response): Promise<string> {
+  try {
+    return await resp.text();
+  } catch {
+    return '';
+  }
 }

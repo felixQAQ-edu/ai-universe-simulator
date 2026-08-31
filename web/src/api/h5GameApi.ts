@@ -14,6 +14,7 @@ import type {
 import { GameApiError } from './contract';
 import { getDeviceId } from './deviceId';
 import { streamSsePost } from './sse';
+import type { SseFailure } from './sse';
 import type { Archetype } from '../types/schema';
 
 /** 默认基址空串 → 相对路径 `/api/...`,经 Vite dev proxy / 同源部署到后端。 */
@@ -130,8 +131,8 @@ export function createH5GameApi(baseUrl = ''): GameApi {
             // 未知事件名忽略(前向兼容)。
           }
         },
-        onError(err) {
-          emit(handlers.error, err);
+        onError(failure) {
+          emit(handlers.error, toStreamError(failure));
         },
         onClose() {
           emit(handlers.close, undefined as never);
@@ -186,6 +187,75 @@ function parseDelta(data: string): TurnDelta | null {
   };
 }
 
+/**
+ * 传输层失败 → 逻辑层的 `StreamError`(ADR-022 立字 8/9:语义映射住在这一层,不在 `sse.ts`)。
+ *
+ * 优先级链(**顺序不可反**):
+ * ```
+ * transport                  → code = reason           (与本刀之前逐字相同)
+ * http 且 body 有 error.code → 取 body 的               (后端主动发的码,如刀 2 的 server_at_capacity)
+ * http 且 status === 404     → session_not_found
+ * http 且 status >= 500      → service_unavailable
+ * http 其他                  → http_${status}          (最后兜底)
+ * ```
+ *
+ * ⚠️ **body 优先必须压过状态兜底**:刀 2 的准入拒绝是「503 **带**结构化 body」,而 Fly 网关的 503
+ * 是**裸**的 —— 同一个状态码两种情形,**靠 body 区分,不靠状态码**。故绝不许在状态兜底里写
+ * `503 → server_at_capacity`:那会给网关故障贴上「过几秒再点一次」,
+ * 一句在那个情形下**确凿是错的**建议(ADR-022 裁定 3 的禁令)。
+ * ⚠️ `code` 与 `message` **各自独立兜底**(同 `resumeGame` 的既有形状),
+ * 故「code 取自 body、message 取自状态兜底」是允许的混合。
+ */
+function toStreamError(failure: SseFailure): StreamError {
+  if (failure.kind === 'transport') {
+    return { code: failure.reason, message: failure.message };
+  }
+  const err = (safeParse(failure.body) as { error?: { code?: string; message?: string } } | null)
+    ?.error;
+  const fallback = statusFallback(failure.status);
+  return { code: err?.code ?? fallback.code, message: err?.message ?? fallback.message };
+}
+
+/**
+ * 状态 → code/文案的兜底表(body 缺失或非 JSON 时用)。
+ * **它是常驻设施不是过渡物**:刀 2 给 404 补了结构化 body 之后,这张表仍是 body 缺失时的兜底。
+ */
+function statusFallback(status: number): StreamError {
+  if (status === 404) {
+    // 文案里的两个动作都必须是玩家真做得到的:「返回」= SceneBanner 顶部的 BackButton,
+    // 「继续上局」= 返回后选择屏那个按钮(`reset()` 刻意不清 `resumableSaveId`,线 C「退出不弃局」)。
+    return { code: 'session_not_found', message: '会话已失效,返回后点『继续上局』可接续' };
+  }
+  if (status >= 500) {
+    // ⚠️ 不枚举 500/502/503/504 —— 枚举会留缝。
+    // ⚠️ 不写「过几秒」:部署窗口与网关故障不是一个量级,**给错的时间预期比不给更糟**;
+    //    「过几秒」是 server_at_capacity 的专属,因为只有那一条我们确实知道它是秒级的。
+    return { code: 'service_unavailable', message: '服务暂时不可用,请稍后再试' };
+  }
+  return { code: `http_${status}`, message: `请求失败(HTTP ${status})` };
+}
+
+/**
+ * 解析 body **原文字符串**,失败一律 null。
+ *
+ * ⚠️ 与下面的 `safeJson` **是两个函数,不是重复代码**:本函数吃 `string`(SSE 路径拿到的是
+ * `sse.ts` 交上来的 body 原文),`safeJson` 吃 `Response`(init/resume 手里是 Response)。
+ * **输入类型不同,不是同一个判断的两份拷贝**(非 ADR-018 §4.1 的两份真相);
+ * 合并要么改 `safeJson` 的签名 —— 那会让 init/resume 的既有测试桩(只有 `json:`)全部失效。
+ */
+function safeParse(text: string): unknown {
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 从 `Response` 读 JSON,失败一律 null。
+ *
+ * ⚠️ 与上面的 `safeParse` 是**两个函数**(理由见那边的注释):**别合并**。
+ */
 async function safeJson(resp: Response): Promise<unknown> {
   try {
     return await resp.json();
