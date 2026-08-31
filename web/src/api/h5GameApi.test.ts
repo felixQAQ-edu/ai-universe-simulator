@@ -429,6 +429,11 @@ describe('sse.ts 的边界(源码级断言)', () => {
     expect(source).not.toMatch(/'busy'|"busy"/);
   });
 
+  // ⚠️ 下面两条是**字面串比对,对格式敏感**:类型声明若被 prettier / 手动重排(换行、
+  //    分号改逗号、加空格),断言会变红,而**那是格式原因不是语义原因**。
+  //    偏严的方向是有意的(宁可误报),但**它哪天变红,第一步先看是不是排版** ——
+  //    ⚠️ **不许靠放宽断言来「修」它**:放宽一次,它就再也挡不住真正要挡的那件事
+  //    (「http 分支长出了一个 code 字段」)。排版变了就同步改这两行字面串。
   it('构造保证仍在:http 失败分支只交状态码与 body 原文,没有 code 字段', () => {
     expect(source).toContain("kind: 'http'; status: number; body: string");
     // transport 的 reason 是闭合两值联合 —— 加一个业务码必须先在这里加宽,review 里看得见。

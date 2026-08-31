@@ -563,9 +563,17 @@ boolean submit(String saveId, Runnable work);
      `session_not_found` / `busy` / `http_` / `service_unavailable` / `server_at_capacity`。
      ⚠️ **它是唯一一条「有人把 `httpErrorCode` 加回来」会变红的断言** —— 纯行为测试抓不到:
      映射搬回下层、上层原样透传,**公开 API 的可见行为可以完全一样**。
-     ⚠️ **取证边界**:web 侧此前**没有读源码测试的先例**(server 有),故实现时先验 `node:fs`
-     在 vitest jsdom env 下可读;读不到则退到「只留构造保证 + 类型上写死注释」,
-     并**明说这条没有断言看着**,不假装有。
+     ⚠️ **取证边界**:web 侧此前**没有读源码测试的先例**(server 有)。
+     **落地时踩了一次,记下来**:先跑的 `node:fs` smoke **是绿的**,而真实测试文件一跑就
+     `TypeError: The URL must be of scheme file`(jsdom 下模块 URL 不是 `file:` scheme,
+     `fileURLToPath(import.meta.url)` 直接抛)——**smoke 证明了「fs 可读」,没证明
+     「这里解析得出路径」,那是两件事**(smoke 文件不 import 任何应用模块,被 Vite 处理的方式不同)。
+     改走 **Vite 原生 `?raw`** 后成立,不碰 fs、不依赖路径解析;`tsconfig.app.json:7`
+     已有 `types:["vite/client"]`,**无需改配置**。此即 §4.14 又一实例,且是**探针的作者当场抓到**的一例。
+     ⚠️ **格式敏感性记一笔**:构造保证那两条是**字面串** `toContain`,
+     类型声明被重排(prettier / 手改换行)会让它变红,**那是格式原因不是语义原因**。
+     偏严的方向是有意的,但**变红时第一步先看是不是排版**,
+     **不许靠放宽断言来「修」** —— 放宽一次它就再也挡不住真正要挡的那件事。理由已写在测试文件旁。
 5. **⚠️ 刀 1 不是纯脚手架 —— 但它的价值不在 502**(2026-08-31 二次订正;历次措辞留此备查,不并存多个口径)。
 
    **一次订正(初稿 → 一稿)**:初稿在这里举的是 `@Valid @NotBlank actionId` 的 400,并称它「已经在线上流血」——
@@ -607,9 +615,14 @@ boolean submit(String saveId, Runnable work);
 **故 404 的确定性验收放在本地**;**5xx 没有确定性手段**(理由见下),只能线上机会性。
 ⚠️ 走 **mock provider 即可,不花 LLM 的钱**:这两条都在**请求进不去**时触发,压根到不了模型。
 
-- **主用例(确定性,404 → `session_not_found`)**:起一局到有决策圈 → **停后端**
-  → 删掉 `server/data/<saveId>.json`(本地默认落盘目录 `./data`,`application.yml:46`;
-  saveId 见起局响应或该目录下的文件名)→ **重启后端**(`@PostConstruct` 回载不到它)
+- **主用例(确定性,404 → `session_not_found`)—— ⚠️ 本条只在本地跑,不许照搬到线上**:
+  下面要删的是**本地** `server/data/` 下的文件(默认落盘目录 `./data`,`application.yml:46`);
+  **线上那份在挂载卷 `/data` 上,是真存档** —— 玩家(含 Felix 自己)的世界线就在里面,
+  删它不是「制造一个测试条件」,是**毁掉一局**,且 ADR-015 的续局机制**没有回收站**。
+  线上要验 404 只能等它自己发生(卷/档层面出问题时),**不制造**。
+  步骤:起一局到有决策圈 → **停后端**
+  → 删掉 `server/data/<saveId>.json`(saveId 见起局响应或该目录下的文件名)
+  → **重启后端**(`@PostConstruct` 回载不到它)
   → 回原页签点一个选项 → 期望 notice 显示「**会话已失效,返回后点『继续上局』可接续**」,
   且**决策圈仍可点**、点「返回」后选择屏**确有**「继续上局」(文案指的两个动作都真做得到)。
   ⚠️ **不能靠改 `localStorage` 触发** —— `chooseAction` 用的是 **store 里的 `saveId`**
