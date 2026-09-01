@@ -359,9 +359,14 @@ describe('回合流 HTTP 错误 → StreamError 的优先级链', () => {
   it('404 裸 body → session_not_found + 一句玩家做得到的话', async () => {
     const errors = await collectTurnErrors(errorResponse(404));
     expect(errors[0].code).toBe('session_not_found');
-    // 文案里指的两个动作都真实存在:BackButton 的「返回」、ArchetypeSelect 的「继续上局」。
-    expect(errors[0].message).toBe('会话已失效,返回后点『继续上局』可接续');
+    // 文案里指的动作真实存在:BackButton 的「返回」(按钮上的字就是这两个);
+    // 回合屏上没有第二个出口(「重新生成」只在 initError 屏、「取消」只在 loading 屏)。
+    expect(errors[0].message).toBe('这一局的存档已经找不到了,点『返回』重新开始');
     expect(errors[0].message).not.toContain('HTTP');
+    // ⚠️ 刀 1.5 回归闸:原措辞让玩家「返回后点『继续上局』」,而那个按钮点下去必然 404
+    // 且静默消失(冒烟逐字证伪)。指针现在随死档一并清掉 → 那个按钮压根不该在,
+    // 文案更不该指向它。**不许退回去。**
+    expect(errors[0].message).not.toContain('继续上局');
   });
 
   it('code 取自 body、message 缺失 → message 退状态兜底(两者各自独立兜底)', async () => {

@@ -192,6 +192,30 @@ export function createGameStore(api: GameApi) {
 
     const discoveredIds = (rules: DiscoveredRule[]) => rules.map((r) => r.id);
 
+    // ── 确认死档即清指针(ADR-022 刀 1.5)──────────────────────────────
+    // 回合拿到 `session_not_found` = 服务端说这个档没了(`GameSessionManager` 启动即
+    // `reloadFromStore()` 把盘上全部档载进内存,故「内存里没有」≈「盘上也没有或载不动」)。
+    // 不清的话,玩家返回后选择屏**还在拿一个已经死掉的存档招手** —— 那个按钮本身就是个谎,
+    // 再好的文案也解释不了点了为什么没用(刀 1 的 404 文案正是栽在这里)。
+    //
+    // ⚠️ 这不是新规矩:`resumeGame` 的 catch 今天就在做「404 → 清指针」,ADR-015 Slice 2 的
+    // 既有规则本就是「存档确认不可用即清」;本刀只是让**另一个同样确凿的死亡信号**走这条既有规则。
+    // 与线 C「退出不弃局」**不打架**:那条管玩家**主动返回**(触发者是人),`reset()` 照旧不清;
+    // 这条管**服务端说这个档没了**(触发者是事实)。
+    //
+    // ⚠️ **localStorage 必须比对后清,不能无条件清**。多页签:页签 1 在玩存档 A、页签 2 开了新局 B
+    // (localStorage 已是 B),页签 1 点选项拿到 404 → 无条件清会**抹掉活着的 B 的指针**。
+    // 这正是 `resumeGame` 那句注释已经写着的形状:「拿一次过期失败去删一个跟它无关的存档」。
+    //
+    // 两半刻意不同条件,因为它们的作用域不同:
+    //   · `resumableSaveId`(本页签的内存视图,恒等于本局 saveId)—— **无条件清**:
+    //     A 死了是确凿事实,本页签的「继续上局」不该再指向它;
+    //   · localStorage(**跨页签共享**)—— **仅当它还是这个死档时才清**:别的页签可能已写进新局。
+    const forgetDeadSave = (deadId: string) => {
+      if (readSavedId() === deadId) clearSavedId();
+      set({ resumableSaveId: null });
+    };
+
     return {
       ...INITIAL,
       // 目录状态在 INITIAL 之外维护 —— reset/startGame 不应清掉已拉取的可选世界列表。
@@ -333,6 +357,7 @@ export function createGameStore(api: GameApi) {
 
         stream.onError((err) => {
           if (stale()) return;
+          if (err.code === 'session_not_found') forgetDeadSave(saveId);
           if (RECOVERABLE_TURN_ERRORS.has(err.code)) {
             // 可恢复:复用未变的散文/动作,回到 awaiting + 提示。
             set({ status: 'awaiting', notice: err.message });

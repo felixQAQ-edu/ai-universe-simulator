@@ -222,9 +222,15 @@ function toStreamError(failure: SseFailure): StreamError {
  */
 function statusFallback(status: number): StreamError {
   if (status === 404) {
-    // 文案里的两个动作都必须是玩家真做得到的:「返回」= SceneBanner 顶部的 BackButton,
-    // 「继续上局」= 返回后选择屏那个按钮(`reset()` 刻意不清 `resumableSaveId`,线 C「退出不弃局」)。
-    return { code: 'session_not_found', message: '会话已失效,返回后点『继续上局』可接续' };
+    // ⚠️ 刀 1.5 改写:原文案「会话已失效,返回后点『继续上局』可接续」**在真机冒烟里被逐字证伪**
+    // —— 照它去点「继续上局」,`GET /state` 回 404、按钮直接消失、玩家零提示。回合 404 意味着
+    // 这个档**已经回不来了**(`GameSessionManager` 启动即 `reloadFromStore()` 把盘上全部档载进内存,
+    // 故「内存里没有」≈「盘上也没有或载不动」),故几乎不存在那句话能成立的场景。
+    // 现在只承诺玩家真做得到的那一个动作:「返回」= SceneBanner 顶部的 BackButton
+    // (按钮上的字就是「返回」);**回合屏上没有第二个出口**。
+    // 配套的根治在 `gameStore.chooseAction` 的 onError:确认死档即清 saveId 指针 ——
+    // 否则返回之后选择屏还在拿一个死掉的存档招手,文案再准也解释不了点了为什么没用。
+    return { code: 'session_not_found', message: '这一局的存档已经找不到了,点『返回』重新开始' };
   }
   if (status >= 500) {
     // ⚠️ 不枚举 500/502/503/504 —— 枚举会留缝。
