@@ -42,6 +42,16 @@ import tools.jackson.databind.node.ObjectNode;
  *       classpath static 非文件系统目录(jar: URL),检查自然跳过——目录也不可能位于 jar 内。</li>
  *   <li><b>回载容错</b>:单文件损坏/拒载/archetype 不识 → WARN + 跳过 + 保留原文件(留尸检),
  *       其余照载;一局坏档不杀死整个服务。</li>
+ *   <li><b>非存档文件不报警</b>(ADR-022 刀 2 前置):落盘目录是<b>共用命名空间</b>——ADR-016 的月账
+ *       {@code quota-YYYY-MM.json} 与存档平铺同一目录(那是 ADR-016 明写的决策),而月账一月一个、
+ *       永不删除,按后缀收会让「坏档 WARN」<b>每次启动都出现且逐月增长</b>,把人训练成自动跳过 WARN。
+ *       故 {@link #loadOne} 按<b>文档形状</b>三分(见 {@link #isSaveDocument}):非存档 → DEBUG 静默跳过,
+ *       真坏档 → 照旧 WARN + 留尸检。<b>不按文件名判</b>(saveId 是 UUID,但 {@code SAFE_SAVE_ID} 同样
+ *       匹配 {@code quota-2026-07},另立第二条正则等于两处「什么是合法 saveId」并存)。
+ *       分目录彻底分家是对的方向、错的时机,挂 ADR-022 §挂账(解冻:第三个模块也写这个目录时)。</li>
+ *   <li><b>启动汇总 INFO</b>:{@link #loadAll} 结束打一条「载入 N / 跳过 M / 拒载 K」。<b>它是上一条能
+ *       成立的前提,不是装饰</b>——分流判据若将来因文档结构重构而把自己人也筛掉,失效方式是<b>全量静默</b>;
+ *       这条汇总把那个洞从「静默」变成「一个可读的数字」(读到 {@code 载入 0 档,跳过 12 个} 即当场现形)。</li>
  *   <li><b>轴语义集不落盘</b>(ADR-015):回载时由 {@code world.archetypes} 经
  *       {@link ArchetypeRegistry#resolveAxes} 原路重派生(与播种同一真理源)。</li>
  * </ul>
@@ -112,25 +122,67 @@ public class FileSessionStore implements SessionStore {
 		if (!Files.isDirectory(dir)) {
 			return loaded;
 		}
+		int notASave = 0;
+		int refused = 0;
 		try (Stream<Path> files = Files.list(dir)) {
-			files.filter(p -> p.getFileName().toString().endsWith(".json")).sorted().forEach(p -> {
-				GameSession session = loadOne(p);
-				if (session != null) {
-					loaded.add(session);
+			List<Path> candidates = files.filter(p -> p.getFileName().toString().endsWith(".json"))
+					.sorted().toList();
+			for (Path p : candidates) {
+				LoadResult result = loadOne(p);
+				switch (result.kind()) {
+					case LOADED -> loaded.add(result.session());
+					case NOT_A_SAVE -> notASave++;
+					case REFUSED -> refused++;
 				}
-			});
+			}
 		} catch (IOException e) {
 			log.error("[session-store] 落盘目录扫描失败(以空档启动):{}", e.toString());
 		}
+		// 汇总(见类 javadoc):平时是可核对的读数,分流判据出事那天是它唯一的现形处。
+		log.info("[session-store] 启动回载:载入 {} 档,跳过 {} 个非存档文件,{} 档拒载(见上方 WARN)",
+				loaded.size(), notASave, refused);
 		return loaded;
 	}
 
-	/** 单档回载;任何失败 → WARN + null(调用方跳过),文件保留原样(留尸检)。 */
-	private GameSession loadOne(Path file) {
+	/** 单档回载的三分结果(供 {@link #loadAll} 汇总计数)。 */
+	private enum LoadKind {
+		/** 成功还原为会话。 */
+		LOADED,
+		/** 不是存档文档(别人写进这个目录的文件)——静默跳过,不是故障。 */
+		NOT_A_SAVE,
+		/** 是存档(或疑似)但载不动——WARN + 保留原文件留尸检。 */
+		REFUSED
+	}
+
+	private record LoadResult(LoadKind kind, GameSession session) {
+
+		static final LoadResult NOT_A_SAVE = new LoadResult(LoadKind.NOT_A_SAVE, null);
+		static final LoadResult REFUSED = new LoadResult(LoadKind.REFUSED, null);
+
+		static LoadResult loaded(GameSession session) {
+			return new LoadResult(LoadKind.LOADED, session);
+		}
+	}
+
+	/**
+	 * 单档回载,三分:非存档 → DEBUG 静默跳过;<b>存档载不动 → WARN + 保留原文件(留尸检,口径逐字不变)</b>;
+	 * 连 JSON 都解析不了 → 也走 WARN(无从判断它是不是存档,可能是被截断的真存档,保守叫出声)。
+	 */
+	private LoadResult loadOne(Path file) {
 		String name = file.getFileName().toString();
 		String saveId = name.substring(0, name.length() - ".json".length());
+		JsonNode doc;
 		try {
-			JsonNode doc = mapper.readTree(Files.readString(file, StandardCharsets.UTF_8));
+			doc = mapper.readTree(Files.readString(file, StandardCharsets.UTF_8));
+		} catch (Exception e) {
+			log.warn("[session-store] 存档回载失败,跳过并保留原文件(留尸检):{} — {}", file, e.toString());
+			return LoadResult.REFUSED;
+		}
+		if (!isSaveDocument(doc)) {
+			log.debug("[session-store] 跳过非存档文件(无 world 节点,共用目录里别人的东西):{}", file);
+			return LoadResult.NOT_A_SAVE;
+		}
+		try {
 			// 轴语义集不落盘:由 world.archetypes 经 registry 原路重派生(与播种同一真理源)。
 			List<String> ids = new ArrayList<>();
 			doc.path("world").path("archetypes").forEach(a -> ids.add(a.asString("")));
@@ -144,11 +196,23 @@ public class FileSessionStore implements SessionStore {
 			GameSession session = new GameSession(saveId, engine, initial);
 			// phase 按 status 重置(AtomicReference 运行时态不落盘,ADR-015 勘察 2)。
 			session.phase().set("ended".equals(engine.status()) ? TurnPhase.ENDED : TurnPhase.AWAITING_ACTION);
-			return session;
+			return LoadResult.loaded(session);
 		} catch (Exception e) {
 			log.warn("[session-store] 存档回载失败,跳过并保留原文件(留尸检):{} — {}", file, e.toString());
-			return null;
+			return LoadResult.REFUSED;
 		}
+	}
+
+	/**
+	 * 分流判据(包私有供测试):存档文档必带 {@code world} 对象节点——{@link #persist} 写出的每一份都由
+	 * {@code Engine.toPersistedState()} 产,必带它;且原子写不会留半份。
+	 *
+	 * <p>⚠️ <b>本判定只为分流日志级别,不替代 {@code Engine.restore} 的合法性闸门</b>
+	 * ({@code Engine.restore} 对 {@code world} 缺失/非对象照旧抛「持久化文档缺 world」,拒载不半载)。
+	 * <b>两处判据必须一致,改一处必须看另一处</b>——同一个判断落在两个地方,是漂移的种子。
+	 */
+	static boolean isSaveDocument(JsonNode doc) {
+		return doc != null && doc.path("world").isObject();
 	}
 
 	// ── 路径安全断言(附录 A 第 3 条:落盘目录不得位于 static resources 之下)──

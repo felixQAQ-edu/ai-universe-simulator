@@ -149,6 +149,9 @@ public class Engine {
 		if (!"0.2".equals(sv) && !"0.3".equals(sv) && !"0.4".equals(sv)) {
 			throw new IllegalArgumentException("schemaVersion 不识(须为 \"0.2\"/\"0.3\"/\"0.4\"):" + sv);
 		}
+		// ⚠️ 这条 world 闸门在 FileSessionStore.isSaveDocument 有一份【同判据】的提前副本(它只用来分流
+		// 日志级别:非存档静默跳过 / 存档载不动才 WARN),本闸门是合法性判定、不可被它替代。
+		// 两处判据必须一致,改这里必须看那里(同一个判断落在两处 = 漂移的种子)。
 		JsonNode world = persisted.get("world");
 		if (world == null || !world.isObject()) {
 			throw new IllegalArgumentException("持久化文档缺 world(或非对象)");
