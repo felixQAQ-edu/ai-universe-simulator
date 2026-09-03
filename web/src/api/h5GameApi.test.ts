@@ -369,6 +369,21 @@ describe('回合流 HTTP 错误 → StreamError 的优先级链', () => {
     expect(errors[0].message).not.toContain('继续上局');
   });
 
+  // ⚠️ 本条是闸 A(ADR-022 刀 2)的前端半边:刀 2 之后服务端 404 发的是
+  //    `{error:{code:"session_not_found"}}` —— **只有 code、没有 message**,而这正是
+  //    为了让下面这句(刀 1.5 被真机逐字证伪一次之后才定下来的)保住真理源地位。
+  //    服务端若哪天给这个 body 加上 message,它会压过兜底表、静默换掉玩家看到的话;
+  //    那一侧由 GameControllerTurnGuardsTest 的 doesNotContainKey("message") 看着。
+  //    ⚠️ 上一条(503 + code-only)验的是同一台机制,但 404 才是刀 2 真实发出的形状 ——
+  //    机制对不等于这一组合被钉住了,故单列。
+  it('404 + 只有 code 的 body → code 取 body、message 退兜底(刀 2 的真实形状)', async () => {
+    const body = JSON.stringify({ error: { code: 'session_not_found' } });
+    const errors = await collectTurnErrors(errorResponse(404, body));
+    expect(errors).toEqual([
+      { code: 'session_not_found', message: '这一局的存档已经找不到了,点『返回』重新开始' },
+    ]);
+  });
+
   it('code 取自 body、message 缺失 → message 退状态兜底(两者各自独立兜底)', async () => {
     const errors = await collectTurnErrors(errorResponse(503, JSON.stringify({ error: { code: 'x' } })));
     expect(errors[0]).toEqual({ code: 'x', message: '服务暂时不可用,请稍后再试' });
