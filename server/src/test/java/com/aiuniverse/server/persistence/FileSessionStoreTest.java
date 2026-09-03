@@ -9,8 +9,10 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.stream.Stream;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.slf4j.LoggerFactory;
 
 import com.aiuniverse.server.archetype.ArchetypeRegistry;
 import com.aiuniverse.server.archetype.AttributeAxis;
@@ -18,6 +20,10 @@ import com.aiuniverse.server.engine.Engine;
 import com.aiuniverse.server.eventloop.GameSession;
 import com.aiuniverse.server.eventloop.TurnPhase;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
@@ -26,6 +32,10 @@ import tools.jackson.databind.node.ObjectNode;
  * ADR-015 Slice 2 · 落盘层守护:写盘(原子、含 session 层字段)→ 回载(轴集重派生 + phase 按
  * status 重置)往返;单文件损坏/archetype 不识 → 跳过 + 保留原文件、其余照载;路径安全断言
  * (附录 A 第 3 条,Slice 1 移交)拒绝启动不降级;非法 saveId 拒写。
+ *
+ * <p>ADR-022 刀 2 前置追加:共用目录里的<b>非存档文件不报警</b>,而<b>真坏档仍叫得出声</b>——
+ * 两者是同一枚硬币的两面,必须同时绿(且变异时须<b>分别</b>变红,一起红说明其中一条搭了另一条便车)。
+ * 日志断言走 logback {@link ListAppender}:这一刀的题目就是日志,故直接测日志、不退到测判定。
  */
 class FileSessionStoreTest {
 
@@ -35,8 +45,34 @@ class FileSessionStoreTest {
 	@TempDir
 	Path tmp;
 
+	private final Logger storeLogger = (Logger) LoggerFactory.getLogger(FileSessionStore.class);
+	private ListAppender<ILoggingEvent> appender;
+
 	private FileSessionStore store() {
 		return new FileSessionStore(tmp.toString(), mapper, registry);
+	}
+
+	// ── 日志取证(ListAppender)────────────────────────────────────────
+
+	/** 在 store 构造之后挂,避开构造期那条「落盘目录 = …」INFO。 */
+	private void captureLogs() {
+		appender = new ListAppender<>();
+		appender.start();
+		storeLogger.addAppender(appender);
+	}
+
+	@AfterEach
+	void detachAppender() {
+		if (appender != null) {
+			storeLogger.detachAppender(appender);
+			appender.stop();
+			appender = null;
+		}
+	}
+
+	private List<String> logsAt(Level level) {
+		return appender.list.stream().filter(e -> e.getLevel() == level)
+				.map(ILoggingEvent::getFormattedMessage).toList();
 	}
 
 	// ── 写盘 → 回载 往返 ────────────────────────────────────────────────
@@ -144,6 +180,63 @@ class FileSessionStoreTest {
 
 		assertThat(store.loadAll()).isEmpty();
 		assertThat(file).exists();
+	}
+
+	// ── 共用目录:非存档文件不报警 / 真坏档仍叫(ADR-022 刀 2 前置)──────────
+
+	@Test
+	void nonSaveJsonInStoreDirIsSkippedWithoutWarning() throws Exception {
+		FileSessionStore store = store();
+		store.persist(playingSession("save-good"));
+		// ADR-016:114 月账与存档共用同一目录,一月一个、永不删除 —— 按后缀收会让 WARN 每次启动都出现
+		// 且逐月增长,把人训练成自动跳过 WARN(而刀 2 的观测面正是要往这条通道里加 WARN)。
+		Path quota = tmp.resolve("quota-2026-09.json");
+		Files.writeString(quota, "{\"month\":\"2026-09\",\"spentCny\":0.0452}");
+		captureLogs();
+
+		List<GameSession> loaded = store.loadAll();
+
+		assertThat(loaded).extracting(GameSession::saveId).containsExactly("save-good");
+		assertThat(logsAt(Level.WARN)).as("别人的文件不是坏档,不该报警").isEmpty();
+		assertThat(quota).as("别人的文件原样保留,不被本模块处置").exists();
+		assertThat(Files.readString(quota)).contains("spentCny");
+	}
+
+	@Test
+	void damagedSaveWithWorldStillWarnsAndIsRetained() throws Exception {
+		FileSessionStore store = store();
+		ObjectNode doc = playingSession("x").engine().toPersistedState();
+		doc.remove("state"); // 有 world、缺 state → Engine.restore 拒载(是存档,只是坏了)
+		Path file = tmp.resolve("save-damaged.json");
+		Files.writeString(file, mapper.writeValueAsString(doc));
+		captureLogs();
+
+		assertThat(store.loadAll()).isEmpty();
+		// 反面硬线:分流不许把真坏档一起治哑(那是「吵变哑」,方向更坏)。
+		assertThat(logsAt(Level.WARN)).as("真坏档必须仍叫得出声").hasSize(1);
+		assertThat(logsAt(Level.WARN).get(0)).contains("留尸检");
+		assertThat(file).as("坏档保留原样(留尸检)").exists();
+	}
+
+	@Test
+	void startupSummaryCountsLoadedSkippedAndRefused() throws Exception {
+		FileSessionStore store = store();
+		store.persist(playingSession("save-a"));
+		store.persist(playingSession("save-b"));
+		Files.writeString(tmp.resolve("quota-2026-08.json"), "{\"month\":\"2026-08\"}");
+		Files.writeString(tmp.resolve("quota-2026-09.json"), "{\"month\":\"2026-09\"}");
+		Files.writeString(tmp.resolve("save-bad.json"), "{ not json !!");
+		captureLogs();
+
+		store.loadAll();
+
+		// 这条汇总是分流判据能成立的前提:判据若将来把自己人也筛掉,失效方式是全量静默,
+		// 而「载入 0 档,跳过 N 个」是它唯一的现形处 —— 故计数本身必须被守住。
+		assertThat(logsAt(Level.INFO)).anySatisfy(line -> assertThat(line)
+				.contains("启动回载")
+				.contains("载入 2 档")
+				.contains("跳过 2 个非存档文件")
+				.contains("1 档拒载"));
 	}
 
 	// ── 路径安全断言(附录 A 第 3 条):拒绝启动,不降级 ─────────────────────
