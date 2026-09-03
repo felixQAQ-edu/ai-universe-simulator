@@ -7,6 +7,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import org.junit.jupiter.api.AfterEach;
@@ -24,6 +26,7 @@ import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
@@ -237,6 +240,33 @@ class FileSessionStoreTest {
 				.contains("载入 2 档")
 				.contains("跳过 2 个非存档文件")
 				.contains("1 档拒载"));
+	}
+
+	@Test
+	void isSaveDocumentAgreesWithEngineRestoreWorldGate() {
+		// 分流判据在 Engine.restore:152 有一份【同判据】的合法性闸门,两处必须一致
+		// ——本用例就是那条「改一处必须看另一处」的钉子:今天分流侧只被 loadAll 的行为面间接钉着,
+		// 一旦有人只动其中一处(例如把 world 改名或放宽成 has("world")),这里当场变红。
+		assertThat(FileSessionStore.isSaveDocument(null)).as("null 不是存档文档").isFalse();
+
+		List<ObjectNode> notSaves = List.of(
+				// ① 生产里真正的触发者:ADR-016 月账文件的形状(根本没有 world)
+				mapper.createObjectNode().put("month", "2026-09").put("spentCny", 0.0452),
+				// ② world 存在但不是对象 —— restore 那侧写的是 !world.isObject(),不是 has("world")
+				mapper.createObjectNode().put("world", "不是对象"));
+		for (ObjectNode notSave : notSaves) {
+			assertThat(FileSessionStore.isSaveDocument(notSave)).as("判为非存档:%s", notSave).isFalse();
+			// 另一侧同判:补上 schemaVersion 让它走过前一道闸门,才问得到 world 这一关。
+			ObjectNode reachingWorldGate = notSave.deepCopy().put("schemaVersion", "0.4");
+			assertThatThrownBy(() -> Engine.restore(reachingWorldGate, mapper, Set.of(), Map.of(), Set.of()))
+					.as("Engine.restore 必须在 world 这一关拒同一批文档")
+					.isInstanceOf(IllegalArgumentException.class)
+					.hasMessageContaining("缺 world");
+		}
+
+		// 正面:persist 写出的每一份都由 toPersistedState() 产,必带 world 对象节点。
+		JsonNode realSave = playingSession("x").engine().toPersistedState();
+		assertThat(FileSessionStore.isSaveDocument(realSave)).as("真存档必须判为存档").isTrue();
 	}
 
 	// ── 路径安全断言(附录 A 第 3 条):拒绝启动,不降级 ─────────────────────
