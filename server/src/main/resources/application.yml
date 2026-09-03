@@ -47,6 +47,13 @@ aiuniverse:
   # ── 成本闸门四阈值(ADR-016;Felix 拍板,基于线上真实 usage + 52% 缓存命中率)────
   # 全部可 env 覆盖(如 AIUNIVERSE_QUOTA_DAILY_BUDGET_CNY),冒烟压低阈值 = 临时 env。
   # 日界线 = 北京时间;阈值哲学:假想敌是脚本刷不是真人玩,宽到真人永远撞不到。
+  # ── 回合并发准入(ADR-022):同时在途的回合数上限 ─────────────────────────
+  # SSE 回合是阻塞长连接(线上实测 ~15s),假想敌不是高 QPS,是一个 15 秒不还的线程 ——
+  # 故闸装在「同时占用」上,不在「每秒请求」上。可 env 覆盖
+  # (AIUNIVERSE_TURN_MAX_CONCURRENT);压到 1 是刀 3 冒烟唯一能确定性触发拒绝的手段。
+  # ⚠️ 它只负责 turn 路径上的「不死」,成本仍归下面的 quota 闸,两道闸不互相替代。
+  turn:
+    max-concurrent: 8
   quota:
     daily-budget-cny: 6        # 全局日限额 CNY(真闸)
     monthly-budget-cny: 175    # 全局月顶 CNY(真闸)
