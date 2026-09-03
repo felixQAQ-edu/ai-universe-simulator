@@ -87,16 +87,9 @@ class TurnStateMachineTest {
 		assertThat(s.phase()).hasValue(TurnPhase.ENDED);
 	}
 
-	@Test
-	void illegalActionEmitsErrorAndDoesNotCallExecutor() {
-		GameSession s = session();
-		StubExecutor ex = new StubExecutor();
-		RecordingSink sink = new RecordingSink();
-		new TurnStateMachine(ex).submitAction(s, "Z", sink);
-		assertThat(ex.calls).hasValue(0);
-		assertThat(sink.errors).containsExactly("illegal_action");
-		assertThat(s.phase()).hasValue(TurnPhase.AWAITING_ACTION); // 停原地
-	}
+	// ⚠️ 原 illegalActionEmitsErrorAndDoesNotCallExecutor 已随守卫 1 前移(ADR-022 立字 5)
+	// **搬到 GameControllerTurnGuardsTest**(非法动作 → 400 + 不提交、不占名额)。
+	// 它是行为类测试,故是搬家不是删除;留在这里会变红(“Z” 不再被本类拦下,会一路穿到 executor)。
 
 	@Test
 	void busyPhaseRejectsSecondSubmitWithoutCallingExecutor() {
@@ -155,14 +148,32 @@ class TurnStateMachineTest {
 		}
 	}
 
+	/**
+	 * ⚠️ <b>原 {@code quotaGuardRunsBeforeLegalityGuard} 在此显式处置,不许留着。</b>
+	 * 它靠「非法动作 "Z" 却拿到 quota_exceeded」来证明配额跑在合法性之前;守卫 1 前移后
+	 * 本类只剩一道守卫,<b>那个断言会照常变绿、而它要证的顺序已经不存在了</b>
+	 * ——绿而失去意义的测试比红的更坏(ADR-018 §4.13:绿有两种解释)。
+	 *
+	 * <p>改为断言<b>本类已不持有合法性守卫</b>:非法动作不再被本类拦下(它现在归 controller),
+	 * 顺序立字的新宿主与断言都在 {@code GameControllerTurnGuardsTest}。
+	 */
 	@Test
-	void quotaGuardRunsBeforeLegalityGuard() {
+	void legalityGuardNoLongerLivesHere() {
+		GameSession s = session();
+		StubExecutor ex = new StubExecutor();
+		RecordingSink sink = new RecordingSink();
+		new TurnStateMachine(ex).submitAction(s, "Z", sink); // "Z" ∉ availableActions
+		assertThat(sink.errors).as("本类不再发 illegal_action(守卫 1 已前移)").isEmpty();
+		assertThat(ex.calls).as("本类不再据合法性拦截:调用方须已校验").hasValue(1);
+	}
+
+	@Test
+	void quotaGuardStillRunsBeforeCasAndSeesClientKey() {
 		GameSession s = session();
 		StubExecutor ex = new StubExecutor();
 		RecordingSink sink = new RecordingSink();
 		DenyingQuota quota = new DenyingQuota();
-		// 动作 "Z" 本身非法:若合法性守卫先跑,错误码会是 illegal_action —— 断言 quota_exceeded 证明顺序。
-		new TurnStateMachine(ex, SessionStore.NOOP, quota).submitAction(s, "Z", sink,
+		new TurnStateMachine(ex, SessionStore.NOOP, quota).submitAction(s, "A", sink,
 				new QuotaGate.ClientKey("1.2.3.4", "dev-A"));
 		assertThat(ex.calls).hasValue(0);
 		assertThat(sink.errors).containsExactly("quota_exceeded");

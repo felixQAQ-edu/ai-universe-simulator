@@ -48,7 +48,8 @@ class GameControllerQuotaTest {
 	/** 拒绝路径不触达 initService/stateMachine(传 null 即证:被触达会 NPE)。 */
 	private GameController controller(RecordingQuota quota) {
 		return new GameController(new GameSessionManager(new ObjectMapper()),
-				new TurnStateMachine((s, a, sink) -> null), null, quota);
+				new TurnStateMachine((s, a, sink) -> null), null, quota,
+				new TurnAdmission(1, Runnable::run)); // init 路径不碰准入,给个不会被用到的
 	}
 
 	@Test

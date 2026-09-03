@@ -22,7 +22,7 @@ import tools.jackson.databind.node.ObjectNode;
  *   <li>init 播种后写一次(起局即崩不丢局);</li>
  *   <li>回合写盘 = 临界区尾部(executor 返回后、相位放回之前——写盘瞬间 phase 仍 GENERATING/SETTLING,
  *       忙态守卫保证单写者);</li>
- *   <li>守卫拒绝(非法动作 / 忙态)不写盘;executor 意外异常不写盘(盘上仍是上一个完整回合);</li>
+ *   <li>守卫拒绝(配额 / 忙态)不写盘;executor 意外异常不写盘(盘上仍是上一个完整回合);</li>
  *   <li>启动回载把 store 里的会话重填内存表。</li>
  * </ol>
  */
@@ -104,15 +104,29 @@ class SessionPersistenceWiringTest {
 		assertThat(session.phase().get()).isEqualTo(TurnPhase.AWAITING_ACTION);
 	}
 
+	/**
+	 * ⚠️ 原用「非法动作」作守卫 1 那条路径,守卫 1 前移(ADR-022 立字 5)后它会一路穿到 executor
+	 * <b>并真的落盘</b>(即变红,不是静默通过)。换成同样不落盘的<b>守卫 0 配额拒绝</b>,
+	 * 断言意图(守卫拒绝一律不写盘)一字未改。
+	 */
 	@Test
 	void guardRejectionsDoNotPersist() {
 		RecordingStore store = new RecordingStore();
 		GameSession session = new GameSession("save-1", new Engine(world(), mapper), actions());
+		TurnStateMachine denied = new TurnStateMachine((s, a, sink) -> new TurnResult(false), store,
+				new DenyingQuota());
+		denied.submitAction(session, "A", new SilentSink(), null); // 守卫 0:配额拒绝
 		TurnStateMachine fsm = new TurnStateMachine((s, a, sink) -> new TurnResult(false), store);
-		fsm.submitAction(session, "Z", new SilentSink()); // 守卫 1:非法动作
 		session.phase().set(TurnPhase.GENERATING);
 		fsm.submitAction(session, "A", new SilentSink()); // 守卫 2:忙态
 		assertThat(store.persisted).isEmpty();
+	}
+
+	/** 拒绝一切 turn 的 stub 闸门(守卫 0 那条不落盘路径用)。 */
+	private static final class DenyingQuota implements com.aiuniverse.server.quota.QuotaGate {
+		@Override public Decision checkInit(ClientKey key) { return Decision.ALLOW; }
+		@Override public Decision checkTurn(ClientKey key) { return Decision.deny("今日回合名额已满,明天再来"); }
+		@Override public void record(com.aiuniverse.server.llm.LlmUsage usage) { }
 	}
 
 	@Test

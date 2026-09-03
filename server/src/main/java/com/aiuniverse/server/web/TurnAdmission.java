@@ -7,6 +7,7 @@ import java.util.concurrent.Semaphore;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import jakarta.annotation.PreDestroy;
@@ -54,7 +55,12 @@ public final class TurnAdmission {
 	 */
 	private final ExecutorService owned;
 
-	/** 生产形态:池自建自持(SSE 是阻塞长连接,不能占 Tomcat 容器线程)。 */
+	/**
+	 * 生产形态:池自建自持(SSE 是阻塞长连接,不能占 Tomcat 容器线程)。
+	 * {@code @Autowired} 显式指定注入构造器(两构造器时容器选不出,照 {@code TurnStateMachine} 先例);
+	 * 漏标的失效方式是<b>启动即 BeanCreationException</b>,由 {@code ServerApplicationTests#contextLoads} 看着。
+	 */
+	@Autowired
 	public TurnAdmission(TurnProperties props) {
 		this.capacity = props.maxConcurrent();
 		this.permits = new Semaphore(props.maxConcurrent());
