@@ -6,6 +6,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.Test;
@@ -15,6 +17,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
 
 import com.aiuniverse.server.eventloop.GameSessionManager;
+import com.aiuniverse.server.eventloop.TurnPhase;
 import com.aiuniverse.server.eventloop.TurnStateMachine;
 import com.aiuniverse.server.eventloop.TurnResult;
 import com.aiuniverse.server.llm.LlmUsage;
@@ -145,9 +148,18 @@ class GameControllerTurnGuardsTest {
 	@Test
 	void illegalActionDoesNotConsumeQuota() {
 		CountingQuota quota = new CountingQuota();
+		// ⚠️ 配额闸装进**状态机**:回合配额(守卫 0)的宿主是它,不是 controller
+		// (controller 的 quota 只服务 init)。第一版传错了地方 → 计数恒 0 → 恒绿的假探针,
+		// 由下一条用例的控制组当场抓出。
 		GameController c = new GameController(managerWithSession(),
-				new TurnStateMachine((s, a, sink) -> new TurnResult(false)), null, quota,
-				new TurnAdmission(8, r -> { }));
+				new TurnStateMachine((s, a, sink) -> new TurnResult(false),
+						com.aiuniverse.server.persistence.SessionStore.NOOP, quota),
+				null, quota, new TurnAdmission(8, Runnable::run)); // 同线程跑,控制组才跑得起来
+
+		// 对照:合法动作会真的消耗一次配额 —— 没有这句,「0」可能只是因为闸压根没接上。
+		c.turn("save-1", new GameController.TurnRequest(0, "A"), request());
+		assertThat(quota.turnChecks).as("控制组:合法动作确实查过配额").hasValue(1);
+		quota.turnChecks.set(0);
 
 		c.turn("save-1", new GameController.TurnRequest(0, "Z"), request());
 
@@ -179,37 +191,82 @@ class GameControllerTurnGuardsTest {
 		assertThat(second.getHeaders().getFirst("Retry-After")).isNull();
 	}
 
-	/** 立字 4 的可验证形态:被池拒绝的玩家<b>不掉额度</b>——他什么都没得到,秒级重试就能成功。 */
+	/**
+	 * 立字 4 的可验证形态:被池拒绝的玩家<b>不掉额度</b>——他什么都没得到,秒级重试就能成功。
+	 *
+	 * <p>⚠️ <b>这条必须用真并发,不能用「收下但不跑」的停车执行器</b>(第一版就是那么写的,
+	 * 被 M1 变异当场抓出来):任务不跑,配额本来就不会被查,<b>摘掉准入它照样绿</b>
+	 * ——一个看起来在守、其实没在看的探针(ADR-018 §4.14)。
+	 * 真并发下第一发<b>已经查过一次配额</b>并卡在任务体里占着名额,故「第二发查了没有」
+	 * 才真正区分得开「被准入挡住」与「跑进去了」。
+	 */
 	@Test
-	void admissionRejectionDoesNotConsumeQuota() {
+	void admissionRejectionDoesNotConsumeQuota() throws Exception {
 		CountingQuota quota = new CountingQuota();
-		TurnAdmission admission = new TurnAdmission(1, r -> { });
+		BlockingExecutor executor = new BlockingExecutor();
 		GameController c = new GameController(managerWithSession(),
-				new TurnStateMachine((s, a, sink) -> new TurnResult(false)), null, quota, admission);
+				new TurnStateMachine((s, a, sink) -> executor.park(),
+						com.aiuniverse.server.persistence.SessionStore.NOOP, quota),
+				null, quota, new TurnAdmission(1, executor));
 
-		c.turn("save-1", new GameController.TurnRequest(0, "A"), request()); // 占住唯一名额
-		quota.turnChecks.set(0);
-		c.turn("save-1", new GameController.TurnRequest(0, "A"), request()); // 被拒
+		c.turn("save-1", new GameController.TurnRequest(0, "A"), request()); // 占住唯一名额并卡住
+		assertThat(executor.entered.await(2, TimeUnit.SECONDS)).as("第一发已进入任务体").isTrue();
+		assertThat(quota.turnChecks).as("控制组:跑进去的那一发确实查过配额").hasValue(1);
 
-		assertThat(quota.turnChecks).hasValue(0);
+		c.turn("save-1", new GameController.TurnRequest(0, "A"), request()); // 被准入拒
+
+		assertThat(quota.turnChecks).as("被拒的那一发零配额调用").hasValue(1);
+		executor.release();
 	}
 
 	/**
 	 * 准入拒绝<b>相位零触碰</b>:它发生在 CAS 之前、甚至在池线程之前,服务端从头到尾没碰过这局。
 	 * (守卫 2 在池线程里,这条自动成立——<b>但要有断言在看</b>。)
+	 *
+	 * <p>⚠️ 同上,用真并发 + <b>第二个存档</b>:名额被 save-1 占着,save-2 被拒;
+	 * 摘掉准入则 save-2 会跑起来、相位进 GENERATING —— 那时这条才红得起来。
 	 */
 	@Test
-	void admissionRejectionLeavesPhaseUntouched() {
+	void admissionRejectionLeavesPhaseUntouched() throws Exception {
 		GameSessionManager manager = managerWithSession();
-		TurnAdmission admission = new TurnAdmission(1, r -> { });
+		manager.create("save-2", world(), actions(), Set.of(), Map.of(), Set.of());
+		BlockingExecutor executor = new BlockingExecutor();
 		GameController c = new GameController(manager,
-				new TurnStateMachine((s, a, sink) -> new TurnResult(false)), null, new CountingQuota(), admission);
+				new TurnStateMachine((s, a, sink) -> executor.park()), null, new CountingQuota(),
+				new TurnAdmission(1, executor));
 
-		c.turn("save-1", new GameController.TurnRequest(0, "A"), request());
-		c.turn("save-1", new GameController.TurnRequest(0, "A"), request()); // 被准入拒
+		c.turn("save-1", new GameController.TurnRequest(0, "A"), request()); // 占住唯一名额并卡住
+		assertThat(executor.entered.await(2, TimeUnit.SECONDS)).isTrue();
+		c.turn("save-2", new GameController.TurnRequest(0, "A"), request()); // 被准入拒
 
-		assertThat(manager.get("save-1").phase())
-				.hasValue(com.aiuniverse.server.eventloop.TurnPhase.AWAITING_ACTION);
+		assertThat(manager.get("save-2").phase()).hasValue(TurnPhase.AWAITING_ACTION);
+		executor.release();
+	}
+
+	/** 真线程跑任务,并卡在任务体里(名额与相位都真的被占住),测试末尾放行。 */
+	private static final class BlockingExecutor implements java.util.concurrent.Executor {
+		final CountDownLatch entered = new CountDownLatch(1);
+		private final CountDownLatch hold = new CountDownLatch(1);
+
+		@Override
+		public void execute(Runnable command) {
+			Thread.ofPlatform().daemon().start(() -> command.run());
+		}
+
+		/** 由 TurnExecutor stub 调用:进入后卡住。 */
+		TurnResult park() {
+			entered.countDown();
+			try {
+				hold.await(5, TimeUnit.SECONDS);
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+			}
+			return new TurnResult(false);
+		}
+
+		void release() {
+			hold.countDown();
+		}
 	}
 
 	/**
