@@ -215,7 +215,10 @@ class GameControllerTurnGuardsTest {
 
 		c.turn("save-1", new GameController.TurnRequest(0, "A"), request()); // 被准入拒
 
-		assertThat(quota.turnChecks).as("被拒的那一发零配额调用").hasValue(1);
+		// ⚠️ 主判据用**同步**的提交计数:配额是在异步线程里查的,turn() 一返回就断言它
+		//    是一个竞态绿(M1b 变异下实测仍绿 —— 那时线程还没起来)。提交计数在调用线程上加。
+		assertThat(executor.submissions).as("被拒的那一发零提交").hasValue(1);
+		assertThat(quota.turnChecks).as("故也零配额调用").hasValue(1);
 		executor.release();
 	}
 
@@ -248,8 +251,12 @@ class GameControllerTurnGuardsTest {
 		final CountDownLatch entered = new CountDownLatch(1);
 		private final CountDownLatch hold = new CountDownLatch(1);
 
+		/** 提交计数在**调用线程**上加 —— 无竞态,故可以在 turn() 返回后立刻断言。 */
+		final AtomicInteger submissions = new AtomicInteger();
+
 		@Override
 		public void execute(Runnable command) {
+			submissions.incrementAndGet();
 			Thread.ofPlatform().daemon().start(() -> command.run());
 		}
 
