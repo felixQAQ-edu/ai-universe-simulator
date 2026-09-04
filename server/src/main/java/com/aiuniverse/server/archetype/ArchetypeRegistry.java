@@ -14,13 +14,20 @@ import org.springframework.stereotype.Component;
  * per-archetype 元数据登记处(ADR-008 决策 1;设计稿 §2)——「加一个模式」的单一落点:
  * 加模式 = 在此加一条 {@link ArchetypeMeta} + 写一个提示词注入块,<b>不碰引擎/校验/状态机核心</b>。
  *
- * <p><b>已知 vs 已激活</b>(设计稿 §5,init 入参校验用):
+ * <p><b>已知 vs 已激活</b>(设计稿 §5,init 入参校验用)——<b>此处刻意不列 id 清单,一律指向登记处</b>:
  * <ul>
- *   <li><b>已知</b> = CONTEXT §三.4 枚举的 5 个 id(rules_creepy/life_sim/cultivation/cyberpunk/apocalypse);
- *       非已知 → init 400(非法 archetype)。</li>
- *   <li><b>已激活</b> = 本批有元数据可生成的(rules_creepy + apocalypse + cthulhu + cultivation + life_sim);
- *       已知但未激活(cyberpunk)→ init 400「未开放」(占位枚举,等各自独立批 + 独立 world-gen 冒烟)。</li>
+ *   <li><b>已知</b> = {@link #KNOWN} 常量里的那些;非已知 → init 400(非法 archetype)。</li>
+ *   <li><b>已激活</b> = 构造器里 {@code register(...)} 的那些,<b>以登记处为准</b>;
+ *       已知但未激活 = {@link #INACTIVE_DISPLAY_NAMES} 里的那些 → init 400「未开放」
+ *       (占位枚举,等各自独立批 + 独立 world-gen 冒烟)。</li>
  * </ul>
+ *
+ * <p><b>⚠️ 为什么这里不写 id 清单</b>:原文写过两份逐一列举的 id 清单,而<b>两份都已经漂移过</b>
+ * (「已知……5 个 id」实为 7 条;「已激活……」列 5 个而构造器 {@code register} 了 6 条)。
+ * <b>补上漏掉的那个只是把同一个陷阱重置</b> —— 下一个世界上线时它会再错一遍,
+ * <b>而且没有任何断言在看它</b>(数量类测试钉的是 registry 本身,不钉注释)。
+ * 故改为指向登记处:<b>让「忘记同步」无法被写出来,而不是同步一次</b>
+ * (同 ADR-022「归还在结构上不可遗忘」之形)。
  *
  * <p>本类<b>纯数据</b>(无 IO、无 LLM),元数据内联(便于单测钉结构、零 FS 依赖)。
  */
