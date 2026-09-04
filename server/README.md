@@ -1,12 +1,14 @@
 # server · AI Universe Simulator 后端
 
-Phase 1 骨架(skeleton only · local-first)。后端形态见 [ADR-002](../docs/adr/ADR-002-backend-form-factor.md),
-provider 抽象见 [ADR-001](../docs/adr/ADR-001-runtime-model-and-provider-abstraction.md),
+后端形态见 [ADR-002](../docs/adr/ADR-002-backend-form-factor.md)(**已由
+[ADR-015](../docs/adr/ADR-015-overseas-deployment-form-factor.md) 修订**:部署改 Fly.io 同源单容器,
+不是 CloudBase),provider 抽象见 [ADR-001](../docs/adr/ADR-001-runtime-model-and-provider-abstraction.md),
 SSE/流式 web 栈见 [ADR-005](../docs/adr/ADR-005-sse-web-stack-mvc-thin-seam.md)。
 
-> 本次范围:Spring Boot 骨架 + provider 配置表抽象 + SSE 冒烟端点 + 审核网关 no-op 接缝;
-> **已接真实 DeepSeek**(OpenAI 兼容流式实现,token 经现有 `TokenStream` 接缝流到 SSE)。
-> **未实现规则怪谈业务 / event-loop 契约 / 状态机,未碰 CloudBase 部署 / ICP 备案**——均留后续任务。
+> **现状**:整局闭环(world-gen → 回合 → 结局)已上线公网 <https://wanjie-ai.fly.dev>;
+> event-loop 契约与状态机、多世界 registry、续局落盘、成本闸门、回合并发准入均已落地。
+> 逐刀进展与取证读数以 [docs/ROADMAP.md](../docs/ROADMAP.md) 为准,**本文件不第二次叙述进度**。
+> **ICP 备案未做**——路线 B 下整体冻结(ADR-015)。
 
 ## 技术栈
 - Spring Boot 4.1.x · 编译目标 Java 21(LTS)· Maven · Spring MVC(`SseEmitter`,见 ADR-005)
@@ -19,7 +21,13 @@ SSE/流式 web 栈见 [ADR-005](../docs/adr/ADR-005-sse-web-stack-mvc-thin-seam.
   `LlmClientConfig`(按 `active` 选实现)/ `LlmException`(统一降级)
 - `moderation/` — 内容审核网关接缝(ADR-004 未定),`NoopModerationGateway` 占位放行
 - `web/` — 薄传输适配层,唯一碰 `SseEmitter` 的地方(`GameController`);换 WebFlux 只动这层
-- `platform/` — CloudBase / 微信薄适配层占位(ADR-002),骨架阶段空置
+- `platform/` — CloudBase / 微信薄适配层占位(ADR-002),骨架阶段空置(路线 B 下仍空置)
+- `engine/` — 数值结算 / 校验 / 消毒投影 / 泄露遥测(`Engine` 对数值语义无知,ADR-008)
+- `eventloop/` — 回合控制面:哨兵切分 / 叙事回灌 / 状态机与三道守卫 / SSE 编排(ADR-006)
+- `worldgen/` — world-gen 胖调用 + 校验 + 一次修复 + 播种编排(ADR-007)
+- `archetype/` — per-archetype 元数据登记处(轴 / bands / 融合组合 / 一生制族层,ADR-008 起逐批扩充)
+- `persistence/` — 最小续局落盘(每 saveId 一个 JSON,ADR-015)
+- `quota/` — 成本闸门(ADR-016)
 
 ## 本地运行
 ```bash
