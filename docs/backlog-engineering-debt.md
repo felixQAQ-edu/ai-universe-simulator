@@ -46,7 +46,27 @@ ADR-005 的承重接缝(`TokenStream` → `SseEmitter`)由 `GameController` 原�
 
 ## 第 1 层 · 可用性风险(挂账,优先级高)
 
-### 1.1 SSE 线程池 `newCachedThreadPool()` 无上限
+### 1.1 SSE 线程池 `newCachedThreadPool()` 无上限 — ✅ **已处置(2026-09-04,[ADR-022](adr/ADR-022-turn-admission-and-rejection-semantics.md) 三刀走完)**
+
+**处置形态**:**不是**下面「方向」那条写的「换有界池 + 有界队列」——ADR-022 走的是
+**准入信号量 + 容器线程前置拒绝**。⚠️ 原因正是下面已经写着的那句「**这不只是换一行 `Executors.*`**」:
+换池上限设成 N,一批必然被拒的请求照样**各占一个名额跑到被拒**;**准入必须在领线程之前发生**。
+**排队那半被否决**(ADR-016 已立字「排队不做」,ADR-022 立字 2 把它落成「队列容量为零」)。
+
+- **N = 8**,`aiuniverse.turn.max-concurrent` / `AIUNIVERSE_TURN_MAX_CONCURRENT` 可覆盖;
+  拒绝 = **503 + `{error:{code:"server_at_capacity"}}`** + 一条 WARN(带 saveId 与分母)。
+- **真机实证(刀 3)**:拒绝发生在 **Tomcat 容器线程** `nio-8080-exec-9` 而非池线程
+  `pool-2-thread-*` —— **被拒的请求从头到尾没碰过池**,这条是本项处置成立的最直接证据。
+- **指标那半按最小面收窄**:只打一条 WARN,**不开 actuator 端点、不引 micrometer**
+  (在途数是准入决定的投影 `capacity - availablePermits()`,**不是一份被维护的计数**)。
+
+⚠️ **它换来的是「有限名额」,不是「不会被占满」**:一条卡死的 LLM 流会长期占住一个名额,
+N 条卡死 = 全站拒绝,**且没有时间上界**(ADR-022 已知代价 3)。
+**那是「超时那一刀」,仍挂账** —— 本项处置为它提供了开刀信号(名额有限使该故障第一次可见),
+**不是掩盖它**。
+
+<details>
+<summary>原条目(2026-08-06 记,保留备查)</summary>
 
 **现状**(2026-08-06 复核,与外部审查读数有一处出入,如实记):
 审查说的是「**两个** Controller」,其中一个正是上面刚删掉的 `StreamController`;
@@ -66,6 +86,8 @@ ADR-005 的承重接缝(`TokenStream` → `SseEmitter`)由 `GameController` 原�
 而不是让异常裸奔到 emitter)+ 池状态指标(活跃线程 / 队列深度 / 拒绝计数)。
 **注意这不只是换一行 `Executors.*`**:拒绝之后「玩家看到什么」是产品决策
 (排队?直接失败?),而 ADR-016 已经立字「排队不做」——需要一并对齐。
+
+</details>
 
 ### 1.2 内容审核仍是 no-op,泄露检测抓不到改写式泄露
 
