@@ -91,10 +91,24 @@ public final class TurnAdmission {
 	 * <p>⚠️ 提交失败时的重抛<b>不许</b>被映射成 {@code server_at_capacity}(ADR-022 §5.1 禁令):
 	 * 「此刻太挤,过几秒再来」与「服务器正在关,过几秒也没用」是两种情形,共用一个码
 	 * <b>连看错的机会都不给</b>。它落进通用非 2xx 兜底桶,难看但诚实。
+	 *
+	 * <p>⚠️ <b>catch 接的是 {@link Throwable} 而不是 {@code RuntimeException} —— 这不是防御性宽泛,
+	 * 而是那条唯一真正会发生的路径。</b> {@code newCachedThreadPool} 起不出线程时抛的是
+	 * {@code OutOfMemoryError: unable to create native thread},那是 {@code Error} 不是
+	 * {@code RuntimeException};而它正是本 ADR 背景里那个场景(512MB 容器、<b>线程栈在堆外</b>)。
+	 * 更要命的是<b>它不一定杀死 JVM</b>:堆可能完全健康、进程继续跑,于是<b>每漏一次名额上限就少一个</b>,
+	 * 直到 <b>N=0 = 全站永久 503</b> —— <b>而日志会一直打 {@code 拒绝 inFlight=8/8},
+	 * 与真实饱和长得一模一样</b>(那也是下面那条「分子是同义反复」唯一会变成谎话的时刻)。
+	 * 只接 {@code RuntimeException},等于在唯一真正会发生的那条路径上漏还名额。
 	 */
 	public boolean submit(String saveId, Runnable work) {
 		if (!permits.tryAcquire()) {
-			// 在拒绝那一瞬间读在途数(此时必然 = capacity);交给 controller 事后读会读到一个更小的数。
+			// ⚠️ 分子是**同义反复**:tryAcquire 失败当且仅当那一刻可用名额为 0,故这里读到的要么就是
+			// capacity(只是把「被拒了」重说一遍),要么期间已有名额归还、读回一个更小的数 ——
+			// 即闸 B 那个竞态,只是窗口短得多(同一方法内相邻两行)。故**不写「必然 = capacity」**。
+			// **这条 WARN 里真正带信息的是分母**:它是当时生效的 N(刀 3 压 env 后应读到 /1)。
+			// ⚠️ 分子唯一会变得有意义的时刻,是下面那条 Throwable 漏还成真的时候 ——
+			// 那时 8/8 从「恒真」变成「在说一件假事」,而它与真实饱和长得一模一样。
 			log.warn("[turn-admission] save={} 拒绝 inFlight={}/{}", saveId, inFlight(), capacity);
 			return false;
 		}
@@ -106,7 +120,7 @@ public final class TurnAdmission {
 					permits.release();
 				}
 			});
-		} catch (RuntimeException e) {
+		} catch (Throwable e) {
 			permits.release(); // 交接尚未发生 → 归还责任还在容器线程
 			throw e;
 		}

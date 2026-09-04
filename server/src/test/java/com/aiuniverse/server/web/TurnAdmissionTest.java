@@ -145,6 +145,32 @@ class TurnAdmissionTest {
 		assertThat(admission.inFlight()).as("交接前失败 → 容器线程归还").isZero();
 	}
 
+	/**
+	 * <b>提交时抛 {@link Error} 也归还</b> —— 这条不是「顺手把 catch 写宽」,它守的是
+	 * <b>唯一真正会发生的那条路径</b>:{@code newCachedThreadPool} 起不出线程时抛的是
+	 * {@code OutOfMemoryError: unable to create native thread}(512MB 容器、<b>线程栈在堆外</b>,
+	 * 正是本 ADR 背景那个场景),而它是 {@code Error} 不是 {@code RuntimeException}。
+	 *
+	 * <p>⚠️ 只接 {@code RuntimeException} 的后果<b>不是崩溃,是慢性失血</b>:堆可能完全健康、
+	 * 进程继续跑,每漏一次名额上限就少一个,直到 <b>N=0 = 全站永久 503</b>;
+	 * <b>而日志会一直打 {@code 拒绝 inFlight=N/N},与真实饱和长得一模一样。</b>
+	 */
+	@Test
+	void permitIsReleasedWhenSubmitThrowsError() {
+		Executor oomExecutor = r -> {
+			throw new OutOfMemoryError("unable to create native thread");
+		};
+		TurnAdmission admission = new TurnAdmission(1, oomExecutor);
+
+		assertThatThrownBy(() -> admission.submit("s1", () -> { })).isInstanceOf(OutOfMemoryError.class);
+
+		assertThat(admission.inFlight()).as("Error 也要归还,否则名额慢性失血").isZero();
+		// 再来一次仍然是「占到名额 → 提交时抛」而不是「占不到名额」——漏还的话第二发会因为
+		// tryAcquire 失败而**静默返 false**(连异常都没有),那正是慢性失血看起来的样子。
+		assertThatThrownBy(() -> admission.submit("s2", () -> { })).isInstanceOf(OutOfMemoryError.class);
+		assertThat(admission.inFlight()).isZero();
+	}
+
 	/** 提交失败重复 N+1 次仍不耗尽名额(漏还一次这条就红)。 */
 	@Test
 	void repeatedSubmitFailuresDoNotLeakPermits() {
