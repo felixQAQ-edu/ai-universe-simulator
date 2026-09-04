@@ -1,5 +1,7 @@
 # AI Universe Simulator
 
+[![CI](https://github.com/felixQAQ-edu/ai-universe-simulator/actions/workflows/ci.yml/badge.svg)](https://github.com/felixQAQ-edu/ai-universe-simulator/actions/workflows/ci.yml)
+
 > 基于大语言模型的生成式、可交互、无限流文字模拟游戏平台
 
 ## 项目简介
@@ -10,28 +12,102 @@
 
 完整规划与逐周进展见 [docs/ROADMAP.md](docs/ROADMAP.md)(中央档案,本文只给概览)。
 
+<!-- 占位(求职线 0.4,Felix 亲手):演示 GIF / 架构图 / 回合时序图。CC 不代做。 -->
+
 ## 核心特性
 
-- **🌟 概念融合 · 混合模式(杀手锏)**:世界观杂交成**一个自洽世界**(非轮流播/拼接)。已落地两组——**识海遗蜕**(修仙 × 规则怪谈)、**缺页的人防工程**(规则怪谈 × 末日生存)。
-- **通用生成引擎(UG Engine)**:世界生成 → 角色/属性 → 规则矩阵 → 动态事件流 → 多结局收敛,所有世界共用一条管线;**加一个世界 ≈ 加一条元数据 + 一个提示词注入块**。
-- **结构化驱动**:AI 在叙事之外输出结构化 JSON,驱动数值系统;**引擎对数值语义无知**(ADR-008),故各世界数值轴可完全不同——气血/灵力/境界、体力/理智、体力/饥饿、禁忌知识……
-- **已实现世界(4 基础 + 2 融合)**:规则怪谈 / 末日生存 / 克苏鲁 / 修仙;人生模拟与赛博朋克为枚举占位,尚未开放。
+- **🌟 概念融合 · 混合模式(杀手锏)**:世界观杂交成**一个自洽世界**(非轮流播/拼接)。已落地 **识海遗蜕**(修仙 × 规则怪谈,ADR-013)与 **缺页的人防工程**(规则怪谈 × 末日生存,ADR-014);登记处 = `ArchetypeRegistry.FUSION_COMBOS`,组合**方向敏感**(反向 = 另一个尚不存在的世界,不是免费翻转)。
+- **通用生成引擎(UG Engine)**:世界生成 → 角色/属性 → 规则矩阵 → 动态事件流 → 多结局收敛,所有世界共用一条管线;**加一个世界 = 后端一条元数据 + 前端一行联合类型**(代价实测见 ADR-021 §复用率读数)。
+- **结构化驱动**:AI 在叙事之外输出结构化 JSON,驱动数值系统;**引擎对数值语义无知**(ADR-008)——`Engine` 遍历 `attributes` 字典通用结算,不认识任何一根轴的名字,故各世界数值轴可完全不同(见下表)。
+- **语义产出方原则**(同一条规矩被反复实例化,ADR-018 §核心立字):结局极性由 AI 标、引擎只读(ADR-010);选项风险提示由 AI 写、引擎不裁决(ADR-011);数值危险等级由服务端派生、前端只渲染(ADR-018)。
+
+## 世界
+
+> **截至 `d0f29fe`。** 本表是快照,**登记处是 `ArchetypeRegistry` 的构造器**
+> (`server/src/main/java/com/aiuniverse/server/archetype/ArchetypeRegistry.java`);
+> 线上当前目录以 `GET /api/archetypes` 与[选择屏](https://wanjie-ai.fly.dev)为准。
+
+| id | 对外名 | 数值轴(玩家可见名) | 状态 |
+|---|---|---|---|
+| `rules_creepy` | 规则怪谈 | 体力 / 理智 | 可玩 |
+| `apocalypse` | 末日生存 | 体力 / 饥饿 | 可玩 |
+| `cthulhu` | 克苏鲁 | 体力 / 理智 / 禁忌知识 | 可玩 |
+| `cultivation` | 修仙 | 气血 / 灵力 / 境界 | 可玩 |
+| `life_sim` | 人生模拟(《寻常》) | 气力 / 热望 / 路口 / 牵挂 | 可玩;**调优已收手**,挂账见下 |
+| `animal_life` | 动物人生 | 身子 / 暖 / 地面 / 近人 | **已登记,当前实现已停止** —— 见下 |
+| `cyberpunk` | 赛博朋克 | — | 枚举占位,未开放(选择屏灰显) |
+
+每根轴带 `axisRole` / `lethal` / `perilAtHigh` 等**纯元数据标**,引擎只读其中最少的几个、不解释语义
+(ADR-008 / ADR-009 / ADR-010 / ADR-018)。
+
+## 已知缺口(如实,不粉饰)
+
+- **《动物人生》当前实现已停止**(ADR-021 §「第二局与《动物人生》当前实现停止」)。两次真机冒烟均未过:
+  第一次是**没人告诉模型该发生什么**,第二次是素材已进 prompt 而**世界从开局就没打算发生那件事**;
+  根因定性为**引擎不产生事件**(FINDINGS F-028 / F-030)。**解冻条件逐字写死**:
+  「**当「事件推进」这一层有了答案之后再回来**」——不设时间、不设「下一刀」。
+  ⚠️ 世界仍可完整游玩,不阻断任何东西;停止的是继续调它。
+- **《寻常》调优已收手,挂账未清**:`§4` 退化判据在历次冒烟里从未被验成(前置从未达成)、
+  单回合体量偶发失控、热望下降不稳定、回合数超判据上界(ROADMAP v7.3「调优阶段收手」)。
+  收手理由是**验证成本由人承担** —— 真机冒烟依赖作者亲自玩完一辈子(FINDINGS F-027)。
+- **内容安全网关未做**:`NoopModerationGateway` 至今是放行占位,ADR-004 尚未落笔;
+  `LeakDetector` 按其自陈只是**事后遥测**,抓不到改写式泄露。
+  正文在[工程债 §1.2](docs/backlog-engineering-debt.md),它是软启动开闸前的最后一环。
+- **单实例不是高可用,且这是有约束下的主动选择**:内存 session + 进程内忙态守卫(`compareAndSet`)
+  钉死单副本,水平扩展需先把守卫与 session 外置(Redis/DB)。
+  理由与代价写在 [ADR-015 §已知代价 4](docs/adr/ADR-015-overseas-deployment-form-factor.md),
+  并已预登记重新审视的触发条件(「真实流量需要多副本」)。
+  回合并发另有一道**准入闸**(ADR-022),它换来的是「有限名额」而不是「不会被占满」。
 
 ## 当前进度
 
-- **阶段**:Phase 3(混合模式 + 上线)收尾;**当前主线 = 前端视觉移植**(ADR-018 四刀:刀 0 severity 契约 ✅ / 刀 1 共享基建 + 规则怪谈 ✅ / 刀 2 修仙 ✅ / 刀 3 末日、刀 4 克苏鲁待起)。
-- **上线路线**:走**路线 B —— 境外托管、不备案、暂不进微信生态**,先做软启动验证;境内合规(执照 / ICP 备案 / 微信支付)整体冻结,待回国或验证通过后解冻(见 ADR-015)。
-- **待收口**:内容安全网关(ADR-004)—— 软启动开闸前的最后一环。
+**不在这里第二次叙述** —— 阶段、周度日志、每一刀的取证读数以
+[docs/ROADMAP.md](docs/ROADMAP.md) 为准(那是中央档案)。
+
+只记两条长期口径:
+
+- **上线路线 B**:境外托管、不备案、暂不进微信生态,先做软启动验证;境内合规(执照 / ICP 备案 /
+  微信支付)整体冻结,待回国或验证通过后解冻(ADR-015)。
+- **两份「玩家看不见」的清单**:[工程债](docs/backlog-engineering-debt.md)(故障视角)与
+  [求职线](docs/backlog-career-track.md)(可见性视角)—— 大面积重叠但排序判据不同。
 
 ## 技术栈
 
 - **前端**:React + Vite(移动优先 H5)+ GSAP;**小程序 / Taro 线随路线 B 冻结**,接口纪律仍占住迁移边界(见 ADR-003 / ADR-017)
 - **运行模型**:DeepSeek 为主,provider 可换(OpenAI 兼容配置表抽象)— 见 ADR-001
-- **后端**:Spring Boot(Java 21)— 见 ADR-005
+- **后端**:Spring Boot(编译目标 **Java 21**,以 `server/pom.xml` 的 `<java.version>` 与 `Dockerfile` 为准)— 形态见 ADR-002,已由 ADR-015 修订
+- **流式传输**:Spring MVC `SseEmitter` + 可换 WebFlux 的薄接缝(`TokenStream` 解耦核心与传输)— 见 ADR-005
 - **部署**:Fly.io(syd)**同源单容器** + 持久卷续局落盘 — 见 ADR-015
 - **成本闸门**:全局 ¥ 双顶熔断 + 单 IP/设备日次数软闸 — 见 ADR-016
 - **内容安全**:文本审核网关 **待落地**(ADR-004 未启)
 - **数据**:统一 JSON Schema(世界 / 角色 / 规则 / 状态 / 行动 / 结局)— 见 [docs/CONTEXT.md](docs/CONTEXT.md)
+
+## 本地运行
+
+**默认走 mock provider,不花钱、不需要任何 API key**(`application.yml` 的 `aiuniverse.llm.active: mock`)。
+
+```bash
+# 后端(:8080)
+cd server && ./mvnw spring-boot:run
+
+# 前端(:5173,相对路径 /api 由 Vite 代理到 :8080,零 CORS)
+cd web && npm install && npm run dev
+```
+
+跑测试:
+
+```bash
+cd server && ./mvnw test      # 后端
+cd web && npm test            # 前端(另有 npm run lint / tsc -b)
+```
+
+CI(`.github/workflows/ci.yml`,push `main` + PR 触发)跑的是同样这些:
+`./mvnw -B test` / `npm run lint` + `npx tsc -b` + `npm test` + `npm run build` / `npm audit`
+(生产依赖 high 以上**阻塞**,全量只报不挡)。
+JDK 21 与 Node 22 跟 `Dockerfile` 走 —— **跑的必须是产物构建用的那套,不是开发机上碰巧装着的那套**。
+
+接**真实 DeepSeek**、整局闭环 curl 冒烟、换 provider:见 [server/README.md](server/README.md)。
+API key 只进环境变量,**绝不写进 yaml / 代码 / 提交**。
 
 ## 技术决策记录(ADR)
 
