@@ -77,6 +77,32 @@ ADR 已到 022。**招聘方读 README,不读 900 行 ADR。**
 真实功能状态表(**含《动物人生》当前实现已停止这类如实标注**,不粉饰)/ 本地运行方式 /
 CI badge / 演示视频或 GIF。
 
+> **已落地(2026-09-05)**:README 重写 + ADR 列表收成一行一条(长文指 ROADMAP §五,
+> 删掉了那份**已经在撒谎**的副本)+ [`engineering-practices.md`](engineering-practices.md)。
+> **未落地**:演示视频 / GIF 与架构图 —— 属 **0.4,Felix 亲手**。
+
+#### ⚠️ 挂账:README ↔ `ArchetypeRegistry` 的 lockstep 测试
+
+`README.md:18` 当初写错(「4 基础」而实际注册六条),**根因是把一个会漂移的聚合数字写死在那里**。
+
+本刀能做的只是**降级到不会撒谎的形态** —— 不写聚合数字、标「截至 `<SHA>`」、指向登记处;
+失效方式因此从「说假话」降级为「少一行且带日期」。
+
+> **但真正的机制是一条 README ↔ `ArchetypeRegistry` 的 lockstep 测试** ——
+> 让「忘记同步」**无法被写出来**,而不是同步一次。
+
+**它这一刀做不了的理由**:要写 `.java`,超出「纯 docs」范围,故挂账、不假装降级形态就够了。
+
+**同形先例**:[ADR-021 刀 3](adr/ADR-021-lifetime-family-layer-and-animal-life.md) 的
+**「加载期 key 必须等于表自称的 archetype」** —— 在**数据层**否掉错配,
+**不靠人去读**那段 prompt(那一批的 prompt 级探针「出现『31–55 岁』」正是
+[§4 守护弱化第四形态](adr/ADR-018-base-world-visual-migration-and-severity-contract.md)
+所说的「只对人眼可见、没有断言在看」)。
+
+**形状(不是方案)**:测试读 `README.md` 的世界表,与 `ArchetypeRegistry.listForSelection()` /
+`INACTIVE_DISPLAY_NAMES` 对拍 id 与对外名;新增世界而忘了改 README → 变红。
+⚠️ 写完必须按[本项目纪律](engineering-practices.md)做一次**变异验证**(加一个世界不改 README,确认它真的会红)。
+
 ### 0.2 `docs/engineering-practices.md` —— 工程纪律的对外面
 
 **素材全部现成,这是转写不是创作。** 候选:

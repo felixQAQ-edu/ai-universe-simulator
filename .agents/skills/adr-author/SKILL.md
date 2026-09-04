@@ -31,7 +31,12 @@ ls -1 docs/adr/ 2>/dev/null || echo "未找到 docs/adr/,请在仓库根目录�
 3. **生成文件**:严格按同目录 [template.md](template.md) 的小节顺序与标题产出,写到 `docs/adr/ADR-NNN-<英文 kebab slug>.md`。slug 用英文短横线,风格对齐现有文件(如 `chat-memory-store-persistence`、`remove-http-client-config`)。
 
 4. **收尾(主动提醒并代办)**:
-   - 在 `README.md` 的「技术决策记录(ADR)」列表追加一行链接。
+   - 在 `README.md` 的「技术决策记录(ADR)」列表追加**一行**:`- [ADR-NNN](docs/adr/<文件>) — <一句话>`。
+     ⚠️ **那句话必须逐字取自本 ADR 文件自己的一级标题**(`# ADR-NNN · <主题>`,见下「标题格式」),
+     **不得在 README 里另写一份摘要** —— 摘要有真理源,改标题即改那一行。
+   - ⚠️ **长文只写进 ROADMAP §五「已完成 ADR 索引」表**(带「状态 / 日期」两列,`roadmap-update` 负责),
+     **README 那行永远只是一句话**。历史教训:README 与 ROADMAP 曾各存一份长文索引并**已经漂移**
+     (ADR-008 两处措辞不同),2026-09-05 已删掉 README 那份;**别把那堵墙重新砌起来**。
    - 若本决策源自某条 LEARNING-NOTES 笔记,提醒在该笔记末尾加一行「YYYY-MM-DD · 本主题已由 ADR-NNN 处理」,形成"决策 ↔ 经验"双向闭环。
 
 ## 本项目约定(务必遵循)
