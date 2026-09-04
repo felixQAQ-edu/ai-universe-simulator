@@ -120,8 +120,8 @@ API key 只进环境变量,**绝不写进 yaml / 代码 / 提交**。
 > **不是在这里手写的第二份摘要** —— 改标题即改这里,摘要有真理源。
 
 - [ADR-001](docs/adr/ADR-001-runtime-model-and-provider-abstraction.md) — 运行模型选 DeepSeek V4-Flash 为主力,provider 走 OpenAI 兼容配置表抽象(依据:[bake-off 实测](bakeoff/out/report.md))
-- [ADR-002](docs/adr/ADR-002-backend-form-factor.md) — 后端形态选 Spring Boot 运行于 CloudBase 云托管(应用层自控 + 微信原生集成)
-- [ADR-003](docs/adr/ADR-003-frontend-stack-and-taro-boundary.md) — 前端栈选型与 Taro 跨端边界——React+Vite H5 先行,以接口纪律占住小程序迁移边界
+- [ADR-002](docs/adr/ADR-002-backend-form-factor.md) — 后端形态选 Spring Boot 运行于 CloudBase 云托管(应用层自控 + 微信原生集成)  ⤷ **已由 ADR-015 修订**(部署改 Fly.io 同源单容器)
+- [ADR-003](docs/adr/ADR-003-frontend-stack-and-taro-boundary.md) — 前端栈选型与 Taro 跨端边界——React+Vite H5 先行,以接口纪律占住小程序迁移边界  ⤷ **库限制条款已由 ADR-017 修订**(接口纪律本身一字不动)
 - [ADR-005](docs/adr/ADR-005-sse-web-stack-mvc-thin-seam.md) — SSE/流式 web 栈选 Spring MVC(SseEmitter)+ 可换 WebFlux 的薄接缝
 - [ADR-006](docs/adr/ADR-006-event-loop-streaming-wire-protocol.md) — event-loop 流式线上协议:叙事先行单次调用 + 哨兵 + 结构化尾巴 + 叙事回灌复用
 - [ADR-007](docs/adr/ADR-007-world-gen-wire-protocol.md) — world-gen 线上协议:胖调用 + json_object 纯 JSON + 开场叙事 reveal 不流式(可靠性优先,异于 ADR-006)
