@@ -29,6 +29,7 @@
 > 两条一起红只能说明 ② 搭了 ① 的便车,**比对那件事根本没被独立守着**。
 
 同刀 2 前置也是这个形状:M1 → A 红 B 绿,M2 → B 红 A 绿。
+那两条守护为什么值得这么守,展开见[案例 · 一句会撒谎的文案](case-studies/01-a-message-that-lied.md)。
 
 **防住了什么**:一条恒绿的守护。绿有两种解释(代码是对的 / 测试没在测),
 而**测试套件本身不区分这两者** —— 变异验证是唯一能把它们分开的读数。
@@ -163,6 +164,8 @@
 
 > **两条是连着的:第一条是唯一能让第二条那个同义反复变成谎话的路径。**
 
+那条「唯一能让它变成谎话的路径」展开见[案例 · 慢性失血](case-studies/03-a-slow-bleed.md)。
+
 **防住了什么**:把一个恒真的读数当作「机制生效」的证据 ——
 以及,当它有一天开始撒谎时,没有任何人看得出来。
 
@@ -194,10 +197,12 @@
 
 ## 附 · 更长的实例,以及不在这里展开的
 
-- **一句会撒谎的文案**(404 提示被真机**逐字证伪**:照它去点,玩家被指向一个必然失败的按钮)、
-  **静默撤销**(两条各自正确的规定撞在一起,把上一刀的修法悄悄撤销,**而前端测试全绿** ——
-  [ADR-022 立字 11 / 闸 A](adr/ADR-022-turn-admission-and-rejection-semantics.md))
-  —— 这两条按 [求职线清单 0.3](backlog-career-track.md) 归案例集,**此处只放指针,不抢正文**。
+- **[案例集 `case-studies/`](case-studies/README.md)** —— 三条真实缺陷各展开一篇:
+  [一句会撒谎的文案](case-studies/01-a-message-that-lied.md)(冒烟抓住,**已上线**)/
+  [闸 A · 一次没发生的静默撤销](case-studies/02-the-silent-revert.md)(勘察抓住,没写进代码)/
+  [`catch (RuntimeException)` 的慢性失血](case-studies/03-a-slow-bleed.md)(审阅抓住,写进 commit 未上线)。
+  ⚠️ **此处只放指针,不抢正文** —— 那三篇的重心是「**它本可以怎样溜过去**」,
+  而本文件收的是从它们里抽出来的**规矩**;两处不得互相复制。
 - 视觉与动效侧的常驻硬线在 [`AGENTS.md` § Motion Constraints](../AGENTS.md);
   裁定的真理源是 [ADR-017](adr/ADR-017-frontend-visual-charter-and-animation-libraries.md) 与
   [ADR-018](adr/ADR-018-base-world-visual-migration-and-severity-contract.md)。
