@@ -51,7 +51,8 @@
 - **《寻常》调优已收手,挂账未清**:`§4` 退化判据在历次冒烟里从未被验成(前置从未达成)、
   单回合体量偶发失控、热望下降不稳定、回合数超判据上界(ROADMAP v7.3「调优阶段收手」)。
   收手理由是**验证成本由人承担** —— 真机冒烟依赖作者亲自玩完一辈子(FINDINGS F-027)。
-- **内容安全网关未做**:`NoopModerationGateway` 至今是放行占位,ADR-004 尚未落笔;
+- **内容安全实现未起**:[ADR-004](docs/adr/ADR-004-content-safety.md) 已落档(2026-09-06),四刀切分**一刀未起** ——
+  `NoopModerationGateway` 至今是放行占位(该 ADR 裁定**撤掉它**),prompt 侧自伤硬禁尚未写入骨架;
   `LeakDetector` 按其自陈只是**事后遥测**,抓不到改写式泄露。
   正文在[工程债 §1.2](docs/backlog-engineering-debt.md),它是软启动开闸前的最后一环。
 - **单实例不是高可用,且这是有约束下的主动选择**:内存 session + 进程内忙态守卫(`compareAndSet`)
@@ -80,7 +81,7 @@
 - **流式传输**:Spring MVC `SseEmitter` + 可换 WebFlux 的薄接缝(`TokenStream` 解耦核心与传输)— 见 ADR-005
 - **部署**:Fly.io(syd)**同源单容器** + 持久卷续局落盘 — 见 ADR-015
 - **成本闸门**:全局 ¥ 双顶熔断 + 单 IP/设备日次数软闸 — 见 ADR-016
-- **内容安全**:文本审核网关 **待落地**(ADR-004 未启)
+- **内容安全**:**不接外部审核 API** —— 主防线是 prompt 侧硬禁,检测器只做事后遥测(ADR-004 已落档,**实现未起**)
 - **数据**:统一 JSON Schema(世界 / 角色 / 规则 / 状态 / 行动 / 结局)— 见 [docs/CONTEXT.md](docs/CONTEXT.md)
 
 ## 本地运行
@@ -122,6 +123,7 @@ API key 只进环境变量,**绝不写进 yaml / 代码 / 提交**。
 - [ADR-001](docs/adr/ADR-001-runtime-model-and-provider-abstraction.md) — 运行模型选 DeepSeek V4-Flash 为主力,provider 走 OpenAI 兼容配置表抽象(依据:[bake-off 实测](bakeoff/out/report.md))
 - [ADR-002](docs/adr/ADR-002-backend-form-factor.md) — 后端形态选 Spring Boot 运行于 CloudBase 云托管(应用层自控 + 微信原生集成)  ⤷ **已由 ADR-015 修订**(部署改 Fly.io 同源单容器)
 - [ADR-003](docs/adr/ADR-003-frontend-stack-and-taro-boundary.md) — 前端栈选型与 Taro 跨端边界——React+Vite H5 先行,以接口纪律占住小程序迁移边界  ⤷ **库限制条款已由 ADR-017 修订**(接口纪律本身一字不动)
+- [ADR-004](docs/adr/ADR-004-content-safety.md) — 内容安全:主防线在生成之前(prompt 硬禁),检测器只做事后遥测
 - [ADR-005](docs/adr/ADR-005-sse-web-stack-mvc-thin-seam.md) — SSE/流式 web 栈选 Spring MVC(SseEmitter)+ 可换 WebFlux 的薄接缝
 - [ADR-006](docs/adr/ADR-006-event-loop-streaming-wire-protocol.md) — event-loop 流式线上协议:叙事先行单次调用 + 哨兵 + 结构化尾巴 + 叙事回灌复用
 - [ADR-007](docs/adr/ADR-007-world-gen-wire-protocol.md) — world-gen 线上协议:胖调用 + json_object 纯 JSON + 开场叙事 reveal 不流式(可靠性优先,异于 ADR-006)
