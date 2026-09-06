@@ -74,7 +74,15 @@ public final class TurnPromptBuilder {
 			"rules_creepy×apocalypse", Map.of(
 					"hunger", "补给/口粮/断粮的匮乏与眩晕(如「配给见底,数罐头的手在抖」「断顿第二天,眼前发黑」)"));
 
-	/** 通用骨架。注入变量:模式名 / 数值轴维护块 / 禁用字段名清单 / stateUpdate 字段格式。 */
+	/**
+	 * 通用骨架。注入变量:模式名 / 数值轴维护块 / 禁用字段名清单 / stateUpdate 字段格式。
+	 *
+	 * <p><b>【绝境的写法 · 硬约束】(ADR-004 刀 2)</b>:内容安全的主防线在<b>生成之前</b>,不在输出之后
+	 * (照抄本项目对 {@code hiddenLogic} 泄露已立的那套:prompt 硬禁为主 + 流末扫描只作遥测,CONTEXT §三.9)。
+	 * 该段与 {@code prompts/event-loop.md}、{@code prompts/world-gen.md}、
+	 * {@link com.aiuniverse.server.worldgen.WorldGenPromptBuilder} 的两份骨架<b>逐字节相同</b>,
+	 * 由 {@code ContentSafetyPromptLockstepTest} 守护五个面——改一处必须改五处。
+	 */
 	private static final String SKELETON = """
 			你是 UG Engine 的事件流模块,正在推进一局%1$s。你会收到完整世界设定(world / character /
 			rules / endings)与当前 state(含 logSummary 与近几回合 log)。规则的 isTrue 与 hiddenLogic
@@ -94,6 +102,15 @@ public final class TurnPromptBuilder {
 			状态档」):如体力濒危档,角色应脚步虚浮、动作迟滞、濒死感弥漫;灵力枯竭档应力竭、施不出像样法术(力竭
 			非伤身);禁忌知识深陷档,真相侵蚀感知。把档位状态化入散文(动作 / 感官 / 处境),不要照搬档名或提示词
 			原文、也不要直呼数值;在上条既有 2-4 句篇幅内体现,不为它额外加长。
+
+			【绝境的写法 · 硬约束】
+			角色可以濒死、绝望、失控,也可以在虚构世界内部主动承担牺牲、禁术、污染、散功、燃烧修为等代价;
+			这些都可以保持应有的强度。
+			但绝境只写处境、感受、选择与后果,不写现实可照做的自伤步骤:
+			不展开具体手段、剂量、器具、部位、操作顺序或可复现流程。
+			⚠️ 这不是让你把绝望写轻。写轻反而不合格;
+			正确做法是保持情绪与后果的重量,把镜头停在「发生了什么 / 他选择了什么 / 代价是什么」,
+			不进入「具体怎么做」。
 
 			【输出格式 · 严格遵守】先逐字输出本回合中文叙事散文(承接玩家上一步行动的后果,氛围贴合本模式、逻辑自洽),
 			叙事之后另起一行,输出一行哨兵 %5$s,哨兵之后输出本回合的结构化尾巴 JSON。叙事在哨兵前、尾巴在哨兵后,

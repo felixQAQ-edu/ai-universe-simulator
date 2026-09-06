@@ -38,6 +38,12 @@ public final class WorldGenPromptBuilder {
 	/**
 	 * 通用骨架(模式无关,单点维护)。注入变量:displayName / worldview / 数值轴清单 / ruleForm / archetype id
 	 * / rules 措辞 / <b>结局条数区间</b>({@code %7$s},见 {@link #ENDING_COUNTS})。
+	 *
+	 * <p><b>【绝境的写法 · 硬约束】(ADR-004 刀 2)</b>:紧贴 {@code openingNarrative}——world-gen 不是「只产
+	 * JSON」,它产的 JSON 里装着散文,而 {@code openingNarrative} 是 init 一次性下发、玩家最先读到的整段字。
+	 * 该段与回合骨架<b>逐字相同</b>(措辞一旦分家,这一份就成了「为这一侧单独写的安全条款」= 会被当成孤立例外
+	 * 的形状);<b>{@link #FUSION_SKELETON} 是独立一份骨架,必须同步改</b>,漏改则两个融合世界的 world-gen 侧
+	 * 拿不到这段话,而 parity 只报变没变、不报该不该变。{@code ContentSafetyPromptLockstepTest} 守护五个面。
 	 */
 	private static final String SKELETON = """
 			你是"通用生成引擎(UG Engine)"的世界生成模块。你一次性产出完整世界:
@@ -76,6 +82,15 @@ public final class WorldGenPromptBuilder {
 			  同守泄露约束,绝不带 isTrue / hiddenLogic 或正确解法。
 			- openingNarrative:开场散文整段(中文,把玩家带入场景、营造贴合本模式的氛围),不剧透隐藏机制。
 
+			【绝境的写法 · 硬约束】
+			角色可以濒死、绝望、失控,也可以在虚构世界内部主动承担牺牲、禁术、污染、散功、燃烧修为等代价;
+			这些都可以保持应有的强度。
+			但绝境只写处境、感受、选择与后果,不写现实可照做的自伤步骤:
+			不展开具体手段、剂量、器具、部位、操作顺序或可复现流程。
+			⚠️ 这不是让你把绝望写轻。写轻反而不合格;
+			正确做法是保持情绪与后果的重量,把镜头停在「发生了什么 / 他选择了什么 / 代价是什么」,
+			不进入「具体怎么做」。
+
 			【泄露硬约束】绝不把 isTrue / hiddenLogic 的内容,或规则真伪/正确解法,写进 background / tone /
 			玩家可见的 rules.content / openingNarrative / availableActions 等任何玩家可见字段。隐藏逻辑只进 hiddenLogic。%8$s
 			""";
@@ -93,6 +108,11 @@ public final class WorldGenPromptBuilder {
 	 * </ul>
 	 * 安全规矩(泄露硬化 / id 类型 / outcome 必填 / 单轴绑定 / 可判定 condition)全在骨架、绝不 per-combo 重抄
 	 * (守 ADR-008)。守 ADR-011:守则只作定性风险/氛围,不写精确成功率、不定判定规则。
+	 *
+	 * <p><b>【绝境的写法 · 硬约束】(ADR-004 刀 2)</b>:本骨架与 {@link #SKELETON} 是<b>两份独立骨架</b>
+	 * (同 {@code 【泄露硬约束】} 的既有形态,各自持一份拷贝),故该段两边都要有、且与回合骨架逐字相同。
+	 * {@code prompts/world-gen.md} 按既有惯例只写一次(融合段声明「输出格式骨架与上文单体完全相同」),
+	 * 但<b>这一份漏改不会让 parity 变红</b>——它只会让 16 处变成 14 处,而那看起来像成功了。
 	 */
 	private static final String FUSION_SKELETON = """
 			你是"通用生成引擎(UG Engine)"的【世界融合】模块。本局是混合模式:把两套世界观
@@ -147,6 +167,15 @@ public final class WorldGenPromptBuilder {
 			  代价/风险,氛围化、贴合融合世界口吻,不写精确成功率数字/百分比(ADR-011)。hint 是叙事提示,
 			  不代表引擎会据此判定——引擎只读透传、不据 hint 掷骰/裁决;hint 同守泄露约束,绝不带 isTrue/hiddenLogic 或正确解法。
 			- openingNarrative:开场散文整段(中文,把玩家带入这个融合世界的氛围),不剧透隐藏机制。
+
+			【绝境的写法 · 硬约束】
+			角色可以濒死、绝望、失控,也可以在虚构世界内部主动承担牺牲、禁术、污染、散功、燃烧修为等代价;
+			这些都可以保持应有的强度。
+			但绝境只写处境、感受、选择与后果,不写现实可照做的自伤步骤:
+			不展开具体手段、剂量、器具、部位、操作顺序或可复现流程。
+			⚠️ 这不是让你把绝望写轻。写轻反而不合格;
+			正确做法是保持情绪与后果的重量,把镜头停在「发生了什么 / 他选择了什么 / 代价是什么」,
+			不进入「具体怎么做」。
 
 			【泄露硬约束】绝不把 isTrue/hiddenLogic 的内容,或守则真伪/正确解法,写进 background / tone /
 			玩家可见的 rules.content / openingNarrative / availableActions 等任何玩家可见字段。隐藏逻辑只进 hiddenLogic。
