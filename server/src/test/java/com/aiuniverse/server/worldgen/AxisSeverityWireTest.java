@@ -11,7 +11,6 @@ import com.aiuniverse.server.archetype.ArchetypeRegistry;
 import com.aiuniverse.server.archetype.AttributeAxis;
 import com.aiuniverse.server.eventloop.GameSessionManager;
 import com.aiuniverse.server.llm.LlmClient;
-import com.aiuniverse.server.moderation.ModerationGateway;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -28,9 +27,8 @@ class AxisSeverityWireTest {
 	private final ArchetypeRegistry registry = new ArchetypeRegistry();
 
 	private GameInitService service(LlmClient llm, GameSessionManager sessions) {
-		ModerationGateway noop = text -> text;
 		return new GameInitService(new WorldGenService(llm, new WorldGenPromptBuilder(registry), mapper),
-				sessions, noop, registry, mapper);
+				sessions, registry, mapper);
 	}
 
 	// ── 下发形态 ────────────────────────────────────────────────────────

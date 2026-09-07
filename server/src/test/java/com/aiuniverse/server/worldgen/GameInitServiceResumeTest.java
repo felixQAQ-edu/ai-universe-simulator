@@ -9,7 +9,6 @@ import org.junit.jupiter.api.Test;
 import com.aiuniverse.server.archetype.ArchetypeRegistry;
 import com.aiuniverse.server.archetype.AttributeAxis;
 import com.aiuniverse.server.eventloop.GameSessionManager;
-import com.aiuniverse.server.moderation.ModerationGateway;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -27,10 +26,9 @@ class GameInitServiceResumeTest {
 	private final ArchetypeRegistry registry = new ArchetypeRegistry();
 
 	private GameInitService service(GameSessionManager sessions) {
-		ModerationGateway noop = text -> text;
 		WorldGenService worldGen = new WorldGenService((req, sink) -> sink.onToken("{}"),
 				new WorldGenPromptBuilder(registry), mapper);
-		return new GameInitService(worldGen, sessions, noop, registry, mapper);
+		return new GameInitService(worldGen, sessions, registry, mapper);
 	}
 
 	private GameSessionManager seeded(String saveId, List<String> archetypeIds) {

@@ -6,7 +6,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Test;
@@ -20,7 +19,6 @@ import com.aiuniverse.server.llm.ChatRequest;
 import com.aiuniverse.server.llm.LlmClient;
 import com.aiuniverse.server.llm.LlmException;
 import com.aiuniverse.server.llm.TokenStream;
-import com.aiuniverse.server.moderation.ModerationGateway;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -28,7 +26,7 @@ import tools.jackson.databind.node.ObjectNode;
 
 /**
  * ②③ GameInitService 播种编排:world-gen parity(复用 8 golden world raw)+ ERROR 路径 +
- * init 消毒断言(独立)+ moderation 接缝被调用 + 生产形态(world 带初始动作 + openingNarrative)。
+ * init 消毒断言(独立)+ 生产形态(world 带初始动作 + openingNarrative)。
  *
  * <p>驱动:真实 {@link WorldGenService} + {@link WorldGenPromptBuilder} + {@link GameSessionManager},
  * 只在 LLM 边界用脚本化替身(返回录制 raw / 构造 raw)。零真实 API。
@@ -42,21 +40,10 @@ class GameInitServiceTest {
 		return (req, sink) -> sink.onToken(raw);
 	}
 
-	/** 计数审核网关(no-op 原样返回 + 记调用次数,证接缝被调用)。 */
-	private static final class CountingModeration implements ModerationGateway {
-		final AtomicInteger calls = new AtomicInteger();
-
-		@Override
-		public String review(String text) {
-			calls.incrementAndGet();
-			return text;
-		}
-	}
-
-	private GameInitService initService(LlmClient llm, GameSessionManager sessions, ModerationGateway mod) {
+	private GameInitService initService(LlmClient llm, GameSessionManager sessions) {
 		ArchetypeRegistry registry = new ArchetypeRegistry();
 		WorldGenService worldGen = new WorldGenService(llm, new WorldGenPromptBuilder(registry), mapper);
-		return new GameInitService(worldGen, sessions, mod, registry, mapper);
+		return new GameInitService(worldGen, sessions, registry, mapper);
 	}
 
 	// ── world-gen parity:复用 8 golden world raw ──────────────────────────
@@ -72,8 +59,7 @@ class GameInitServiceTest {
 			JsonNode expected = mapper.readTree(raw);
 			tests.add(DynamicTest.dynamicTest(c.get("id").asString(), () -> {
 				GameSessionManager sessions = new GameSessionManager(mapper);
-				CountingModeration mod = new CountingModeration();
-				InitResponse resp = initService(fixedLlm(raw), sessions, mod).init("rules_creepy");
+				InitResponse resp = initService(fixedLlm(raw), sessions).init("rules_creepy");
 
 				// (a) init 消毒投影:无任何隐藏字段。
 				String worldStr = mapper.writeValueAsString(resp.world());
@@ -98,8 +84,6 @@ class GameInitServiceTest {
 				assertThat(ids).containsExactly("A", "B", "C");
 				// 旧 raw 无 openingNarrative → transient 字段空串(不崩)。
 				assertThat(resp.openingNarrative()).isEmpty();
-				// 审核接缝被调用(opening + 可见文本)。
-				assertThat(mod.calls.get()).isPositive();
 			}));
 		}
 		assertThat(tests).as("应有 8 条 world golden").hasSize(8);
@@ -113,7 +97,7 @@ class GameInitServiceTest {
 		// 主调用 + 修复都返非法 → WorldGenService 抛 WorldGenException。
 		LlmClient bad = (req, sink) -> sink.onToken("{\"mode\":\"single\"}");
 
-		assertThatThrownBy(() -> initService(bad, sessions, new CountingModeration()).init("rules_creepy"))
+		assertThatThrownBy(() -> initService(bad, sessions).init("rules_creepy"))
 				.isInstanceOf(WorldGenException.class);
 		// 无半残会话残留:create() 只在 generate() 返回后执行,ERROR 早于播种;计数为 0。
 		assertThat(sessions.activeCount()).as("ERROR 不创建任何会话").isZero();
@@ -124,7 +108,7 @@ class GameInitServiceTest {
 	void initResponseNeverContainsHiddenFields() {
 		String raw = productionWorld();
 		GameSessionManager sessions = new GameSessionManager(mapper);
-		InitResponse resp = initService(fixedLlm(raw), sessions, new CountingModeration()).init("rules_creepy");
+		InitResponse resp = initService(fixedLlm(raw), sessions).init("rules_creepy");
 
 		String whole = mapper.writeValueAsString(resp);
 		assertThat(whole)
@@ -134,20 +118,12 @@ class GameInitServiceTest {
 				.doesNotContain("groundTruth");
 	}
 
-	// ── moderation 接缝:被调用(opening + 可见文本)──
-	@Test
-	void moderationSeamIsInvokedOnVisibleText() {
-		CountingModeration mod = new CountingModeration();
-		initService(fixedLlm(productionWorld()), new GameSessionManager(mapper), mod).init("rules_creepy");
-		assertThat(mod.calls.get()).as("opening + title + background + 规则 content").isGreaterThanOrEqualTo(3);
-	}
-
 	// ── 生产形态:world 带合法初始动作 → 采用;openingNarrative 提取且不入持久化 state ──
 	@Test
 	void productionWorldUsesGivenActionsAndKeepsOpeningTransient() {
 		String raw = productionWorld();
 		GameSessionManager sessions = new GameSessionManager(mapper);
-		InitResponse resp = initService(fixedLlm(raw), sessions, new CountingModeration()).init("rules_creepy");
+		InitResponse resp = initService(fixedLlm(raw), sessions).init("rules_creepy");
 
 		// world 给了 2 个动作 → 用它们(非 FALLBACK)。
 		assertThat(resp.availableActions()).hasSize(2);
@@ -169,7 +145,7 @@ class GameInitServiceTest {
 	void apocalypseInitSeedsHpHungerAndExposesAxisMeta() {
 		String raw = apocalypseWorld();
 		GameSessionManager sessions = new GameSessionManager(mapper);
-		InitResponse resp = initService(fixedLlm(raw), sessions, new CountingModeration()).init("apocalypse");
+		InitResponse resp = initService(fixedLlm(raw), sessions).init("apocalypse");
 
 		// 数值轴由 raw 播种:hp/hunger(非 hp/san),引擎 key-agnostic 通吃。
 		GameSession session = sessions.get(resp.saveId());
@@ -211,8 +187,8 @@ class GameInitServiceTest {
 
 	@Test
 	void rulesCreepyInitExposesHpSanAxisMeta() {
-		InitResponse resp = initService(fixedLlm(productionWorld()), new GameSessionManager(mapper),
-				new CountingModeration()).init("rules_creepy");
+		InitResponse resp = initService(fixedLlm(productionWorld()), new GameSessionManager(mapper))
+				.init("rules_creepy");
 		List<String> names = new ArrayList<>();
 		resp.attributes().forEach(a -> names.add(a.path("displayName").asString()));
 		assertThat(names).containsExactly("体力", "理智");
@@ -225,7 +201,7 @@ class GameInitServiceTest {
 		LlmClient neverCalled = (req, sink) -> {
 			throw new AssertionError("world-gen 不应被调用");
 		};
-		assertThatThrownBy(() -> initService(neverCalled, sessions, new CountingModeration()).init("not_a_mode"))
+		assertThatThrownBy(() -> initService(neverCalled, sessions).init("not_a_mode"))
 				.isInstanceOf(IllegalArgumentException.class)
 				.hasMessageContaining("非法");
 		assertThat(sessions.activeCount()).isZero();
@@ -239,7 +215,7 @@ class GameInitServiceTest {
 		};
 		// cyberpunk ∈ 枚举但未激活 → 未开放(仍 400)。
 		// 原样本 life_sim 已由 ADR-020 刀 1 激活 → 换 cyberpunk 继续守这条(守护意图不变,不删断言)。
-		assertThatThrownBy(() -> initService(neverCalled, sessions, new CountingModeration()).init("cyberpunk"))
+		assertThatThrownBy(() -> initService(neverCalled, sessions).init("cyberpunk"))
 				.isInstanceOf(IllegalArgumentException.class)
 				.hasMessageContaining("未开放");
 		assertThat(sessions.activeCount()).isZero();
@@ -251,7 +227,7 @@ class GameInitServiceTest {
 	void fusionInitSeedsFourFusedAxesWithReskinnedDaoxin() {
 		String raw = cultivationRulesCreepyFusionWorld();
 		GameSessionManager sessions = new GameSessionManager(mapper);
-		InitResponse resp = initService(fixedLlm(raw), sessions, new CountingModeration())
+		InitResponse resp = initService(fixedLlm(raw), sessions)
 				.init(List.of("cultivation", "rules_creepy")); // host 在前
 
 		// 融合轴集(host 在前保序 + 存活外来 san):hp/mana/realm/san 由 raw 播种,引擎 key-agnostic 通吃 4 轴。
@@ -293,7 +269,7 @@ class GameInitServiceTest {
 			throw new AssertionError("未登记融合组合不应触发 world-gen");
 		};
 		// 反向 host=规则怪谈 未登记 → 400(校验早于 world-gen)。
-		assertThatThrownBy(() -> initService(neverCalled, sessions, new CountingModeration())
+		assertThatThrownBy(() -> initService(neverCalled, sessions)
 				.init(List.of("rules_creepy", "cultivation")))
 				.isInstanceOf(IllegalArgumentException.class)
 				.hasMessageContaining("不支持的融合组合");
@@ -306,7 +282,7 @@ class GameInitServiceTest {
 		LlmClient neverCalled = (req, sink) -> {
 			throw new AssertionError("超过 2 个 archetype 不应触发 world-gen");
 		};
-		assertThatThrownBy(() -> initService(neverCalled, sessions, new CountingModeration())
+		assertThatThrownBy(() -> initService(neverCalled, sessions)
 				.init(List.of("cultivation", "rules_creepy", "cthulhu")))
 				.isInstanceOf(IllegalArgumentException.class)
 				.hasMessageContaining("仅支持 2 个");
@@ -321,11 +297,11 @@ class GameInitServiceTest {
 		};
 		// 组合含未开放成员(cyberpunk)→ 未开放;含未知成员 → 非法。两者均 400、早于 world-gen。
 		// 原样本 life_sim 已由 ADR-020 刀 1 激活 → 换 cyberpunk 继续守这条(守护意图不变,不删断言)。
-		assertThatThrownBy(() -> initService(neverCalled, sessions, new CountingModeration())
+		assertThatThrownBy(() -> initService(neverCalled, sessions)
 				.init(List.of("cultivation", "cyberpunk")))
 				.isInstanceOf(IllegalArgumentException.class)
 				.hasMessageContaining("未开放");
-		assertThatThrownBy(() -> initService(neverCalled, sessions, new CountingModeration())
+		assertThatThrownBy(() -> initService(neverCalled, sessions)
 				.init(List.of("cultivation", "not_a_mode")))
 				.isInstanceOf(IllegalArgumentException.class)
 				.hasMessageContaining("非法");
@@ -335,8 +311,8 @@ class GameInitServiceTest {
 	@Test
 	void singleValueInitViaListPathUnchanged() {
 		// 单值经列表路径(size==1)与旧单值路径同结果(向后兼容,零回归)。
-		InitResponse resp = initService(fixedLlm(productionWorld()), new GameSessionManager(mapper),
-				new CountingModeration()).init(List.of("rules_creepy"));
+		InitResponse resp = initService(fixedLlm(productionWorld()), new GameSessionManager(mapper))
+				.init(List.of("rules_creepy"));
 		List<String> names = new ArrayList<>();
 		resp.attributes().forEach(a -> names.add(a.path("displayName").asString()));
 		assertThat(names).containsExactly("体力", "理智");
