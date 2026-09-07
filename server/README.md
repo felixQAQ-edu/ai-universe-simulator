@@ -19,7 +19,6 @@ SSE/流式 web 栈见 [ADR-005](../docs/adr/ADR-005-sse-web-stack-mvc-thin-seam.
   `LlmProperties`(provider 配置表,对应 bakeoff `providers.py`)/ `ThinkingAdapter`(思考开关单点适配,移植自 bakeoff)/
   `OpenAiStreamDecoder`(纯 SSE 解析)/ `OpenAiCompatLlmClient`(真实 DeepSeek,JDK `HttpClient`)/ `MockLlmClient`(离线回退)/
   `LlmClientConfig`(按 `active` 选实现)/ `LlmException`(统一降级)
-- `moderation/` — 内容审核网关接缝(ADR-004 未定),`NoopModerationGateway` 占位放行
 - `web/` — 薄传输适配层,唯一碰 `SseEmitter` 的地方(`GameController`);换 WebFlux 只动这层
 - `platform/` — CloudBase / 微信薄适配层占位(ADR-002),骨架阶段空置(路线 B 下仍空置)
 - `engine/` — 数值结算 / 校验 / 消毒投影 / 泄露遥测(`Engine` 对数值语义无知,ADR-008)

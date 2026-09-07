@@ -52,7 +52,8 @@
   单回合体量偶发失控、热望下降不稳定、回合数超判据上界(ROADMAP v7.3「调优阶段收手」)。
   收手理由是**验证成本由人承担** —— 真机冒烟依赖作者亲自玩完一辈子(FINDINGS F-027)。
 - **内容安全实现未起**:[ADR-004](docs/adr/ADR-004-content-safety.md) 已落档(2026-09-06),四刀切分**一刀未起** ——
-  `NoopModerationGateway` 至今是放行占位(该 ADR 裁定**撤掉它**),prompt 侧自伤硬禁尚未写入骨架;
+  `moderation` 包已撤(**它撤掉的是一个恒等函数,不是一道关** —— 解冻条件见 ADR-004 §最终决策三),
+  prompt 侧自伤硬禁尚未写入骨架;
   `LeakDetector` 按其自陈只是**事后遥测**,抓不到改写式泄露。
   正文在[工程债 §1.2](docs/backlog-engineering-debt.md),它是软启动开闸前的最后一环。
 - **单实例不是高可用,且这是有约束下的主动选择**:内存 session + 进程内忙态守卫(`compareAndSet`)

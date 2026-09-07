@@ -1,8 +1,8 @@
 # ADR-004 · 内容安全:主防线在生成之前(prompt 硬禁),检测器只做事后遥测
 
 - **日期**:2026-09-06
-- **状态**:已采纳。**刀 2(骨架硬禁 + lockstep + parity 阳性对照)已落地 2026-09-07**;
-  刀 1(撤 `moderation` 包)/ 刀 3(扫描器落测试)/ 刀 4(真机冒烟)未起,见实施步骤
+- **状态**:已采纳。**刀 1(撤 `moderation` 包)与刀 2(骨架硬禁 + lockstep + parity 阳性对照)
+  均已落地 2026-09-07**;刀 3(扫描器落测试)/ 刀 4(真机冒烟)未起,见实施步骤
 - **决策者**:Felix
 
 ## 背景
@@ -400,9 +400,65 @@ WARN 要能回答「谁读它、读了做什么决定」(这是 [ADR-022 刀 2 �
 
 ### 刀 1 · 撤掉 `moderation` 包
 
-删接口 + `NoopModerationGateway` + `GameInitService` 的四个调用点与字段。
+**已落地(2026-09-07)。** 删接口 + `NoopModerationGateway` + `GameInitService` 的四个调用点与字段。
 **行为零变化**(`review` 今天原样返回入参),故这一刀**可独立验证也可独立上线**。
 ⚠️ 不准顺手做:不碰 `LeakDetector`、不碰任何 prompt。
+
+> **⚠️ 撤掉之后 init 侧那四处文本还有没有人管 —— 结论是「保护集合没变」,而这个措辞是承重的。**
+>
+> **不是「prompt 硬禁接管了它」。** 刀 2 的硬禁覆盖的是 world-gen 的**生成侧**,那是**新增**的一层;
+> 刀 1 撤掉的是**零**。写成「A 换 B」和写成「加 A、删 0」在读者脑子里是**两笔完全不同的账**——
+> 前者让人以为覆盖是守恒的,于是日后会有人拿「我们换过一次」当作某种保障的证据。
+>
+> 「零」有三条可核的依据(不是「no-op 嘛,应该没事」):
+>
+> 1. `NoopModerationGateway.review(text) { return text; }` —— **恒等函数**,无副作用、无日志、无计数。
+> 2. 四个调用点都是**纯写回**(`wo.put("title", review(wo.get("title").asString("")))`)。
+> 3. **连类型强制都不可能发生** —— `worldGen.generate()` 里 `GameSchemas` 已
+>    `requireNonEmptyString` 钉住 `world/title`、`world/background`、`rules[]/content`,
+>    到达那段代码时三处**必然已是非空字符串**,`asString("")` 不存在 number→string 的路径。
+>    故删掉在**任何能走到这里的输入**下逐字节等价。
+>
+> **确实变化的那一样,分开记(它不是覆盖下降,是未来成本)**:撤掉之后 init 侧
+> **不再有一个现成的挂载点**。解冻条件命中时要重新划位置 —— 这一点 §最终决策三已经写着
+> 「不保证还是今天这四个调用点」,本节只是把它与「覆盖没下降」**分开陈述**,免得两样混成一句
+> 读起来像粉饰。
+
+**取证读数(实测,非描述)**:
+
+| 项 | 读数 |
+|---|---|
+| 测试数 | **407 → 408**;逐条来源:删 `moderationSeamIsInvokedOnVisibleText` **−1**、新增源码级断言 **+2**(该类两个用例)。⚠️ 原本预测 407(误算成 +1),**差额已定位、无第三处变化**:`GameInitServiceTest` 21→20、新类 2。 |
+| `moderation` 包 | 目录已不存在;`server/src/main/java` 里 `ModerationGateway` **0 命中** |
+| ⚠️ 裸 `grep -i moderation` | **2 命中且这是对的** —— `WorldGenPromptBuilder.thresholdModeration`(「门槛适度示例」,与内容安全无关、早于本 ADR)。**判据不能照抄人工核对那句写法**。 |
+| 前端 | `web/src` 全程 0 命中(该接缝从未跨过后端边界) |
+| 零动 | 引擎 / 校验 / golden / prompt lockstep / `schemaVersion`(保 `"0.4"`)/ `prompts/` |
+
+**⚠️ 守护形态:删除类改动没有任何行为测试会因为它回来而变红。**
+撤的是恒等函数 —— 有人把接口与 no-op 原样加回、再把四个调用点接上,408 个用例照样全绿。
+故按本 ADR §测试面点名新增 `ModerationSeamRemovedSourceTest`(源码级断言,同 ADR-021 刀 2 `"vigor"`
+与 ADR-022 `GameControllerNoThreadPoolSourceTest` 的先例)。**人工 grep 只能证明这次删干净了,
+它守不住下一个人** —— 一次性核对不是守护。
+
+两个探针陷阱在写的时候堵上:**作用域 = `src/main/java` 整棵树,而断言住在 `src/test`**,
+于是**结构上不自命中,不需要任何排除项 —— 而排除项就是洞**(ADR-022 刀 2「全仓扫描会打到准入类
+自己」的规避);并**先证明真的遍历到了源码**,否则空集上的 `doesNotContain` 是假绿灯(§4.14 那族)。
+
+**变异验证(逐条实跑,且读的是「红的是哪一条」而不是失败计数)**:
+
+| 变异 | 结果 |
+|---|---|
+| M1 包复活(目录 + 接口) | 两条**都红** |
+| M2 只在已有 main 文件里写回标识符 | **只有** `noMainSourceReferencesTheSeam` 红,另一条绿 |
+| M3 只建空包目录 | **只有** `moderationPackageIsGone` 红,另一条绿 |
+| M4 判据换成裸小写 `moderation` | ⚠️ **仍然绿** —— 见下 |
+| M5 遍历根指向不存在的目录 | 两条**都红**(空集不许绿灯) |
+
+⚠️ **M4 证伪了我们自己写的一句话,如实记**:落笔时写的是「判据必须大小写敏感,否则
+`thresholdModeration` 会误报」——**实测不成立**,`thresholdModeration` 里那个 M 是大写,
+大小写敏感的裸 `moderation` 今天**实测就是 0**。真正为零不了的是**人工核对时用的 `grep -i`**。
+故「取完整标识符」是**设计取舍(判据要指向被撤掉的那个东西本身),不是被变异证明的必要性**;
+措辞已就地改正,两个口径不并存。
 
 ### 刀 2 · 骨架硬禁 + lockstep + ⚠️ parity 阳性对照
 
