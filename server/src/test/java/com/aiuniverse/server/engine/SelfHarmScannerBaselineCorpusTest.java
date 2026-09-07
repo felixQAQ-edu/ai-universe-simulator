@@ -32,8 +32,15 @@ import org.junit.jupiter.api.Test;
  */
 class SelfHarmScannerBaselineCorpusTest {
 
-	/** 语料正文段的起点标记(基线语料文件里的一级标题)。 */
-	private static final String BODY_MARKER = "# 语料正文";
+	/**
+	 * 语料正文段的起点标记(基线语料文件里的一级标题)。
+	 *
+	 * <p><b>⚠️ 带前导换行是必须的,不是洁癖</b>:同一批改动往该文件 §八 里写了一句
+	 * 「挪走正文段标记 {@code # 语料正文} 会让该测试变红」——那句话让裸标记<b>不再唯一</b>,
+	 * {@code indexOf} 当场切早了 216 字符,<b>而测试照样是绿的</b>(切早只是多扫了一段说明文字)。
+	 * 抓到它的不是断言,是变异输出里那个对不上的字符数。行首锚定 + 下面的唯一性守卫一起堵这个口。
+	 */
+	private static final String BODY_MARKER = "\n# 语料正文";
 
 	/**
 	 * 正对照:局 1 规则怪谈 T1 的一句原文。
@@ -70,7 +77,10 @@ class SelfHarmScannerBaselineCorpusTest {
 				String all = Files.readString(p);
 				int at = all.indexOf(BODY_MARKER);
 				if (at < 0) {
-					throw new IOException("语料文件里找不到正文段标记 '" + BODY_MARKER + "':" + p.toAbsolutePath());
+					throw new IOException("语料文件里找不到正文段标记(行首 '# 语料正文'):" + p.toAbsolutePath());
+				}
+				if (all.indexOf(BODY_MARKER, at + 1) >= 0) {
+					throw new IOException("正文段标记出现不止一次,切点不确定:" + p.toAbsolutePath());
 				}
 				return all.substring(at);
 			}
