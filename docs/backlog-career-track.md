@@ -67,7 +67,7 @@
 
 ⚠️ **这不是「更新 README」,是项目价值转译。**
 
-现状:[`README.md:18`](../README.md) 仍写着「已实现世界(**4 基础** + 2 融合)……
+建档时(2026-09-04)的现状:[`README.md:18`](../README.md) 仍写着「已实现世界(**4 基础** + 2 融合)……
 人生模拟与赛博朋克为枚举占位,**尚未开放**」,而 `ArchetypeRegistry` 实际注册了 **6 个**
 (`rules_creepy` / `apocalypse` / `cthulhu` / `cultivation` / `life_sim`《寻常》/ `animal_life`《动物人生》),
 ADR 已到 022。**招聘方读 README,不读 900 行 ADR。**
