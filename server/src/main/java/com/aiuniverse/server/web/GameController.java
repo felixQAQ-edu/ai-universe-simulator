@@ -30,8 +30,8 @@ import jakarta.validation.constraints.NotBlank;
  * <ul>
  *   <li><b>{@code POST /api/game/init}</b>(设计稿 §3,plain POST 无 SSE):跑 world-gen 胖调用 →
  *       播种会话 → 返消毒投影 + openingNarrative + 初始动作;world-gen 救不回 → 5xx ERROR(无会话残留)。</li>
- *   <li><b>{@code POST /api/game/{saveId}/turn}</b>(规格 §4.1):取会话 → 守卫 1 合法性 →
- *       {@link TurnAdmission 并发准入}(占到名额才领线程)→ 池线程上跑
+ *   <li><b>{@code POST /api/game/{saveId}/turn}</b>(规格 §4.1):取会话 → 游标比对(ADR-023)→
+ *       守卫 1 合法性 → {@link TurnAdmission 并发准入}(占到名额才领线程)→ 池线程上跑
  *       {@link TurnStateMachine#submitAction}(阻塞含流式)→ 完成时 complete。
  *       三条容器线程上的拒绝走 HTTP 而非 SSE:<b>SSE 路线必须先领一个线程才能说那句话,
  *       而线程正是要省的东西</b>(ADR-022 立字 8)。</li>
@@ -107,6 +107,7 @@ public class GameController {
 	 *
 	 * <pre>
 	 * ├─ session == null           → 404 {error:{code:"session_not_found"}}      ← 容器线程,零名额
+	 * ├─ 游标落后 ∧ 相位不在途     → 409 {error:{code:"turn_stale"}}             ← 容器线程,零名额
 	 * ├─ 守卫 1 合法性             → 400 {error:{code:"illegal_action", …}}      ← 容器线程,零名额
 	 * ├─ 准入 submit()             → 503 {error:{code:"server_at_capacity", …}}  ← 容器线程,零线程 + WARN
 	 * ├──────────────【交接:名额已占,此后在池线程上】──────────────
@@ -118,6 +119,11 @@ public class GameController {
 	 * <p><b>合法性在准入之前</b>(立字 7):它零副作用、不占名额、不需要归还——让一个必然被拒的请求
 	 * 先占一个名额再还回来,是白白让真玩家少一个位子。<b>连带非法动作不再消耗配额额度</b>
 	 * (立字 6,显式裁定非静默副产品)。
+	 *
+	 * <p><b>游标比对在合法性之前</b>(ADR-023 立字 1):两者都是纯读,<b>排序纯是语义问题不是代价问题</b>。
+	 * 之所以先答它——游标落后时,守卫 1 是<b>在一个过期的前提上做判断</b>(拿玩家手里那组旧选项
+	 * 去比服务端的新选项集);且 {@code illegal_action} 那句「无效的行动:X」
+	 * <b>把责任指向玩家的选择,而玩家点的是屏幕上真实存在的按钮</b>。<b>先答病因,不先答症状。</b>
 	 *
 	 * <p><b>准入拒绝相位零触碰</b>:它发生在 CAS 之前、甚至在池线程之前,服务端从头到尾没碰过这局;
 	 * 而一个<b>通过准入但被配额拒绝</b>的请求确实占了一个名额(μs 级)——那是刻意的,
@@ -138,6 +144,23 @@ public class GameController {
 			// 会让它压过兜底表,**静默撤销刀 1.5**(前端测试全绿)。code 与 message 各自独立兜底,
 			// 这条混合是刀 1 优先级链显式允许的。
 			return jsonError(HttpStatus.NOT_FOUND, "session_not_found", null);
+		}
+		// 游标比对(ADR-023):客户端手里的 turn 落后于服务端 = 有一个回合已在服务端落账而他没看到
+		// (断流:SSE 写抛 → persist 被跳过;或客户端干净断开而服务端全程成功)。不拦的话,他手里那组
+		// 旧选项的 id 跨回合稳定为 A/B/C/D、守卫 1 照样认得 → **再推进一个回合**,中间那一回合的叙事
+		// 他永远读不到。⚠️ 两处都是**纯读**(engine.turn() + phase().get()),不写、不占名额、不需要归还
+		// ——故不构成 ADR-022 立字 5 禁止的那种「必须永不失败的写」。
+		//
+		// ⚠️ 必须连相位一起读:engine.apply 把 turn 推到 N+1 之后、phase 放回之前有一段**毫秒级**窗口
+		// (含一次 SSE 写 + 一次文件写),窗口里一次真·并发提交的准确答案是 busy 而不是 turn_stale。
+		// 「在途是哪些相位」由 TurnPhase.inFlight() 单点回答 —— **不在这里就地枚举**(立字 5)。
+		// 反过来说:AWAITING_ACTION 与 ENDED 都判 stale,而 ENDED 那一侧是本刀最值钱的一格
+		// ——玩家在结局那回合断流、没看到结局、再点,今天永远是「上一回合仍在结算」,
+		// **局已经结束了,而他永远出不去**。
+		if (req.turn() < session.engine().turn() && !session.phase().get().inFlight()) {
+			// 只发 code(立字 4):「你的游标落后了」是**客户端自己也知道**的事实,服务端不掌握任何
+			// 额外细节 → 文案归前端兜底表。对照 server_at_capacity / illegal_action(那两条只有服务端知道)。
+			return jsonError(HttpStatus.CONFLICT, "turn_stale", null);
 		}
 		// 守卫 1(前移,ADR-022 立字 5/7):确定性、零副作用、不占准入名额。
 		if (!session.hasAction(req.actionId())) {
@@ -213,7 +236,14 @@ public class GameController {
 		}
 	}
 
-	/** 玩家 → server 回合请求(规格 §4.1)。Phase 1 只允许选 id。 */
+	/**
+	 * 玩家 → server 回合请求(规格 §4.1)。Phase 1 只允许选 id。
+	 *
+	 * <p>{@code turn} = <b>客户端手里的游标</b>,自 Phase 1 就在 wire 上、前端一直在发
+	 * (值恒取自服务端回声:init 的 {@code state.turn} / resume / 每次 {@code delta.turn}),
+	 * 而<b>服务端直到 ADR-023 才开始读它</b>。健康客户端恒等于服务端现值;落后 = 有一个回合
+	 * 已在服务端落账而他没看到(断流)。
+	 */
 	public record TurnRequest(int turn, @NotBlank String actionId) {
 	}
 }
