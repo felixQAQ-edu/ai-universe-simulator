@@ -118,6 +118,160 @@ class GameControllerTurnGuardsTest {
 		assertThat(resp.getHeaders().getContentType()).isEqualTo(MediaType.APPLICATION_JSON);
 	}
 
+	// ── 游标比对(ADR-023):落后 ∧ 不在途 → 409 ──────────────────────────
+
+	/**
+	 * 把 save-1 的 {@code engine.turn()} 推到 1,好让「落后」与「相等」<b>区分得开</b>。
+	 *
+	 * <p>⚠️ <b>没有这一步,(c) 那条守的是空气</b>:本类既有的十二处构造全传
+	 * {@code TurnRequest(0, …)},而新起 session 的 {@code engine.turn()} <b>也是 0</b>
+	 * ——{@code 0 == 0} 之下,比较写成 {@code <} / {@code >} / {@code !=} 甚至删掉,<b>全都是绿的</b>。
+	 *
+	 * <p>{@link com.aiuniverse.server.engine.Engine#applyNoOp} 是最便宜的那条路:public、
+	 * 首行就是 {@code turn += 1}、只碰 turn 与 log,<b>不需要 LLM、不需要 mock provider、
+	 * 不需要跑一个真回合</b>。
+	 */
+	private static GameSessionManager managerAtTurnOne(GameSessionManager manager) {
+		manager.get("save-1").engine().applyNoOp("上一回合的叙事", "A");
+		assertThat(manager.get("save-1").engine().turn()).as("夹具前提:服务端已在第 1 回合").isEqualTo(1);
+		return manager;
+	}
+
+	private GameController controllerFor(GameSessionManager manager, List<Runnable> submitted) {
+		return new GameController(manager, new TurnStateMachine((s, a, sink) -> new TurnResult(false)),
+				null, new CountingQuota(), new TurnAdmission(8, submitted::add));
+	}
+
+	/**
+	 * (a) 游标落后 + 相位 {@code AWAITING_ACTION} → 409 {@code turn_stale},<b>零提交</b>。
+	 *
+	 * <p>这就是本刀的目标场景:断流之后玩家再点一次。⚠️ 注意他点的 {@code "A"}
+	 * <b>在服务端仍然合法</b>(选项 id 跨回合稳定为 A/B/C/D)——所以守卫 1 <b>拦不住他</b>,
+	 * 不拦的话服务端会<b>再推进一个回合</b>,而中间那一回合的叙事他永远读不到。
+	 *
+	 * <p><b>只发 code 不发 message</b>(立字 4):「你的游标落后了」是客户端自己也知道的事实,
+	 * 服务端不掌握额外细节 → 文案归前端兜底表。
+	 */
+	@Test
+	void staleTurnReturns409AndSubmitsNothing() {
+		List<Runnable> submitted = new ArrayList<>();
+		GameController c = controllerFor(managerAtTurnOne(managerWithSession()), submitted);
+
+		ResponseEntity<?> resp = c.turn("save-1", new GameController.TurnRequest(0, "A"), request());
+
+		assertThat(resp.getStatusCode().value()).isEqualTo(HttpStatus.CONFLICT.value());
+		assertThat(errorOf(resp)).containsExactly(Map.entry("code", "turn_stale"));
+		assertThat(errorOf(resp)).as("文案归前端兜底表(立字 4)").doesNotContainKey("message");
+		assertThat(submitted).as("落后请求零提交、零名额").isEmpty();
+		assertThat(resp.getHeaders().getContentType()).isEqualTo(MediaType.APPLICATION_JSON);
+	}
+
+	/**
+	 * (b) 游标相等 → 照常推进(提交一次)。
+	 *
+	 * <p>⚠️ <b>它是 (a) 的控制组,不是凑数</b>:没有它,「比较」可以被写成「一律 409」而 (a) 照样绿。
+	 */
+	@Test
+	void currentTurnProceedsNormally() {
+		List<Runnable> submitted = new ArrayList<>();
+		GameController c = controllerFor(managerAtTurnOne(managerWithSession()), submitted);
+
+		ResponseEntity<?> resp = c.turn("save-1", new GameController.TurnRequest(1, "A"), request());
+
+		assertThat(resp.getStatusCode().value()).isEqualTo(200);
+		assertThat(submitted).as("游标同步 → 照常领名额跑回合").hasSize(1);
+	}
+
+	/**
+	 * (c) <b>比较方向</b>:客户端游标<b>超前</b>(服务端 1、他报 2)<b>不得</b>被判 stale。
+	 *
+	 * <p>构造不出来不等于不用钉——它钉的是<b>方向</b>:把 {@code <} 写成 {@code >} 或 {@code !=} 时,
+	 * (a)(b) 都可能仍然绿(0/1 那两个值下 {@code !=} 与 {@code <} 等价),<b>只有这一条会红</b>。
+	 */
+	@Test
+	void aheadTurnIsNotTreatedAsStale() {
+		List<Runnable> submitted = new ArrayList<>();
+		GameController c = controllerFor(managerAtTurnOne(managerWithSession()), submitted);
+
+		ResponseEntity<?> resp = c.turn("save-1", new GameController.TurnRequest(2, "A"), request());
+
+		assertThat(resp.getStatusCode().value()).as("超前不是落后:方向写反这条会红").isEqualTo(200);
+		assertThat(submitted).hasSize(1);
+	}
+
+	/**
+	 * (d) <b>窗口内({@code SETTLING})落后提交 → busy,不是 turn_stale</b>。
+	 *
+	 * <p>⚠️ <b>这条是立字 2 存在的唯一目的</b>:{@code engine.apply} 把 turn 推到 N+1 之后、
+	 * {@code phase} 放回之前有一段<b>毫秒级</b>窗口(含一次 SSE 写 + 一次文件写),
+	 * 相位在那整段里是 <b>{@code SETTLING}</b>(而不是 {@code GENERATING} ——
+	 * {@code EventLoopService} 在回灌/校验/apply <b>之前</b>就 set 了它)。
+	 * 窗口里一次真·并发提交的准确答案是 {@code busy}。
+	 *
+	 * <p>判据 = <b>200(没被容器线程用 409 拦下)</b>:忙态在池线程里走 SSE,与 409 是两条路
+	 * (同 {@code sameSaveSecondSubmitHitsBusyNotCapacity} 的判法)。
+	 * <b>变异:把 {@code inFlight()} 改成只返回 {@code GENERATING} → 本条必须红。</b>
+	 */
+	@Test
+	void staleTurnDuringSettlingYieldsBusyNotStale() {
+		GameSessionManager manager = managerAtTurnOne(managerWithSession());
+		manager.get("save-1").phase().set(TurnPhase.SETTLING);
+		List<Runnable> submitted = new ArrayList<>();
+		GameController c = controllerFor(manager, submitted);
+
+		ResponseEntity<?> resp = c.turn("save-1", new GameController.TurnRequest(0, "A"), request());
+
+		assertThat(resp.getStatusCode().value())
+				.as("窗口内的准确答案是 busy(池线程 SSE),不是 409").isEqualTo(200);
+		assertThat(submitted).hasSize(1);
+	}
+
+	/**
+	 * (e) {@code GENERATING} 期间落后提交 → 同样是 busy。
+	 *
+	 * <p>⚠️ <b>它不是 (d) 的重复</b>:turn 被推进的那一刻<b>相位可能是两者中的任何一个</b>——
+	 * 流中断降级那条路({@code EventLoopService} 的 {@code LlmException} 分支)在
+	 * {@code SETTLING} 被 set <b>之前</b>就 {@code applyNoOp} 推进了 turn,那时相位还是 {@code GENERATING}。
+	 * 只钉 (d) 会让「在途」被写成只有 SETTLING,而这条路照样漏。
+	 */
+	@Test
+	void staleTurnDuringGeneratingYieldsBusyNotStale() {
+		GameSessionManager manager = managerAtTurnOne(managerWithSession());
+		manager.get("save-1").phase().set(TurnPhase.GENERATING);
+		List<Runnable> submitted = new ArrayList<>();
+		GameController c = controllerFor(manager, submitted);
+
+		ResponseEntity<?> resp = c.turn("save-1", new GameController.TurnRequest(0, "A"), request());
+
+		assertThat(resp.getStatusCode().value()).isEqualTo(200);
+		assertThat(submitted).hasSize(1);
+	}
+
+	/**
+	 * <b>局已结束 + 游标落后 → {@code turn_stale},不是 {@code busy}</b>(ADR-023 立字 3,本刀最值钱的一格)。
+	 *
+	 * <p>> <b>断流发生在最后一回合,是本刀目标场景里最坏的那一个,而它恰好落在 {@code ENDED} 上。</b>
+	 * 玩家在结局那回合断流 → 没看到结局 → 再点 → <b>今天</b>拿到的永远是守卫 2 那句
+	 * 「上一回合仍在结算,请稍候」(CAS 从 {@code ENDED} 起不来),<b>局已经结束了,而他永远出不去</b>。
+	 * 判成 stale 之后,前端拉一次 {@code /state} 就读到 {@code status: ended} 与结局——那才是出口。
+	 *
+	 * <p>⚠️ 不构成语义重载:{@code turn_stale} 只说「你手里的游标落后于服务端」,
+	 * 在 {@code ENDED} 上这句话<b>是真的</b>。
+	 */
+	@Test
+	void staleTurnOnEndedGameReturnsStaleNotBusy() {
+		GameSessionManager manager = managerAtTurnOne(managerWithSession());
+		manager.get("save-1").phase().set(TurnPhase.ENDED);
+		List<Runnable> submitted = new ArrayList<>();
+		GameController c = controllerFor(manager, submitted);
+
+		ResponseEntity<?> resp = c.turn("save-1", new GameController.TurnRequest(0, "A"), request());
+
+		assertThat(resp.getStatusCode().value()).isEqualTo(HttpStatus.CONFLICT.value());
+		assertThat(errorOf(resp).get("code")).isEqualTo("turn_stale");
+		assertThat(submitted).isEmpty();
+	}
+
 	// ── 守卫 1:合法性(自 TurnStateMachineTest 搬家而来)──────────────────
 
 	/**
