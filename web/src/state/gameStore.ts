@@ -165,8 +165,12 @@ const RECOVERABLE_TURN_ERRORS = new Set([
   'server_at_capacity',
   'service_unavailable',
   // turn_stale(ADR-023):服务端说「你手里的游标比我旧」——局活得好好的,只是我们落后了一个回合。
-  // 它是**最该被登记成可恢复的一条**:后面 onError 里紧跟着就拉一次 /state 把差的那一回合补回来。
-  // ⚠️ 同上条诚实记:今天两个分支的可见行为几乎相同,故「加进集合」主要是**声明意图**而非改变行为。
+  // 它是**最该被登记成可恢复的一条**:onError 里紧跟着就拉一次 /state 把差的那一回合补回来。
+  //
+  // ⚠️ **诚实记:它今天走不到下面那个 `has()` 分支** —— `turn_stale` 在那之前就被显式抑制并 return 了
+  // (不提示,只刷新)。留在集合里是**声明意图 + 兜底**:万一哪天那条抑制被拿掉,它至少落进
+  // 「可恢复」那一侧,而不是 else 那句「本回合处理失败,请重试」——**对一个已被自动修好的情况,
+  // 那句话是错的**。⚠️ 别读成「它经过这里」。
   'turn_stale',
 ]);
 
@@ -255,6 +259,8 @@ export function createGameStore(api: GameApi) {
         status: ended ? 'ended' : 'awaiting',
         world: res.world,
         narrative,
+        // 画面整个换了(叙事 / 数值 / 选项全是新的一回合),**旧提示描述的是一个不复存在的屏**。
+        notice: null,
         turn: res.world.state?.turn ?? 0,
         attributeValues: { ...(res.world.character?.attributes ?? {}) },
         discoveredRuleIds: res.world.rules.filter((r) => r.discovered).map((r) => r.id),
@@ -407,8 +413,20 @@ export function createGameStore(api: GameApi) {
         stream.onError((err) => {
           if (stale()) return;
           if (err.code === 'session_not_found') forgetDeadSave(saveId);
-          // 游标落后 → 把我们错过的那一回合补回来(ADR-023;不清档、挂世代守卫,见上)。
-          if (err.code === 'turn_stale') void resyncAfterStaleTurn(saveId, stale);
+          // 游标落后 → **不提示,只刷新**(ADR-023):把我们错过的那一回合补回来(不清档、挂世代守卫,见上)。
+          //
+          // ⚠️ **必须显式抑制,不能靠「从可恢复集合里拿掉」** —— 下面 if/else 的**两个分支都设 notice**,
+          // 拿掉只会让它落进 else 那句「本回合处理失败,请重试」,更不准。
+          // 理由:**玩家没做错任何事,而问题已经被自动修好了。对一个已被修复的情况报错,
+          // 本身就是一句不准的话** —— 那正是这一刀的题目。
+          //
+          // ⚠️ **status 仍要回 `awaiting`,不许早退** —— 早退会把玩家留在 `generating`,
+          // 而拉取失败时那就是**永久转圈**。notice 在这里**不动**(旧提示由 resync 成功时清,见上)。
+          if (err.code === 'turn_stale') {
+            set({ status: 'awaiting' });
+            void resyncAfterStaleTurn(saveId, stale);
+            return;
+          }
           if (RECOVERABLE_TURN_ERRORS.has(err.code)) {
             // 可恢复:复用未变的散文/动作,回到 awaiting + 提示。
             set({ status: 'awaiting', notice: err.message });

@@ -182,6 +182,54 @@ describe('turn_stale 之后的重新同步', () => {
     expect(store2.getState().resumableSaveId).toBeNull();
   });
 
+  /**
+   * (f) **不提示,只刷新**:`turn_stale` 不得把服务端那条错误变成一句给玩家看的话。
+   *
+   * <p>理由(ADR-023):**玩家没做错任何事,而问题已经被自动修好了。
+   * 对一个已被修复的情况报错,本身就是一句不准的话** —— 那正是这一刀的题目。
+   *
+   * <p>⚠️ **必须在「先有 notice」的初态上测,否则 `null → null` 恒绿**(与服务端那边
+   * `0 == 0` 让任何写法都绿是同一个形状)。而**那个初态今天的真实流程产生不出来** ——
+   * `chooseAction` 开头就 `notice: null`,409 紧接着回来,中间没有任何人能写进一条提示;
+   * 故这里用 `setState` **人为造**出来,**标出来免得下一个人以为它是可达状态**。
+   *
+   * <p>⚠️ 另断言 `status` 回到 `awaiting`:早退会把玩家留在 `generating`,
+   * 而拉取失败时那就是**永久转圈**。
+   */
+  it('turn_stale 不提示:不把服务端那句错误写成 notice(且 status 回 awaiting)', async () => {
+    const { api, stream } = makeApi({ resume: 'deferred' }); // 卡住,单看 onError 那一步
+    const store = createGameStore(api);
+    await store.getState().startGame('rules_creepy');
+    store.getState().chooseAction('A');
+    store.setState({ notice: '上一条旧提示' }); // 人为初态,见上
+    stream().fireError({ code: 'turn_stale', message: '请求失败(HTTP 409)' });
+
+    const s = store.getState();
+    expect(s.notice).not.toBe('请求失败(HTTP 409)');
+    expect(s.notice).toBe('上一条旧提示'); // onError 这一步不碰它(清由 resync 成功时做,见下一条)
+    expect(s.status).toBe('awaiting');
+  });
+
+  /**
+   * (g) resync 成功 → **旧提示被清**:画面整个换了(叙事 / 数值 / 选项全是新的一回合),
+   * 旧提示描述的是一个**不复存在的屏**。
+   *
+   * <p>⚠️ 同样建在人为的「先有 notice」初态上 —— 没有它,这条会在
+   * `null → null` 上恒绿(去掉 `notice: null` 也照样过)。
+   */
+  it('resync 成功后旧提示被清(它描述的是一个不复存在的屏)', async () => {
+    const { api, stream } = makeApi({ resume: 'ahead' });
+    const store = createGameStore(api);
+    await store.getState().startGame('rules_creepy');
+    store.getState().chooseAction('A');
+    store.setState({ notice: '上一条旧提示' });
+    stream().fireError({ code: 'turn_stale', message: '请求失败(HTTP 409)' });
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(store.getState().notice).toBeNull();
+    expect(store.getState().turn).toBe(1); // 控制组:确实换屏了,不是「什么都没发生所以 notice 没变」
+  });
+
   it('别的可恢复错误不触发拉取(busy 只是「稍候再点」,状态没变)', async () => {
     const { api, stream, calls } = makeApi({ resume: 'ahead' });
     await playUntilError(api, stream, 'busy');
