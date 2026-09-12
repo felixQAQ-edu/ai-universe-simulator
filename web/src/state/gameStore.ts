@@ -164,6 +164,10 @@ const RECOVERABLE_TURN_ERRORS = new Set([
   'quota_exceeded',
   'server_at_capacity',
   'service_unavailable',
+  // turn_stale(ADR-023):服务端说「你手里的游标比我旧」——局活得好好的,只是我们落后了一个回合。
+  // 它是**最该被登记成可恢复的一条**:后面 onError 里紧跟着就拉一次 /state 把差的那一回合补回来。
+  // ⚠️ 同上条诚实记:今天两个分支的可见行为几乎相同,故「加进集合」主要是**声明意图**而非改变行为。
+  'turn_stale',
 ]);
 
 /**
@@ -214,6 +218,51 @@ export function createGameStore(api: GameApi) {
     const forgetDeadSave = (deadId: string) => {
       if (readSavedId() === deadId) clearSavedId();
       set({ resumableSaveId: null });
+    };
+
+    // ── 游标落后即重新同步(ADR-023)────────────────────────────────────
+    // 服务端说 `turn_stale` = **这一局活得好好的,只是我们落后了一个回合**:有一个回合在服务端
+    // 完整落账而我们没收到 delta(断流:SSE 写抛 → `persist` 被跳过;或干净断开而服务端全程成功)。
+    // 拒绝本身只做了一半的事(挡住「再点一次推进第二次」),**另一半是让玩家看到他错过的那一回合**
+    // ——而那一半就在 `/state` 里:它读的是服务端**内存现值**,且 `state.log` 保留末 4 条,
+    // **断流那一回合的 narrative 仍在里面**。ended 局同理:这是玩家在结局那回合断流之后唯一的出口。
+    //
+    // ⚠️ **必须挂世代守卫**:这是一次异步拉取,回来时玩家可能已经返回 / 开了新局 —— 线 C 补掉的
+    // 正是这个洞(「异步结果回来时玩家可能已经不在那个上下文里了」)。这里复用**回合流那一条**
+    // (`activeStream` 比对,由调用方传进来的 `isStale`),不新开第三种守卫。
+    //
+    // ⚠️ **失败路径一律不清 saveId**:清档是 `session_not_found` 的专属动作(上面那条)。
+    // 拉取失败可能只是网络抖一下,而这一局在服务端是活的 —— 拿一次拉取失败去删一个活着的存档,
+    // 正是 `resumeGame` 那句注释警告过的形状。失败就**静默留在原地**:玩家再点一次会再拿一次
+    // `turn_stale`,不会推进第二个回合(服务端那道闸一直在)。
+    //
+    // ⚠️ **不碰 notice**:落后这件事该对玩家说什么,是兜底表的文案职责(ADR-023 立字 4),
+    // 不在这里另写一句。
+    const resyncAfterStaleTurn = async (saveId: string, isStale: () => boolean) => {
+      let res;
+      try {
+        res = await api.resumeGame(saveId);
+      } catch {
+        return; // 见上:不清 saveId、不改 status,原地不动
+      }
+      if (isStale()) return;
+      const log = res.world.state?.log ?? [];
+      const narrative =
+        (log.length > 0 ? log[log.length - 1].narrative : '') || res.world.world?.background || '';
+      const ended = res.world.state?.status === 'ended';
+      const reached = ended ? res.world.endings.find((e) => e.reached) : undefined;
+      set({
+        status: ended ? 'ended' : 'awaiting',
+        world: res.world,
+        narrative,
+        turn: res.world.state?.turn ?? 0,
+        attributeValues: { ...(res.world.character?.attributes ?? {}) },
+        discoveredRuleIds: res.world.rules.filter((r) => r.discovered).map((r) => r.id),
+        availableActions: res.availableActions,
+        ending: reached
+          ? { id: reached.id, title: reached.title, description: reached.description ?? '' }
+          : null,
+      });
     };
 
     return {
@@ -358,6 +407,8 @@ export function createGameStore(api: GameApi) {
         stream.onError((err) => {
           if (stale()) return;
           if (err.code === 'session_not_found') forgetDeadSave(saveId);
+          // 游标落后 → 把我们错过的那一回合补回来(ADR-023;不清档、挂世代守卫,见上)。
+          if (err.code === 'turn_stale') void resyncAfterStaleTurn(saveId, stale);
           if (RECOVERABLE_TURN_ERRORS.has(err.code)) {
             // 可恢复:复用未变的散文/动作,回到 awaiting + 提示。
             set({ status: 'awaiting', notice: err.message });
