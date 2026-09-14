@@ -125,9 +125,29 @@ CI badge / 演示视频或 GIF。
 | **闸 A · 静默撤销** | [ADR-022 闸 A / 立字 11](adr/ADR-022-turn-admission-and-rejection-semantics.md) | 两条各自正确的规定撞在一起,**把上一刀的修法悄悄撤销,而前端测试全绿** |
 | **`catch(RuntimeException)` 的慢性失血** | [ADR-022 §审阅](adr/ADR-022-turn-admission-and-rejection-semantics.md) | 后果不是崩溃是**慢性失血**,且**日志与真实饱和长得一模一样** |
 
-### 0.4 架构图 + 回合时序图
+### 0.4 架构图 + 回合时序图 + 演示视频
 
-⚠️ **Felix 亲手,不归 CC。**
+原标注是「⚠️ Felix 亲手,不归 CC」。**那个标注标宽了,根因是默认了「图 = 图片」** —— 已拆:
+
+- **0.4a 架构图与回合时序图** —— ✅ **已落地(2026-09-14)**,见
+  [`docs/architecture.md`](architecture.md)。用 **Mermaid 不是 PNG**,判据与 `README.md:18`
+  那个「4 基础」同源:**图片是把会漂移的东西写死在那里,而且更重** —— 代码一改它就过期,
+  没有任何东西会变红,**它甚至不能被 grep**。Mermaid 是文本:能 diff、能被 lockstep 钉住。
+- **0.4b 演示视频** —— 仍归 Felix,**优先级已降低**:README 里已有可玩链接,
+  而**一个能玩的链接比一段视频强**(视频是「我说它能跑」,链接是「你自己看」)。
+
+#### ⚠️ 挂账:`architecture.md` 拒绝链图 ↔ `GameController.turn` javadoc 的 lockstep
+
+**与上面那条 README ↔ `ArchetypeRegistry` 完全同形,只是宿主换了一个。**
+
+0.4a 的拒绝链图**是 `GameController.turn` javadoc 里那张 ASCII 图的第二份渲染** ——
+同一条拒绝链,两个地方画,而 ASCII 那张是立字宿主(ADR-022 立字 6)。
+本刀给它加了**自认副本**的注(「两者对不上时改图,不改那里」),
+**但那只是措辞层的降级,不是机制** —— 改了 javadoc 而忘了改图,今天**不会有任何东西变红**。
+
+**形状(不是方案)**:测试读 `architecture.md` 里那张 sequenceDiagram 的拒绝码集合,
+与 `GameController` 源码中实际出现的 `jsonError(...)` 码对拍;加一格拒绝而忘了改图 → 变红。
+⚠️ 同样要做**变异验证**,且**同样这一刀做不了**:要写 `.java`,超出「纯 docs」范围。
 
 ---
 

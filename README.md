@@ -13,7 +13,7 @@
 完整规划与逐周进展见 [docs/ROADMAP.md](docs/ROADMAP.md)(中央档案,本文只给概览);
 工程纪律与它们各自防住过什么,见 [docs/engineering-practices.md](docs/engineering-practices.md)。
 
-<!-- 占位(求职线 0.4,Felix 亲手):演示 GIF / 架构图 / 回合时序图。CC 不代做。 -->
+结构、以及一次回合从点下去到 SSE 收流的生命周期(含拒绝链),见 [docs/architecture.md](docs/architecture.md)。
 
 ## 核心特性
 
@@ -150,6 +150,7 @@ API key 只进环境变量,**绝不写进 yaml / 代码 / 提交**。
 
 - [docs/ROADMAP.md](docs/ROADMAP.md) — 开发计划总览(中央档案:阶段、周度日志、ADR 索引)
 - [docs/CONTEXT.md](docs/CONTEXT.md) — 术语 / 统一 JSON Schema / 跨模块约定(约定的真理之源)
+- [docs/architecture.md](docs/architecture.md) — 架构图与回合时序图(结构 / 拒绝链 / 正常回合)。**图不是真理源**:拒绝链那张自认是 `GameController.turn` javadoc 里那张 ASCII 图的第二份渲染,对不上时改图不改那里
 - [docs/adr/](docs/adr/) — 技术决策记录
 - [docs/engineering-practices.md](docs/engineering-practices.md) — 工程纪律的对外面(**只收有真实实例的规矩**:规矩一句 + 一个能指回仓库的实例 + 它当时防住了什么;裁定的真理源仍在各 ADR,本文件只转写与索引)
 - [docs/case-studies/](docs/case-studies/README.md) — 案例集(失败 → 定位 → 修复)。**不是三次事故,是三个不同深度的拦截**:勘察 / 审阅 / 真机冒烟,**只有最后一条上过线**;每篇都回答同一个问题 ——「**它本可以怎样溜过去**」
