@@ -1,5 +1,6 @@
 package com.aiuniverse.server.eventloop;
 
+import java.time.Clock;
 import java.util.List;
 import java.util.Map;
 
@@ -50,6 +51,18 @@ public class EventLoopService implements TurnExecutor {
 	private final ObjectMapper mapper;
 	private final QuotaGate quota;
 	private final ArchetypeRegistry registry;
+	/**
+	 * 回合总耗时锚点的时钟(层 1 第 4 条)。<b>注入而非内联读时钟</b> —— 房规出处
+	 * {@code QuotaService} 的 {@code private final Clock clock}(其注释逐字:「测试注入假时钟零歧义」);
+	 * 立本条时全仓 {@code Instant.now()} / {@code nanoTime()} <b>零命中,这个项目至今没有一处内联读时钟</b>。
+	 * 破这条房规的直接后果是<b>这个锚点测不了</b>:真实耗时是变量,断言只能写成「&gt; 0」,
+	 * 而那在任何实现下都绿(与 {@code 0 == 0} 同形)——由一条注入假时钟的用例钉住。
+	 *
+	 * <p>⚠️ <b>取证边界</b>:{@code Clock.millis()} 是墙钟不是单调钟,理论上会被 NTP 校时扭曲。
+	 * 消费方是「超时那一刀」的量级判断(秒级),而房规的可测性收益压过这点理论误差;
+	 * 若日后真需要单调源,那是换实现不是换判据。
+	 */
+	private final Clock clock;
 
 	/** 无闸门形态(ADR-016 之前行为;既有测试调用点零改)。 */
 	public EventLoopService(LlmClient llm, TurnPromptBuilder promptBuilder, ObjectMapper mapper) {
@@ -69,15 +82,34 @@ public class EventLoopService implements TurnExecutor {
 	@Autowired
 	public EventLoopService(LlmClient llm, TurnPromptBuilder promptBuilder, ObjectMapper mapper,
 			QuotaGate quota, ArchetypeRegistry registry) {
+		this(llm, promptBuilder, mapper, quota, registry, Clock.systemUTC());
+	}
+
+	/**
+	 * 全参形态(层 1 第 4 条增 {@code clock}:回合总耗时锚点)。缺省重载补 {@link Clock#systemUTC()},
+	 * <b>既有构造调用点因此零改</b>(同 {@code SessionStore.NOOP} / {@code QuotaGate.NOOP} /
+	 * 上一条 {@code registry} 的既定接缝形态)。本参数<b>只为可测性存在</b>,见 {@link #clock} 字段注释。
+	 */
+	public EventLoopService(LlmClient llm, TurnPromptBuilder promptBuilder, ObjectMapper mapper,
+			QuotaGate quota, ArchetypeRegistry registry, Clock clock) {
 		this.llm = llm;
 		this.promptBuilder = promptBuilder;
 		this.mapper = mapper;
 		this.quota = quota;
 		this.registry = registry;
+		this.clock = clock;
 	}
 
 	@Override
 	public TurnResult execute(GameSession session, String actionId, TurnEventSink sink) {
+		// ── 回合总耗时锚点 · 起点(层 1 第 4 条)────────────────────────────────
+		// ⚠️ 消费方写死:**层 1 第 2 条「超时那一刀」**(ADR-022 已知代价 3:名额被长期占用
+		// **无时间上界**,要定一个超时值今天只能拍脑袋)。**不是统计脚本** —— 后者维持冻结。
+		//
+		// ⚠️ 端点取「池线程开跑 → 回合结束」而非「请求进容器线程 → SSE 收流」:超时那一刀要掐的是
+		// **worker**,而 ADR-022 立字「名额跟 worker 走、不跟 emitter 走」;用户感知时长包含准入排队,
+		// **那个数拿来定超时会定偏**。本方法已在池线程上(准入名额之内),故起点就在这里。
+		long startedAtMs = clock.millis();
 		Engine engine = session.engine();
 		String actionText = actionTextOf(session, actionId);
 		String prompt = promptBuilder.buildTurnPrompt(engine, actionId, actionText);
@@ -95,7 +127,7 @@ public class EventLoopService implements TurnExecutor {
 			// 流中断:flush 残留(不会再有哨兵),把已生成的部分叙事当氛围,再保守 no-op。
 			splitter.end();
 			log.warn("[event-loop] save={} 主调用流中断,保守 no-op 降级:{}", session.saveId(), e.getMessage());
-			return degrade(session, actionId, narrativeBuf.toString(), sink);
+			return degrade(session, actionId, narrativeBuf.toString(), sink, startedAtMs);
 		}
 		splitter.end();
 		logUsage(session, "主调用", usage);
@@ -108,7 +140,7 @@ public class EventLoopService implements TurnExecutor {
 		if (narrative.isBlank() || !splitter.sentinelSeen() || tail.isBlank()) {
 			log.warn("[event-loop] save={} 叙事空或无结构化尾巴(sentinel={}),保守 no-op 降级",
 					session.saveId(), splitter.sentinelSeen());
-			return degrade(session, actionId, narrative, sink);
+			return degrade(session, actionId, narrative, sink, startedAtMs);
 		}
 
 		// ── SETTLING:回灌 → 校验 → (修复) → apply ──
@@ -117,9 +149,9 @@ public class EventLoopService implements TurnExecutor {
 			parsed = repairOnce(session, narrative, tail, sink);
 		}
 		if (parsed == null) {
-			return degrade(session, actionId, narrative, sink);
+			return degrade(session, actionId, narrative, sink, startedAtMs);
 		}
-		return settle(session, parsed, actionId, sink);
+		return settle(session, parsed, actionId, sink, startedAtMs);
 	}
 
 	/** 回灌 + 校验;通过返回节点,任何失败(解析/校验)返回 null(交修复)。校验<b>必经回灌后节点</b>(§9)。 */
@@ -162,7 +194,8 @@ public class EventLoopService implements TurnExecutor {
 	}
 
 	/** 落账 + 发事件(消毒)。先 apply(数值/规则/结局),再据 status 发 delta / ending。 */
-	private TurnResult settle(GameSession session, ObjectNode parsed, String actionId, TurnEventSink sink) {
+	private TurnResult settle(GameSession session, ObjectNode parsed, String actionId, TurnEventSink sink,
+			long startedAtMs) {
 		Engine engine = session.engine();
 		clampClosingVigorFloor(session, parsed);
 		List<String> leak = engine.apply(parsed, actionId);
@@ -171,8 +204,11 @@ public class EventLoopService implements TurnExecutor {
 					session.saveId(), engine.turn(), leak);
 		}
 		// 可观测性(E'' 顺带):正常回合一条 INFO(action + 落账后数值 + 提议 ending),冒烟排查不再解剖 heap。
-		log.info("[event-loop] save={} T{} action={} 落账 attrs={} ending={}",
-				session.saveId(), engine.turn(), actionId, engine.attributes(),
+		// ⚠️ durMs = 回合总耗时锚点 · 终点其一(层 1 第 4 条)。**两条终止路径都要打**:只打这一处,
+		// 新锚点一出生就带着 per-turn INFO 已有的那个病 —— degrade() 不打它,**降级回合会被漏出分母**,
+		// 而**降级回合恰恰是最可能耗时异常的那一类**(流中断 / 修复仍败),漏掉它等于专门漏掉要找的样本。
+		log.info("[event-loop] save={} T{} durMs={} action={} 落账 attrs={} ending={}",
+				session.saveId(), engine.turn(), clock.millis() - startedAtMs, actionId, engine.attributes(),
 				parsed.path("ending").isNull() ? "null" : parsed.path("ending").path("id").asString(""));
 		updateActionsFromParsed(session, parsed);
 		sink.delta(buildDelta(session));
@@ -195,10 +231,14 @@ public class EventLoopService implements TurnExecutor {
 	}
 
 	/** 保守 no-op 降级(§6.5/§6.6):turn++、不脏写、复用动作、响亮告警、发 delta 让玩家可继续。 */
-	private TurnResult degrade(GameSession session, String actionId, String narrative, TurnEventSink sink) {
+	private TurnResult degrade(GameSession session, String actionId, String narrative, TurnEventSink sink,
+			long startedAtMs) {
 		Engine engine = session.engine();
 		engine.applyNoOp(narrative, actionId);
-		log.warn("[event-loop] save={} 回合 no-op 降级落地:turn={} hp/san 未动,复用上一组动作", session.saveId(), engine.turn());
+		// ⚠️ durMs = 回合总耗时锚点 · 终点其二(层 1 第 4 条)。见 settle() 那处注释:这一处才是
+		// 「降级回合不被漏出分母」的落点,**摘掉它这条约束就是一句空话**(由一条独立变异用例钉住)。
+		log.warn("[event-loop] save={} 回合 no-op 降级落地:turn={} durMs={} hp/san 未动,复用上一组动作",
+				session.saveId(), engine.turn(), clock.millis() - startedAtMs);
 		sink.delta(buildDelta(session)); // 复用 session.currentActions(未更新)
 		return new TurnResult(false);
 	}
