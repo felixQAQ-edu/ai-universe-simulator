@@ -552,7 +552,7 @@ world-gen 首轮有效率 / 修复后成功率 / 回合 TTFT / P50–P95 总延�
 | 修复后成功率 | ✅ | 上述 WARN 数 − `修复后仍未过校验` ERROR 数 |
 | 平均 token | ✅ | usage INFO 三字段齐(`fc1491d` + `46a22b8`) |
 | 单回合成本 | ✅ | 用 `QuotaService.costCny` 同一公式离线复算(三段价在 `application.yml`) |
-| no-op 降级比例 | ✅ | `回合 no-op 降级落地` WARN 是唯一出口;分母 = per-turn INFO 计数 |
+| no-op 降级比例 | ✅ | `回合 no-op 降级落地` WARN 是唯一出口;分母 = per-turn INFO **+ 降级 WARN**(⚠️ 2026-09-15 就地订正:原写「分母 = per-turn INFO 计数」是**配方错** —— per-turn INFO 只在 `settle()` 打、`degrade()` 不打,**降级回合被漏出分母,比率偏大**) |
 | 最长连续回合数 | ✅ | per-turn INFO 的 `T{n}`;**更稳的源** = `/data/<saveId>.json` 的 `state.turn` |
 | **单局成本** | ⚠️ 半个 | 回合侧带 saveId 可归并;**world-gen usage 行不带 saveId/archetype**,那一发(全局最贵)无法归属到局 |
 | **TTFT / P50–P95 / 回合耗时** | ❌ | **链路上从未有过时间锚**,见下 ③ |
@@ -592,7 +592,10 @@ world-gen 首轮有效率 / 修复后成功率 / 回合 TTFT / P50–P95 总延�
    (同 §2.2 `unknown` 的判据)。
 3. **延迟三项(TTFT / 延迟 P50–P95 / 回合耗时)—— 永久移出本刀范围。**
    勘察实证:**不是「没统计」,是链路上从未有过时间锚**——`GameController.turn` 不打日志,
-   全 `server/src/main/java` 内零计时埋点(`nanoTime`/`Instant.now` 只命中两个超时常量),
+   全 `server/src/main/java` 内零计时埋点(**实测 `nanoTime` / `currentTimeMillis` / `Instant.now` /
+   `StopWatch` 四个 API 全仓零命中**;`OpenAiCompatLlmClient:36-37` 那两个是
+   `Duration.ofSeconds` **字面常量,不是计时调用** —— 2026-09-15 就地订正,原措辞写作
+   「只命中两个超时常量」,方向一致而读数更强),
    一个成功回合的**第一条**日志(`usage 主调用`)在 `llm.streamChat(...)` **返回之后**才打,
    流已经跑完;**现有时间戳推不出**。要它就是**埋点那一刀**,单独挂账、**不排期**。
    简历里那三个方括号**空着**。
