@@ -145,6 +145,7 @@ API key 只进环境变量,**绝不写进 yaml / 代码 / 提交**。
 - [ADR-021](docs/adr/ADR-021-lifetime-family-layer-and-animal-life.md) — 一生制族层抽取(补上「族」这一层)与第二个实例《动物人生》
 - [ADR-022](docs/adr/ADR-022-turn-admission-and-rejection-semantics.md) — 回合线程池准入与拒绝语义:让「此刻太挤」成为一个有名字的拒绝
 - [ADR-023](docs/adr/ADR-023-turn-cursor-idempotency.md) — 回合游标幂等:让「你手里这一局比服务端旧」成为一个有名字的拒绝
+- [ADR-024](docs/adr/ADR-024-stream-segment-deadline.md) — 流式段总时长上界:让「慢但还在流」的回合自己掐掉自己
 
 ## 文档
 
