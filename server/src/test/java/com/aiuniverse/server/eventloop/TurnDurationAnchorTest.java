@@ -53,8 +53,20 @@ class TurnDurationAnchorTest {
 	private final TurnPromptBuilder prompts = new TurnPromptBuilder(new ArchetypeRegistry());
 
 	/**
-	 * 按脚本逐次回时刻的假时钟。<b>脚本耗尽即抛</b>——那同时钉住「一个回合恰好读两次时钟」:
+	 * 按脚本逐次回时刻的假时钟。<b>脚本耗尽即抛</b>——那同时钉住「一个回合读时钟的次数是可数的」:
 	 * 多读一次会当场炸,而不是悄悄给出一个看着合理的数。
+	 *
+	 * <p><b>不变量(ADR-024 就地订正)</b>:一个回合读 <b>3 + N</b> 次时钟 ——
+	 * 起点锚点 1 次 + <b>每个流式段的守卫起点 1 次</b> + <b>每个 token 1 次</b> + 终点锚点 1 次
+	 * (N = 该段的 token 数;本文件的 {@code ScriptedLlm} 每次 {@code streamChat} 恰好吐 1 个 token,
+	 * 且两条用例都不触发修复发,故 N = 1 ⇒ <b>每条用例恰好 4 格</b>)。
+	 *
+	 * <p>⚠️ <b>原措辞是「一个回合恰好读两次时钟」,已就地订正、两个口径不并存。</b>
+	 * <b>改的是它描述的数字,不是这条夹具的意图</b>——意图(多读一次就炸)一字不动且仍然成立:
+	 * ADR-024 让实现每 token 多读一次,那个不变量<b>本身确实变了</b>,而它变了正是那一刀的实现事实。
+	 *
+	 * <p>⚠️ <b>脚本按精确长度写,不给富余</b>:给一个「够长」的脚本等于把这个不变量<b>悄悄扔掉</b>,
+	 * 而文件看起来还在守着它。
 	 */
 	private static final class ScriptedClock extends Clock {
 		private final Deque<Instant> ticks = new ArrayDeque<>();
@@ -162,8 +174,10 @@ class TurnDurationAnchorTest {
 		ScriptedLlm llm = new ScriptedLlm();
 		llm.script(validWire());
 
-		// 起点 1_000_000 → 终点 1_001_234 ⇒ 期望 durMs=1234(可预期的固定时长,见类注释)。
-		serviceWithClock(llm, new ScriptedClock(1_000_000L, 1_001_234L))
+		// 4 格 = 起点锚点 / 守卫起点 / 1 个 token / 终点锚点(见 ScriptedClock 注释的 3 + N 不变量)。
+		// 起点 1_000_000 → 终点 1_001_234 ⇒ 期望 durMs=1234(可预期的固定时长,见类注释);
+		// 中间两格相距 10ms,远在 ADR-024 的流式段上界之内,故守卫不参与本条用例的判定。
+		serviceWithClock(llm, new ScriptedClock(1_000_000L, 1_000_010L, 1_000_020L, 1_001_234L))
 				.execute(session(), "A", new SilentSink());
 
 		assertThat(messagesAt(logs, Level.INFO))
@@ -180,7 +194,8 @@ class TurnDurationAnchorTest {
 			throw new LlmException("连接中断");
 		};
 
-		serviceWithClock(failing, new ScriptedClock(2_000_000L, 2_004_321L))
+		// 同上 4 格;守卫看到的流式段只走了 10ms,掐断与否与本条无关(本条验的是降级路径打不打 durMs)。
+		serviceWithClock(failing, new ScriptedClock(2_000_000L, 2_000_010L, 2_000_020L, 2_004_321L))
 				.execute(session(), "A", new SilentSink());
 
 		assertThat(messagesAt(logs, Level.WARN))

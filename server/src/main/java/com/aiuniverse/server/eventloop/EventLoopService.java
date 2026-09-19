@@ -16,6 +16,7 @@ import com.aiuniverse.server.engine.GameSchemas;
 import com.aiuniverse.server.llm.ChatRequest;
 import com.aiuniverse.server.llm.LlmClient;
 import com.aiuniverse.server.llm.LlmException;
+import com.aiuniverse.server.llm.TokenStream;
 import com.aiuniverse.server.llm.UsageCapture;
 import com.aiuniverse.server.quota.QuotaGate;
 
@@ -63,6 +64,67 @@ public class EventLoopService implements TurnExecutor {
 	 * 若日后真需要单调源,那是换实现不是换判据。
 	 */
 	private final Clock clock;
+
+	/**
+	 * 流式段总时长上界(<b>ADR-024</b>)。<b>常量,不做可配置</b>——配置项要有人调才有价值,而今天没有人会调它。
+	 *
+	 * <p><b>依据</b>:层 1 第 4 条那对锚点的第一份真机读数(2026-09-17,{@code n=16}):
+	 * min 2700 / p50 3421 / p90 4083 / <b>max 6327 ms</b>。20 秒 ≈ 最大值的 3 倍余量,且明显低于
+	 * {@code OpenAiCompatLlmClient.REQUEST_TIMEOUT}(60s),故两层不打架(不会「两个超时互相抢先」)。
+	 *
+	 * <p>⚠️ <b>脆弱性同处记死</b>:这个值的依据是 {@code n=16} 且<b>右尾缺失</b>(那 16 个样本
+	 * <b>全部来自成功路径</b>,降级 0 次),而 {@code durMs} 还<b>系统性偏小</b>(不含 {@code store.persist()})。
+	 * <b>首次上线后须按真实降级率回看</b>;回看只认一个方向——<b>出现过一次误掐就必须调大,
+	 * 而「从没掐到过」不构成调小的理由</b>。
+	 *
+	 * <p><b>它要挡的是「卡了二十秒」,不是「比平时慢一倍」</b>——
+	 * <b>一个会误掐正常回合的超时,比没有超时更糟</b>。
+	 */
+	private static final long STREAM_DEADLINE_MS = 20_000L;
+
+	/**
+	 * 流式段总时长上界守卫(ADR-024 立字 2/3/4)——<b>worker 线程自己看表,自己掐自己</b>。
+	 *
+	 * <p><b>为什么不需要任何人从外面看它</b>:token 回调<b>就跑在 worker 线程上</b>。故不起看门线程、
+	 * 不给 {@link com.aiuniverse.server.llm.LlmClient} / {@link TokenStream} 开句柄
+	 * (ADR-005 那条接缝逐字写着「不在本接口上堆回调」),过线就 {@code throw new LlmException},
+	 * 异常顺着 {@code streamChat} 传出去落进<b>已经存在</b>的 {@code catch}。
+	 * ⚠️ <b>本刀因此不引入任何「必须永不失败的写操作」</b>——那正是 ADR-022 立字 5 拒绝前移守卫 2 的唯一理由。
+	 *
+	 * <p><b>插在这一层(立字 3)</b>:调用点是 {@code new UsageCapture(streamDeadlineGuard(...))},
+	 * 即守卫在 {@link UsageCapture} <b>里层</b>。
+	 * <ul>
+	 *   <li>包在 {@code UsageCapture} <b>外层</b>会让守卫必须自己转发 {@code onUsage},<b>忘了就静默丢 usage</b>
+	 *       ({@code UsageCapture} 的 javadoc 逐字:无 usage 时「静默跳过日志(不告警)」)——
+	 *       插在里层则 {@code onUsage} 被它在上面截住,守卫<b>根本拿不到、也就没有可忘的转发</b>。</li>
+	 *   <li>插进 {@link SentinelSplitter} 的 narrativeSink 则更糟:{@code SentinelSplitter} 的 javadoc 逐字
+	 *       「命中完整哨兵后,其后所有字符进尾巴」——<b>尾巴 token 不经过 narrativeSink</b>,
+	 *       于是尾巴阶段卡住时守卫一声不吭,<b>是个静默的覆盖空洞</b>。</li>
+	 * </ul>
+	 *
+	 * <p><b>每段独立(立字 4)</b>:主调用一段、修复发一段,各自 {@value #STREAM_DEADLINE_MS} ms,
+	 * 本方法每被调用一次读一次起点。⚠️ <b>理由不是名字,是误伤代价不对称</b>——
+	 * 「两段共用一个预算」的失效模式<b>正是误伤</b>(一个本来会成功的回合,因主调用慢而<b>没收了修复发的预算</b>),
+	 * 而每段独立的失效模式是「慢了一倍才掐」。<b>上界到顶</b>:本类 javadoc 逐字「一次修复」→
+	 * <b>最坏 2 × 20 = 40 秒,不随发数漂</b>(修复发若变成两发以上,这个上界当场失效,回 ADR-024 重算)。
+	 *
+	 * <p><b>每 token 读一次时钟,不降频</b>:{@code clock.millis()} 约 20–30ns,每回合 ~300 次 ≈ 10μs,
+	 * 对照回合中位 3421ms。<b>降频唯一的独立理由(性能)就是被这个数算没的</b>;
+	 * 去掉它之后,降频剩下的唯一效果是让既有的 1-token 夹具不必改——
+	 * <b>那是为了让老测试绿而选的实现参数,不选,也不要因为它更省事而回来选它</b>(ADR-024 方案 C)。
+	 */
+	private TokenStream streamDeadlineGuard(TokenStream delegate) {
+		long segmentStartedAtMs = clock.millis();
+		return token -> {
+			long elapsedMs = clock.millis() - segmentStartedAtMs;
+			// 闭合方向写死:`>` 才掐,恰好等于上界放过(边界由两条纯时钟脚本用例钉住)。
+			if (elapsedMs > STREAM_DEADLINE_MS) {
+				throw new LlmException("流式段超过 " + STREAM_DEADLINE_MS + "ms 上界(已流 " + elapsedMs
+						+ "ms),自掐降级");
+			}
+			delegate.onToken(token);
+		};
+	}
 
 	/** 无闸门形态(ADR-016 之前行为;既有测试调用点零改)。 */
 	public EventLoopService(LlmClient llm, TurnPromptBuilder promptBuilder, ObjectMapper mapper) {
@@ -120,7 +182,7 @@ public class EventLoopService implements TurnExecutor {
 			narrativeBuf.append(inc);
 			sink.narrative(inc);
 		});
-		UsageCapture usage = new UsageCapture(splitter::accept);
+		UsageCapture usage = new UsageCapture(streamDeadlineGuard(splitter::accept));
 		try {
 			llm.streamChat(new ChatRequest(prompt, false), usage);
 		} catch (LlmException e) {
@@ -181,7 +243,7 @@ public class EventLoopService implements TurnExecutor {
 		String repairPrompt = promptBuilder.buildRepairPrompt(failedTail, errors);
 
 		StringBuilder repairBuf = new StringBuilder(); // 修复发不下发叙事(叙事已 canonical),只收尾巴
-		UsageCapture usage = new UsageCapture(repairBuf::append);
+		UsageCapture usage = new UsageCapture(streamDeadlineGuard(repairBuf::append));
 		try {
 			llm.streamChat(new ChatRequest(repairPrompt, true), usage);
 		} catch (LlmException e) {
