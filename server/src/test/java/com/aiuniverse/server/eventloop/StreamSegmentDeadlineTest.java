@@ -50,6 +50,7 @@ import tools.jackson.databind.node.ObjectNode;
  * <p>⚠️ <b>第 1 条为什么不是「摘掉守卫接线」</b>:那个更直觉的变异<b>同时改变了每回合读时钟的次数</b>,
  * 会把 {@code TurnDurationAnchorTest} 的精确脚本一并弄红 —— <b>那时候红的是格数,不是语义</b>,
  * 隔离性当场丢掉。改阈值则读时钟次数逐次不变,红的只剩语义那一条。
+ * <b>接线本身仍然有守护</b>:摘掉它,{@link #streamOverDeadlineSelfKillsIntoDegrade} 照样红,只是同时会有一条红得不干净 —— <b>这里选的不是「唯一能红的」,是「唯一红得干净的」</b>。
  */
 class StreamSegmentDeadlineTest {
 
