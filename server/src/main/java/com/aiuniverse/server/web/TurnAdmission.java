@@ -66,6 +66,21 @@ public final class TurnAdmission {
 		this.permits = new Semaphore(props.maxConcurrent());
 		this.owned = Executors.newCachedThreadPool();
 		this.executor = this.owned;
+		// 启动就把**现值**说出来(ADR-022 §挂账「准入容量的现值不可观测」)。
+		// ⚠️ 打的是 props 解析后的**实际生效值**,不是 application.yml 里那个字面量
+		// ——「8」在仓库里写了两处(yml 的 max-concurrent 与 TurnProperties 的 @DefaultValue),
+		// 而 env(AIUNIVERSE_TURN_MAX_CONCURRENT)一覆盖两处都不作数;只有这里读到的是真的那个。
+		//
+		// **谁读它、读了做什么决定**(第 4 条护栏:答不上来的字段不加):
+		//   ① 诊断 503 server_at_capacity 的人 —— 没有 N,判断不了「真满」还是「名额泄漏」。
+		//      那正是上面 Throwable 那段说的慢性失血:N 被漏到多少,终态日志与真实饱和一模一样。
+		//   ② **冒烟压到 1 之后忘了撤 env** —— 线上跑在 N=1、每第二个并发请求被 503。
+		//      下面那条拒绝 WARN 的分母虽然也说出 N,**但它只在已经拒了人之后才出现**;
+		//      这一行是唯一能在伤到人之前看见它的地方。
+		//
+		// ⚠️ **只打在生产构造器**:测试构造器的容量由调用方直接给,不存在「实际生效值是多少」这个问题,
+		// 而它每轮跑十几次 —— 往一条刀 2 前置刚清干净的通道里加背景音,正是那一刀要防的事。
+		log.info("[turn-admission] 准入容量 N={}", capacity);
 	}
 
 	/**

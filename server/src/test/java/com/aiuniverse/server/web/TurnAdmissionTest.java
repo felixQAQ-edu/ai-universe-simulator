@@ -207,6 +207,28 @@ class TurnAdmissionTest {
 		assertThat(logsAt(Level.WARN)).containsExactly("[turn-admission] save=s3 拒绝 inFlight=2/2");
 	}
 
+	/**
+	 * 启动 INFO 打的是<b>运行时实际生效的容量</b>(ADR-022 §挂账「准入容量的现值不可观测」)。
+	 *
+	 * <p>⚠️ <b>走生产构造器(读 props 的那个),不是测试构造器</b>:要守的正是
+	 * 「env 覆盖之后线上读到的是不是真值」那条路径 —— 测试构造器的容量由调用方直接给,
+	 * 「实际生效值是多少」这个问题在那条路上根本不存在。
+	 *
+	 * <p>⚠️ <b>容量刻意取非默认的 3</b>:拿默认值 8 去测,「把打印改成字面量 {@code 8}」这个变异会
+	 * <b>假绿</b> —— 断言与被测值碰巧相等,判据就不再判任何事(同 ADR-023 那次 {@code 0 == 0} 的形状)。
+	 */
+	@Test
+	void startupLogsResolvedCapacityFromProps() {
+		captureLogs();
+
+		TurnAdmission admission = new TurnAdmission(new TurnProperties(3));
+		try {
+			assertThat(logsAt(Level.INFO)).containsExactly("[turn-admission] 准入容量 N=3");
+		} finally {
+			admission.shutdown(); // 生产构造器自建了池,测试里自己关掉
+		}
+	}
+
 	/** 通过的请求<b>不打日志</b>:观测面最小面锁死,「零拒绝」时这条通道该是安静的。 */
 	@Test
 	void admittedRequestsAreSilent() {
