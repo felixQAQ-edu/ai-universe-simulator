@@ -9,6 +9,7 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import com.aiuniverse.server.persistence.NarrativeHistoryReader.EventEntry;
@@ -25,9 +26,16 @@ import com.aiuniverse.server.persistence.NarrativeHistoryReader.EventEntry;
  * 存在性、sessionTurn、事件全部来自库。内存可能比库多一回合(persist 在断流时被跳过),历史只报库里有的。
  * 推论:会话在内存里但库里没有行(create 那次 persist 失败)→ 历史回 404,直到下一次成功 persist。
  *
- * <h2>一致性</h2>
- * 同一只读事务内先读会话行、再读事件。persist 把快照与事件写在同一事务里,故读到的 sessionTurn = N 时,
- * turn ≤ N 的事件都已提交;之后提交的更大回合被 sessionTurn 截掉,不会出现「事件比会话新」的页。
+ * <h2>一致性:整个事务读同一个快照(REPEATABLE READ)</h2>
+ * 三条语句跑在<b>同一个 REPEATABLE READ 只读事务</b>里 —— PG 在这一隔离级下整个事务只取一次快照,
+ * 三条语句看到的是同一个时刻的库。一页历史的正确性<b>靠的是这一点</b>。
+ *
+ * <p>⚠️ 此前这里写的理由是「先读会话行、再按 sessionTurn 截断事件,故不会出现事件比会话新」——
+ * <b>那条理由不成立</b>:PG 默认 READ COMMITTED 是<b>每条语句</b>一个快照。两条语句之间若有 persist 提交,
+ * 截断只挡得住「比 sessionTurn 大」的回合,挡不住补齐规则回填进来的「≤ sessionTurn」的回合
+ * (例:读会话时 turn 2–3 还是写失败空洞,persist 在两条语句之间补齐了它们 → 同一页里会话说有洞、事件说没洞)。
+ * 导入档第一条事件的回合也会随之漂移,把「此前未被记录」与「写失败」的分界算错。
+ * 只读事务在这一隔离级下不会出现序列化失败(PG 只对写冲突报 40001)。
  *
  * <h2>超时</h2>
  * 与 persist 同一套 pg 配置(取连接 / 事务超时 / 套接字超时,{@code application-pg.yml}),
@@ -57,6 +65,8 @@ public class JdbcNarrativeHistoryReader implements NarrativeHistoryReader {
 		this.jdbc = jdbc;
 		this.tx = new TransactionTemplate(txManager);
 		this.tx.setReadOnly(true);
+		// 整个事务读同一个快照 —— 见类注释「一致性」。去掉这一行,三条语句各读各的时刻。
+		this.tx.setIsolationLevel(TransactionDefinition.ISOLATION_REPEATABLE_READ);
 		this.tx.setTimeout(txTimeoutSeconds);
 	}
 

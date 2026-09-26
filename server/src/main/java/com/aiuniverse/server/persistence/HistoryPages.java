@@ -23,9 +23,21 @@ final class HistoryPages {
 	private HistoryPages() {
 	}
 
-	/** 本页名义区间下界(含)。首页从 turn 0 开始。 */
+	/**
+	 * 本页名义区间下界(含)。首页从 turn 0 开始。
+	 *
+	 * <p>{@code afterTurn} 必须在 [0, Integer.MAX_VALUE) 内:入口 {@code GameController.parseCursor} 已把
+	 * MAX_VALUE 判为 {@code invalid_after_turn}(它之后的回合在 int 里不可表示,照算会溢出成负数)。
+	 * 这里再抛一次,是为了让绕过入口的调用方响而不是静默拿到负回合号。
+	 */
 	static int fromTurn(Integer afterTurn) {
-		return afterTurn == null ? 0 : afterTurn + 1;
+		if (afterTurn == null) {
+			return 0;
+		}
+		if (afterTurn < 0 || afterTurn == Integer.MAX_VALUE) {
+			throw new IllegalArgumentException("afterTurn 越界:" + afterTurn);
+		}
+		return afterTurn + 1;
 	}
 
 	/** 本页名义区间上界(含)。溢出钳到 Integer.MAX_VALUE。 */

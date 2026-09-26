@@ -145,7 +145,7 @@ public class GameController {
 		} else {
 			cursor = parseCursor(afterTurn);
 			if (cursor == null) {
-				return jsonError(HttpStatus.BAD_REQUEST, "invalid_after_turn", "afterTurn 必须是非负整数");
+				return jsonError(HttpStatus.BAD_REQUEST, "invalid_after_turn", "afterTurn 必须是小于 2147483647 的非负整数");
 			}
 		}
 		return switch (history.read(saveId, cursor)) {
@@ -165,7 +165,12 @@ public class GameController {
 			return null;
 		}
 		try {
-			return Integer.parseInt(raw);
+			int n = Integer.parseInt(raw);
+			// Integer.MAX_VALUE 判为非法而不是改用 long 算区间:它之后的下一回合(fromTurn = afterTurn + 1)
+			// 在 int 里不可表示 —— 照 int 算会溢出成负数、回出负回合号;改 long 则要把 wire 上的
+			// fromTurn / toTurn 一起改类型,只为一个任何局都到不了的值。回合号本身是 int,
+			// 「MAX_VALUE 之后」不存在任何回合,拒绝它不丢失任何可读的历史。
+			return n == Integer.MAX_VALUE ? null : n;
 		} catch (NumberFormatException e) {
 			return null;
 		}

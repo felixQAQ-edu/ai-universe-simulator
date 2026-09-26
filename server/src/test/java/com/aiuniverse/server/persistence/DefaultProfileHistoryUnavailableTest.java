@@ -54,7 +54,7 @@ class DefaultProfileHistoryUnavailableTest {
 	}
 
 	@ParameterizedTest
-	@ValueSource(strings = { "-1", "abc", "1.5", "+3", "", " 7", "99999999999" })
+	@ValueSource(strings = { "-1", "abc", "1.5", "+3", "", " 7", "99999999999", "2147483647" })
 	void invalidAfterTurnIsBadRequest(String raw) throws Exception {
 		MvcResult r = mvc.perform(get("/api/game/any-save/history").param("afterTurn", raw)).andReturn();
 		assertThat(r.getResponse().getStatus()).as("afterTurn=[%s]", raw).isEqualTo(400);

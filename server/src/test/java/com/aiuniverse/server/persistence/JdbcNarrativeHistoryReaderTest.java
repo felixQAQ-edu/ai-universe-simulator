@@ -67,6 +67,10 @@ class JdbcNarrativeHistoryReaderTest {
 	SessionStore store;
 	@Autowired
 	NarrativeHistoryReader reader;
+	@Autowired
+	javax.sql.DataSource dataSource;
+	@Autowired
+	org.springframework.transaction.PlatformTransactionManager txManager;
 
 	private MockMvc mvc;
 
@@ -239,6 +243,77 @@ class JdbcNarrativeHistoryReaderTest {
 		assertThat(body).contains("开场。"); // 确实读到了这一局
 		assertThat(body).doesNotContain(HIDDEN_MARK).doesNotContain("hiddenLogic").doesNotContain("isTrue")
 				.doesNotContain("熄灯后不要回头");
+	}
+
+	// ── 一致性:整页读同一个快照 ────────────────────────────────────────
+
+	/**
+	 * 在「读会话行」与「读事件」两条语句<b>之间</b>确定性地插入一次并发提交(另一条连接,autocommit),
+	 * 模拟 persist 的补齐:把写失败空洞 2–3 回填、推进到 turn 4。
+	 *
+	 * <p>REPEATABLE READ 下整个事务只取一次快照(第一条语句时),那次提交不可见 → 页里是读会话那一刻的样子:
+	 * 空洞 2–3 仍是 write_failed。READ COMMITTED 下第二条语句会看到回填的 2、3 → 会话说有洞、事件说没洞。
+	 * 去掉 {@code setIsolationLevel(REPEATABLE_READ)} 这一行 → 本条变红(变异 ⑥)。
+	 */
+	@Test
+	void concurrentBackfillBetweenStatementsIsInvisibleWithinOnePage() {
+		session("save-1", "native", 3);
+		event("save-1", 0, "开场。", null);
+		event("save-1", 1, "一。", "A");
+
+		JdbcTemplate racing = new JdbcTemplate(dataSource) {
+			@Override
+			public <T> List<T> query(String sql, org.springframework.jdbc.core.RowMapper<T> rm, Object... args) {
+				List<T> out = super.query(sql, rm, args);
+				if (JdbcNarrativeHistoryReader.SELECT_SESSION.equals(sql)) {
+					commitBackfillOnSeparateConnection();
+				}
+				return out;
+			}
+		};
+		NarrativeHistoryReader r = new JdbcNarrativeHistoryReader(racing, txManager, 5);
+
+		NarrativeHistoryReader.HistoryPage page = ((NarrativeHistoryReader.Found) r.read("save-1", null)).page();
+		assertThat(page.sessionTurn()).isEqualTo(3);
+		assertThat(page.entries()).extracting(Object::toString).hasSize(3);
+		assertThat(page.entries().get(2)).isEqualTo(
+				new NarrativeHistoryReader.GapEntry(NarrativeHistoryReader.GapEntry.WRITE_FAILED, 2, 3));
+		// 提交确实发生了(否则本条什么也没证明):库里现在有 2–4
+		assertThat(jdbc.queryForObject("SELECT count(*) FROM game_event WHERE save_id='save-1'", Integer.class))
+				.isEqualTo(5);
+	}
+
+	private void commitBackfillOnSeparateConnection() {
+		// 必须是裸连接:走 JdbcTemplate(dataSource) 会拿到当前事务绑定的那条连接,就不是「并发」了。
+		try (java.sql.Connection c = dataSource.getConnection(); java.sql.Statement st = c.createStatement()) {
+			c.setAutoCommit(true);
+			st.executeUpdate("INSERT INTO game_event (save_id, turn, narrative, player_action) VALUES "
+					+ "('save-1', 2, '二。', 'A'), ('save-1', 3, '三。', 'B'), ('save-1', 4, '四。', 'C')");
+			st.executeUpdate("UPDATE game_session SET turn = 4 WHERE save_id = 'save-1'");
+		} catch (java.sql.SQLException e) {
+			throw new IllegalStateException(e);
+		}
+	}
+
+	// ── 游标上界 ──────────────────────────────────────────────────────
+
+	@Test
+	void afterTurnIntMaxIsRejectedAndNeverYieldsNegativeTurns() throws Exception {
+		session("save-1", "native", 3);
+		event("save-1", 0, "开场。", null);
+
+		MvcResult r = mvc.perform(get("/api/game/save-1/history?afterTurn=2147483647")).andReturn();
+		assertThat(r.getResponse().getStatus()).isEqualTo(400);
+		String body = r.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+		assertThat(mapper.readTree(body).path("error").path("code").asString()).isEqualTo("invalid_after_turn");
+		assertThat(body).doesNotContainPattern("-\\d");
+
+		// 最后一个合法游标:区间落在 [MAX, MAX],无负数、空页、到头
+		JsonNode page = ok("save-1", Integer.MAX_VALUE - 1);
+		assertThat(page.path("fromTurn").asInt()).isEqualTo(Integer.MAX_VALUE);
+		assertThat(page.path("toTurn").asInt()).isEqualTo(Integer.MAX_VALUE);
+		assertThat(page.path("entries").size()).isZero();
+		assertThat(page.path("nextAfterTurn").isNull()).isTrue();
 	}
 
 	// ── 错误形态 ──────────────────────────────────────────────────────
