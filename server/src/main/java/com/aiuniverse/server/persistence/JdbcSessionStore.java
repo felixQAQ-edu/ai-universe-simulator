@@ -51,7 +51,7 @@ public class JdbcSessionStore implements SessionStore {
 
 	/** 首次插入写 'native';冲突时只更新快照三列 + updated_at,<b>source 不在 UPDATE 列表里</b>。 */
 	static final String UPSERT_SESSION = "INSERT INTO game_session (save_id, snapshot, turn, status, source) "
-			+ "VALUES (?, ?::jsonb, ?, ?, 'native') "
+			+ "VALUES (?, ?::json, ?, ?, 'native') "
 			+ "ON CONFLICT (save_id) DO UPDATE SET snapshot = EXCLUDED.snapshot, turn = EXCLUDED.turn, "
 			+ "status = EXCLUDED.status, updated_at = now()";
 

@@ -5,9 +5,13 @@
 -- ⚠️ 读 API(刀 2)永不读 snapshot 列 —— 它不是给玩家看的。
 -- 刻意不建 version 列:乐观锁要在 turn_request 那一刀、两段式成立之后才有意义;
 -- 今天单写者由忙态 CAS 保证(ADR-015 勘察 2)。建了不读的列会让后来者以为乐观锁已经在了。
+-- snapshot 用 json 而不是 JSONB(刀 1 裁定):JSONB 重排对象键序 → restore 往返不再逐字节
+-- → 重启后视图 2(喂模型的那份)字节变化,撞 ADR-025 已知代价 1 的往返守护;
+-- 快照只按 save_id 整份读写、从不在库内查询其内部字段,JSONB 的收益用不上;
+-- json 仍校验合法性,故不选 text。
 CREATE TABLE game_session (
     save_id    TEXT        PRIMARY KEY,
-    snapshot   JSONB       NOT NULL,
+    snapshot   json        NOT NULL,
     turn       INTEGER     NOT NULL,
     status     TEXT        NOT NULL,
     -- 来源标记:由**首次插入该行的代码路径**写下,之后任何更新都不改它(ADR-025 决策 2)。

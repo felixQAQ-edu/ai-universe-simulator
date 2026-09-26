@@ -17,7 +17,7 @@ import tools.jackson.databind.node.ObjectNode;
 /**
  * 会话快照文档的<b>唯一</b>编解码(ADR-015 C3 的文档形态;ADR-025 刀 1 抽出,供文件与 DB 两个
  * {@link SessionStore} 实现共用)。两个实现存的是<b>同一份文档</b>:文件实现写进 {@code <saveId>.json},
- * DB 实现写进 {@code game_session.snapshot}(JSONB)。
+ * DB 实现写进 {@code game_session.snapshot}(PG `json` 列,保键序;不用 JSONB 的理由见 V1 迁移注释)。
  *
  * <p>抽出来的理由写死:ADR-025 已知代价 1 点名「DB 实现可以在文件实现绿的掩护下写错一个字段」——
  * 两个实现各写一份「差不多」的解析,正是那个掩护的来源。故编码、形状判据、还原三件事只在这里各有一份。

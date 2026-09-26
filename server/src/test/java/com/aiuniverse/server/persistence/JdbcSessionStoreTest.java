@@ -236,7 +236,7 @@ class JdbcSessionStoreTest {
 	void persistNeverOverwritesTheSourceWrittenByTheFirstInsert() {
 		GameSession session = playingSession("save-1", null);
 		jdbc.update("INSERT INTO game_session (save_id, snapshot, turn, status, source) "
-				+ "VALUES ('save-1', ?::jsonb, 0, 'ongoing', 'import')",
+				+ "VALUES ('save-1', ?::json, 0, 'ongoing', 'import')",
 				mapper.writeValueAsString(SessionDocument.encode(session, mapper)));
 		session.engine().apply(turn("导入后的第一回合。", 90, 90), "A");
 		store.persist(session);
@@ -250,7 +250,7 @@ class JdbcSessionStoreTest {
 	void unloadableRowIsRefusedWithWarningAndOthersStillLoad() {
 		store.persist(playingSession("save-good", null));
 		jdbc.update("INSERT INTO game_session (save_id, snapshot, turn, status, source) "
-				+ "VALUES ('save-bad', '{}'::jsonb, 0, 'ongoing', 'native')");
+				+ "VALUES ('save-bad', '{}'::json, 0, 'ongoing', 'native')");
 		List<GameSession> loaded = store.loadAll();
 		assertThat(loaded).extracting(GameSession::saveId).containsExactly("save-good");
 		assertThat(logsAt(Level.WARN)).anyMatch(m -> m.contains("save-bad"));
