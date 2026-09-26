@@ -294,7 +294,8 @@ CI badge / 演示视频或 GIF。
 **PostgreSQL + Flyway + 乐观锁 + 回合幂等。**
 形态清单见 [工程债 §3.3](backlog-engineering-debt.md)(**不在这里复制**);
 产品视角的另一半见 [future-experience §2.3](future-experience-backlog.md)。
-**需要自己的 ADR。**
+**需要自己的 ADR。** → 第一刀已起草:[ADR-025 叙事历史](adr/ADR-025-narrative-history.md)(**提议,未采纳**;
+只落 `game_session` + `game_event`,**是本层的子集** —— 两段式事务、`turn_request`、跨重启幂等**都不在其中**)。
 
 ### 钩子今天就在代码里
 

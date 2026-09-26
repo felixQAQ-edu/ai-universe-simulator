@@ -449,6 +449,10 @@ postcss 8.5.15→8.5.26 / undici 7.28.0→7.29.0(连带 nanoid / browserslist / 
 
 PostgreSQL / MySQL 迁移待评估的形态清单(**只是清单,不是方案,勿当结论**):
 
+> **起草中(2026-09-26)**:[ADR-025 叙事历史](adr/ADR-025-narrative-history.md)(提议,未采纳)只取下面第一条的
+> `game_session` 快照 + `game_event`;⚠️ 乐观锁 / turn 幂等键 / Redis / TTL / 多实例**一条都不在其中**,
+> 本清单正文不因它而变。
+
 - `game_session` 快照 + **版本号**;`game_event` 事件表(与现行 `state.log` 折叠的关系待定)
 - **乐观锁**(替代现行内存 `ConcurrentHashMap` + CAS 忙态守卫)
 - **turn 幂等键**(`request_id` 唯一键、**跨进程跨重启**)——⚠️ **今天仍然没做**。
