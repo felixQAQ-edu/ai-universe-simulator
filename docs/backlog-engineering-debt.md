@@ -449,7 +449,7 @@ postcss 8.5.15→8.5.26 / undici 7.28.0→7.29.0(连带 nanoid / browserslist / 
 
 PostgreSQL / MySQL 迁移待评估的形态清单(**只是清单,不是方案,勿当结论**):
 
-> **ADR 已采纳(2026-09-26;刀 1 待校勘 / 未合并,见该 ADR 状态格)**:[ADR-025 叙事历史](adr/ADR-025-narrative-history.md)只取下面第一条的
+> **ADR 已采纳(2026-09-26;刀 1 已合并(2026-09-26);刀 2–4 未起,见该 ADR 状态格)**:[ADR-025 叙事历史](adr/ADR-025-narrative-history.md)只取下面第一条的
 > `game_session` 快照 + `game_event`;⚠️ 乐观锁 / turn 幂等键 / Redis / TTL / 多实例**一条都不在其中**,
 > 本清单正文不因它而变。
 
