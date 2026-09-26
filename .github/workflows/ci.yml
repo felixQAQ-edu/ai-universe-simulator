@@ -15,7 +15,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # `claude/**`:agent 分支推送也跑 CI(ADR-025 刀 1 步骤 0 起)—— 否则「CI 上 DB 测试真的跑了」
+    # 这条验收在 PR 之前没有任何读数可取;分支推送不开 PR 就等于从未经过 CI。
+    branches: [main, 'claude/**']
   pull_request:
 
 # 同一分支上新推送即取消旧跑,省额度也省等待。
