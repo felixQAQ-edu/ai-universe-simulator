@@ -449,7 +449,7 @@ postcss 8.5.15→8.5.26 / undici 7.28.0→7.29.0(连带 nanoid / browserslist / 
 
 PostgreSQL / MySQL 迁移待评估的形态清单(**只是清单,不是方案,勿当结论**):
 
-> **ADR 已采纳(2026-09-26;刀 1 已合并(2026-09-26);刀 2–4 未起,见该 ADR 状态格)**:[ADR-025 叙事历史](adr/ADR-025-narrative-history.md)只取下面第一条的
+> **ADR 已采纳(2026-09-26;刀 1 已合并(2026-09-26);刀 2 待校勘 / 未合并;刀 3–4 未起,见该 ADR 状态格)**:[ADR-025 叙事历史](adr/ADR-025-narrative-history.md)只取下面第一条的
 > `game_session` 快照 + `game_event`;⚠️ 乐观锁 / turn 幂等键 / Redis / TTL / 多实例**一条都不在其中**,
 > 本清单正文不因它而变。
 
@@ -634,6 +634,24 @@ PostgreSQL / MySQL 迁移待评估的形态清单(**只是清单,不是方案,�
 > 指针(2026-09-26):同族第二例 —— [ADR-025 已知代价 10](adr/ADR-025-narrative-history.md):`pg` 下 DB 故障在 `/actuator/health` 上不可见,只剩 persist 的 ERROR 日志。
 ⚠️ 另记一句边界:上游账号侧自己可能有余额提醒(DeepSeek 控制台),
 **那不在这个仓库里,也不构成「我们这一侧可见」** —— 本条说的是**我们这一侧**。
+
+---
+
+## 挂账 · `/state` 的 404 带服务端 message,与 ADR-022 立字 11 不符(记于 2026-09-26)
+
+**事实**:`GameController.state()` 找不到存档时返回
+`{error:{code:"session_not_found", message:"存档不存在或已失效"}}`。
+[ADR-022 立字 11](adr/ADR-022-turn-admission-and-rejection-semantics.md) 规定 404 属于「状态码本身就能说清」的情形,
+**只带 code、文案归前端兜底表**;同一个文件里回合的 404 与刀 2 新加的历史 404 都只带 code。
+
+**今天为什么没伤到人**:前端 `resumeGame` 虽把 message 读进 `GameApiError`,但 `gameStore` 里续局失败一律
+**静默清指针**,这句话从不上屏 —— 无人看见。
+
+**风险**:日后有人把续局失败接上界面,这句服务端文案会**压过前端兜底文案** —— 正是立字 11 要防的那次
+「看不见的撤销」(前端测试照样全绿)。
+
+**处置**:只记账,不修(ADR-025 刀 2 勘察时发现,范围外)。修法是一行(改走 `jsonError` 只带 code),
+但要同时核对前端 `resumeGame` 的兜底文案是否存在 —— 那一半属前端。解冻条件:下次碰 `/state` 或续局失败的呈现时顺手做。
 
 ---
 
