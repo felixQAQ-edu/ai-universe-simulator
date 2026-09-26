@@ -15,17 +15,14 @@ import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 
 import com.aiuniverse.server.archetype.ArchetypeRegistry;
-import com.aiuniverse.server.archetype.AttributeAxis;
-import com.aiuniverse.server.engine.Engine;
 import com.aiuniverse.server.eventloop.GameSession;
-import com.aiuniverse.server.eventloop.TurnPhase;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
-import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
@@ -61,6 +58,7 @@ import tools.jackson.databind.node.ObjectNode;
  * 与 ADR-015「配置经 env 覆盖」口径一致。
  */
 @Service
+@Profile("!pg") // ADR-025:pg profile 下由 JdbcSessionStore 接管,不双写;默认 profile 行为逐字节不变
 public class FileSessionStore implements SessionStore {
 
 	private static final Logger log = LoggerFactory.getLogger(FileSessionStore.class);
@@ -96,10 +94,7 @@ public class FileSessionStore implements SessionStore {
 			return;
 		}
 		try {
-			ObjectNode doc = session.engine().toPersistedState();
-			ArrayNode actions = session.currentActions();
-			doc.set("currentActions", actions == null ? mapper.createArrayNode() : actions.deepCopy());
-			doc.put("phaseHint", session.phase().get().name()); // 仅取证用;回载按 status 重置,不读它
+			ObjectNode doc = SessionDocument.encode(session, mapper); // 与 DB 实现同一份文档
 			Path tmp = dir.resolve(saveId + ".json.tmp");
 			Path target = dir.resolve(saveId + ".json");
 			Files.writeString(tmp, mapper.writeValueAsString(doc), StandardCharsets.UTF_8);
@@ -183,20 +178,8 @@ public class FileSessionStore implements SessionStore {
 			return LoadResult.NOT_A_SAVE;
 		}
 		try {
-			// 轴语义集不落盘:由 world.archetypes 经 registry 原路重派生(与播种同一真理源)。
-			List<String> ids = new ArrayList<>();
-			doc.path("world").path("archetypes").forEach(a -> ids.add(a.asString("")));
-			List<AttributeAxis> axes = archetypes.resolveAxes(ids);
-			Engine engine = Engine.restore(doc, mapper, ArchetypeRegistry.accumulationKeys(axes),
-					ArchetypeRegistry.axisDisplayNames(axes), ArchetypeRegistry.nonLethalKeys(axes));
-			JsonNode actions = doc.get("currentActions");
-			ArrayNode initial = actions != null && actions.isArray()
-					? (ArrayNode) actions.deepCopy()
-					: mapper.createArrayNode();
-			GameSession session = new GameSession(saveId, engine, initial);
-			// phase 按 status 重置(AtomicReference 运行时态不落盘,ADR-015 勘察 2)。
-			session.phase().set("ended".equals(engine.status()) ? TurnPhase.ENDED : TurnPhase.AWAITING_ACTION);
-			return LoadResult.loaded(session);
+			// 轴语义集重派生 + phase 按 status 重置:与 DB 实现共用同一份还原(SessionDocument)。
+			return LoadResult.loaded(SessionDocument.decode(saveId, doc, mapper, archetypes));
 		} catch (Exception e) {
 			log.warn("[session-store] 存档回载失败,跳过并保留原文件(留尸检):{} — {}", file, e.toString());
 			return LoadResult.REFUSED;
@@ -212,7 +195,7 @@ public class FileSessionStore implements SessionStore {
 	 * <b>两处判据必须一致,改一处必须看另一处</b>——同一个判断落在两个地方,是漂移的种子。
 	 */
 	static boolean isSaveDocument(JsonNode doc) {
-		return doc != null && doc.path("world").isObject();
+		return SessionDocument.isSaveDocument(doc); // 判据唯一一份在 SessionDocument(与 DB 实现共用)
 	}
 
 	// ── 路径安全断言(附录 A 第 3 条:落盘目录不得位于 static resources 之下)──

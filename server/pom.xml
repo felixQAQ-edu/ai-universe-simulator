@@ -51,18 +51,33 @@
 			<artifactId>spring-boot-starter-actuator</artifactId>
 		</dependency>
 
+		<!-- ADR-025 刀 1:DB 版 SessionStore(Spring JDBC,不引 JPA)+ Flyway 管 schema。
+		     自动配置在默认 profile 下被排除(application.yml),只在 pg profile 生效
+		     —— 默认 profile 行为逐字节不变是本刀的回滚保证。 -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-jdbc</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-flyway</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.flywaydb</groupId>
+			<artifactId>flyway-database-postgresql</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.postgresql</groupId>
+			<artifactId>postgresql</artifactId>
+			<scope>runtime</scope>
+		</dependency>
+
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-test</artifactId>
 			<scope>test</scope>
 		</dependency>
-		<!-- ADR-025 刀 1 步骤 0:Testcontainers 真 PG(版本由 Boot BOM 管,testcontainers 2.x)。
-		     本步只做 CI 可用性门禁:起容器 + SELECT 1;写路径在后续 commit。 -->
-		<dependency>
-			<groupId>org.postgresql</groupId>
-			<artifactId>postgresql</artifactId>
-			<scope>test</scope>
-		</dependency>
+		<!-- ADR-025 刀 1:Testcontainers 真 PG(版本由 Boot BOM 管,testcontainers 2.x)。 -->
 		<dependency>
 			<groupId>org.testcontainers</groupId>
 			<artifactId>testcontainers-postgresql</artifactId>
@@ -71,6 +86,11 @@
 		<dependency>
 			<groupId>org.testcontainers</groupId>
 			<artifactId>testcontainers-junit-jupiter</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-testcontainers</artifactId>
 			<scope>test</scope>
 		</dependency>
 		<!-- 「跳过要响亮」汇总监听器(DbTestSkipSummary)编译所需;版本由 JUnit BOM 管 -->

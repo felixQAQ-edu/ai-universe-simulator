@@ -80,9 +80,11 @@ public class GameInitService {
 		//    (单体/融合共用 ArchetypeRegistry 静态派生,单一真理源):累积型轴 key(ADR-009 F-012:≤0 不触底)
 		//    + 轴 key→中文名(F-014 §5 兜底结局按中文匹配)+ 非致命 depletion 轴 key(ADR-010 F-015:≤0 不致死)。
 		String saveId = UUID.randomUUID().toString();
+		//    开场叙事随会话一起交给 create(ADR-025 已决 2:DB 版 store 写成历史 turn 0);它已从 world 剥除,
+		//    故仍不进快照 / 视图 2 / 视图 3。
 		GameSession session = sessions.create(saveId, world, actions,
 				ArchetypeRegistry.accumulationKeys(axes), ArchetypeRegistry.axisDisplayNames(axes),
-				ArchetypeRegistry.nonLethalKeys(axes));
+				ArchetypeRegistry.nonLethalKeys(axes), opening);
 
 		// 4. 消毒投影 + 初始动作 + openingNarrative + 本局数值轴元数据(前端面板渲染)一次性下发。
 		ObjectNode clientWorld = session.engine().toClientState();

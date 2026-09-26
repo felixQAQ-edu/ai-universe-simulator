@@ -1,6 +1,17 @@
 spring:
   application:
     name: ai-universe-simulator-server
+  # ── ADR-025 刀 1:默认 profile 不起任何 DB 自动配置 ──────────────────────────
+  # JDBC / Flyway 依赖进了 classpath 之后,DataSource 自动配置会在默认 profile 下
+  # 尝试建连接并失败(ServerApplicationTests 首个变红)。这里排除两项,其余 JDBC 自动
+  # 配置(JdbcTemplate / 事务管理器 / db 健康检查 / 连接池指标)都条件于 DataSource bean,
+  # 随之自动退场。pg profile(application-pg.yml)把本列表清空。
+  # 类名按 Spring Boot 4.1 模块化后的包名(spring-boot-jdbc / spring-boot-flyway 的
+  # AutoConfiguration.imports 核过),不是凭记忆写的。
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration
+      - org.springframework.boot.flyway.autoconfigure.FlywayAutoConfiguration
 
 server:
   port: 8080

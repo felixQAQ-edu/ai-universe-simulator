@@ -1,0 +1,47 @@
+# ── ADR-025 刀 1 · pg profile:DB 版 SessionStore(JdbcSessionStore)+ Flyway ──────────────
+# 只在 SPRING_PROFILES_ACTIVE=pg 时加载。默认 profile 不读本文件,行为逐字节不变。
+# 连接串 / 账号走 Spring 标准项(spring.datasource.url / username / password,可由
+# SPRING_DATASOURCE_* 环境变量注入);线上怎么配属刀 4,本文件不写任何真实地址。
+spring:
+  autoconfigure:
+    # 清空 application.yml 里默认 profile 的排除项 —— 本 profile 下 DataSource 与 Flyway 自动配置生效。
+    exclude: []
+  datasource:
+    hikari:
+      # ── 超时:显式配置,不吃驱动默认值(ADR-025 决策 3)────────────────────────────
+      # persist 跑在准入名额之内(ADR-022),DB 挂起时它不会抛、它会等,等多久名额就被占多久。
+      # 依据 ADR-024 两批真机读数(回合 durMs,不含 persist):
+      #   n=16 p50 3421 / max 6327 ms;n=14 p50 3092 / max 6074 ms。
+      # 取值使 persist 的最坏阻塞 ≈ 取连接 1 s + 语句 2 s ≈ 3 s,低于两批的 p50(3092 / 3421 ms)——
+      # DB 完全挂死时,一个回合的名额占用最多约为一个中位回合的两倍,远低于 ADR-024 每段 20 s 上界。
+      # 同区健康 DB 上一次 persist 是毫秒级(两三条 SQL),2 s 仍是两个数量级的余量。
+      # ⚠️ 这些读数是 n=16 / n=14、单人无并发、右尾没采到(ADR-024 取证边界),引用须带 n。
+      connection-timeout: 1000   # 取连接上界(ms)。池里拿不到连接 → 1 s 后放弃,persist 记 ERROR 返回
+      validation-timeout: 500    # 借出前的存活校验上界(Hikari 要求小于 connection-timeout)
+      data-source-properties:
+        # pgjdbc 套接字读超时(秒)。语句超时靠事务超时 → JDBC setQueryTimeout(取消请求);
+        # 若网络整个断了,取消请求本身也发不出去,这一条是最后的上界。0 = 永远等(驱动默认),故显式设。
+        socketTimeout: 2
+        # 语句超时触发时 pgjdbc 另开一条连接发取消请求,查询线程会等它发完;这条等待有自己的上界,
+        # 驱动默认 10 s —— 不显式设,DB 挂死时 persist 实测阻塞 ≈ 12 s(= 2 s 语句 + 10 s 取消),
+        # 是 JdbcSessionStoreTimeoutTest 当场抓出来的。设 1 s。
+        cancelSignalTimeout: 1
+        # 新建物理连接的 TCP 建连上界(秒),驱动默认 10 s;同上理由显式设。
+        connectTimeout: 1
+  flyway:
+    enabled: true
+
+# DB 故障不许杀活回合(ADR-025 决策 3,同 ADR-015 已知代价 5)。db 健康指示器一旦进
+# /actuator/health,DB 抖一下整体就 DOWN,而平台健康检查打的正是它(fly.toml)→ 平台会去重启一台
+# 其实还能玩的机器。故本 profile 下关掉它;DB 是否可用由 persist 的 ERROR 日志说话。
+management:
+  health:
+    db:
+      enabled: false
+
+aiuniverse:
+  session:
+    pg:
+      # 一次 persist(快照 upsert + 事件补齐)的事务超时(秒);JdbcTemplate 据剩余时间给每条语句设
+      # query timeout。取值理由见上方超时块。JDBC 的 setQueryTimeout 粒度是秒,故 2 而非 2000 ms。
+      tx-timeout-seconds: 2

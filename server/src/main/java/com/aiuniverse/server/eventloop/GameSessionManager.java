@@ -66,9 +66,19 @@ public class GameSessionManager {
 	 */
 	public GameSession create(String saveId, ObjectNode world, ArrayNode initialActions,
 			Set<String> accumulationKeys, Map<String, String> axisDisplayNames, Set<String> nonLethalKeys) {
+		return create(saveId, world, initialActions, accumulationKeys, axisDisplayNames, nonLethalKeys, null);
+	}
+
+	/**
+	 * 同上,并带上开场叙事(ADR-025 已决 2:DB 版 store 在本方法那次 persist 里把它写成 turn 0)。
+	 * 只挂在会话上,<b>不进 world、不进快照</b>;既有调用点走上面的重载,行为不变。
+	 */
+	public GameSession create(String saveId, ObjectNode world, ArrayNode initialActions,
+			Set<String> accumulationKeys, Map<String, String> axisDisplayNames, Set<String> nonLethalKeys,
+			String openingNarrative) {
 		Engine engine = new Engine(world, mapper, accumulationKeys, axisDisplayNames, nonLethalKeys);
 		ArrayNode initial = initialActions != null ? (ArrayNode) initialActions.deepCopy() : mapper.createArrayNode();
-		GameSession session = new GameSession(saveId, engine, initial);
+		GameSession session = new GameSession(saveId, engine, initial, openingNarrative);
 		sessions.put(saveId, session);
 		store.persist(session); // init 后写一次(起局即崩不丢局;best-effort 不抛)
 		return session;
