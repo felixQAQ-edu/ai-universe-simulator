@@ -449,7 +449,7 @@ postcss 8.5.15→8.5.26 / undici 7.28.0→7.29.0(连带 nanoid / browserslist / 
 
 PostgreSQL / MySQL 迁移待评估的形态清单(**只是清单,不是方案,勿当结论**):
 
-> **ADR 已采纳(2026-09-26;刀 1 实现中、未合并,见该 ADR 状态格)**:[ADR-025 叙事历史](adr/ADR-025-narrative-history.md)只取下面第一条的
+> **ADR 已采纳(2026-09-26;刀 1 待校勘 / 未合并,见该 ADR 状态格)**:[ADR-025 叙事历史](adr/ADR-025-narrative-history.md)只取下面第一条的
 > `game_session` 快照 + `game_event`;⚠️ 乐观锁 / turn 幂等键 / Redis / TTL / 多实例**一条都不在其中**,
 > 本清单正文不因它而变。
 
@@ -631,6 +631,7 @@ PostgreSQL / MySQL 迁移待评估的形态清单(**只是清单,不是方案,�
 同 [ADR-024 那条「彻底静默」挂账](adr/ADR-024-stream-segment-deadline.md)的形状。
 
 ⚠️ **本刀只记账,不做任何告警或闸门改造** —— 那是另一轮。
+> 指针(2026-09-26):同族第二例 —— [ADR-025 已知代价 10](adr/ADR-025-narrative-history.md):`pg` 下 DB 故障在 `/actuator/health` 上不可见,只剩 persist 的 ERROR 日志。
 ⚠️ 另记一句边界:上游账号侧自己可能有余额提醒(DeepSeek 控制台),
 **那不在这个仓库里,也不构成「我们这一侧可见」** —— 本条说的是**我们这一侧**。
 
