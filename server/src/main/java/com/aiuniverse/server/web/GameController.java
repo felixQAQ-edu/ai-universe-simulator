@@ -3,6 +3,7 @@ package com.aiuniverse.server.web;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -10,12 +11,15 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import com.aiuniverse.server.eventloop.GameSession;
 import com.aiuniverse.server.eventloop.GameSessionManager;
 import com.aiuniverse.server.eventloop.TurnStateMachine;
+import com.aiuniverse.server.persistence.NarrativeHistoryReader;
+import com.aiuniverse.server.persistence.UnavailableHistoryReader;
 import com.aiuniverse.server.quota.QuotaGate;
 import com.aiuniverse.server.worldgen.GameInitService;
 import com.aiuniverse.server.worldgen.InitResponse;
@@ -53,13 +57,27 @@ public class GameController {
 	 */
 	private final TurnAdmission admission;
 
+	/**
+	 * 叙事历史只读接缝(ADR-025 刀 2):pg profile 下读库,其它 profile 恒为「本环境无历史」。
+	 * 与 {@code sessions} 互不相干 —— 历史只报库里有的,不混内存。
+	 */
+	private final NarrativeHistoryReader history;
+
+	@Autowired
 	public GameController(GameSessionManager sessions, TurnStateMachine stateMachine, GameInitService initService,
-			QuotaGate quota, TurnAdmission admission) {
+			QuotaGate quota, TurnAdmission admission, NarrativeHistoryReader history) {
 		this.sessions = sessions;
 		this.stateMachine = stateMachine;
 		this.initService = initService;
 		this.quota = quota;
 		this.admission = admission;
+		this.history = history;
+	}
+
+	/** 无历史存储的便捷构造(既有测试调用点零改,同 {@code QuotaGate.NOOP} 的接缝形态)。 */
+	public GameController(GameSessionManager sessions, TurnStateMachine stateMachine, GameInitService initService,
+			QuotaGate quota, TurnAdmission admission) {
+		this(sessions, stateMachine, initService, quota, admission, new UnavailableHistoryReader());
 	}
 
 	/**
@@ -99,6 +117,58 @@ public class GameController {
 					.body(Map.of("error", Map.of("code", "session_not_found", "message", "存档不存在或已失效")));
 		}
 		return ResponseEntity.ok(resp);
+	}
+
+	/**
+	 * 回看这一局(ADR-025 刀 2):按回合号升序返回一页叙事历史。只读、无副作用 ——
+	 * 不占回合准入名额、不走配额、不碰忙态 CAS(与 {@code /state} 同类),也不读内存会话。
+	 *
+	 * <p>分页:{@code ?afterTurn=N} 游标,每页固定 {@link NarrativeHistoryReader#PAGE_TURNS} 个回合号
+	 * (理由见该常量);省略 = 首页 [0, 99]。
+	 *
+	 * <pre>
+	 * ├─ afterTurn 不是非负整数     → 400 {error:{code:"invalid_after_turn", message}}
+	 * ├─ 非 pg profile(无历史存储) → 501 {error:{code:"history_unavailable"}}
+	 * ├─ 库里没有该 saveId          → 404 {error:{code:"session_not_found"}}
+	 * ├─ 读库失败 / 超时            → 503 {error:{code:"history_read_failed"}}
+	 * └─ 找到                        → 200 HistoryPage
+	 * </pre>
+	 * {@code message} 何时出现按 ADR-022 立字 11:只有 400 带(只有服务端知道是哪个参数、为什么不合法);
+	 * 其余状态码本身说得清,文案归前端兜底表(刀 3 定)。原始异常永不出网。
+	 */
+	@GetMapping("/api/game/{saveId}/history")
+	public ResponseEntity<?> history(@PathVariable String saveId,
+			@RequestParam(name = "afterTurn", required = false) String afterTurn) {
+		Integer cursor;
+		if (afterTurn == null) {
+			cursor = null;
+		} else {
+			cursor = parseCursor(afterTurn);
+			if (cursor == null) {
+				return jsonError(HttpStatus.BAD_REQUEST, "invalid_after_turn", "afterTurn 必须是非负整数");
+			}
+		}
+		return switch (history.read(saveId, cursor)) {
+			case NarrativeHistoryReader.Found f ->
+					ResponseEntity.ok().contentType(MediaType.APPLICATION_JSON).body(f.page());
+			case NarrativeHistoryReader.NotFound n -> jsonError(HttpStatus.NOT_FOUND, "session_not_found", null);
+			case NarrativeHistoryReader.Unavailable u ->
+					jsonError(HttpStatus.NOT_IMPLEMENTED, "history_unavailable", null);
+			case NarrativeHistoryReader.Failed x ->
+					jsonError(HttpStatus.SERVICE_UNAVAILABLE, "history_read_failed", null);
+		};
+	}
+
+	/** 只接受纯十进制数字串(不收正负号、小数、空白);超出 int → 视为非法。非法返回 null。 */
+	static Integer parseCursor(String raw) {
+		if (raw.isEmpty() || !raw.chars().allMatch(c -> c >= '0' && c <= '9')) {
+			return null;
+		}
+		try {
+			return Integer.parseInt(raw);
+		} catch (NumberFormatException e) {
+			return null;
+		}
 	}
 
 	/**
