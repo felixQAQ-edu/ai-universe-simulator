@@ -294,8 +294,23 @@ CI badge / 演示视频或 GIF。
 **PostgreSQL + Flyway + 乐观锁 + 回合幂等。**
 形态清单见 [工程债 §3.3](backlog-engineering-debt.md)(**不在这里复制**);
 产品视角的另一半见 [future-experience §2.3](future-experience-backlog.md)。
-**需要自己的 ADR。** → 第一刀 ADR 已采纳(2026-09-26;刀 1 已合并(2026-09-26);刀 2 已合并(2026-09-26);刀 3 已合并(2026-09-27);刀 4 未起,见该 ADR 状态格):[ADR-025 叙事历史](adr/ADR-025-narrative-history.md)(
+**需要自己的 ADR。** → 第一刀 ADR 已采纳(2026-09-26;刀 1 已合并(2026-09-26);刀 2 已合并(2026-09-26);刀 3 已合并(2026-09-27);刀 4 挂账(2026-09-27 Felix 定,方案 D:暂不切库),见该 ADR 状态格):[ADR-025 叙事历史](adr/ADR-025-narrative-history.md)(
 只落 `game_session` + `game_event`,**是本层的子集** —— 两段式事务、`turn_request`、跨重启幂等**都不在其中**)。
+
+### ⚠️ 对外口径(ADR-025,2026-09-27 定)—— **线上没有切库**
+
+**可以说**:
+
+> 设计并实现了按 profile 隔离的 PostgreSQL 存储(快照 + append-only 事件同一短事务)、
+> 只读历史 API(按回合号 keyset 分页、REPEATABLE READ 一致读)、前端回看页;
+> CI 上用 Testcontainers 真 PG 跑测试并做变异验证。
+
+**不许说**:「线上用了 PostgreSQL」「生产环境已切库」「回看功能已上线」。
+线上至今走文件存储(ADR-015),`pg` profile 从未在线上启用;默认 profile 下历史接口恒 501,「回看上局」入口不出现。
+
+**必须能答**:**为什么没切?** —— 成本与收益的取舍:托管库月费高于整个模型月预算,对一件作品不划算;
+切库所需的代码(快照导入工具 / 启动时 DB 不可达行为核实 / runbook 切库一节)与步骤已列清,
+解冻条件写死(Felix 决定上线回看功能并选定托管或自跑),见 [ADR-025 刀 4 加注](adr/ADR-025-narrative-history.md)。
 
 ### 钩子今天就在代码里
 
