@@ -46,6 +46,25 @@ export function probeShowsEntry(entries: readonly HistoryEntry[], nextAfterTurn:
   return entries.some((e) => e.kind === 'event') || nextAfterTurn !== null;
 }
 
+/**
+ * 翻页拼接(ADR-025 刀 3 追加,校勘读代码时发现):后端按回合号切页,一段连续缺口会被切成两段、分在两页返回 ——
+ * 直接拼接会让同一段缺口显示两次(导入老档两行「更早的回合没有留下记录」;写失败 97–102 → 97–99 + 100–102)。
+ * 已加载列表的末条与新页首条是**同 reason** 的缺口且**首尾相接**(新.fromTurn === 旧.toTurn + 1)→ 合并成一条。
+ */
+export function appendPage(loaded: readonly HistoryEntry[], next: readonly HistoryEntry[]): HistoryEntry[] {
+  const last = loaded[loaded.length - 1];
+  const first = next[0];
+  if (
+    last?.kind === 'gap' &&
+    first?.kind === 'gap' &&
+    last.reason === first.reason &&
+    first.fromTurn === last.toTurn + 1
+  ) {
+    return [...loaded.slice(0, -1), { ...last, toTurn: first.toTurn }, ...next.slice(1)];
+  }
+  return [...loaded, ...next];
+}
+
 export function createHistoryStore(api: HistoryApi) {
   return create<HistoryStoreState>((set, get) => {
     /** 在途探测(非响应式;只为去重)。完成即删 —— 失败因此不会被记住。 */
@@ -114,7 +133,7 @@ export function createHistoryStore(api: HistoryApi) {
           .then((page) => {
             if (mine !== epoch) return;
             set((s) => ({
-              entries: [...s.entries, ...page.entries],
+              entries: appendPage(s.entries, page.entries),
               nextAfterTurn: page.nextAfterTurn,
               more: 'idle',
             }));

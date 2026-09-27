@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { HistoryApi, HistoryEntry, HistoryPage } from '../api';
 import { GameApiError } from '../api';
-import { createHistoryStore, probeShowsEntry } from './historyStore';
+import { appendPage, createHistoryStore, probeShowsEntry } from './historyStore';
 
 // ADR-025 刀 3:入口探测判据 / 缓存 / 历史页读取与翻页。mock api 层,不依赖真后端。
 
@@ -184,5 +184,37 @@ describe('历史页(口径 E/G/H)', () => {
     await flush();
     expect(store.getState().viewing).toBeNull();
     expect(store.getState().entries).toEqual([]);
+  });
+});
+
+describe('跨页缺口合并(刀 3 追加)', () => {
+  it('导入老档:两页各一段 before_recording 相接 → 合并成一条', async () => {
+    const { api } = scripted(
+      page([gap('before_recording', 0, 99)], 99),
+      page([gap('before_recording', 100, 149), ev(150, '导入后的第一回合')]),
+    );
+    const store = createHistoryStore(api);
+    store.getState().open('s');
+    await flush();
+    store.getState().loadMore();
+    await flush();
+    expect(store.getState().entries).toEqual([
+      gap('before_recording', 0, 149),
+      ev(150, '导入后的第一回合'),
+    ]);
+  });
+
+  it('写失败 97–102 被切成 97–99 + 100–102 → 合并成 97–102', () => {
+    expect(appendPage([ev(96), gap('write_failed', 97, 99)], [gap('write_failed', 100, 102), ev(103)])).toEqual([
+      ev(96),
+      gap('write_failed', 97, 102),
+      ev(103),
+    ]);
+  });
+
+  it('不相接或 reason 不同 → 不合并', () => {
+    expect(appendPage([gap('write_failed', 97, 98)], [gap('write_failed', 100, 102)])).toHaveLength(2);
+    expect(appendPage([gap('before_recording', 0, 99)], [gap('write_failed', 100, 102)])).toHaveLength(2);
+    expect(appendPage([ev(99)], [gap('write_failed', 100, 102)])).toHaveLength(2);
   });
 });
