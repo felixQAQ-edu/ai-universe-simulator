@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useGameStore } from '../../state/gameStore';
+import { useHistoryStore } from '../../state/historyStore';
 import { ArchetypeSelect } from './ArchetypeSelect';
 import { DecisionCircle } from './DecisionCircle';
 import { EndingScreen } from './EndingScreen';
+import { HistoryScreen } from './HistoryScreen';
 import { Prose } from './Prose';
 import { RulesPanel } from './RulesPanel';
 import { SceneBanner } from './SceneBanner';
@@ -22,8 +24,10 @@ import styles from './game.module.css';
  */
 export function GameScreen() {
   const status = useGameStore((s) => s.status);
+  // 历史页是选择屏的一个旁支(ADR-025 刀 3):导航状态在 historyStore,不碰回合流程的 status。
+  const viewingHistory = useHistoryStore((s) => s.viewing !== null);
 
-  if (status === 'idle') return <ArchetypeSelect />;
+  if (status === 'idle') return viewingHistory ? <HistoryScreen /> : <ArchetypeSelect />;
   if (status === 'initializing') return <LoadingScreen />;
   if (status === 'initError') return <InitErrorScreen />;
   return <PlayingScreen />;

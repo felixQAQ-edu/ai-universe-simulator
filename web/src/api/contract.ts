@@ -224,3 +224,46 @@ export interface GameApi {
    */
   openTurnStream(saveId: string, turn: number, actionId: string): TurnStream;
 }
+
+// ── 叙事历史(ADR-025 刀 2 的 wire,刀 3 消费)─────────────────────────────
+// 对齐 server `NarrativeHistoryReader.HistoryPage` / `EventEntry` / `GapEntry` 的 JSON 形态。
+// 与 GameApi 分开成独立接口:历史是只读、与回合流程无关的旁路(ADR-025 决策 1),
+// 不往 GameApi 里加方法 —— 那会让回合流程的全部既有测试桩为一个它们不用的能力陪改。
+
+/** 库里有的一回合。turn 0 = 开场叙事。playerAction 只是选项编号(A/B/…),前端不展示。 */
+export interface HistoryEventEntry {
+  kind: 'event';
+  turn: number;
+  narrative: string;
+  playerAction: string | null;
+}
+
+/**
+ * 一段连续缺失的回合,**只标回合号,不带内容**(服务端不伪造,前端也不许补)。
+ * `before_recording` = 记录开始之前(导入档);`write_failed` = 本该记下而没记上。两者不得混为一谈。
+ */
+export interface HistoryGapEntry {
+  kind: 'gap';
+  reason: 'before_recording' | 'write_failed';
+  fromTurn: number;
+  toTurn: number;
+}
+
+export type HistoryEntry = HistoryEventEntry | HistoryGapEntry;
+
+/** 一页历史(按回合号区间切页;`nextAfterTurn` 为 null = 没有下一页)。 */
+export interface HistoryPage {
+  saveId: string;
+  entries: HistoryEntry[];
+  nextAfterTurn: number | null;
+}
+
+/**
+ * 叙事历史只读接口(ADR-025 刀 3)。
+ * `GET /api/game/{saveId}/history[?afterTurn=N]`。
+ * @throws GameApiError 任何非 200 / 网络失败 / 响应形状不对。code 仅供分支与测试,**前端从不展示**
+ *         (ADR-025 刀 3 口径 I:不显示任何系统语言)。
+ */
+export interface HistoryApi {
+  readHistory(saveId: string, afterTurn?: number | null): Promise<HistoryPage>;
+}

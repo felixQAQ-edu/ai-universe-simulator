@@ -1321,3 +1321,93 @@
   font-size: 0.78rem;
   color: var(--muted);
 }
+
+/* ── 回看上局(ADR-025 刀 3,无皮肤)──────────────────────────────────── */
+/* 辅助入口:视觉权重低于「继续上局」—— 无边框、字更小、更淡;不预留空位,出现时只淡入不位移。 */
+.historyEntry {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  width: 100%;
+  margin: -0.4rem 0 1rem;
+  padding: 0.4rem 1rem;
+  min-height: 44px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  animation: historyFadeIn 0.4s ease-out both;
+}
+
+.historyEntryTitle {
+  font-size: 0.85rem;
+  color: var(--muted);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.historyEntryHint {
+  font-size: 0.72rem;
+  color: var(--muted);
+  opacity: 0.8;
+}
+
+@keyframes historyFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.historyNav {
+  display: flex;
+  margin-bottom: 0.5rem;
+}
+
+.historyList {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+}
+
+.historyTurn {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--muted);
+  margin: 0 0 0.3rem;
+  letter-spacing: 0.05em;
+}
+
+.historyProse {
+  margin: 0;
+  line-height: 1.8;
+  white-space: pre-wrap;
+  color: var(--text);
+}
+
+.historyGap {
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-style: italic;
+  padding-left: 0.6rem;
+  border-left: 2px dashed var(--line);
+}
+
+.historyMore {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 1.2rem 0 0.5rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .historyEntry {
+    animation: none;
+  }
+}

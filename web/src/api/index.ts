@@ -10,6 +10,11 @@ export type {
   EndingPayload,
   FusionCombo,
   GameApi,
+  HistoryApi,
+  HistoryEntry,
+  HistoryEventEntry,
+  HistoryGapEntry,
+  HistoryPage,
   InitResult,
   StreamError,
   TurnDelta,
@@ -18,3 +23,4 @@ export type {
 } from './contract';
 export { GameApiError } from './contract';
 export { createH5GameApi, gameApi } from './h5GameApi';
+export { createH5HistoryApi, historyApi } from './h5HistoryApi';

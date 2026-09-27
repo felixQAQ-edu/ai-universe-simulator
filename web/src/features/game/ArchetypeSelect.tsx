@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { useGameStore } from '../../state/gameStore';
+import { useHistoryStore } from '../../state/historyStore';
 import type { ArchetypeSummary } from '../../api';
 import { fusionKey, isFusionAllowed, type Rect } from './fusion/drag';
 import { FusionMerge } from './fusion/FusionMerge';
@@ -51,6 +52,17 @@ export function ArchetypeSelect() {
   useEffect(() => {
     void loadArchetypes();
   }, [loadArchetypes]);
+
+  // 「回看上局」入口(ADR-025 刀 3):只在「继续上局」出现时才可能出现;显示与否靠探测(口径 B)。
+  // 去重与缓存在 historyStore 里:同一 saveId 在途不重发,已确认可见不再发,失败不记。
+  const probeHistory = useHistoryStore((s) => s.probe);
+  const openHistory = useHistoryStore((s) => s.open);
+  const historyVisible = useHistoryStore((s) =>
+    resumableSaveId ? s.visible[resumableSaveId] === true : false,
+  );
+  useEffect(() => {
+    if (resumableSaveId) probeHistory(resumableSaveId);
+  }, [resumableSaveId, probeHistory]);
 
   const canFuse = useCallback(
     (host: string, foreign: string) => isFusionAllowed(fusions, host, foreign),
@@ -120,6 +132,17 @@ export function ArchetypeSelect() {
         <button type="button" className={styles.resumeBtn} onClick={() => void resumeGame()}>
           <span className={styles.resumeTitle}>继续上局</span>
           <span className={styles.resumeHint}>世界线仍在,从上次落笔处接续</span>
+        </button>
+      )}
+      {/* 回看上局:辅助入口,视觉权重低于「继续上局」;不预留空位,探测成功后淡入(无位移动画)。 */}
+      {resumableSaveId && historyVisible && (
+        <button
+          type="button"
+          className={styles.historyEntry}
+          onClick={() => openHistory(resumableSaveId)}
+        >
+          <span className={styles.historyEntryTitle}>回看上局</span>
+          <span className={styles.historyEntryHint}>看看这一局已经发生过什么</span>
         </button>
       )}
 
