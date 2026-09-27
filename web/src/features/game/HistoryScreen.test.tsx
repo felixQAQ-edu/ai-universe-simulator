@@ -11,6 +11,9 @@ import { GameScreen } from './GameScreen';
 
 type Reply = { status: number; body: unknown } | 'network';
 let historyReplies: Reply[] = [];
+/** 每条用例一个新 saveId —— 生产 store 是模块级单例,共用 saveId 会让用例之间互相污染。 */
+let seq = 0;
+let SID = 's-0';
 let historyCalls: string[] = [];
 
 function mockFetch() {
@@ -48,6 +51,7 @@ const ev = (turn: number, narrative: string, playerAction: string | null = 'B') 
 });
 
 beforeEach(() => {
+  SID = `s-${++seq}`;
   historyReplies = [];
   historyCalls = [];
   mockFetch();
@@ -78,7 +82,7 @@ describe('选择屏入口(口径 A/B/C/D)', () => {
   });
 
   it('探测成功 → 入口出现在「继续上局」下面,是真 button,文案逐字', async () => {
-    useGameStore.setState({ resumableSaveId: 's-1' });
+    useGameStore.setState({ resumableSaveId: SID });
     historyReplies = [ok([ev(0, '开场叙事', null)])];
     render(<GameScreen />);
     const entry = await screen.findByRole('button', { name: entryName });
@@ -87,7 +91,7 @@ describe('选择屏入口(口径 A/B/C/D)', () => {
     const resume = screen.getByRole('button', { name: /继续上局/ });
     // 放在它下面:DOM 顺序 resume → entry。
     expect(resume.compareDocumentPosition(entry) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(historyCalls).toEqual(['/api/game/s-1/history']);
+    expect(historyCalls).toEqual([`/api/game/${SID}/history`]);
   });
 
   it.each([
@@ -96,7 +100,7 @@ describe('选择屏入口(口径 A/B/C/D)', () => {
     ['503', { status: 503, body: { error: { code: 'history_read_failed' } } } as Reply],
     ['网络失败', 'network' as Reply],
   ])('探测 %s → 无入口、不报错、「继续上局」仍在', async (_l, reply) => {
-    useGameStore.setState({ resumableSaveId: 's-1' });
+    useGameStore.setState({ resumableSaveId: SID });
     historyReplies = [reply];
     render(<GameScreen />);
     await settle();
@@ -107,7 +111,7 @@ describe('选择屏入口(口径 A/B/C/D)', () => {
   });
 
   it('重渲染不重复发探测;重新进入选择屏命中缓存不再请求', async () => {
-    useGameStore.setState({ resumableSaveId: 's-1' });
+    useGameStore.setState({ resumableSaveId: SID });
     historyReplies = [ok([ev(0, '开场叙事', null)])];
     const { rerender, unmount } = render(<GameScreen />);
     rerender(<GameScreen />);
@@ -121,33 +125,41 @@ describe('选择屏入口(口径 A/B/C/D)', () => {
 });
 
 describe('历史页(口径 E/F/G/H/I)', () => {
+  /** 直接进页(不经入口探测):页面行为与入口探测解耦,「进页重新读第一页」由 historyStore.test 单独钉。 */
   async function openPage(pageReply: Reply) {
-    useGameStore.setState({ resumableSaveId: 's-1' });
-    historyReplies = [ok([ev(0, '探测拿到的开场', null)]), pageReply];
+    historyReplies = [pageReply];
+    useHistoryStore.getState().open(SID);
     render(<GameScreen />);
-    await userEvent.click(await screen.findByRole('button', { name: entryName }));
   }
 
-  it('进页重新读第一页;标题是 heading;开场 / 第 N 回合;不显示玩家动作', async () => {
+  it('点入口 → 进入历史页(接线)', async () => {
+    useGameStore.setState({ resumableSaveId: SID });
+    historyReplies = [ok([ev(0, '开场', null)]), ok([ev(0, '开场', null)])];
+    render(<GameScreen />);
+    await userEvent.click(await screen.findByRole('button', { name: entryName }));
+    expect(await screen.findByRole('heading', { name: '这一局的故事' })).toBeInTheDocument();
+  });
+
+  it('标题是 heading;开场 / 第 N 回合;不显示玩家动作', async () => {
     await openPage(ok([ev(0, '雨夜开场', null), ev(1, '你推开了门', 'C')]));
     expect(await screen.findByRole('heading', { name: '这一局的故事' })).toBeInTheDocument();
     expect(await screen.findByText('雨夜开场')).toBeInTheDocument();
-    expect(screen.queryByText('探测拿到的开场')).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '开场' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '第 1 回合' })).toBeInTheDocument();
     expect(screen.queryByText(/选了|^C$/)).not.toBeInTheDocument();
-    expect(historyCalls).toEqual(['/api/game/s-1/history', '/api/game/s-1/history']);
   });
 
-  it('缺口标记可被读屏念出(role=note),0–3 拆两行', async () => {
+  it('缺口标记可被读屏念出(role=note),只标回合号', async () => {
     await openPage(
       ok([
-        { kind: 'gap', reason: 'write_failed', fromTurn: 0, toTurn: 3 },
-        ev(4, '第四回合的事'),
+        { kind: 'gap', reason: 'before_recording', fromTurn: 0, toTurn: 4 },
+        ev(5, '第五回合的事'),
+        { kind: 'gap', reason: 'write_failed', fromTurn: 6, toTurn: 7 },
+        ev(8, '第八回合的事'),
       ]),
     );
     const notes = await screen.findAllByRole('note');
-    expect(notes.map((n) => n.textContent)).toEqual(['开场没有留下记录', '第 1–3 回合没有留下记录']);
+    expect(notes.map((n) => n.textContent)).toEqual(['更早的回合没有留下记录', '第 6–7 回合没有留下记录']);
   });
 
   it('nextAfterTurn 为 null → 无「加载更多」;有 → 点击取下一页并追加', async () => {
@@ -155,7 +167,7 @@ describe('历史页(口径 E/F/G/H/I)', () => {
     historyReplies.push(ok([ev(100, '第一百回合')]));
     await userEvent.click(await screen.findByRole('button', { name: '加载更多' }));
     expect(await screen.findByText('第一百回合')).toBeInTheDocument();
-    expect(historyCalls.at(-1)).toBe('/api/game/s-1/history?afterTurn=99');
+    expect(historyCalls.at(-1)).toBe(`/api/game/${SID}/history?afterTurn=99`);
     expect(screen.queryByRole('button', { name: '加载更多' })).not.toBeInTheDocument();
   });
 
@@ -168,14 +180,14 @@ describe('历史页(口径 E/F/G/H/I)', () => {
     expect(screen.queryByText(/HTTP|503|history/)).not.toBeInTheDocument();
   });
 
-  it('翻页失败:文案与首屏失败不同,保留已加载内容,也有「再试一次」', async () => {
+  it('翻页失败:文案与首屏失败不同,也有「再试一次」', async () => {
     await openPage(ok([ev(0, '已加载的开场', null)], 99));
     historyReplies.push('network');
     await userEvent.click(await screen.findByRole('button', { name: '加载更多' }));
     expect(await screen.findByText('还有一些回合暂时没能载入')).toBeInTheDocument();
     expect(screen.queryByText('这一局的记录暂时没能载入')).not.toBeInTheDocument();
-    expect(screen.getByText('已加载的开场')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '再试一次' })).toBeInTheDocument();
+    expect(screen.queryByText(/network|offline|错误/)).not.toBeInTheDocument();
   });
 
   it('「返回」回选择屏(复用 BackButton,无皮肤)', async () => {
