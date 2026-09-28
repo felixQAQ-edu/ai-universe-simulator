@@ -1,5 +1,7 @@
 package com.aiuniverse.server.eventloop;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -37,6 +39,8 @@ import com.aiuniverse.server.quota.QuotaGate;
  */
 @Component
 public final class TurnStateMachine {
+
+	private static final Logger log = LoggerFactory.getLogger(TurnStateMachine.class);
 
 	private final TurnExecutor executor;
 	private final SessionStore store;
@@ -84,6 +88,9 @@ public final class TurnStateMachine {
 			sink.error("busy", "上一回合仍在结算,请稍候");
 			return;
 		}
+		// CAS 之后读:忙态守卫保证此刻本线程是这一局唯一写者,两次读之间无人能推进回合
+		// (ADR-027 决策 1;CAS 之前读则另一线程可能在两次读之间推进)。
+		int turnBefore = session.engine().turn();
 		try {
 			TurnResult result = executor.execute(session, actionId, sink);
 			// 写盘时机 = 临界区尾部(ADR-015 勘察 2):executor 返回后、相位放回之前——
@@ -91,9 +98,24 @@ public final class TurnStateMachine {
 			store.persist(session);
 			session.phase().set(result.ended() ? TurnPhase.ENDED : TurnPhase.AWAITING_ACTION);
 		} catch (RuntimeException e) {
-			// executor 自身已尽力降级(§6);跑到这里是意料外故障 → 放回 AWAITING 不锁死该存档。
-			session.phase().set(TurnPhase.AWAITING_ACTION);
-			sink.error("internal_error", "回合处理失败,请重试");
+			if (session.engine().turn() != turnBefore) {
+				// ADR-027 决策 1 不变式:回合已在内存落地 ⇒ 本次 persist 一定会被尝试。
+				// 判据读的是事实(engine.turn() 变没变,apply / applyNoOp 首条语句都是 turn += 1),
+				// 不按异常来源枚举 —— delta / ending 的 SSE 写失败只是已知来源之一,落地之后任何一处
+				// RuntimeException 都走这里。相位按引擎事实定(结局回合 ending 写失败不得被放回 AWAITING,
+				// 否则一局已收束的世界还能再跑一回合)。
+				// 不发 internal_error:回合没有失败,它已经落账了 —— 那句「请重试」在这里是假话;
+				// 客户端游标仍是旧回合,下一次点击拿 turn_stale → 拉 /state(ADR-023 立字 4.1)。
+				log.warn("[turn] save={} 回合已落地(turn {}->{}),送达/收尾失败,补写盘:{}",
+						session.saveId(), turnBefore, session.engine().turn(), e.toString());
+				store.persist(session);
+				session.phase().set("ended".equals(session.engine().status())
+						? TurnPhase.ENDED : TurnPhase.AWAITING_ACTION);
+			} else {
+				// 未落地:executor 自身已尽力降级(§6);跑到这里是意料外故障 → 放回 AWAITING 不锁死该存档。
+				session.phase().set(TurnPhase.AWAITING_ACTION);
+				sink.error("internal_error", "回合处理失败,请重试");
+			}
 		}
 	}
 }
