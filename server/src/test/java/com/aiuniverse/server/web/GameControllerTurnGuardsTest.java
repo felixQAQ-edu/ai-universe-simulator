@@ -11,6 +11,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -23,6 +24,10 @@ import com.aiuniverse.server.eventloop.TurnResult;
 import com.aiuniverse.server.llm.LlmUsage;
 import com.aiuniverse.server.quota.QuotaGate;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
@@ -183,20 +188,82 @@ class GameControllerTurnGuardsTest {
 	}
 
 	/**
-	 * (c) <b>比较方向</b>:客户端游标<b>超前</b>(服务端 1、他报 2)<b>不得</b>被判 stale。
+	 * (c) 客户端游标<b>超前</b>(服务端 1、他报 2)+ 相位 {@code AWAITING_ACTION} → 409 {@code turn_stale},
+	 * 只带 code、<b>零提交</b>(ADR-027 决策 2;原 {@code aheadTurnIsNotTreatedAsStale} 改写而来)。
 	 *
-	 * <p>构造不出来不等于不用钉——它钉的是<b>方向</b>:把 {@code <} 写成 {@code >} 或 {@code !=} 时,
-	 * (a)(b) 都可能仍然绿(0/1 那两个值下 {@code !=} 与 {@code <} 等价),<b>只有这一条会红</b>。
+	 * <p>超前只在「他收到了 N+1 的 delta,而那一回合没落盘、重启后服务端回到 N」之后出现。不拦的话,
+	 * 他按 N+1 那组选项的文字选了「A」,被当作 N 那组选项里的「A」执行。
+	 *
+	 * <p>三点控制组:落后 → 409((a))、相等 → 200((b))、超前 → 409(本条)。只有 {@code !=} 能同时满足:
+	 * 写成 {@code <} → 本条红;写成 {@code >} → (a) 红;写成「一律 409」→ (b) 红。
 	 */
 	@Test
-	void aheadTurnIsNotTreatedAsStale() {
+	void aheadTurnIsTreatedAsStale() {
 		List<Runnable> submitted = new ArrayList<>();
 		GameController c = controllerFor(managerAtTurnOne(managerWithSession()), submitted);
 
 		ResponseEntity<?> resp = c.turn("save-1", new GameController.TurnRequest(2, "A"), request());
 
-		assertThat(resp.getStatusCode().value()).as("超前不是落后:方向写反这条会红").isEqualTo(200);
+		assertThat(resp.getStatusCode().value()).isEqualTo(HttpStatus.CONFLICT.value());
+		assertThat(errorOf(resp)).containsExactly(Map.entry("code", "turn_stale"));
+		assertThat(submitted).as("超前请求零提交、零名额").isEmpty();
+		assertThat(resp.getHeaders().getContentType()).isEqualTo(MediaType.APPLICATION_JSON);
+	}
+
+	/**
+	 * 超前方向<b>同样</b>受 {@code inFlight()} 保护:在途({@code SETTLING})时超前 → 200(走池线程,在那里撞 busy)。
+	 * 单页签构造不出来;唯一来路是重启后另一个页签先在 N 上开跑、本页签带 N+1 提交(ADR-027 要核二末段)。
+	 */
+	@Test
+	void aheadTurnWhileSettlingIsNotStale() {
+		GameSessionManager manager = managerAtTurnOne(managerWithSession());
+		manager.get("save-1").phase().set(TurnPhase.SETTLING);
+		List<Runnable> submitted = new ArrayList<>();
+		GameController c = controllerFor(manager, submitted);
+
+		ResponseEntity<?> resp = c.turn("save-1", new GameController.TurnRequest(2, "A"), request());
+
+		assertThat(resp.getStatusCode().value()).isEqualTo(200);
 		assertThat(submitted).hasSize(1);
+	}
+
+	/** 同上,{@code GENERATING}(与 (d)/(e) 同理:推进 turn 那一刻相位可能是两者之一)。 */
+	@Test
+	void aheadTurnWhileGeneratingIsNotStale() {
+		GameSessionManager manager = managerAtTurnOne(managerWithSession());
+		manager.get("save-1").phase().set(TurnPhase.GENERATING);
+		List<Runnable> submitted = new ArrayList<>();
+		GameController c = controllerFor(manager, submitted);
+
+		ResponseEntity<?> resp = c.turn("save-1", new GameController.TurnRequest(2, "A"), request());
+
+		assertThat(resp.getStatusCode().value()).isEqualTo(200);
+		assertThat(submitted).hasSize(1);
+	}
+
+	/**
+	 * WARN 只在超前方向打(ADR-027 决策 2):超前是「曾经丢过一次落盘」唯一可观测的痕迹;
+	 * 落后是断流后的常态,打了是噪音。两个方向各一条,<b>同一个 appender 里对照</b>。
+	 */
+	@Test
+	void aheadTurnLogsWarnButStaleTurnDoesNot() {
+		Logger logger = (Logger) LoggerFactory.getLogger(GameController.class);
+		ListAppender<ILoggingEvent> logs = new ListAppender<>();
+		logs.start();
+		logger.addAppender(logs);
+		try {
+			GameController c = controllerFor(managerAtTurnOne(managerWithSession()), new ArrayList<>());
+
+			c.turn("save-1", new GameController.TurnRequest(0, "A"), request()); // 落后
+			assertThat(logs.list).as("落后方向不打 WARN").noneMatch(e -> e.getLevel() == Level.WARN);
+
+			c.turn("save-1", new GameController.TurnRequest(2, "A"), request()); // 超前
+			assertThat(logs.list.stream().filter(e -> e.getLevel() == Level.WARN)).singleElement()
+					.satisfies(e -> assertThat(e.getFormattedMessage())
+							.contains("save=save-1").contains("client=2").contains("server=1"));
+		} finally {
+			logger.detachAppender(logs);
+		}
 	}
 
 	/**

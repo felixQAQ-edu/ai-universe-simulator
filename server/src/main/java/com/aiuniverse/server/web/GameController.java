@@ -3,6 +3,8 @@ package com.aiuniverse.server.web;
 import java.util.List;
 import java.util.Map;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -43,6 +45,8 @@ import jakarta.validation.constraints.NotBlank;
  */
 @RestController
 public class GameController {
+
+	private static final Logger log = LoggerFactory.getLogger(GameController.class);
 
 	private final GameSessionManager sessions;
 	private final TurnStateMachine stateMachine;
@@ -182,7 +186,7 @@ public class GameController {
 	 *
 	 * <pre>
 	 * ├─ session == null           → 404 {error:{code:"session_not_found"}}      ← 容器线程,零名额
-	 * ├─ 游标落后 ∧ 相位不在途     → 409 {error:{code:"turn_stale"}}             ← 容器线程,零名额
+	 * ├─ 游标不一致 ∧ 相位不在途   → 409 {error:{code:"turn_stale"}}             ← 容器线程,零名额
 	 * ├─ 守卫 1 合法性             → 400 {error:{code:"illegal_action", …}}      ← 容器线程,零名额
 	 * ├─ 准入 submit()             → 503 {error:{code:"server_at_capacity", …}}  ← 容器线程,零线程 + WARN
 	 * ├──────────────【交接:名额已占,此后在池线程上】──────────────
@@ -196,8 +200,8 @@ public class GameController {
 	 * (立字 6,显式裁定非静默副产品)。
 	 *
 	 * <p><b>游标比对在合法性之前</b>(ADR-023 立字 1):两者都是纯读,<b>排序纯是语义问题不是代价问题</b>。
-	 * 之所以先答它——游标落后时,守卫 1 是<b>在一个过期的前提上做判断</b>(拿玩家手里那组旧选项
-	 * 去比服务端的新选项集);且 {@code illegal_action} 那句「无效的行动:X」
+	 * 之所以先答它——游标不一致时(落后或超前,ADR-027 决策 2),守卫 1 是<b>在一个过期的前提上做判断</b>
+	 * (拿玩家手里那组选项的 id 去比服务端那一回合的选项集);且 {@code illegal_action} 那句「无效的行动:X」
 	 * <b>把责任指向玩家的选择,而玩家点的是屏幕上真实存在的按钮</b>。<b>先答病因,不先答症状。</b>
 	 *
 	 * <p><b>准入拒绝相位零触碰</b>:它发生在 CAS 之前、甚至在池线程之前,服务端从头到尾没碰过这局;
@@ -220,10 +224,13 @@ public class GameController {
 			// 这条混合是刀 1 优先级链显式允许的。
 			return jsonError(HttpStatus.NOT_FOUND, "session_not_found", null);
 		}
-		// 游标比对(ADR-023):客户端手里的 turn 落后于服务端 = 有一个回合已在服务端落账而他没看到
-		// (断流:SSE 写抛 → persist 被跳过;或客户端干净断开而服务端全程成功)。不拦的话,他手里那组
-		// 旧选项的 id 跨回合稳定为 A/B/C/D、守卫 1 照样认得 → **再推进一个回合**,中间那一回合的叙事
-		// 他永远读不到。⚠️ 两处都是**纯读**(engine.turn() + phase().get()),不写、不占名额、不需要归还
+		// 游标比对(ADR-023 + ADR-027 决策 2):判据是**不相等**,两个方向都拦。
+		// · 落后:有一个回合已在服务端落账而他没看到(delta 没送达;或客户端干净断开而服务端全程成功)。
+		//   不拦的话,他手里那组旧选项的 id 跨回合稳定为 A/B/C/D、守卫 1 照样认得 → **再推进一个回合**,
+		//   中间那一回合的叙事他永远读不到。
+		// · 超前:他收到了 N+1 的 delta,而那一回合没落盘(persist 失败 / 进程死在毫秒窗口)、重启后服务端回到 N。
+		//   不拦的话,他按 N+1 那组选项的文字选了「B」,被当作 N 那组选项里的「B」执行 —— 点的是一件事、
+		//   做的是另一件事。两个方向客户端该做的事一样:丢掉本地视图、拉 /state,故共用 turn_stale。⚠️ 两处都是**纯读**(engine.turn() + phase().get()),不写、不占名额、不需要归还
 		// ——故不构成 ADR-022 立字 5 禁止的那种「必须永不失败的写」。
 		//
 		// ⚠️ 必须连相位一起读:engine.apply 把 turn 推到 N+1 之后、phase 放回之前有一段**毫秒级**窗口
@@ -232,8 +239,16 @@ public class GameController {
 		// 反过来说:AWAITING_ACTION 与 ENDED 都判 stale,而 ENDED 那一侧是本刀最值钱的一格
 		// ——玩家在结局那回合断流、没看到结局、再点,今天永远是「上一回合仍在结算」,
 		// **局已经结束了,而他永远出不去**。
-		if (req.turn() < session.engine().turn() && !session.phase().get().inFlight()) {
-			// 只发 code(立字 4):「你的游标落后了」是**客户端自己也知道**的事实,服务端不掌握任何
+		int serverTurn = session.engine().turn();
+		if (req.turn() != serverTurn && !session.phase().get().inFlight()) {
+			if (req.turn() > serverTurn) {
+				// 超前从不是正常流程的产物:它只在「落盘没成 + 重启」之后出现,是默认 profile 下
+				// 「曾经丢过一次落盘」唯一可观测的痕迹(ADR-027 决策 2)。落后方向不打 —— 断流后重点一次
+				// 是常态,打了是噪音(ADR-022 刀 2 前置「先清噪音再加信号」)。
+				log.warn("[turn] save={} 客户端游标超前 client={} server={} → turn_stale(疑似曾丢一次落盘)",
+						saveId, req.turn(), serverTurn);
+			}
+			// 只发 code(立字 4):「你的游标与服务端不一致」是**客户端自己也知道**的事实,服务端不掌握任何
 			// 额外细节 → 文案归前端兜底表。对照 server_at_capacity / illegal_action(那两条只有服务端知道)。
 			return jsonError(HttpStatus.CONFLICT, "turn_stale", null);
 		}
@@ -317,7 +332,8 @@ public class GameController {
 	 * <p>{@code turn} = <b>客户端手里的游标</b>,自 Phase 1 就在 wire 上、前端一直在发
 	 * (值恒取自服务端回声:init 的 {@code state.turn} / resume / 每次 {@code delta.turn}),
 	 * 而<b>服务端直到 ADR-023 才开始读它</b>。健康客户端恒等于服务端现值;落后 = 有一个回合
-	 * 已在服务端落账而他没看到(断流)。
+	 * 已在服务端落账而他没看到(断流);超前 = 他看到的那一回合没落盘、服务端重启后回到了更早的回合
+	 * (ADR-027 决策 2)。两者都 → {@code turn_stale}。
 	 */
 	public record TurnRequest(int turn, @NotBlank String actionId) {
 	}

@@ -4,7 +4,7 @@ import { GameApiError } from '../api';
 import { createGameStore } from './gameStore';
 
 /**
- * 游标落后之后的重新同步(ADR-023 块 5)。
+ * 游标不一致(落后 / 超前)之后的重新同步(ADR-023 块 5 / ADR-027 决策 2)。
  *
  * <p>服务端的 409 只做了一半的事——挡住「再点一次推进第二次」;
  * **另一半是让玩家看到他错过的那一回合**,而那一半在这里:收到 `turn_stale` 就拉一次
@@ -228,6 +228,37 @@ describe('turn_stale 之后的重新同步', () => {
 
     expect(store.getState().notice).toBeNull();
     expect(store.getState().turn).toBe(1); // 控制组:确实换屏了,不是「什么都没发生所以 notice 没变」
+  });
+
+  /**
+   * (h) **超前方向:本地比服务端新 → 照样同步回服务端那一回合(即回滚)**(ADR-027 决策 2)。
+   *
+   * <p>超前只在「我们收到了 N+1 的 delta,而那一回合没落盘、服务端重启后回到 N」之后出现;
+   * 服务端对它同样回 `turn_stale`。前端的正确处理与落后方向**完全相同** —— 丢掉本地视图、拉 `/state`、
+   * 无条件覆盖。⚠️ **这是 ADR-027「前端零行为改动」的唯一守护**:resync 今天**不做单调性判断**,
+   * 哪天有人给它加「只接受更新的回合」,超前那一侧会静默卡在一个服务端已不存在的回合上,只有这条会红。
+   *
+   * <p>本地回合 2 是用 `setState` 人为造的(FakeTurnStream 不发 delta);回合号、选项、叙事三样都断言,
+   * 只断言回合号的话「只换了回合号」也能过。
+   */
+  it('本地回合 2、/state 返回回合 1 → 同步回 1(回合号 / 选项 / 叙事都换成服务端那份)', async () => {
+    const { api, stream } = makeApi({ resume: 'ahead' }); // 服务端回 world(1)
+    const store = createGameStore(api);
+    await store.getState().startGame('rules_creepy');
+    store.getState().chooseAction('A');
+    store.setState({
+      turn: 2,
+      narrative: '服务端已经不存在的第 2 回合。',
+      availableActions: [{ id: 'C', text: '一个服务端没有的选项', hint: '' }],
+    });
+    stream().fireError({ code: 'turn_stale', message: '(文案由兜底表决定)' });
+    await new Promise((r) => setTimeout(r, 0));
+
+    const s = store.getState();
+    expect(s.turn).toBe(1);
+    expect(s.availableActions.map((a) => a.id)).toEqual(['A']);
+    expect(s.narrative).toBe('你错过的那一回合:玻璃上多了一道裂痕。');
+    expect(s.status).toBe('awaiting');
   });
 
   it('别的可恢复错误不触发拉取(busy 只是「稍候再点」,状态没变)', async () => {

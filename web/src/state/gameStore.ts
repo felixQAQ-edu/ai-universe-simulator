@@ -164,7 +164,8 @@ const RECOVERABLE_TURN_ERRORS = new Set([
   'quota_exceeded',
   'server_at_capacity',
   'service_unavailable',
-  // turn_stale(ADR-023):服务端说「你手里的游标比我旧」——局活得好好的,只是我们落后了一个回合。
+  // turn_stale(ADR-023 / ADR-027):服务端说「你手里的游标与我不一致」——多半是我们落后了一个回合,
+  // 也可能是超前(我们看过的那一回合服务端没落盘、重启后回到了更早的回合)。两个方向处理相同。
   // 它是**最该被登记成可恢复的一条**:onError 里紧跟着就拉一次 /state 把差的那一回合补回来。
   //
   // ⚠️ **诚实记:它今天走不到下面那个 `has()` 分支** —— `turn_stale` 在那之前就被显式抑制并 return 了
@@ -224,9 +225,12 @@ export function createGameStore(api: GameApi) {
       set({ resumableSaveId: null });
     };
 
-    // ── 游标落后即重新同步(ADR-023)────────────────────────────────────
-    // 服务端说 `turn_stale` = **这一局活得好好的,只是我们落后了一个回合**:有一个回合在服务端
-    // 完整落账而我们没收到 delta(断流:SSE 写抛 → `persist` 被跳过;或干净断开而服务端全程成功)。
+    // ── 游标不一致即重新同步(ADR-023 / ADR-027)──────────────────────────
+    // 服务端说 `turn_stale` = **这一局活得好好的,只是我们手里的游标与它不一致**。常见是落后:
+    // 有一个回合在服务端完整落账而我们没收到 delta(断流)。也可能是超前(ADR-027 决策 2):
+    // 我们收到了 N+1 的 delta,而那一回合没落盘、服务端重启后回到 N —— 此时下面的覆盖就是**回滚到 N**。
+    // ⚠️ 这条覆盖**不做单调性判断**(不只接受更新的回合),超前方向的正确性正依赖这一点;
+    // `gameStore.stale.test.ts` 里有一条专门钉它。
     // 拒绝本身只做了一半的事(挡住「再点一次推进第二次」),**另一半是让玩家看到他错过的那一回合**
     // ——而那一半就在 `/state` 里:它读的是服务端**内存现值**,且 `state.log` 保留末 4 条,
     // **断流那一回合的 narrative 仍在里面**。ended 局同理:这是玩家在结局那回合断流之后唯一的出口。
@@ -240,7 +244,7 @@ export function createGameStore(api: GameApi) {
     // 正是 `resumeGame` 那句注释警告过的形状。失败就**静默留在原地**:玩家再点一次会再拿一次
     // `turn_stale`,不会推进第二个回合(服务端那道闸一直在)。
     //
-    // ⚠️ **不碰 notice**:落后这件事该对玩家说什么,是兜底表的文案职责(ADR-023 立字 4),
+    // ⚠️ **不碰 notice**:游标不一致这件事该对玩家说什么,是兜底表的文案职责(ADR-023 立字 4),
     // 不在这里另写一句。
     const resyncAfterStaleTurn = async (saveId: string, isStale: () => boolean) => {
       let res;
@@ -413,7 +417,7 @@ export function createGameStore(api: GameApi) {
         stream.onError((err) => {
           if (stale()) return;
           if (err.code === 'session_not_found') forgetDeadSave(saveId);
-          // 游标落后 → **不提示,只刷新**(ADR-023):把我们错过的那一回合补回来(不清档、挂世代守卫,见上)。
+          // 游标不一致 → **不提示,只刷新**(ADR-023 / ADR-027):同步到服务端那一回合(不清档、挂世代守卫,见上)。
           //
           // ⚠️ **必须显式抑制,不能靠「从可恢复集合里拿掉」** —— 下面 if/else 的**两个分支都设 notice**,
           // 拿掉只会让它落进 else 那句「本回合处理失败,请重试」,更不准。
