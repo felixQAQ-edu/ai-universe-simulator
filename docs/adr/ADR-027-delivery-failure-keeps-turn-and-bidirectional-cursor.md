@@ -1,7 +1,8 @@
 # ADR-027 · 送达失败不丢回合 + 游标双向比对
 
 - **日期**:2026-09-28
-- **状态**:**提议** —— 草稿,待校勘与 Felix 过目。点头之前不写一行实现。
+- **状态**:**已采纳**(2026-09-28,Felix 定;校勘核过 `65bb50c`)。
+  ⤷ 原状态行(留档):「**提议** —— 草稿,待校勘与 Felix 过目。点头之前不写一行实现。」
 - **实现进度**(活状态格):未起。⚠️ 本 ADR 的实现合并,是 [ADR-026](ADR-026-turn-acceptance-record.md) 实现的**开工前置**(ADR-026 已决 E / E′)。
 - **决策者**:Felix
 
@@ -277,6 +278,7 @@ ADR-026 决策 4 写「`catch (RuntimeException)` 里一行 `ledger.failed(...)`
    今天这条路径**未观察到**;且那份半截状态本来就已是内存里的权威(`/state` 读它、下一回合的 `persist` 也会写它),补写不制造新的不一致。
    若半截状态非法,`Engine.restore` 会在重启时拒载该档(「拒载不半载」)—— 那是比回滚更坏的结果,如实记。
    缓解:不改 `Engine`(约束 4);若日后要精确判据,须给 `Engine` 一个「本回合结算完成」的事实,那是 golden 要重录的一刀。
+   ⤷ **加注(2026-09-28,采纳时,原文保留)**:这不是本 ADR 引入的代价 —— 今天内存为权威,半落账状态本来就会随下一回合的 persist 落盘;本 ADR 只是让它提前一回合。
 4. **catch 只接 `RuntimeException`**:`Error`(OOM 等)不走补写,相位停在 `GENERATING`(今天的行为,本 ADR 不变)。进程状态已不可信时补写盘不是好主意。
 5. **不变式是「尝试」不是「成功」**:`persist` 仍 best-effort;落盘失败或进程死在 `sink.delta` 与 `persist` 之间的毫秒窗口,仍会产生「内存 N+1 / 盘 N」,重启后由决策 2 兜住(以代价 1 的形式)。
    CONTEXT §三.17 的订正须写清这条残余,不许写成「已治」。
@@ -315,6 +317,7 @@ ADR-026 决策 4 写「`catch (RuntimeException)` 里一行 `ledger.failed(...)`
 **刀 1**(`TurnStateMachineTest`,用记录型 `SessionStore` 替身):
 - 已落地后抛:executor 先 `engine.applyNoOp(...)` 再抛 `IllegalStateException` → `persist` 被调用 1 次、相位 `AWAITING_ACTION`、**未**发 `internal_error`。
 - 已落地且已收束后抛:executor 先把引擎推到 `ended` 再抛 → 相位 **`ENDED`**、`persist` 1 次(钉「结束了又能继续玩」)。
+  同一用例续一步(采纳时确认必含):ended 局 ending 写失败后相位仍为 **`ENDED`**,再点(旧游标或当前游标)**不会推进** —— `engine.turn()` 不变、`persist` 不再增加。
 - 未落地就抛:executor 直接抛 → `persist` 0 次、相位 `AWAITING_ACTION`、发 `internal_error`(既有行为的守护)。
 - 端到端一条:真 `EventLoopService` + `MockLlmClient` + 一个 `delta` 时抛的 sink → 内存与盘上的回合号一致。
 - 变异(读红用例名,不读计数):摘掉补写 → 前两条红;相位写死 `AWAITING` → 只有「已收束」那条红;`!=` 改成「一律当已落地」→ 只有「未落地」那条红。
