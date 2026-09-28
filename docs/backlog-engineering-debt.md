@@ -637,6 +637,42 @@ PostgreSQL / MySQL 迁移待评估的形态清单(**只是清单,不是方案,�
 
 ---
 
+## 挂账 · 成本闸门少算被中止的调用(记于 2026-09-28)
+
+出处:[ADR-026](adr/ADR-026-turn-acceptance-record.md) 待核第 5 条附带撞见;ADR-026 已决 G(`llm_call` 不做)之后,
+这条不再挂在 `llm_call` 身上,单独立账。
+
+### 事实(照源码)
+
+- 回合路径的 ¥ 记账**只在** `EventLoopService.logUsage` 里(`quota.record(usage.usage())`),
+  而 `logUsage` 只在**流完整结束之后**被调(主调用一处、修复一处)。
+- **流中断**(`LlmException` → `degrade`)走不到 `logUsage`,不记账;修复调用中断(`repairOnce` 的 catch 返回 null)同样不记。
+- **客户端中途离开**同样不记:返回键设计**允许生成中点击**(线 C 裁定),断开后 `SseTurnEventSink.send`
+  抛的 `IllegalStateException` 从 `onToken` 回调穿出 `streamChat`,`logUsage` 那一行根本没跑到。
+- ⚠️ **同形的第二处,记全**:world-gen 的记账在 `WorldGenService.call` 里自己调 `quota.record`,
+  位置同样在 `streamChat` 正常返回之后;`catch (LlmException)` 分支直接抛 `WorldGenException`,不记账。
+
+### 偏差方向
+
+**闸门比实际更松** —— 被中止的调用已经消耗了 token,却不进日 / 月累计。
+与[「上游硬失败不可见」](#挂账--上游硬失败402--401--429-一类今天不可见记于-2026-09-21)那条**不是同一件事**:
+那条是「402 根本不产生 usage」(没花钱、闸门也看不见),这条是**花了钱、闸门看不见**。
+
+### 难点(不是一行改动)
+
+中断的流**通常拿不到 usage**:usage 块在流末尾才来(ADR-001 / `OpenAiStreamDecoder`),中途断开时它还没到。
+故修复**只能估算**(按已收到的 token 数 / 已流出的字符数折算),而估算要回答「按什么折、偏高还是偏低」——
+那是设计,不是把 `quota.record` 挪进 `finally`(挪进去也只是记一个 `null`)。
+
+### 解冻条件(不设日历)
+
+1. **对账发现可见偏差** —— 月累计 ¥(`quota-YYYY-MM.json`)与 DeepSeek 控制台账单出现肉眼可见的差;
+2. **月累计逼近 [ADR-016](adr/ADR-016-cost-gate.md) 月闸**(¥175)—— 那时「闸门偏松」开始有真实后果。
+
+⚠️ 两条都**不自报**:第 1 条要有人去对账,第 2 条要有人去看月累计。本条只记账,不改记账逻辑。
+
+---
+
 ## 挂账 · `/state` 的 404 带服务端 message,与 ADR-022 立字 11 不符(记于 2026-09-26)
 
 **事实**:`GameController.state()` 找不到存档时返回
