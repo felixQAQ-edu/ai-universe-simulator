@@ -127,12 +127,15 @@ sequenceDiagram
     E-->>P: SSE delta
     E-->>M: 结算结果
     M->>M: persist 落盘
-    Note over P,M: 客户端已断开则 SSE 写抛出<br/>persist 跳过 · 盘上停在上一回合
+    Note over P,M: 客户端已断开则 SSE 写抛出<br/>已落账则照样补写盘(ADR-027)
 ```
 
 **出网那几条实际经 `SseTurnEventSink`**(图上直接画成 event-loop → 玩家,略去那层薄适配);
 经它出网的状态**必须已过消毒投影**,隐藏字段不下发。
 
-**最后那条注是 [ADR-023](adr/ADR-023-turn-cursor-idempotency.md) 的病因**:客户端断开 →
-SSE 写抛出 → `persist` 被跳过,于是**内存已经是 N+1 而盘上还是 N**。玩家再点一次,
+**最后那条注**:客户端断开 → SSE 写抛出。[ADR-027](adr/ADR-027-delivery-failure-keeps-turn-and-bidirectional-cursor.md)
+之前,这一抛让 `persist` 被跳过,**内存已经是 N+1 而盘上还是 N**;自 ADR-027 刀 1 起,
+`TurnStateMachine` 的 catch 看 `engine.turn()` 变没变 —— 回合已落账就照样补写盘,内存与盘一致
+(残余:`persist` 自己失败、或进程死在送达与写盘之间的毫秒窗口)。
+玩家手里的游标仍停在 N([ADR-023](adr/ADR-023-turn-cursor-idempotency.md) 的病因):再点一次,
 他手里那组旧选项的 id 跨回合稳定,守卫 1 照样认得 —— 那就是 §二 里 `turn_stale` 那一格要拦的东西。
