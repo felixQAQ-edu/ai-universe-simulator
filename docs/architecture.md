@@ -78,7 +78,7 @@ sequenceDiagram
     Note over P,C: 容器线程 · 零名额
     alt 会话不存在
         C-->>P: 404 session_not_found
-    else 游标落后
+    else 游标不一致
         C-->>P: 409 turn_stale
     else 动作非法
         C-->>P: 400 illegal_action
@@ -100,7 +100,8 @@ sequenceDiagram
 是白白让真玩家少一个位子([ADR-022](adr/ADR-022-turn-admission-and-rejection-semantics.md) 立字 7)。
 
 **游标比对排在合法性之前**([ADR-023](adr/ADR-023-turn-cursor-idempotency.md) 立字 1):两者都是纯读,
-排序纯是语义问题 —— 游标落后时,守卫 1 是**在一个过期的前提上做判断**。
+排序纯是语义问题 —— 游标不一致时(落后或超前,[ADR-027](adr/ADR-027-delivery-failure-keeps-turn-and-bidirectional-cursor.md) 决策 2),
+守卫 1 是**在一个过期的前提上做判断**。
 
 ---
 
