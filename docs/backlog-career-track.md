@@ -304,7 +304,7 @@ CI badge / 演示视频或 GIF。
 产品视角的另一半见 [future-experience §2.3](future-experience-backlog.md)。
 **需要自己的 ADR。** → 第一刀 ADR 已采纳(2026-09-26;刀 1 已合并(2026-09-26);刀 2 已合并(2026-09-26);刀 3 已合并(2026-09-27);刀 4 挂账(2026-09-27 Felix 定,方案 D:暂不切库),见该 ADR 状态格):[ADR-025 叙事历史](adr/ADR-025-narrative-history.md)(
 只落 `game_session` + `game_event`,**是本层的子集** —— 两段式事务、`turn_request`、跨重启幂等**都不在其中**)。
-→ 补两段式与 `turn_request` 的 ADR:[ADR-026 回合受理记录](adr/ADR-026-turn-acceptance-record.md)(**已采纳**,2026-09-28 Felix 定;实现未起,前置 = [ADR-027](adr/ADR-027-delivery-failure-keeps-turn-and-bidirectional-cursor.md)(**已采纳**,2026-09-28)实现合并之后)。
+→ 补两段式与 `turn_request` 的 ADR:[ADR-026 回合受理记录](adr/ADR-026-turn-acceptance-record.md)(**已采纳**,2026-09-28 Felix 定;实现未起,前置 = [ADR-027](adr/ADR-027-delivery-failure-keeps-turn-and-bidirectional-cursor.md)(**已采纳**,2026-09-28;刀 1、刀 2 已合并(2026-09-28);收口刀未起;待部署后回填实际效果)实现合并之后 —— 该前置已满足)。
 ⚠️ 它的勘察结论改变了本层几条的读法 —— **单实例下 `version` 乐观锁与幂等唯一键都拦不到任何真实提交**(唯一写者由 CAS 保证),
 已决:不建乐观锁、唯一键只作断言、`llm_call` 不做直到线上切库;以该 ADR 的对外口径为准,本节「表(清单)」与两段式原文不回改。
 对外口径补一句(ADR-026 已决 F):**「评估过乐观锁:单实例下它拦不到任何冲突,单写者由 CAS 保证;多实例时才建。」**
