@@ -40,7 +40,9 @@ import tools.jackson.databind.node.ObjectNode;
  *   <li>摘掉已落地分支的 {@code store.persist} → {@code landedThenThrowPersistsAndStaysSilent}、
  *       {@code landedAndEndedThenThrowGoesToEndedAndStaysEnded}、{@code endToEndDeltaWriteFailureKeepsDiskInStepWithMemory} 红;</li>
  *   <li>已落地分支相位写死 AWAITING → 只有 {@code landedAndEndedThenThrowGoesToEndedAndStaysEnded} 红;</li>
- *   <li>判据改成「一律当已落地」→ 只有 {@code notLandedThenThrowKeepsTodaysBehavior} 红。</li>
+ *   <li>判据改成「一律当已落地」→ {@code notLandedThenThrowKeepsTodaysBehavior} 红,另有既有的
+ *       {@code SessionPersistenceWiringTest.unexpectedExecutorFailureDoesNotPersist} 同红 —— 它早就守着
+ *       「未落地不写盘」这同一件事,不是搭便车。</li>
  * </ul>
  */
 class LandedTurnPersistTest {
