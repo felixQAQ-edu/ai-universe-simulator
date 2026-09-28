@@ -148,6 +148,7 @@ API key 只进环境变量,**绝不写进 yaml / 代码 / 提交**。
 - [ADR-024](docs/adr/ADR-024-stream-segment-deadline.md) — 流式段总时长上界:让「慢但还在流」的回合自己掐掉自己
 - [ADR-025](docs/adr/ADR-025-narrative-history.md) — 叙事历史:让「回看这一局」成为一个能力,PostgreSQL 只是它的存储
 - [ADR-026](docs/adr/ADR-026-turn-acceptance-record.md) — 回合受理记录:把「接下了」与「落地了」拆成两次提交(`pg` profile)
+- [ADR-027](docs/adr/ADR-027-delivery-failure-keeps-turn-and-bidirectional-cursor.md) — 送达失败不丢回合 + 游标双向比对 ⤷ **提议,未采纳**
 
 ## 文档
 

@@ -104,6 +104,8 @@
 在 `ENDED` 上这句话**是真的**(服务端 N+1 且已收束,客户端停在 N),前端据它拉一次 `/state`
 就能读到 `status: ended` 与结局,正是玩家要的那个出口。
 
+> 指针(2026-09-28):**超前方向本 ADR 未讨论**;[ADR-027](ADR-027-delivery-failure-keeps-turn-and-bidirectional-cursor.md)(提议)把判据改为「不相等 ∧ 不在途」、`turn_stale` 语义扩为「游标与服务端不一致」,并治下文 §挂账「内存 N+1 / 盘 N」(不需要数据库)。
+
 **立字 4 · 服务端只发 code、不发 message。**
 按 [ADR-022](ADR-022-turn-admission-and-rejection-semantics.md) 闸 A 那条规则(**不是特例**):
 **状态码本身就能说清的情形,文案归前端兜底表;只有服务端知道的细节,文案归服务端。**
