@@ -3,7 +3,7 @@
 - **日期**:2026-09-28
 - **状态**:**已采纳**(2026-09-28,Felix 定)。原「待决」各条(C、D、E、E′、F、G)改写为「已决」,每条带理由,见下。
   ⚠️ 草稿期原状态为「提议,未采纳」—— 决策正文(1–7)在草稿里写成的样子**未改写**,凡被已决改变的地方以加注标出。
-- **实现进度**(活状态格):未起。**开工前置:[ADR-027](ADR-027-delivery-failure-keeps-turn-and-bidirectional-cursor.md) 的实现合并之后**(见实现分刀)。
+- **实现进度**(活状态格):刀 1(V2 迁移 + `TurnLedger` 接缝 + `NOOP` 装配)**待校勘 / 未合并**(2026-09-29);刀 2(`pg` 实现)未起。开工前置([ADR-027](ADR-027-delivery-failure-keeps-turn-and-bidirectional-cursor.md) 实现合并)已满足。
 - **决策者**:Felix
 
 ## 名字先说清
@@ -92,6 +92,12 @@
 进程内异常路径(`TurnStateMachine` 的 `catch (RuntimeException)`)调 `ledger.failed(session)`:另一段短事务标 `FAILED`,best-effort 不抛。
 ⚠️ 注意这条 catch 同时接住「叙事流中途 SSE 断」(回合未落地,标 FAILED 正确)与「delta 写失败」(回合已在内存落地、只是没 persist)。
 后者标 FAILED **是准确的** —— 库里的判据是「快照有没有写到 target」,而它没写到;内存里那一回合在下一次 persist 前崩溃就真的没了。
+
+⚠️ **吸收 ADR-027 决策 5(2026-09-29,刀 1;上两段原文保留)**:ADR-027 之后那条 catch 已按 `engine.turn()` 分两支,
+上面「catch 里一行 `ledger.failed`」与「delta 写失败标 FAILED」**不再照原样成立**:
+`ledger.failed` **只放在「未落地」分支**(且在放回相位之前 —— 放回之后另一线程即可受理下一回合,晚一步的 `failed` 可能记到下一回合头上);
+「已落地」分支会补一次 persist,由 persist 事务里的落地更新(决策 2)把受理行关成 `SUCCEEDED` / `DEGRADED`
+—— 故 delta 写失败的回合在补写成功时记 `SUCCEEDED`,补写也失败时行仍 `PROCESSING`(重启收口为 `INTERRUPTED`)。
 
 玩家侧:**默认不变**(续局回到盘上那一回合,ADR-015 代价 1)。是否告诉玩家「上一回合被中断」列为待决 D。
 ⚠️ **已决 D(2026-09-28):静默**,见下。

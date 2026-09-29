@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import com.aiuniverse.server.persistence.SessionStore;
+import com.aiuniverse.server.persistence.TurnLedger;
 import com.aiuniverse.server.quota.QuotaGate;
 
 /**
@@ -45,6 +46,7 @@ public final class TurnStateMachine {
 	private final TurnExecutor executor;
 	private final SessionStore store;
 	private final QuotaGate quota;
+	private final TurnLedger ledger;
 
 	/** 纯内存形态(测试 / Slice 2 之前行为)。 */
 	public TurnStateMachine(TurnExecutor executor) {
@@ -56,11 +58,17 @@ public final class TurnStateMachine {
 		this(executor, store, QuotaGate.NOOP);
 	}
 
-	@Autowired
+	/** 无受理记录(ADR-026 之前行为;既有测试调用点零改)。 */
 	public TurnStateMachine(TurnExecutor executor, SessionStore store, QuotaGate quota) {
+		this(executor, store, quota, TurnLedger.NOOP);
+	}
+
+	@Autowired
+	public TurnStateMachine(TurnExecutor executor, SessionStore store, QuotaGate quota, TurnLedger ledger) {
 		this.executor = executor;
 		this.store = store;
 		this.quota = quota;
+		this.ledger = ledger;
 	}
 
 	/** 无客户端标识形态(既有调用点/测试零改):跳过软闸键计数,只受全局闸约束。 */
@@ -92,6 +100,7 @@ public final class TurnStateMachine {
 		// (ADR-027 决策 1;CAS 之前读则另一线程可能在两次读之间推进)。
 		int turnBefore = session.engine().turn();
 		try {
+			ledger.accept(session, actionId); // ADR-026 决策 1:CAS 之后、调模型之前;best-effort(见 TurnLedger)
 			TurnResult result = executor.execute(session, actionId, sink);
 			// 写盘时机 = 临界区尾部(ADR-015 勘察 2):executor 返回后、相位放回之前——
 			// 忙态守卫保证每 saveId 单写者,零新锁;best-effort 不抛(写失败局面继续活在内存)。
@@ -113,6 +122,7 @@ public final class TurnStateMachine {
 						? TurnPhase.ENDED : TurnPhase.AWAITING_ACTION);
 			} else {
 				// 未落地:executor 自身已尽力降级(§6);跑到这里是意料外故障 → 放回 AWAITING 不锁死该存档。
+				ledger.failed(session); // ADR-026 决策 4 / ADR-027 决策 5:只在未落地分支;须在放回相位之前
 				session.phase().set(TurnPhase.AWAITING_ACTION);
 				sink.error("internal_error", "回合处理失败,请重试");
 			}
