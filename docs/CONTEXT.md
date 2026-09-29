@@ -144,6 +144,13 @@
     再点一次就会让服务端**推进第二个回合**(旧选项 id 跨回合稳定为 A/B/C/D,合法性守卫拦不住)。
     该重复推进已由 [ADR-023](adr/ADR-023-turn-cursor-idempotency.md) 的游标比对拒掉(409 `turn_stale`);
     ⚠️ **而「内存 N+1 / 盘 N」这一偏差本身仍未治**,解冻绑数据库那一刀。落盘引用 `schemaVersion` 现值(仍 "0.4")、非 wire schema 字段变更;实现与验收细节(restore 守护测试 / 部署冒烟)见 ADR-015 附录 A/B。平台细节(Fly/fly.toml/区域)属部署实现非约定,不进本节。
+    ⚠️ **订正(ADR-027,2026-09-28;上段原文一字不动)**:「内存 N+1 / 盘 N」的正解最终落在**默认 profile 的回合路径**上 ——
+    [ADR-027](adr/ADR-027-delivery-failure-keeps-turn-and-bidirectional-cursor.md) 刀 1:**回合已落地 ⇒ 本次 `persist` 一定被尝试**
+    (`TurnStateMachine` 的 catch 按 `engine.turn()` 区分已落地 / 未落地,已落地补写盘)。它**不是**「绑数据库那一刀」,
+    **也不是**「绑 `turn_request` 那一刀」(后一读法出自 ADR-025,已由 [ADR-026](adr/ADR-026-turn-acceptance-record.md) §挂账 勘察订正):正解不需要数据库。
+    **残余**:`persist` 本身仍是 best-effort(约定 (4) 不变),写盘失败时盘仍会落后;此时由 ADR-027 刀 2
+    (游标不相等 → 409 `turn_stale` → 前端拉 `/state` 同步)在重启后兜住 —— 故写作「已治其成因、残余由游标兜底」,不写作「已治」。
+    「崩溃回滚一回合是特性非 bug」这条判语不变。
 
 ## 四、版本历史
 

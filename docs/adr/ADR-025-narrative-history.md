@@ -182,6 +182,9 @@ DB 故障不杀活回合:事务失败 → 回滚 → 记 ERROR → 返回;局面
 ⚠️ 故 CONTEXT 那句「解冻绑数据库那一刀」**应读作「绑 `turn_request` 那一刀」**;CONTEXT 本刀不动(范围外),
 本 ADR 已采纳,由刀 4 收口那一刀订正措辞,**订正块保留原文**。
 
+> 加注(2026-09-28,原文保留):**此读法亦不准确**,见 [ADR-026](ADR-026-turn-acceptance-record.md) §挂账 与 [ADR-027](ADR-027-delivery-failure-keeps-turn-and-bidirectional-cursor.md);
+> **正解不需要数据库**(默认 profile 回合路径,ADR-027 刀 1)。CONTEXT §三.17 的订正已由 ADR-027 收口刀完成,不再等本 ADR 刀 4。
+
 本刀对这条偏差**只有一个副作用**,如实记:被跳过的那一回合,只要仍在 `LOG_KEEP` 窗口内,会在下一次成功
 persist 时以事件的形式补进历史(见决策 2「事件从哪来」)—— **历史补上了,盘上快照那一刻的偏差照旧**。
 
