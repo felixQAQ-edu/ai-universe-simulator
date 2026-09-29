@@ -37,6 +37,9 @@ import tools.jackson.databind.node.ObjectNode;
  *
  * <p><b>LLM 不在事务里</b>是写入点位置的结构性后果(两个调用点都在模型流结束之后),不是本类做到了什么;
  * 本类也<b>不是</b>两段式事务 —— 没有 turn_request、没有 version 校验(ADR-025「子集」一节)。
+ * ⚠️ ADR-026 之后:受理(第一段)由 {@link JdbcTurnLedger} 单独提交;本类的 persist 事务里追加一条落地更新
+ * (会话挂着受理行 ∧ {@code engine.turn() == target_turn} → {@code SUCCEEDED} / {@code DEGRADED}),
+ * 并在 {@link #loadAll} 之后做启动收口({@code PROCESSING → INTERRUPTED})。仍没有 version 列(ADR-026 已决 F)。
  *
  * <h2>best-effort,绝不抛;但不阻塞要靠超时</h2>
  * 任何异常 → 回滚 → 记 ERROR → 返回(同文件实现口径,ADR-015 已知代价 5)。
@@ -90,6 +93,9 @@ public class JdbcSessionStore implements SessionStore {
 			List<Event> candidates = candidates(session);
 			int turn = session.engine().turn();
 			String status = session.engine().status();
+			GameSession.TurnRecord pending = session.pendingTurnRecord();
+			GameSession.TurnRecord landed = pending != null && pending.targetTurn() == turn ? pending : null;
+			String landedStatus = session.degradedTurn() == turn ? "DEGRADED" : "SUCCEEDED";
 			tx.executeWithoutResult(txStatus -> {
 				jdbc.update(UPSERT_SESSION, saveId, snapshot, turn, status);
 				Integer stored = jdbc.queryForObject(MAX_EVENT_TURN, Integer.class, saveId);
@@ -98,6 +104,11 @@ public class JdbcSessionStore implements SessionStore {
 					if (e.turn() > floor) {
 						jdbc.update(INSERT_EVENT, saveId, e.turn(), e.narrative(), e.playerAction());
 					}
+				}
+				// 落地(ADR-026 决策 2):快照写到受理行的 target_turn 的这一次提交,就是「落地」本身 ——
+				// 与快照同一事务,库里 SUCCEEDED / DEGRADED ⇒ 快照 ≥ target_turn,两者不会一新一旧。
+				if (landed != null) {
+					jdbc.update(JdbcTurnLedger.CLOSE_PROCESSING, landedStatus, landed.id());
 				}
 			});
 		} catch (Exception e) {
@@ -125,6 +136,20 @@ public class JdbcSessionStore implements SessionStore {
 		return out;
 	}
 
+	/**
+	 * 启动收口(ADR-026 决策 4):回载之后,把所有仍是 {@code PROCESSING} 的受理行一次性标 {@code INTERRUPTED}。
+	 * 含义 = 「受理之后,上一个进程没来得及写下结论」,<b>不是</b>「那一回合必然丢了」(可能已随后续快照落地)。
+	 * 本方法只在启动回载时跑(每进程一次),此刻本进程还没受理过任何回合。best-effort 不抛。
+	 */
+	private void interruptPendingTurns() {
+		try {
+			int n = jdbc.update(JdbcTurnLedger.INTERRUPT_ALL_PROCESSING);
+			log.info("[session-store:pg] 启动收口:{} 条未确认落地的受理记录标为 INTERRUPTED", n);
+		} catch (Exception e) {
+			log.error("[session-store:pg] 启动收口失败(受理行留在 PROCESSING):{}", e.toString());
+		}
+	}
+
 	// ── 启动回载(单行容错)────────────────────────────────────────────
 
 	/**
@@ -142,6 +167,7 @@ public class JdbcSessionStore implements SessionStore {
 					(rs, i) -> new String[] { rs.getString(1), rs.getString(2) });
 		} catch (Exception e) {
 			log.error("[session-store:pg] 读取 game_session 失败(以空档启动):{}", e.toString());
+			interruptPendingTurns();
 			return loaded;
 		}
 		for (String[] row : rows) {
@@ -153,6 +179,7 @@ public class JdbcSessionStore implements SessionStore {
 			}
 		}
 		log.info("[session-store:pg] 启动回载:载入 {} 档,{} 档拒载(见上方 WARN)", loaded.size(), refused);
+		interruptPendingTurns();
 		return loaded;
 	}
 }

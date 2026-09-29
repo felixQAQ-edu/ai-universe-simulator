@@ -297,6 +297,7 @@ public class EventLoopService implements TurnExecutor {
 			long startedAtMs) {
 		Engine engine = session.engine();
 		engine.applyNoOp(narrative, actionId);
+		session.markDegraded(engine.turn()); // ADR-026 决策 2:pg 下受理行据此标 DEGRADED(会话级标记,不进 Engine)
 		// ⚠️ durMs = 回合总耗时锚点 · 终点其二(层 1 第 4 条)。见 settle() 那处注释:这一处才是
 		// 「降级回合不被漏出分母」的落点,**摘掉它这条约束就是一句空话**(由一条独立变异用例钉住)。
 		log.warn("[event-loop] save={} 回合 no-op 降级落地:turn={} durMs={} hp/san 未动,复用上一组动作",

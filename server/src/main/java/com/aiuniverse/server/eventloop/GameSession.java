@@ -30,6 +30,23 @@ public final class GameSession {
 	 */
 	private final String openingNarrative;
 
+	/**
+	 * 本回合的受理行(ADR-026 决策 1):{@code pg} 版 {@code TurnLedger.accept} 写下,{@code JdbcSessionStore.persist}
+	 * 据它在同一事务里关掉受理行(决策 2)。<b>不进 Engine、不进快照、不进任何视图</b>(同 {@link #openingNarrative});
+	 * 默认 profile 下恒为 {@code null}。临界区内由 CAS 串行,{@code volatile} 只为跨回合换线程的可见性。
+	 */
+	private volatile TurnRecord pendingTurnRecord;
+	/**
+	 * 最近一次 no-op 降级落地的回合号(ADR-026 决策 2:降级回合标 {@code DEGRADED} 而非 {@code SUCCEEDED})。
+	 * 由 {@code EventLoopService.degrade} 设,只有 {@code pg} 版 store 读;记的是「第几回合是降级落地的」这一事实,
+	 * 故不需要复位 —— 下一回合的 target 不会等于它。-1 = 从未降级。
+	 */
+	private volatile int degradedTurn = -1;
+
+	/** 一条受理行的内存把手:行 id + 它确认落地时快照应到的回合号。 */
+	public record TurnRecord(long id, int targetTurn) {
+	}
+
 	public GameSession(String saveId, Engine engine, ArrayNode initialActions) {
 		this(saveId, engine, initialActions, null);
 	}
@@ -52,6 +69,24 @@ public final class GameSession {
 	/** 开场叙事;回载的会话为 {@code null}。见字段注释。 */
 	public String openingNarrative() {
 		return openingNarrative;
+	}
+
+	/** 本回合的受理行;没有(默认 profile / 受理写库失败)为 {@code null}。 */
+	public TurnRecord pendingTurnRecord() {
+		return pendingTurnRecord;
+	}
+
+	public void setPendingTurnRecord(TurnRecord record) {
+		this.pendingTurnRecord = record;
+	}
+
+	/** 降级落地的回合号记下来(见字段注释)。 */
+	public void markDegraded(int turn) {
+		this.degradedTurn = turn;
+	}
+
+	public int degradedTurn() {
+		return degradedTurn;
 	}
 
 	public AtomicReference<TurnPhase> phase() {

@@ -2,15 +2,17 @@ package com.aiuniverse.server.persistence;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
 
 /**
- * {@link TurnLedger} 装配(ADR-026 刀 1)。本刀只有 {@link TurnLedger#NOOP} 一个实现,<b>两个 profile 都装它</b>
- * —— pg 真实现在刀 2 进来时,本 bean 加 {@code @Profile("!pg")},默认 profile 装配不变。
+ * {@link TurnLedger} 装配(ADR-026)。默认 profile 装 {@link TurnLedger#NOOP}(行为逐字节不变);
+ * {@code pg} profile 由 {@link JdbcTurnLedger} 接管(刀 2)。
  */
 @Configuration
 public class TurnLedgerConfig {
 
 	@Bean
+	@Profile("!pg")
 	TurnLedger turnLedger() {
 		return TurnLedger.NOOP;
 	}
