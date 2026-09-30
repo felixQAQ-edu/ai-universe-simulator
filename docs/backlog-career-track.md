@@ -391,6 +391,7 @@ PostgreSQL + 幂等(层 2)
 「**当「事件推进」这一层有了答案之后再回来**」。**先有答案,再有刀。**
 
 勘察底稿(只写事实与问题,不含方案):[`event-advancement-survey.md`](event-advancement-survey.md)(2026-09-30)。
+纵向样本草稿:[ADR-028](adr/ADR-028-box-scene-changeable-left-behind.md)「纸箱」(2026-09-30,**提议,未采纳**;只锁《动物人生》一个局面,不是通用事件系统)。
 
 ### 3.2 Tool Calling + Trace + 回放
 

@@ -80,3 +80,7 @@
 ## 7. 与层 3.2 的接口(backlog 原文)
 
 `backlog-career-track.md:393-399`:「建在 3.1 之上以后,被调用的就不是『一个会调函数的模型』,而是一个**真实、可事务化、可回放的领域系统**」;外部审查原判断见[工程债 §3.1](backlog-engineering-debt.md)(`:418` 依赖顺序同链,`:430` 建议的一刀 =「受控 Tool Calling 执行器 + Agent Trace + 状态变更入数据库事务」)。
+
+---
+
+已进入 [ADR-028](adr/ADR-028-box-scene-changeable-left-behind.md)(2026-09-30,提议未采纳):《动物人生》单个局面的纵向样本,不是本底稿 §6 的一般答案。
