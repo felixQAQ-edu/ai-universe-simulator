@@ -691,6 +691,18 @@ PostgreSQL / MySQL 迁移待评估的形态清单(**只是清单,不是方案,�
 **处置**:只记账,不修(ADR-025 刀 2 勘察时发现,范围外)。修法是一行(改走 `jsonError` 只带 code),
 但要同时核对前端 `resumeGame` 的兜底文案是否存在 —— 那一半属前端。解冻条件:下次碰 `/state` 或续局失败的呈现时顺手做。
 
+## 挂账 · `LifeStageTables` 注释把一句话的出处写错了(记于 2026-09-30)
+
+**事实**:`LifeStageTables.java:34-35` 注释说「不写死回合数上限,硬上限是引擎层决策不混入」是
+`FUSION_TURN_DIRECTIVE` **逐字写着**的。实测运行时 prompt 字符串里**没有这句**
+(该段只写「不得原地回环」,`TurnPromptBuilder.java:152`);它只在 `TurnPromptBuilder.java:140` 的 javadoc
+与 `prompts/event-loop.md:36`。**模型从来没读到过这句。**
+
+**风险**:下一个读注释的人会以为「硬上限归引擎」已经告诉了模型。
+
+**处置**:只记账,不改代码(层 3.1 勘察时发现,那一刀是纯 docs)。改法是一行注释。
+**解冻条件**:下次碰 `LifeStageTables.java` 时顺手改。
+
 ---
 
 ## 另记 · 一条状态(不是待办,是已做的决定)
