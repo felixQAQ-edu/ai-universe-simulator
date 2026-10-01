@@ -42,7 +42,7 @@ final class BoxSceneTables {
 	}
 
 	private static Option settles(String slot, String intent, String template, Path path) {
-		return new Option(slot, intent, template, 0, 0, path, null);
+		return new Option(slot, intent, template, 0, BoxScene.ALWAYS, path, null);
 	}
 
 	private static Option pick(String slot, String intent, String template) {

@@ -23,6 +23,9 @@ final class BoxScene {
 	private BoxScene() {
 	}
 
+	/** 无条件结算(阶段 4 的选项):与 g 的取值无关,不靠「g ≥ 0」这个下限推出来。 */
+	static final int ALWAYS = Integer.MIN_VALUE;
+
 	/** 协议槽位:局面回合恰好 A / B / C 三个(本世界无出口,D 不用)。 */
 	static final List<String> SLOTS = List.of("A", "B", "C");
 
@@ -47,7 +50,7 @@ final class BoxScene {
 	 * 一个槽位选项。
 	 *
 	 * @param gDelta     未结算时应用的 g 变化
-	 * @param settleAtG  非 null:行动前 g ≥ 它时本行动结算到 {@code settlePath}(阶段 4 的选项为 0 = 恒结算)
+	 * @param settleAtG  非 null:行动前 g ≥ 它时本行动结算到 {@code settlePath}(阶段 4 的选项为 {@link #ALWAYS})
 	 * @param feedback   未结算时的反馈事实(余波 / 补位 / 刚出门选项为 null)
 	 */
 	record Option(String slot, String intent, String template, int gDelta,
