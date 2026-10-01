@@ -177,7 +177,13 @@ public class EventLoopService implements TurnExecutor {
 		// ADR-028 刀 2a:局面层编排(纯函数,不改状态;状态只在落地后提交)。旧局 / 不接局面层 → null,
 		// 注入段为空串,prompt 与今天逐字节相同。
 		BoxSceneTurn.Plan scene = scenePlan(session, actionId);
-		String prompt = promptBuilder.buildTurnPrompt(engine, actionId, actionText, BoxSceneTurn.promptBlock(scene));
+		// ADR-028 刀 2b:处境片段按【权威处境】选 —— 落地前存档里的那个值;转移那一回合仍是空旧屋,
+		// 屋外片段从下一回合起注入(§已决 A 第 6 条)。旧局走旧指令 + 旧时钟 + 旧近人说明,逐字节同 583abc9。
+		BoxSceneState st = session.boxScene();
+		boolean legacyScene = st != null && st.isLegacy();
+		String situationFragment = st == null || legacyScene ? "" : BoxSceneTables.situationFragment(st.situation);
+		String prompt = promptBuilder.buildTurnPrompt(engine, actionId, actionText, BoxSceneTurn.promptBlock(scene),
+				situationFragment, legacyScene);
 
 		// ── GENERATING:流式 + 哨兵切分(叙事逐字下发,尾巴缓冲)──
 		StringBuilder narrativeBuf = new StringBuilder();

@@ -189,11 +189,22 @@ public final class TurnPromptBuilder {
 	 * 一辈子只读一次的(结局池 / 极性表 / 早逝三段式)归 <b>world-gen 侧</b>那个槽,不在这里。
 	 */
 	private static String archetypeTurnDirective(String archetype, int nextTurn) {
-		String template = TURN_DIRECTIVES.get(archetype);
+		return archetypeTurnDirective(archetype, nextTurn, false, "");
+	}
+
+	/**
+	 * 同上,另带旧局开关与处境片段(ADR-028 刀 2b)。
+	 *
+	 * @param legacy            旧局:模板与时钟表都取旧版(与 {@code 583abc9} 逐字节相同);不接任何片段
+	 * @param situationFragment 按权威处境注入的片段(接在主干之后;空串 = 处境为空 / 非《动物人生》)
+	 */
+	private static String archetypeTurnDirective(String archetype, int nextTurn, boolean legacy,
+			String situationFragment) {
+		String template = legacy ? LEGACY_TURN_DIRECTIVES.get(archetype) : TURN_DIRECTIVES.get(archetype);
 		if (template == null) {
 			return ""; // 四个既有世界:与开槽前逐字节一致(parity 线)
 		}
-		LifeStageTable table = LifeStageTables.of(archetype);
+		LifeStageTable table = legacy ? LifeStageTables.legacyOf(archetype) : LifeStageTables.of(archetype);
 		if (table == null) {
 			// 非一生制世界登记了回合指令模板:照旧只喂族层无关的槽,时钟相关槽一律空。
 			// (刀 1 之前这条管道被焊死在《寻常》的时钟上 —— ADR-021 立字六勘察补充二,本刀解开。)
@@ -202,6 +213,9 @@ public final class TurnPromptBuilder {
 					LifetimeFamily.aliveAtTheEnd("", "\n    "), "");
 		}
 		LifeStage stage = table.stageAt(nextTurn);
+		// 阶段说明(ADR-028 §已决 C:四段说明 + 三条共同限制)只有《动物人生》第 18–41 回合的阶段带;
+		// 接在主干之后、处境片段之前。没有就是空串 → 其余世界与阶段逐字节不变。
+		String guidance = stage.guidance() == null ? "" : "\n\n" + stage.guidance();
 		return template.formatted(nextTurn, stage.label(), stage.spanNote(), stage.advanceClause(),
 				table.convergeFrom(), table.convergeTo(), table.finalStageFromTurn(),
 				LifeStageTable.EXIT_ACTION_ID,
@@ -214,7 +228,8 @@ public final class TurnPromptBuilder {
 				// %12$s 族级时钟契约(ADR-021 刀 2 上提):句式与逻辑在族层,
 				// 人称与终点词是 per-world 词槽,取自本世界的时钟表。
 				LifetimeFamily.clockContract(nextTurn, table.pronoun(), stage.label(), stage.spanNote(),
-						stage.advanceClause(), table.convergeFrom(), table.convergeTo(), table.terminalWord()));
+						stage.advanceClause(), table.convergeFrom(), table.convergeTo(), table.terminalWord()))
+				+ guidance + (situationFragment == null ? "" : situationFragment);
 	}
 
 	/**
@@ -261,41 +276,27 @@ public final class TurnPromptBuilder {
 			(3)【重要的事不给专门回合】%10$s
 			(4)【选项形态】选项是【身体的倾向】,不是意志的权衡——动物不「决定」,动物已经在动了。
 			    写成看得见的动作(闻、咬、挤过去、退后、趴下不动、绕过去),不写「考虑」「选择」「决定」。
-			(5)【误读回收 · 每回合的裁决】玩家的行动若用到屋里学会的某条规律:
-			    在【屋里段】它应当兑现(那正是它被学会的原因);到了【外面】它一条条失效,
-			    而【系统绝不提示规律变了】——只把结果写出来,不加一个字的说明、不作任何对比。
-			    ⚠️ 有一条【永远改不掉】:听见金属声抬头。它到死都还在。
+			**（5）【误读回收 · 按权威处境裁决】**
+			    玩家行动若用到旧家学会的某条规律，按以下顺序决定回应：
+			    - 第 1–10 回合的旧家：规律应当兑现，那正是它被学会的原因；
+			    - 第 11–17 回合的纸箱局面与余波：以局面数据表给出的征兆、反馈事实、记忆事实和意图边界为准；
+			    - 此后：以会话保存的 `NEW_HOME`、`EMPTY_HOME` 或 `OUTSIDE` 为准，使用对应处境片段。
+			    不得根据回合号、模型刚写出的地点或叙事中的一句话反推处境。权威处境没有发生转换时，正文也不得自行转换地点。
+			    系统绝不提示“规律变了”，也不比较过去和现在；只把这一次具体发生的结果写出来，不加说明。
+			    有一条永远改不掉：听见金属声抬头。它到死都还在。
 			(6)【逐字不变的句子 · 硬约束】以下句子每次出现都必须【逐字相同】,不许改写、不许加字、
 			    不许在后面接任何东西(包括省略号):
 			    「楼道里有金属碰金属的声音。」(不许出现「钥匙」,不许出现「多年以后」)
 			    「你去床脚那块地方趴下。」(不写「回到」——那暗示归属;只写「去」)
 			    「你抬起头。」「是别的门。」「你把头放下去。」「不是。」「你抬了一下头。」
-			(7)【动词分区 · 每回合可数】动词「推」【只允许出现在屋里段与断裂段】,
-			    【外面段永不出现「推」】——外面是踢、是砸、是手落下来的地方不对,
-			    是【别的种类】的接触,不是同一种的加强版。种类不同,前震才不会吃掉主震。
-			    ⚠️ 这是每回合数一遍就能查的硬约束:本回合若处于外面三段之一,正文与选项里不得有「推」字。
-			(8)【断裂段的素材 · 只给物,不给顺序】第 15-17 回合是【断裂段】(同一天)。以下这些
-			    【必须在这三个回合里出现】,但【怎么分配到哪一回合、按什么次序出现,由你定】——
-			    不要每一局都排成同一个样子:
-			    · 纸箱的味道;有人在撕胶带,撕一段,停一下,再撕一段
-			    · 椅子上的东西被拿下来了;地板上多出几块方形,颜色和旁边不一样
-			    · 很多次上下楼的声音;两只手托起一个箱子,箱子离开了地面
-			    · 有说话的声音,两个,一高一低,中间停很久
-			    · 有一只手在你头上放了一下,很久没有拿开
-			    · 门开着,没有合上;后来没有声音了
-			    · 床原来在的地方,地板上有四个凹进去的印子
-			    · 碗还在原来的地方
-			    ⚠️【这些东西人类可解码、动物不可解码】玩家一看就懂,动物只看到形状与时长——
-			    【绝不写成「屋里很乱」「气氛不对」这类氛围】:氛围玩家也解不了码,那把刀就没了。
-			    ⚠️【全段禁止引号】人可以发出声音(两个,一高一低,中间停很久),但【不许有台词】:
-			    这三个回合里不得出现任何引号内的人类话语。
-			    ⚠️【不许解释】同第 (2) 条铁律 2——不写他们为什么搬、要去哪、还回不回来。
-			    ⚠️ 这些东西【只属于这三个回合】:屋里段不提前预告,外面段不事后重演。
-			    ⚠️【转折 · 可数】这三个回合结束时,【动物必须已经不在屋里】——
-			    第 18 回合的场景若仍在屋里,即为写错。
-			(9)【末段落在楼道口 · 位置硬约束】进入【末段】之后,不论玩家此前选了哪条路
-			    (走回那栋楼 / 找新的地方 / 留在原处),【最后一个可玩回合的场景都必须是某个楼道口】——
-			    冷天往背风处钻,每条支线都说得通。分支改变了一切,而他们读到的是同一个地方。
+			**（8）【局面与处境不得由时钟代替】**
+			    第 11–17 回合的纸箱局面和余波，由局面层提供征兆、反馈、记忆与选项意图。
+			    第 18 回合开始进入共同的四段生命周期，但生命周期只说明变化进行到哪里，不决定动物身在何处。具体地点始终以会话中的权威处境为准：
+			    - `NEW_HOME`：只能使用新屋意图池与新屋片段；
+			    - `EMPTY_HOME`：只能使用旧屋意图池与旧屋片段，C 槽固定为 `LEAVE_HOME`；
+			    - `OUTSIDE`：只能使用外面片段。
+			    不再要求“三个回合结束时动物必须已经不在屋里”，也不得因为到了第 18 回合就自动切换成 `OUTSIDE`。
+			    空的处境不是上述三种处境中的任何一种；不得替它猜默认值。
 			(10)【最后一回合是活着的】%11$s
 			    最后一个可玩回合是【一个没什么事发生的时刻】,玩家不该知道这是最后一回合;
 			    不写告别、不写回头、不做「最后看一眼」式的巡视——回头是人的动作。\
@@ -355,6 +356,72 @@ public final class TurnPromptBuilder {
 			(9)【不得回声刚发生过的动作】本回合正文中已经发生、已经做完的动作,
 			    【不得作为本回合的可选项再次出现】——他已经把消息发出去了,选项里就不能再有「把消息发出去」。
 			    选项永远是【下一步】,不是刚才那一步。\
+			""");
+
+	/**
+	 * <b>旧局分支</b>(ADR-028 刀 2b;§已决 · 刀 2 实现口径第 4 条):有旧局标记的《动物人生》存档,
+	 * 回合指令沿用 {@code 583abc9} 时的原文<b>逐字不动</b>(含旧 (5) 误读回收、(7) 动词分区、(8) 断裂素材、
+	 * (9) 末段楼道口)。旧局的世界是用旧背景与旧结局池生成的,不能把「空处境」送进新主干再猜片段。
+	 * 由 {@code AnimalLifeLegacyGoldenTest} 用 583abc9 生成的金样本逐字节守住。
+	 */
+	private static final Map<String, String> LEGACY_TURN_DIRECTIVES = Map.of("animal_life", """
+
+
+			【一生制 · 每回合写作标准(《动物人生》,ADR-021)】
+			(1)%12$s
+			    %9$s
+			    ⚠️【也不显示季数】不写「第三个冬天」「一年以后」;时间只靠【身体与季节】透出来——
+			    毛掉了一片没长回来、跳不上去了、今年的风比上一次冷。
+			(2)【三条铁律】每一回合的叙事与选项都须同时守住这三条,它们决定这个世界成不成立:
+			    1. 【不写心理活动】「它想」「它明白」「它决定」「它原谅了他」——这些词一出现,
+			       四条腿就站起来了。只写身体的倾向、感官的落点、行为的发生。
+			       感情不是被描述出来的,是玩家从「它每天都要绕到那个空掉的位置去闻一下」里自己长出来的。
+			    2. 【旁白必须和玩家一样蠢】绝不替动物解释人类:不写「他一定是有事」「他们要搬家了」,
+			       也不写那个人为什么哭。只写动物感知得到的——门没响、鞋还在、那只手今天一直没拿开。
+			       ⚠️ 旁白一旦开始解释,这个世界当场塌掉。
+			    3. 【玩家知道的比角色多】这是全部情绪的来源:玩家看得懂行李箱、看得懂那只发抖的手,
+			       动物不懂——而你无法让「你」知道。写的时候把两边的信息差【留在原地】,不要弥合它。
+			(3)【重要的事不给专门回合】%10$s
+			(4)【选项形态】选项是【身体的倾向】,不是意志的权衡——动物不「决定」,动物已经在动了。
+			    写成看得见的动作(闻、咬、挤过去、退后、趴下不动、绕过去),不写「考虑」「选择」「决定」。
+			(5)【误读回收 · 每回合的裁决】玩家的行动若用到屋里学会的某条规律:
+			    在【屋里段】它应当兑现(那正是它被学会的原因);到了【外面】它一条条失效,
+			    而【系统绝不提示规律变了】——只把结果写出来,不加一个字的说明、不作任何对比。
+			    ⚠️ 有一条【永远改不掉】:听见金属声抬头。它到死都还在。
+			(6)【逐字不变的句子 · 硬约束】以下句子每次出现都必须【逐字相同】,不许改写、不许加字、
+			    不许在后面接任何东西(包括省略号):
+			    「楼道里有金属碰金属的声音。」(不许出现「钥匙」,不许出现「多年以后」)
+			    「你去床脚那块地方趴下。」(不写「回到」——那暗示归属;只写「去」)
+			    「你抬起头。」「是别的门。」「你把头放下去。」「不是。」「你抬了一下头。」
+			(7)【动词分区 · 每回合可数】动词「推」【只允许出现在屋里段与断裂段】,
+			    【外面段永不出现「推」】——外面是踢、是砸、是手落下来的地方不对,
+			    是【别的种类】的接触,不是同一种的加强版。种类不同,前震才不会吃掉主震。
+			    ⚠️ 这是每回合数一遍就能查的硬约束:本回合若处于外面三段之一,正文与选项里不得有「推」字。
+			(8)【断裂段的素材 · 只给物,不给顺序】第 15-17 回合是【断裂段】(同一天)。以下这些
+			    【必须在这三个回合里出现】,但【怎么分配到哪一回合、按什么次序出现,由你定】——
+			    不要每一局都排成同一个样子:
+			    · 纸箱的味道;有人在撕胶带,撕一段,停一下,再撕一段
+			    · 椅子上的东西被拿下来了;地板上多出几块方形,颜色和旁边不一样
+			    · 很多次上下楼的声音;两只手托起一个箱子,箱子离开了地面
+			    · 有说话的声音,两个,一高一低,中间停很久
+			    · 有一只手在你头上放了一下,很久没有拿开
+			    · 门开着,没有合上;后来没有声音了
+			    · 床原来在的地方,地板上有四个凹进去的印子
+			    · 碗还在原来的地方
+			    ⚠️【这些东西人类可解码、动物不可解码】玩家一看就懂,动物只看到形状与时长——
+			    【绝不写成「屋里很乱」「气氛不对」这类氛围】:氛围玩家也解不了码,那把刀就没了。
+			    ⚠️【全段禁止引号】人可以发出声音(两个,一高一低,中间停很久),但【不许有台词】:
+			    这三个回合里不得出现任何引号内的人类话语。
+			    ⚠️【不许解释】同第 (2) 条铁律 2——不写他们为什么搬、要去哪、还回不回来。
+			    ⚠️ 这些东西【只属于这三个回合】:屋里段不提前预告,外面段不事后重演。
+			    ⚠️【转折 · 可数】这三个回合结束时,【动物必须已经不在屋里】——
+			    第 18 回合的场景若仍在屋里,即为写错。
+			(9)【末段落在楼道口 · 位置硬约束】进入【末段】之后,不论玩家此前选了哪条路
+			    (走回那栋楼 / 找新的地方 / 留在原处),【最后一个可玩回合的场景都必须是某个楼道口】——
+			    冷天往背风处钻,每条支线都说得通。分支改变了一切,而他们读到的是同一个地方。
+			(10)【最后一回合是活着的】%11$s
+			    最后一个可玩回合是【一个没什么事发生的时刻】,玩家不该知道这是最后一回合;
+			    不写告别、不写回头、不做「最后看一眼」式的巡视——回头是人的动作。\
 			""");
 
 	/** per-combo 融合回合文案槽(key = {@code host×foreign})。 */
@@ -432,7 +499,19 @@ public final class TurnPromptBuilder {
 	 * (四个基础世界、两个融合世界、《寻常》、旧局与纸箱之前的回合都走空串)。现有指令正文一个字不改。
 	 */
 	public String buildTurnPrompt(Engine engine, String actionId, String actionText, String sceneBlock) {
-		TurnContext ctx = resolveContext(engine);
+		return buildTurnPrompt(engine, actionId, actionText, sceneBlock, "", false);
+	}
+
+	/**
+	 * 全参(ADR-028 刀 2b):另带<b>处境片段</b>与<b>旧局开关</b>。
+	 *
+	 * @param situationFragment 按会话权威处境取的片段(空串 = 处境为空;不猜默认值)
+	 * @param legacyScene       有旧局标记的《动物人生》存档:回合指令、时钟、【近人】的 hint 与档文字
+	 *                          全部走旧版 → prompt 与 {@code 583abc9} 同状态下逐字节相同
+	 */
+	public String buildTurnPrompt(Engine engine, String actionId, String actionText, String sceneBlock,
+			String situationFragment, boolean legacyScene) {
+		TurnContext ctx = resolveContext(engine, legacyScene);
 		String action = actionText == null || actionText.isBlank() ? actionId : actionId + " · " + actionText;
 		String system = SKELETON.formatted(
 				ctx.modeName(),           // %1$s 模式名(融合局=「A × B(融合世界)」)
@@ -445,7 +524,8 @@ public final class TurnPromptBuilder {
 				ctx.fused() ? fusionTurnDirective(ctx.comboKey()) : "", // %8$s 融合裁决+收敛指令(单体=空串,逐字不变)
 				// %9$s per-archetype 单体指令(缺省空串)。传的是**正在生成的那一回合**(= turn()+1,
 				// 与骨架末行「请推进第 N 回合」同一个 N),一生制时钟据它算阶段。
-				ctx.fused() ? "" : archetypeTurnDirective(ctx.archetype(), engine.turn() + 1));
+				ctx.fused() ? "" : archetypeTurnDirective(ctx.archetype(), engine.turn() + 1, legacyScene,
+						legacyScene ? "" : situationFragment));
 		return system
 				+ "\n\n世界设定与当前状态(state 是真理之源):\n"
 				+ engine.contextJson()
@@ -471,7 +551,7 @@ public final class TurnPromptBuilder {
 	 *   <li><b>兜底</b>:{@code [0]} 未激活(或缺失)回落 rules_creepy(回合发生时世界已为激活模式生成)。</li>
 	 * </ul>
 	 */
-	private TurnContext resolveContext(Engine engine) {
+	private TurnContext resolveContext(Engine engine, boolean legacyScene) {
 		var archeNode = engine.world().path("archetypes");
 		String first = archeNode.path(0).asString("");
 		if (archeNode.size() == 2) {
@@ -486,7 +566,9 @@ public final class TurnPromptBuilder {
 		}
 		String archetype = registry.isActive(first) ? first : "rules_creepy";
 		ArchetypeMeta meta = registry.meta(archetype);
-		return new TurnContext(meta.displayName(), meta.attributes(), Map.of(), false, null, archetype);
+		// 旧局:【近人】等轴的 hint / 档文字取旧版(只影响 prompt;前端显示仍走 registry 的新版,§已决 · 刀 2 口径)。
+		List<AttributeAxis> axes = legacyScene ? registry.legacyTurnAxes(archetype) : meta.attributes();
+		return new TurnContext(meta.displayName(), axes, Map.of(), false, null, archetype);
 	}
 
 	/** 「- key(中文名):意象」逐轴。融合局的换皮轴用 per-combo override 口吻(如 san=道心)。 */

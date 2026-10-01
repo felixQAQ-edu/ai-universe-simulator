@@ -24,6 +24,9 @@ package com.aiuniverse.server.eventloop;
  *                      而「这一段是不是年龄」正是 per-world 的自由。
  * @param advanceClause 兑现语义的推进要求(「本回合比上一回合晚约 N 年」)
  * @param exitText      本阶段「就到这里」出口的措辞;{@code null} = 本阶段不出现该出口
+ * @param guidance      本阶段的行为说明(ADR-028 刀 2b:《动物人生》第 18–41 回合四段说明 + 三条共同限制),
+ *                      接在回合指令主干之后注入;{@code null} = 无(《寻常》全部阶段、动物的其余阶段)。
+ *                      <b>放在世界层的时钟表里,不动族层</b>(时钟契约片段一字不改)。
  */
 record LifeStage(
 		int fromTurn,
@@ -31,7 +34,13 @@ record LifeStage(
 		String label,
 		String spanNote,
 		String advanceClause,
-		String exitText) {
+		String exitText,
+		String guidance) {
+
+	/** 无阶段说明的形态(《寻常》与既有调用点不变)。 */
+	LifeStage(int fromTurn, int toTurn, String label, String spanNote, String advanceClause, String exitText) {
+		this(fromTurn, toTurn, label, spanNote, advanceClause, exitText, null);
+	}
 
 	/** 本阶段是否提供「就到这里」出口。 */
 	boolean hasExit() {
