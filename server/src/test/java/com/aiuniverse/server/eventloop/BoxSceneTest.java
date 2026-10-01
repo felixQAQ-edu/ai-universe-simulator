@@ -386,6 +386,40 @@ class BoxSceneTest {
 			assertThat(appendix).contains(b.omen());
 		}
 		assertThat(appendix).contains(T.r1Turn17Fill().omen()).contains(T.leaveFeedback());
+
+		// 刀 2a 新入表的字符串:须在第二刀附录里逐字找到(只认附录 → 表)
+		String second = adr.substring(adr.indexOf("## 附录 · 第二刀文案定稿"));
+		for (Beat b : T.stages()) {
+			assertThat(b.omen()).as(b.id()).isNotNull();
+			assertThat(second).as(b.id()).contains(b.omen());
+		}
+		BoxScene.Pools pools = BoxSceneTables.ANIMAL_LIFE_POOLS;
+		List<BoxScene.PoolIntent> all = new ArrayList<>(pools.newHome());
+		all.addAll(pools.emptyHome());
+		for (BoxScene.PoolIntent p : all) {
+			assertThat(second).as(p.intent()).contains("`" + p.intent() + "`").contains(p.meaning())
+					.contains(p.boundary()).contains(p.template()).contains(p.habit());
+		}
+		assertThat(second).contains("`" + LEAVE_HOME + "` | " + BoxSceneTables.LEAVE_HOME_TEMPLATE + " |");
+		assertThat(pools.leaveTemplate()).isEqualTo(BoxSceneTables.LEAVE_HOME_TEMPLATE);
+	}
+
+	/** 池内顺序 = 附录「池内固定顺序」(轮换按它滑动)。 */
+	@Test
+	void poolOrderMatchesTheAppendixFixedOrder() throws Exception {
+		String adr = Files.readString(java.nio.file.Path.of(
+				"../docs/adr/ADR-028-box-scene-changeable-left-behind.md"));
+		String second = adr.substring(adr.indexOf("## 附录 · 第二刀文案定稿"));
+		BoxScene.Pools pools = BoxSceneTables.ANIMAL_LIFE_POOLS;
+		StringBuilder nh = new StringBuilder();
+		for (int i = 0; i < pools.newHome().size(); i++) {
+			nh.append(i + 1).append(". `").append(pools.newHome().get(i).intent()).append("`\n");
+		}
+		StringBuilder eh = new StringBuilder();
+		for (int i = 0; i < pools.emptyHome().size(); i++) {
+			eh.append(i + 1).append(". `").append(pools.emptyHome().get(i).intent()).append("`\n");
+		}
+		assertThat(second).contains(nh.toString()).contains(eh.toString());
 	}
 
 	/** 机制文件里不得有本局面的任何字面量(意图编号、文字)。 */
@@ -403,5 +437,34 @@ class BoxSceneTest {
 			}
 		}
 		assertThat(src).doesNotContain("纸箱").doesNotContain("孩子");
+	}
+
+	/** 刀 2a 新增的机制文件同样不得有本局面字面量(意图编号、模板、池文字)。 */
+	@Test
+	void wiringMechanismFilesHaveNoSceneLiterals() throws Exception {
+		Set<String> intents = new HashSet<>(allIntents());
+		intents.add(LEAVE_HOME);
+		List<String> texts = new ArrayList<>();
+		allBeats().forEach(b -> b.options().forEach(o -> texts.add(o.template())));
+		for (BoxScene.PoolIntent p : BoxSceneTables.ANIMAL_LIFE_POOLS.newHome()) {
+			intents.add(p.intent());
+			texts.add(p.template());
+			texts.add(p.habit());
+		}
+		for (BoxScene.PoolIntent p : BoxSceneTables.ANIMAL_LIFE_POOLS.emptyHome()) {
+			intents.add(p.intent());
+			texts.add(p.template());
+			texts.add(p.habit());
+		}
+		for (String f : List.of("BoxScene.java", "BoxSceneTurn.java", "BoxSceneState.java")) {
+			String src = Files.readString(java.nio.file.Path.of("src/main/java/com/aiuniverse/server/eventloop/" + f));
+			for (String i : intents) {
+				assertThat(src).as(f + " " + i).doesNotContain("\"" + i + "\"");
+			}
+			for (String t : texts) {
+				assertThat(src).as(f).doesNotContain(t);
+			}
+			assertThat(src).as(f).doesNotContain("纸箱").doesNotContain("孩子");
+		}
 	}
 }
