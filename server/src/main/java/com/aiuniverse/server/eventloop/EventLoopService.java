@@ -174,7 +174,10 @@ public class EventLoopService implements TurnExecutor {
 		long startedAtMs = clock.millis();
 		Engine engine = session.engine();
 		String actionText = actionTextOf(session, actionId);
-		String prompt = promptBuilder.buildTurnPrompt(engine, actionId, actionText);
+		// ADR-028 刀 2a:局面层编排(纯函数,不改状态;状态只在落地后提交)。旧局 / 不接局面层 → null,
+		// 注入段为空串,prompt 与今天逐字节相同。
+		BoxSceneTurn.Plan scene = scenePlan(session, actionId);
+		String prompt = promptBuilder.buildTurnPrompt(engine, actionId, actionText, BoxSceneTurn.promptBlock(scene));
 
 		// ── GENERATING:流式 + 哨兵切分(叙事逐字下发,尾巴缓冲)──
 		StringBuilder narrativeBuf = new StringBuilder();
@@ -189,7 +192,7 @@ public class EventLoopService implements TurnExecutor {
 			// 流中断:flush 残留(不会再有哨兵),把已生成的部分叙事当氛围,再保守 no-op。
 			splitter.end();
 			log.warn("[event-loop] save={} 主调用流中断,保守 no-op 降级:{}", session.saveId(), e.getMessage());
-			return degrade(session, actionId, narrativeBuf.toString(), sink, startedAtMs);
+			return degrade(session, actionId, narrativeBuf.toString(), sink, startedAtMs, scene);
 		}
 		splitter.end();
 		logUsage(session, "主调用", usage);
@@ -202,18 +205,23 @@ public class EventLoopService implements TurnExecutor {
 		if (narrative.isBlank() || !splitter.sentinelSeen() || tail.isBlank()) {
 			log.warn("[event-loop] save={} 叙事空或无结构化尾巴(sentinel={}),保守 no-op 降级",
 					session.saveId(), splitter.sentinelSeen());
-			return degrade(session, actionId, narrative, sink, startedAtMs);
+			return degrade(session, actionId, narrative, sink, startedAtMs, scene);
 		}
 
 		// ── SETTLING:回灌 → 校验 → (修复) → apply ──
 		ObjectNode parsed = reinfuseAndValidate(tail, narrative);
-		if (parsed == null) {
-			parsed = repairOnce(session, narrative, tail, sink);
+		if (parsed != null && !slotErrors(scene, parsed).isEmpty()) {
+			// ADR-028 决策 4.1:局面回合的槽位检查并入回合校验 —— 违约视同校验失败,走既有的那一次修复
+			// (不新增修复发数,ADR-024「最坏 2 × 20 秒」依赖它)。
+			parsed = null;
 		}
 		if (parsed == null) {
-			return degrade(session, actionId, narrative, sink, startedAtMs);
+			parsed = repairOnce(session, narrative, tail, sink, scene);
 		}
-		return settle(session, parsed, actionId, sink, startedAtMs);
+		if (parsed == null) {
+			return degrade(session, actionId, narrative, sink, startedAtMs, scene);
+		}
+		return settle(session, parsed, actionId, sink, startedAtMs, scene);
 	}
 
 	/** 回灌 + 校验;通过返回节点,任何失败(解析/校验)返回 null(交修复)。校验<b>必经回灌后节点</b>(§9)。 */
@@ -231,12 +239,14 @@ public class EventLoopService implements TurnExecutor {
 	 * 一次修复(规格 §6.4):带校验错误回喂模型「只回修正后的结构化尾巴」,开回 json_object;
 	 * <b>回灌同一个 canonical 叙事 N</b>(绝不让修复改写已流出叙事)。成功返回节点,否则 null。
 	 */
-	private ObjectNode repairOnce(GameSession session, String narrative, String failedTail, TurnEventSink sink) {
+	private ObjectNode repairOnce(GameSession session, String narrative, String failedTail, TurnEventSink sink,
+			BoxSceneTurn.Plan scene) {
 		// 收集校验错误用于修复提示(对解析失败的尾巴给一条通用错)。
 		List<String> errors;
 		try {
 			ObjectNode probe = TurnReinfuser.reinfuse(failedTail, narrative, mapper);
-			errors = GameSchemas.validateTurn(probe);
+			errors = new java.util.ArrayList<>(GameSchemas.validateTurn(probe));
+			errors.addAll(slotErrors(scene, probe)); // 局面回合的槽位违约也回喂(ADR-028 决策 4.1)
 		} catch (LlmException e) {
 			errors = List.of("结构化尾巴非合法 JSON");
 		}
@@ -257,10 +267,15 @@ public class EventLoopService implements TurnExecutor {
 
 	/** 落账 + 发事件(消毒)。先 apply(数值/规则/结局),再据 status 发 delta / ending。 */
 	private TurnResult settle(GameSession session, ObjectNode parsed, String actionId, TurnEventSink sink,
-			long startedAtMs) {
+			long startedAtMs, BoxSceneTurn.Plan scene) {
 		Engine engine = session.engine();
 		clampClosingVigorFloor(session, parsed);
 		List<String> leak = engine.apply(parsed, actionId);
+		// ADR-028 §已决 A 第 7 条:局面 / 处境写入与落地同一时刻 —— 紧跟 apply,排在任何 sink 写之前
+		// (已落地未送达 → ADR-027 补写盘带走的快照里已是新状态;未落地 → 这里根本没跑到,什么都没写)。
+		if (scene != null) {
+			BoxSceneTurn.commit(session.boxScene(), scene, scene.slots());
+		}
 		if (!leak.isEmpty()) {
 			log.warn("[event-loop] save={} T{} 泄露遥测命中(非实时拦截,§1c):{}",
 					session.saveId(), engine.turn(), leak);
@@ -272,7 +287,11 @@ public class EventLoopService implements TurnExecutor {
 		log.info("[event-loop] save={} T{} durMs={} action={} 落账 attrs={} ending={}",
 				session.saveId(), engine.turn(), clock.millis() - startedAtMs, actionId, engine.attributes(),
 				parsed.path("ending").isNull() ? "null" : parsed.path("ending").path("id").asString(""));
-		updateActionsFromParsed(session, parsed);
+		if (scene != null && scene.slots() != null && "ongoing".equals(engine.status())) {
+			session.setCurrentActions(sceneActions(session, parsed, scene.slots()));
+		} else {
+			updateActionsFromParsed(session, parsed);
+		}
 		sink.delta(buildDelta(session));
 		if ("ended".equals(engine.status())) {
 			sink.ending(buildEnding(engine));
@@ -294,16 +313,112 @@ public class EventLoopService implements TurnExecutor {
 
 	/** 保守 no-op 降级(§6.5/§6.6):turn++、不脏写、复用动作、响亮告警、发 delta 让玩家可继续。 */
 	private TurnResult degrade(GameSession session, String actionId, String narrative, TurnEventSink sink,
-			long startedAtMs) {
+			long startedAtMs, BoxSceneTurn.Plan scene) {
 		Engine engine = session.engine();
-		engine.applyNoOp(narrative, actionId);
+		// ADR-028 §已决 A 第 7 条 (i):离开那一回合若降级,先补一句叙事(数据表的离开反馈事实,逐字)再发 delta;
+		// 这句也进 log,下一回合的模型才知道它已经出门了。
+		String leaveNarrative = scene != null && scene.transition()
+				? (narrative.isEmpty() ? "" : "\n\n") + scene.feedback()
+				: null;
+		engine.applyNoOp(leaveNarrative == null ? narrative : narrative + leaveNarrative, actionId);
+		if (scene != null) {
+			// 与 settle 同口径:紧跟落地、排在任何 sink 写之前。降级用本回合的模板槽位(决策 4.3),结算照做。
+			BoxSceneTurn.commit(session.boxScene(), scene, scene.degradeSlots());
+		}
 		session.markDegraded(engine.turn()); // ADR-026 决策 2:pg 下受理行据此标 DEGRADED(会话级标记,不进 Engine)
 		// ⚠️ durMs = 回合总耗时锚点 · 终点其二(层 1 第 4 条)。见 settle() 那处注释:这一处才是
 		// 「降级回合不被漏出分母」的落点,**摘掉它这条约束就是一句空话**(由一条独立变异用例钉住)。
 		log.warn("[event-loop] save={} 回合 no-op 降级落地:turn={} durMs={} hp/san 未动,复用上一组动作",
 				session.saveId(), engine.turn(), clock.millis() - startedAtMs);
-		sink.delta(buildDelta(session)); // 复用 session.currentActions(未更新)
+		if (scene != null && scene.degradeSlots() != null) {
+			// 局面回合不复用上一组(那组对应上一阶段的映射,ADR-028 决策 4.3);离开回合用「刚出门」模板。
+			session.setCurrentActions(templateActions(scene.degradeSlots()));
+		}
+		if (leaveNarrative != null) {
+			sink.narrative(leaveNarrative);
+		}
+		sink.delta(buildDelta(session)); // 非局面回合:复用 session.currentActions(未更新)
 		return new TurnResult(false);
+	}
+
+	// ── 局面层(ADR-028 刀 2a)──────────────────────────────────────────────
+
+	/** 本回合局面编排;不接局面层 / 旧局 / 无事可做 → null。 */
+	private BoxSceneTurn.Plan scenePlan(GameSession session, String actionId) {
+		BoxSceneState st = session.boxScene();
+		if (st == null || st.isLegacy()) {
+			return null;
+		}
+		Engine engine = session.engine();
+		if (engine.world().path("archetypes").size() != 1) {
+			return null;
+		}
+		String archetype = archetypeOf(engine);
+		BoxScene.Table table = BoxSceneTables.box(archetype);
+		if (table == null) {
+			return null;
+		}
+		return BoxSceneTurn.plan(table, BoxSceneTables.pools(archetype), LifeStageTables.of(archetype), st,
+				engine.turn() + 1, actionId);
+	}
+
+	/** 局面回合的槽位约定:恰好 A / B / C 三个(决策 4.1)。结局回合不要求(结局回合可以没有选项)。 */
+	private static List<String> slotErrors(BoxSceneTurn.Plan scene, ObjectNode parsed) {
+		if (scene == null || scene.slots() == null) {
+			return List.of();
+		}
+		JsonNode ending = parsed.get("ending");
+		if (ending != null && ending.isObject() && ending.path("reached").asBoolean(false)) {
+			return List.of();
+		}
+		List<String> ids = new java.util.ArrayList<>();
+		for (JsonNode a : parsed.path("availableActions")) {
+			ids.add(a.path("id").asString(""));
+		}
+		List<String> sorted = ids.stream().sorted().toList();
+		if (sorted.equals(BoxScene.SLOTS)) {
+			return List.of();
+		}
+		return List.of("availableActions 须恰好三个,id 依次为 A、B、C(不得缺、不得多、不得有 D),实际为 " + ids);
+	}
+
+	/**
+	 * 局面回合落地后的选项:按 A / B / C 排好;模型给了的槽位用模型的措辞,缺的按数据表模板补齐,
+	 * 多出的(D 或重复)丢弃(决策 4.2)。
+	 */
+	private ArrayNode sceneActions(GameSession session, ObjectNode parsed, List<BoxSceneTurn.Slot> slots) {
+		ArrayNode out = mapper.createArrayNode();
+		int filled = 0;
+		for (BoxSceneTurn.Slot s : slots) {
+			JsonNode hit = null;
+			for (JsonNode a : parsed.path("availableActions")) {
+				if (s.slot().equals(a.path("id").asString("")) && !a.path("text").asString("").isBlank()) {
+					hit = a;
+					break;
+				}
+			}
+			if (hit != null) {
+				ObjectNode o = out.addObject().put("id", s.slot()).put("text", hit.path("text").asString(""));
+				if (hit.hasNonNull("hint")) {
+					o.put("hint", hit.path("hint").asString(""));
+				}
+			} else {
+				out.addObject().put("id", s.slot()).put("text", s.template());
+				filled++;
+			}
+		}
+		if (filled > 0) {
+			log.warn("[box-scene] save={} 修复后槽位仍不合约,按模板补齐 {} 个", session.saveId(), filled);
+		}
+		return out;
+	}
+
+	private ArrayNode templateActions(List<BoxSceneTurn.Slot> slots) {
+		ArrayNode out = mapper.createArrayNode();
+		for (BoxSceneTurn.Slot s : slots) {
+			out.addObject().put("id", s.slot()).put("text", s.template());
+		}
+		return out;
 	}
 
 	// ── 消毒投影下的事件构建(规格 §1:经 toClientState)─────────────────────

@@ -15,7 +15,7 @@ import java.util.Set;
  * {@link BoxSceneTables} 里(同 {@link LifeStage} / {@link LifeStageTables} 的分工,
  * 由 {@code BoxSceneTest} 的源码级断言守护)。
  *
- * <p><b>刀 1 不接线</b>:本类没有任何调用方,回合路径行为零变化。
+ * <p>刀 1 时不接线;刀 2a 起由 {@link BoxSceneTurn} 调用。
  * 所有条件一律用<b>本回合行动之前的 g</b>(ADR-028 §局面状态);g 下限 0。
  */
 final class BoxScene {
@@ -92,6 +92,59 @@ final class BoxScene {
 
 	/** 结算路径的数据:记忆事实。 */
 	record PathEntry(Path path, String memoryFact) {
+	}
+
+	/**
+	 * 处境意图池里的一项(ADR-028 §已决 D:稳定编号 + 行动边界 + 模板 + 习惯短语)。
+	 * 处境效果恒为「不改变处境」——池里没有任何转移(唯一的转移是固定 C 槽的离开意图,不在池内)。
+	 *
+	 * @param meaning  正常选项必须表达的动作(视图 2)
+	 * @param boundary 行动边界(视图 2)
+	 * @param template 降级 / 修复失败时的模板文字(视图 3,可直接显示)
+	 * @param habit    习惯短语(完整句子,视图 2)
+	 */
+	record PoolIntent(String intent, String meaning, String boundary, String template, String habit) {
+
+		PoolIntent {
+			for (String f : new String[] {intent, meaning, boundary, template, habit}) {
+				if (f == null || f.isBlank()) {
+					throw new IllegalArgumentException("意图池条目字段为空:" + intent);
+				}
+			}
+		}
+	}
+
+	/** 两个处境意图池 + 离开意图的模板 + 轮换偏移步长(b[段] = 步长 × 段序号)。 */
+	record Pools(List<PoolIntent> newHome, List<PoolIntent> emptyHome, String leaveTemplate, int rotationOffsetStep) {
+
+		Pools {
+			newHome = List.copyOf(newHome);
+			emptyHome = List.copyOf(emptyHome);
+			Set<String> seen = new HashSet<>();
+			for (PoolIntent p : newHome) {
+				if (!seen.add(p.intent())) {
+					throw new IllegalArgumentException("新屋池意图重复:" + p.intent());
+				}
+			}
+			seen.clear();
+			for (PoolIntent p : emptyHome) {
+				if (!seen.add(p.intent())) {
+					throw new IllegalArgumentException("旧屋池意图重复:" + p.intent());
+				}
+			}
+		}
+
+		List<PoolIntent> of(Situation s) {
+			return switch (s) {
+				case NEW_HOME -> newHome;
+				case EMPTY_HOME -> emptyHome;
+				case OUTSIDE -> List.of();
+			};
+		}
+
+		java.util.Optional<PoolIntent> find(Situation s, String intent) {
+			return of(s).stream().filter(p -> p.intent().equals(intent)).findFirst();
+		}
 	}
 
 	/** 结算结果。{@code feedback} 在结算时为该路径的记忆事实。 */

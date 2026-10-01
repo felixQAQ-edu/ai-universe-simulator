@@ -79,6 +79,12 @@ public class GameSessionManager {
 		Engine engine = new Engine(world, mapper, accumulationKeys, axisDisplayNames, nonLethalKeys);
 		ArrayNode initial = initialActions != null ? (ArrayNode) initialActions.deepCopy() : mapper.createArrayNode();
 		GameSession session = new GameSession(saveId, engine, initial, openingNarrative);
+		// ADR-028 刀 2a:接局面层的世界在创建时就写入局面键(此后「有没有键」即「是不是新局」)。
+		java.util.List<String> archetypes = new java.util.ArrayList<>();
+		world.path("archetypes").forEach(a -> archetypes.add(a.asString("")));
+		if (BoxSceneState.appliesTo(archetypes)) {
+			session.setBoxScene(BoxSceneState.fresh());
+		}
 		sessions.put(saveId, session);
 		store.persist(session); // init 后写一次(起局即崩不丢局;best-effort 不抛)
 		return session;

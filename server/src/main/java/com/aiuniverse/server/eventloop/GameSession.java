@@ -43,6 +43,12 @@ public final class GameSession {
 	 */
 	private volatile int degradedTurn = -1;
 
+	/**
+	 * 局面的会话层状态(ADR-028 刀 2a)。不接局面层的世界恒为 {@code null};《动物人生》新局在创建时就写入,
+	 * 旧局回载时为旧局标记。随 {@code currentActions} 一并落盘(视图 1),不进 Engine、不进视图 2 / 3。
+	 */
+	private BoxSceneState boxScene;
+
 	/** 一条受理行的内存把手:行 id + 它确认落地时快照应到的回合号。 */
 	public record TurnRecord(long id, int targetTurn) {
 	}
@@ -87,6 +93,15 @@ public final class GameSession {
 
 	public int degradedTurn() {
 		return degradedTurn;
+	}
+
+	/** 局面状态;不接局面层的世界为 {@code null}。 */
+	public BoxSceneState boxScene() {
+		return boxScene;
+	}
+
+	public void setBoxScene(BoxSceneState boxScene) {
+		this.boxScene = boxScene;
 	}
 
 	public AtomicReference<TurnPhase> phase() {

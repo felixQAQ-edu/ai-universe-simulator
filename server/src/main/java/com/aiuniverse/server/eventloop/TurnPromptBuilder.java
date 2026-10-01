@@ -423,6 +423,15 @@ public final class TurnPromptBuilder {
 
 	/** 主调用提示(不开 json_object):prose 先行 + 哨兵 + 尾巴。按本局 archetype(单体/融合)注入数值轴/模式名。 */
 	public String buildTurnPrompt(Engine engine, String actionId, String actionText) {
+		return buildTurnPrompt(engine, actionId, actionText, "");
+	}
+
+	/**
+	 * 同上,另接一段<b>局面注入段</b>(ADR-028 刀 2a:局面 / 处境 / 习惯句,视图 2)。
+	 * 它接在状态档之后、「请推进第 N 回合」之前;<b>空串 → 与上面那个重载逐字节相同</b>
+	 * (四个基础世界、两个融合世界、《寻常》、旧局与纸箱之前的回合都走空串)。现有指令正文一个字不改。
+	 */
+	public String buildTurnPrompt(Engine engine, String actionId, String actionText, String sceneBlock) {
 		TurnContext ctx = resolveContext(engine);
 		String action = actionText == null || actionText.isBlank() ? actionId : actionId + " · " + actionText;
 		String system = SKELETON.formatted(
@@ -441,6 +450,7 @@ public final class TurnPromptBuilder {
 				+ "\n\n世界设定与当前状态(state 是真理之源):\n"
 				+ engine.contextJson()
 				+ currentBandBlock(ctx.axes(), engine)
+				+ (sceneBlock == null ? "" : sceneBlock)
 				+ "\n\n请推进第 " + (engine.turn() + 1) + " 回合。玩家本回合选择的行动:" + action;
 	}
 

@@ -6,6 +6,7 @@ import java.util.List;
 import com.aiuniverse.server.archetype.ArchetypeRegistry;
 import com.aiuniverse.server.archetype.AttributeAxis;
 import com.aiuniverse.server.engine.Engine;
+import com.aiuniverse.server.eventloop.BoxSceneState;
 import com.aiuniverse.server.eventloop.GameSession;
 import com.aiuniverse.server.eventloop.TurnPhase;
 
@@ -30,12 +31,19 @@ public final class SessionDocument {
 	private SessionDocument() {
 	}
 
-	/** 快照文档 = {@code Engine.toPersistedState()}(视图 1 全量)+ session 层 {@code currentActions}/{@code phaseHint}。 */
+	/**
+	 * 快照文档 = {@code Engine.toPersistedState()}(视图 1 全量)+ session 层 {@code currentActions}/{@code phaseHint}
+	 * + 接局面层的会话另有局面键 {@value BoxSceneState#DOC_KEY}(ADR-028 刀 2a;CONTEXT §三.17 措辞同步归刀 2b)。
+	 */
 	public static ObjectNode encode(GameSession session, ObjectMapper mapper) {
 		ObjectNode doc = session.engine().toPersistedState();
 		ArrayNode actions = session.currentActions();
 		doc.set("currentActions", actions == null ? mapper.createArrayNode() : actions.deepCopy());
 		doc.put("phaseHint", session.phase().get().name()); // 仅取证用;回载按 status 重置,不读它
+		// ADR-028 刀 2a:局面键只在接局面层的会话上写(其余世界文档逐字节不变);旧局写 {"legacy":true}。
+		if (session.boxScene() != null) {
+			doc.set(BoxSceneState.DOC_KEY, session.boxScene().toJson(mapper));
+		}
 		return doc;
 	}
 
@@ -65,6 +73,8 @@ public final class SessionDocument {
 				? (ArrayNode) actions.deepCopy()
 				: mapper.createArrayNode();
 		GameSession session = new GameSession(saveId, engine, initial);
+		// ADR-028 刀 2a:是不是旧局只看文档里有没有局面键(不看回合号);不合法的键一律抛(拒载不半载)。
+		session.setBoxScene(BoxSceneState.restoreFor(ids, doc.get(BoxSceneState.DOC_KEY), saveId));
 		session.phase().set("ended".equals(engine.status()) ? TurnPhase.ENDED : TurnPhase.AWAITING_ACTION);
 		return session;
 	}
