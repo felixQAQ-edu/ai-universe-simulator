@@ -83,4 +83,4 @@
 
 ---
 
-已进入 [ADR-028](adr/ADR-028-box-scene-changeable-left-behind.md)(2026-09-30,提议未采纳):《动物人生》单个局面的纵向样本,不是本底稿 §6 的一般答案。
+已进入 [ADR-028](adr/ADR-028-box-scene-changeable-left-behind.md)(已采纳):《动物人生》单个局面的纵向样本,不是本底稿 §6 的一般答案。
