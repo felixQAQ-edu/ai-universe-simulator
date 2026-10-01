@@ -71,6 +71,46 @@ class WorldGenServiceTest {
 				""";
 	}
 
+	/** 《动物人生》世界:模型把「太近了」排在「撞上」前面(ADR-028 刀 2b 后处理的输入)。 */
+	private String animalWorld() {
+		return """
+				{"schemaVersion":"0.4","mode":"single","archetypes":["animal_life"],
+				 "world":{"title":"屋里的灯","background":"它一直生活在一户人家的屋里。","dangerLevel":"low","tone":"克制"},
+				 "character":{"attributes":{"body":80,"warmth":60,"ground":50,"close":50},"traits":[],"inventory":[]},
+				 "rules":[{"id":1,"content":"金属声响过,门会打开","hiddenLogic":"旧家兑现","discovered":false}],
+				 "endings":[{"id":"survived","title":"熬过去了","condition":"【身子】仍在 15 以上","outcome":"success","reached":false},
+				            {"id":"too_close","title":"太近了","condition":"【近人】高位而【身子】归零","outcome":"failure","reached":false},
+				            {"id":"hit","title":"撞上","condition":"【身子】在途中归零","outcome":"failure","reached":false}],
+				 "availableActions":[{"id":"A","text":"趴着","hint":""},{"id":"B","text":"闻闻","hint":""}],
+				 "openingNarrative":"楼道里有金属碰金属的声音。"}
+				""";
+	}
+
+	@Test
+	void animalLifeHitEndingIsMovedBeforeEveryFailure_onFirstPassAndAfterRepair() {
+		for (boolean repair : new boolean[] { false, true }) {
+			ScriptedLlm llm = new ScriptedLlm();
+			if (repair) {
+				llm.script("{\"schemaVersion\":\"0.4\"}", animalWorld());
+			} else {
+				llm.script(animalWorld());
+			}
+			ObjectNode world = new WorldGenService(llm, prompts, mapper).generate("animal_life");
+			List<String> titles = new ArrayList<>();
+			world.path("endings").forEach(e -> titles.add(e.path("title").asString()));
+			assertThat(titles).as("repair=" + repair).containsExactly("熬过去了", "撞上", "太近了");
+		}
+	}
+
+	@Test
+	void otherWorldsEndingOrderIsUntouched() {
+		ScriptedLlm llm = new ScriptedLlm();
+		llm.script(validWorld());
+		ObjectNode world = new WorldGenService(llm, prompts, mapper).generate("rules_creepy");
+		assertThat(world.path("endings").get(0).path("id").asString()).isEqualTo("survive_dawn");
+		assertThat(world.path("endings").get(1).path("id").asString()).isEqualTo("lost_mind");
+	}
+
 	@Test
 	void happyPathReturnsValidatedWorldNoRepair() {
 		ScriptedLlm llm = new ScriptedLlm();

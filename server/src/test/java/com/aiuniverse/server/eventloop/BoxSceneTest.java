@@ -29,6 +29,8 @@ import com.aiuniverse.server.eventloop.BoxScene.Situation;
 class BoxSceneTest {
 
 	private static final BoxScene.Table T = ANIMAL_LIFE_BOX;
+	/** ADR-028 §已决 J 第 1 条(Felix 2026-10-01)逐字:R1 记忆事实。 */
+	private static final String R1_MEMORY_FACT = "门外响着车声时，它自己跳进了那个正被人抱走的箱子。";
 
 	/** 一个意图序列从 g=0 跑完,返回 (结果, 结算阶段)。 */
 	private record Run(Result last, int settledAtStage, int g) {
@@ -98,11 +100,23 @@ class BoxSceneTest {
 	}
 
 	@Test
+	void r1MemoryFactIsVerbatimFromDecisionJ_andTheAdrTableCarriesTheSameSentence() throws Exception {
+		assertThat(T.memoryFacts().get(Path.R1)).isEqualTo(R1_MEMORY_FACT);
+		String adr = Files.readString(java.nio.file.Path.of("../docs/adr/ADR-028-box-scene-changeable-left-behind.md"));
+		assertThat(adr).contains("| R1 | 被带走·箱子 | " + R1_MEMORY_FACT + " |");
+		// 另外四条一字不动
+		assertThat(T.memoryFacts().get(Path.R2)).isEqualTo("车发动时,它跑向了那只手");
+		assertThat(T.memoryFacts().get(Path.R3A)).isEqualTo("它追到了门口,但没有跟上");
+		assertThat(T.memoryFacts().get(Path.R3B)).isEqualTo("车开走时,它待在原地");
+		assertThat(T.memoryFacts().get(Path.R3C)).isEqualTo("车开走时,它躲着");
+	}
+
+	@Test
 	void settledResultCarriesPathMemoryFactAndKeepsG() {
 		Result r = BoxScene.settle(T, 3, 2, "INTO_BOX");
 		assertThat(r.settled()).isTrue();
 		assertThat(r.newG()).isEqualTo(2);
-		assertThat(r.feedback()).isEqualTo("搬家那天,它自己跳进了正在搬的箱子");
+		assertThat(r.feedback()).isEqualTo(R1_MEMORY_FACT);
 	}
 
 	@Test

@@ -13,16 +13,14 @@ import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * 《动物人生》断裂段素材的守护(F-028 修法)。
+ * 《动物人生》回合侧主干与处境片段的守护(ADR-028 刀 2b;前身是 F-028 的断裂段素材守护)。
  *
- * <p><b>它在守什么</b>:刀 4 冒烟里断裂三回合(T15-17)被整段跳过,而勘察实证
- * <b>整份 prompt 里没有任何一句说这三个回合该发生什么</b> —— 时钟表只给了时间刻度、
- * world-gen 只给了一条「绝不解释断裂的原因」。<b>模型没有跳过断裂,它不知道断裂是什么。</b>
- * 本文件钉住那份素材清单与转折条件确实被渲染进回合 prompt。
+ * <p><b>刀 2b 之后它在守什么</b>:旧第 (8) 条的断裂素材与「第 18 回合仍在屋里即为写错」<b>已从新主干删除</b>
+ * —— 那条结论在纸箱局面之后不成立(被带走的分支第 18 回合就在新屋里)。断裂改由局面层的征兆与反馈承担,
+ * 地点由<b>会话保存的权威处境</b>决定,不由时钟决定。原 (7)(9) 移入屋外片段。
  *
- * <p><b>⚠️ 这些是渲染级真断言,不是探针</b>(ADR-018 §4.13 / §4.14):抽掉素材清单或删掉转折条件,
- * 用例必须变红 —— 两条都做过变异验证(见各自注释)。刀 4 的教训正是
- * <b>「没有任何断言在看的探针不是守护」</b>。
+ * <p><b>旧局</b>(有旧局标记的存档)仍走旧指令 —— 素材与转折条件都还在,逐字节由
+ * {@code AnimalLifeLegacyGoldenTest} 守住;这里只验「旧素材只在旧局里」。
  */
 class AnimalLifeRuptureDirectiveTest {
 
@@ -30,8 +28,8 @@ class AnimalLifeRuptureDirectiveTest {
 	private final ArchetypeRegistry registry = new ArchetypeRegistry();
 	private final TurnPromptBuilder builder = new TurnPromptBuilder(registry);
 
-	/** 素材清单逐条(取自创意稿 B 段;每条取一个不会与别处撞车的片段)。 */
-	private static final List<String> RUPTURE_MATERIAL = List.of(
+	/** 旧第 (8) 条的断裂素材(逐条取不会与别处撞车的片段)。 */
+	private static final List<String> OLD_RUPTURE_MATERIAL = List.of(
 			"纸箱的味道",
 			"撕胶带",
 			"椅子上的东西被拿下来了",
@@ -41,6 +39,19 @@ class AnimalLifeRuptureDirectiveTest {
 			"门开着,没有合上",
 			"四个凹进去的印子",
 			"碗还在原来的地方");
+
+	private static final String OLD_TRANSITION = "第 18 回合的场景若仍在屋里,即为写错";
+
+	/** 只在屋外片段里的三样:(7) 推字分区、(9) 楼道口、屋外专属结局。 */
+	private static final String RULE7 = "（7）【`OUTSIDE` · 接触种类与动词分区】";
+	private static final String PUSH = "正文与选项中不得出现“推”字";
+	private static final String RULE9 = "（9）【`OUTSIDE` 末段 · 楼道口边界】";
+	private static final String STAIRWELL = "楼道口";
+	private static final String OUTSIDE_ENDINGS = "【`OUTSIDE` 专属结局】";
+
+	private static final String NEW_HOME_HEADER = "【处境片段 · 当前处境:新屋(以下只在这一处境下成立)】";
+	private static final String EMPTY_HOME_HEADER = "【处境片段 · 当前处境:空下来的旧屋(以下只在这一处境下成立)】";
+	private static final String OUTSIDE_HEADER = "【处境片段 · 当前处境:屋外(以下只在这一处境下成立)】";
 
 	private Engine engineFor(String archetype) {
 		ObjectNode world = mapper.createObjectNode();
@@ -56,67 +67,104 @@ class AnimalLifeRuptureDirectiveTest {
 		return builder.buildTurnPrompt(engineFor("animal_life"), "A", "行动");
 	}
 
-	/**
-	 * <b>断裂段素材必须在回合 prompt 里</b> —— F-028 的根因就是它一条都不在。
-	 *
-	 * <p><b>变异验证</b>:把第 (8) 条的素材清单整块删掉 → 本用例变红。
-	 */
+	private String animalPrompt(BoxScene.Situation s) {
+		return builder.buildTurnPrompt(engineFor("animal_life"), "A", "行动", "",
+				BoxSceneTables.situationFragment(s), false);
+	}
+
+	private String legacyPrompt() {
+		return builder.buildTurnPrompt(engineFor("animal_life"), "A", "行动", "", "", true);
+	}
+
 	@Test
-	void ruptureMaterialIsInjectedIntoTheTurnPrompt() {
-		String p = animalPrompt();
-		for (String item : RUPTURE_MATERIAL) {
-			assertThat(p).as("断裂段素材「%s」不在回合 prompt 里(F-028 的根因)", item).contains(item);
+	void newTrunkNoLongerCarriesTheOldRuptureMaterialOrTheForcedTransition() {
+		for (BoxScene.Situation s : new BoxScene.Situation[] { null, BoxScene.Situation.NEW_HOME,
+				BoxScene.Situation.EMPTY_HOME, BoxScene.Situation.OUTSIDE }) {
+			String p = animalPrompt(s);
+			for (String item : OLD_RUPTURE_MATERIAL) {
+				assertThat(p).as("%s:旧断裂素材「%s」仍在新主干里", s, item).doesNotContain(item);
+			}
+			assertThat(p).as(String.valueOf(s)).doesNotContain(OLD_TRANSITION).doesNotContain("这三个回合结束时");
 		}
 	}
 
-	/**
-	 * <b>转折条件必须可数</b>:这三个回合结束时动物必须已经不在屋里,第 18 回合仍在屋里即为写错。
-	 *
-	 * <p><b>变异验证</b>:删掉这一句 → 本用例变红。
-	 * <p>它挂在<b>回合号</b>上而不是「断裂之后」这类阶段措辞(F-025:软约束要挂在模型
-	 * 每回合已经拿得到的东西上;回合号本来就在 prompt 里)。
-	 */
+	/** 新主干逐字换上 7-D 的 (5)(8);(6)(10) 仍在。 */
 	@Test
-	void ruptureCarriesACountableTransitionCondition() {
-		String p = animalPrompt();
-		assertThat(p).contains("这三个回合结束时");
-		assertThat(p).contains("已经不在屋里");
-		assertThat(p).contains("第 18 回合的场景若仍在屋里");
+	void newTrunkCarriesReplacedRules5And8_andKeeps6And10() {
+		String p = animalPrompt(null);
+		assertThat(p).contains("**（5）【误读回收 · 按权威处境裁决】**")
+				.contains("不得根据回合号、模型刚写出的地点或叙事中的一句话反推处境。")
+				.contains("**（8）【局面与处境不得由时钟代替】**")
+				.contains("空的处境不是上述三种处境中的任何一种；不得替它猜默认值。")
+				.contains("(6)【逐字不变的句子 · 硬约束】")
+				.contains("(10)【最后一回合是活着的】");
+		assertThat(p).doesNotContain("(5)【误读回收 · 每回合的裁决】").doesNotContain("(7)【动词分区")
+				.doesNotContain("(9)【末段落在楼道口");
 	}
 
-	/**
-	 * <b>给物,不给顺序</b> —— 这条边界是本刀最容易写歪的地方:
-	 * 写死「T15 写纸箱、T16 写那只手」等于给模型排剧本,每一局都会长得一样。
-	 *
-	 * <p>正面断言那句「由你定」;反面只挡住最可能的剧本形态(逐回合点名 16/17)。
-	 * <b>⚠️ 它挡不住所有剧本写法</b>(比如改用「先……再……」),故正面那句才是主守护 ——
-	 * 如实记,不假装这条断言比它实际做到的更强。
-	 */
 	@Test
-	void ruptureMaterialIsUnorderedNotAScript() {
-		String p = animalPrompt();
-		assertThat(p).contains("怎么分配到哪一回合、按什么次序出现,由你定");
-		assertThat(p).doesNotContain("第 16 回合").doesNotContain("第 17 回合");
+	void emptySituationGetsNoFragment() {
+		String p = animalPrompt(null);
+		assertThat(p).doesNotContain("【处境片段").doesNotContain(RULE7).doesNotContain(RULE9)
+				.doesNotContain(OUTSIDE_ENDINGS).doesNotContain("新屋共同边界").doesNotContain("旧屋共同边界");
 	}
 
-	/** 全段禁止引号 + 不许解释(后者引用铁律 2,不在本槽再抄一份词)。 */
 	@Test
-	void ruptureForbidsDialogueAndExplanation() {
-		String p = animalPrompt();
-		assertThat(p).contains("全段禁止引号").contains("不许有台词");
-		assertThat(p).contains("不写他们为什么搬、要去哪、还回不回来");
+	void newHomeGetsOnlyItsOwnFragment() {
+		String p = animalPrompt(BoxScene.Situation.NEW_HOME);
+		assertThat(p).contains(NEW_HOME_HEADER).contains("新屋共同边界:").contains("\n   - `NEW_HOME`：");
+		assertThat(p).doesNotContain(EMPTY_HOME_HEADER).doesNotContain(OUTSIDE_HEADER)
+				.doesNotContain("旧屋共同边界").doesNotContain("\n   - `EMPTY_HOME`：").doesNotContain("\n   - `OUTSIDE`：")
+				.doesNotContain(RULE7).doesNotContain(PUSH).doesNotContain(RULE9).doesNotContain(STAIRWELL)
+				.doesNotContain(OUTSIDE_ENDINGS);
 	}
 
-	/**
-	 * 素材只属于《动物人生》 —— 别的世界不得沾上(同 {@code noLifetimeWorldLeaksAnotherWorldsStageNames}
-	 * 的形状:per-world 的东西漏进别人的 prompt 不会有任何信号)。
-	 */
 	@Test
-	void ruptureMaterialDoesNotLeakIntoOtherWorlds() {
+	void emptyHomeGetsOnlyItsOwnFragment() {
+		String p = animalPrompt(BoxScene.Situation.EMPTY_HOME);
+		assertThat(p).contains(EMPTY_HOME_HEADER).contains("旧屋共同边界:").contains("\n   - `EMPTY_HOME`：");
+		assertThat(p).doesNotContain(NEW_HOME_HEADER).doesNotContain(OUTSIDE_HEADER)
+				.doesNotContain("新屋共同边界").doesNotContain("\n   - `NEW_HOME`：").doesNotContain("\n   - `OUTSIDE`：")
+				.doesNotContain(RULE7).doesNotContain(PUSH).doesNotContain(RULE9).doesNotContain(STAIRWELL)
+				.doesNotContain(OUTSIDE_ENDINGS);
+	}
+
+	@Test
+	void outsideGetsItsFragmentWithRules7And9AndTheOutsideOnlyEndings() {
+		String p = animalPrompt(BoxScene.Situation.OUTSIDE);
+		assertThat(p).contains(OUTSIDE_HEADER).contains("\n   - `OUTSIDE`：")
+				.contains(RULE7).contains(PUSH).contains(RULE9).contains(STAIRWELL).contains(OUTSIDE_ENDINGS);
+		assertThat(p).doesNotContain(NEW_HOME_HEADER).doesNotContain(EMPTY_HOME_HEADER)
+				.doesNotContain("新屋共同边界").doesNotContain("旧屋共同边界")
+				.doesNotContain("\n   - `NEW_HOME`：").doesNotContain("\n   - `EMPTY_HOME`：");
+	}
+
+	/** 片段接在主干之后(主干最后一条是 (10))。 */
+	@Test
+	void fragmentComesAfterTheTrunk() {
+		for (BoxScene.Situation s : BoxScene.Situation.values()) {
+			String p = animalPrompt(s);
+			assertThat(p.indexOf("【处境片段")).as(s.name()).isGreaterThan(p.indexOf("(10)【最后一回合是活着的】"));
+		}
+	}
+
+	/** 旧局仍是旧指令:旧素材与旧转折条件都在,且不接任何片段。 */
+	@Test
+	void legacyKeepsTheOldDirectiveWithItsRuptureMaterial() {
+		String p = legacyPrompt();
+		for (String item : OLD_RUPTURE_MATERIAL) {
+			assertThat(p).contains(item);
+		}
+		assertThat(p).contains(OLD_TRANSITION).doesNotContain("【处境片段").doesNotContain("**（5）");
+	}
+
+	/** 主干与片段都只属于《动物人生》 —— 别的世界不得沾上。 */
+	@Test
+	void nothingLeaksIntoOtherWorlds() {
 		for (String archetype : List.of("rules_creepy", "apocalypse", "cthulhu", "cultivation", "life_sim")) {
 			String p = builder.buildTurnPrompt(engineFor(archetype), "A", "行动");
-			assertThat(p).as("断裂段素材漏进了 %s 的回合 prompt", archetype)
-					.doesNotContain("撕胶带").doesNotContain("四个凹进去的印子");
+			assertThat(p).as(archetype).doesNotContain("撕胶带").doesNotContain("【处境片段")
+					.doesNotContain("按权威处境裁决");
 		}
 	}
 }

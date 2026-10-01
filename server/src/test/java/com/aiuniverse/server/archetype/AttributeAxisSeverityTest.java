@@ -108,6 +108,52 @@ class AttributeAxisSeverityTest {
 		assertThat(AttributeAxis.stable("hp", "体力").bandRanges()).isEmpty();
 	}
 
+	// ── ADR-028 §已决 J:【近人】改为中性显示,其余轴一档不动 ───────────────────────────
+
+	@Test
+	void animalCloseIsAllNeutral_withoutTouchingRoleLethalOrRange() {
+		AttributeAxis close = axisOf("animal_life", "close");
+		assertThat(severities(close)).containsExactly(Severity.NEUTRAL, Severity.NEUTRAL, Severity.NEUTRAL);
+		assertThat(close.perilAtHigh()).isFalse();
+		assertThat(close.axisRole()).isEqualTo(AttributeAxis.AxisRole.ACCUMULATION);
+		assertThat(close.lethal()).isFalse();
+		assertThat(close.min()).isZero();
+		assertThat(close.max()).isEqualTo(100);
+		assertThat(close.bandRanges().stream().map(BandRange::label)).containsExactly("躲着人", "敢靠近", "站得很近");
+	}
+
+	/** 全部已激活轴的 severity 快照(刀 2b 前后只有 animal_life/close 变了)。 */
+	@Test
+	void everyOtherAxisKeepsItsSeverity() {
+		List<String> expected = List.of(
+			"rules_creepy/hp", "DANGER,CAUTION,NEUTRAL",
+			"rules_creepy/san", "DANGER,CAUTION,NEUTRAL",
+			"apocalypse/hp", "DANGER,CAUTION,NEUTRAL",
+			"apocalypse/hunger", "DANGER,CAUTION,NEUTRAL",
+			"cthulhu/hp", "DANGER,CAUTION,NEUTRAL",
+			"cthulhu/san", "DANGER,CAUTION,NEUTRAL",
+			"cthulhu/knowledge", "NEUTRAL,CAUTION,DANGER",
+			"cultivation/hp", "DANGER,CAUTION,NEUTRAL",
+			"cultivation/mana", "NEUTRAL,NEUTRAL,NEUTRAL",
+			"cultivation/realm", "NEUTRAL,NEUTRAL,NEUTRAL",
+			"life_sim/vigor", "DANGER,CAUTION,NEUTRAL",
+			"life_sim/longing", "NEUTRAL,NEUTRAL,NEUTRAL",
+			"life_sim/crossroads", "NEUTRAL,NEUTRAL,NEUTRAL",
+			"life_sim/ties", "NEUTRAL,NEUTRAL,NEUTRAL",
+			"animal_life/body", "DANGER,CAUTION,NEUTRAL",
+			"animal_life/warmth", "NEUTRAL,NEUTRAL,NEUTRAL",
+			"animal_life/ground", "NEUTRAL,NEUTRAL,NEUTRAL",
+			"animal_life/close", "NEUTRAL,NEUTRAL,NEUTRAL");
+		List<String> actual = new java.util.ArrayList<>();
+		for (ArchetypeMeta m : registry.activeMetas()) {
+			for (AttributeAxis a : m.attributes()) {
+				actual.add(m.id() + "/" + a.key());
+				actual.add(String.join(",", a.bandRanges().stream().map(r -> r.severity().name()).toList()));
+			}
+		}
+		assertThat(actual).containsExactlyElementsOf(expected);
+	}
+
 	// ── 全 active 轴的整表不变量(异常档在后端直接失败,不下发让前端猜)────────────
 
 	@Test
