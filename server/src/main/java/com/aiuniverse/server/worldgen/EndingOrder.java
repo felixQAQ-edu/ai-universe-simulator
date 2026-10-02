@@ -30,6 +30,12 @@ final class EndingOrder {
 	/** archetype → 致命轴触底时必须先被兜底命中的结局标题。 */
 	private static final Map<String, String> BOTTOM_OUT_FIRST = Map.of("animal_life", "撞上");
 
+	/**
+	 * archetype → 上面那条结局的 condition 必须提到的致命轴中文名。没提到时引擎兜底按中文名匹配会越过它,
+	 * 落到同样提到该轴名的其他 failure 结局上(ADR-028 已知代价)。<b>只记 WARN,顺序逻辑与引擎都不动。</b>
+	 */
+	private static final Map<String, String> BOTTOM_OUT_AXIS = Map.of("animal_life", "身子");
+
 	private EndingOrder() {
 	}
 
@@ -55,6 +61,11 @@ final class EndingOrder {
 		if (target < 0) {
 			log.warn("[world-gen] archetype={} 结局池里没有「{}」,结局顺序不做调整", archetypes.get(0), title);
 			return world;
+		}
+		String axis = BOTTOM_OUT_AXIS.get(archetypes.get(0));
+		if (axis != null && !endings.get(target).path("condition").asString("").contains(axis)) {
+			log.warn("[world-gen] archetype={} 结局「{}」的 condition 没有提到【{}】,致命轴触底时兜底可能落到别的结局",
+					archetypes.get(0), title, axis);
 		}
 		if (firstFailure < 0 || target <= firstFailure) {
 			return world;

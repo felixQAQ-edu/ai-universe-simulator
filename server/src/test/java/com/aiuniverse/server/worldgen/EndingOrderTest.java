@@ -127,6 +127,28 @@ class EndingOrderTest {
 		assertThat(logs.list).anyMatch(e -> e.getLevel() == Level.WARN && e.getFormattedMessage().contains("撞上"));
 	}
 
+	/** 「撞上」在,但 condition 没提【身子】:记 WARN;顺序照常调整(只观测,不改逻辑)。 */
+	@Test
+	void hitWithoutBodyInConditionLogsWarnButStillMoves() {
+		ObjectNode w = animalWorld(true);
+		for (JsonNode e : w.path("endings")) {
+			if ("撞上".equals(e.path("title").asString())) {
+				((ObjectNode) e).put("condition", "在途中被车撞上");
+			}
+		}
+		EndingOrder.apply(List.of("animal_life"), w);
+		assertThat(titles(w)).containsExactly("熬过去了", "撞上", "太近了", "冬天", "没有名字的");
+		assertThat(logs.list).anyMatch(e -> e.getLevel() == Level.WARN
+				&& e.getFormattedMessage().contains("撞上") && e.getFormattedMessage().contains("身子"));
+	}
+
+	/** 对照:condition 提到【身子】时不记任何 WARN。 */
+	@Test
+	void hitWithBodyInConditionLogsNothing() {
+		EndingOrder.apply(List.of("animal_life"), animalWorld(true));
+		assertThat(logs.list).isEmpty();
+	}
+
 	@Test
 	void otherWorldsAndFusionAreUntouched() {
 		for (List<String> a : List.of(List.of("rules_creepy"), List.of("life_sim"),
