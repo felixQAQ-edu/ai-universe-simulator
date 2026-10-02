@@ -182,8 +182,11 @@ public class EventLoopService implements TurnExecutor {
 		BoxSceneState st = session.boxScene();
 		boolean legacyScene = st != null && st.isLegacy();
 		String situationFragment = st == null || legacyScene ? "" : BoxSceneTables.situationFragment(st.situation);
+		// ADR-028 刀 2 补充:结算后、窗口内的段信息由局面层按结果覆盖(时钟表只放纸箱段)。
+		BoxSceneTables.StageText stageOverride = scene == null ? null
+				: BoxSceneTurn.stageOverride(BoxSceneTables.box(archetypeOf(engine)), scene, engine.turn() + 1);
 		String prompt = promptBuilder.buildTurnPrompt(engine, actionId, actionText, BoxSceneTurn.promptBlock(scene),
-				situationFragment, legacyScene);
+				situationFragment, legacyScene, stageOverride);
 
 		// ── GENERATING:流式 + 哨兵切分(叙事逐字下发,尾巴缓冲)──
 		StringBuilder narrativeBuf = new StringBuilder();

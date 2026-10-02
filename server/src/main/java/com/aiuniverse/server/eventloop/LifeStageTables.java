@@ -65,6 +65,11 @@ final class LifeStageTables {
 			"他",      // 人称词槽
 			"寿终");   // 终点词槽
 
+	/** 《动物人生》T11–14 纸箱局面段(ADR-028 §附录 · 第二刀补充文案 · 一,Felix 2026-10-01 定稿,照录)。 */
+	static final String BOX_LABEL = "屋里·纸箱出现的几天";
+	static final String BOX_SPAN_NOTE = "【设计标注，绝不写进正文或选项】这个窗口最多四回合，只推进纸箱局面：纸箱出现、家具被搬走、门与车声靠近，最后进入结算。第三回合可能提前结算。结算之前结果尚未确定，不得预告它会被带走或留下；不得使用“搬家”“遗弃”“收养”等人类解释，也不得跳过当前阶段，提前描写下一阶段的征兆。";
+	static final String BOX_ADVANCE = "一回合约一天。每回合只向当前局面的下一阶段推进，不得跨阶段抢写结算。";
+
 	/**
 	 * 《动物人生》(`animal_life`)的时钟表 —— ADR-021 刀 3。
 	 *
@@ -78,6 +83,8 @@ final class LifeStageTables {
 	 * <b>写进「屋里」段的 {@code advanceClause}</b> —— <b>一段之内允许有变化,那正是 advanceClause 该说的事</b>。
 	 *
 	 * <p>14 + 3 + 10 + 14 + 4 = <b>45</b>,收敛窗口 45–48;末段起点 42。
+	 * (以上是 ADR-021 刀 3 的原五段,旧局仍用,见 {@link #ANIMAL_LIFE_LEGACY};ADR-028 起新局为
+	 * 10 + 4 + 3 + 4 + 6 + 8 + 6 + 4 = 45,收敛窗口与末段起点不变。)
 	 * 三个「不是。」递减级的位置与本表精确吻合:T19 在外面·早期、T34 在外面·中期、T45 在末段。
 	 *
 	 * <p><b>⚠️ {@code exitText} 五段全 null —— 动物没有「就到这里」出口</b>(裁定 B):
@@ -91,13 +98,16 @@ final class LifeStageTables {
 	private static final LifeStageTable ANIMAL_LIFE = new LifeStageTable(
 			"animal_life",
 			List.of(
-					// T1-14:世界小而确定,规律可以学会。幼年与成年的密度切换写在 advanceClause 里。
-					new LifeStage(1, 14, "屋里", "还在屋里的日子",
+					// T1-10:世界小而确定,规律可以学会。幼年与成年的密度切换写在 advanceClause 里。
+					// 三句沿用 583abc9 原文,只把适用范围收到第 1–10 回合(ADR-028 第二刀补充文案 · T1–10)。
+					new LifeStage(1, 10, "屋里", "还在屋里的日子",
 							"最初三个回合一回合几天(还没睁开眼到刚被带到这里),此后一回合约数月", null),
-					// T15-17:同一天。光在地板上 → 光在墙上 → 天黑。
-					new LifeStage(15, 17, "断裂", "被丢下的那几天",
-							"这三个回合是【同一天】:光在地板上、光挪到墙上、天黑;"
-									+ "本回合只比上一回合晚几个钟头,绝不写出「这一天」三个字,让光自己走", null),
+					// T11-14:纸箱局面(ADR-028 第二刀补充文案 · 第一组,照录)。
+					new LifeStage(11, 14, BOX_LABEL, BOX_SPAN_NOTE, BOX_ADVANCE, null),
+					// T15-17:⚠️ 对新局【永远被局面层覆盖】(结算后按结果取第二 / 第三组,见 BoxSceneTables.aftermathStage),
+					// 本格只是占位、新局从不渲染(BoxSceneClockOverrideTest 守)。占位取【第一组】:
+					// 第二 / 第三组随结果而定,只在局面数据表里存一份;时钟表只放与结果无关的那一组,不复制第二份。
+					new LifeStage(15, 17, BOX_LABEL, BOX_SPAN_NOTE, BOX_ADVANCE, null),
 					// T18–41:四段(ADR-028 §已决 C)。段名 = 内部阶段名;设计标注 = 阶段含义;
 					// 推进语:22–27 沿用旧 18–27 原句,28–35 / 36–41 沿用旧 28–41 原句,18–21 照句式写「约数天」。
 					new LifeStage(18, 21, "变动初期", "熟悉秩序消失后的早期",
@@ -117,7 +127,7 @@ final class LifeStageTables {
 					// T42+:一回合一天。
 					new LifeStage(42, Integer.MAX_VALUE, "末段", "最后那些天",
 							"本回合比上一回合晚一天到数日", null)),
-			45,  // convergeFrom:14+3+4+6+8+6+4 = 45(1–17 的部分随补充简报再改)
+			45,  // convergeFrom:10+4+3+4+6+8+6+4 = 45
 			48,  // convergeTo:三段边界清晰,不需要《寻常》那 10 个回合的宽度(那是六段递进累积误差的产物)
 			42,  // finalStageFromTurn
 			// ⚠️ 出口五段全 null,故以下三条出口措辞永不被读到;留空串而非编造措辞。

@@ -252,6 +252,37 @@ final class BoxSceneTables {
 		return s == null ? "" : SITUATION_FRAGMENTS.get(s);
 	}
 
+	/**
+	 * 时钟契约三项的覆盖值(段名 = {@code LifeStage.label} / 设计标注 = {@code spanNote} / 推进语 = {@code advanceClause})。
+	 * 只替换注入进时钟契约的这三项,族层模板(LifetimeFamily)不动。
+	 */
+	record StageText(String label, String spanNote, String advanceClause) {
+	}
+
+	/**
+	 * 结算后、窗口末回合以内的段信息(ADR-028 §附录 · 第二刀补充文案 · 二 / 三,Felix 2026-10-01 定稿,照录)。
+	 * 按<b>结算类别</b>选组(被带走 R1 / R2 → 第二组;被留下 R3a / b / c → 第三组),不按回合号。
+	 * 第一组(纸箱段)与结果无关,住在时钟表里({@code LifeStageTables.BOX_*})。
+	 */
+	private static final Map<BoxScene.Category, StageText> ANIMAL_LIFE_AFTERMATH_STAGES = Map.of(
+			BoxScene.Category.TAKEN, new StageText(
+					"新屋子·最初的几天",
+					"【设计标注，绝不写进正文或选项】结算结果已经确定，权威处境是 `NEW_HOME`。这几回合只写它怎样感知新屋子的地面、门声、房间、孩子和从旧家带来的碗；必须承认已经落地的结算记忆，但不得使用“搬家”“收养”或“被带走”解释发生了什么。不得重演纸箱局面，不得让它回到旧屋，也不得生成离开新屋的地点转换。R1 在三回合余波结束后，使用已定稿的第 17 回合补位；R2 不使用补位。",
+					"一回合约一天。每回合推进新屋子里相邻的一天，不得在这几回合内跳到数周、数月或生命末段。"),
+			BoxScene.Category.LEFT, new StageText(
+					"旧屋·空下来的第一天",
+					"【设计标注，绝不写进正文或选项】结算结果已经确定，权威处境是 `EMPTY_HOME`。三个回合发生在同一天：光先落在地板上，随后移到墙上，最后天黑。屋里没有人回来，叫声没有得到回应，但旁白不得使用“遗弃”“不要它了”或“被留下”解释原因。玩家没有选择 `LEAVE_HOME` 以前，它始终在旧家门内；不得因为门缝有风、闻到外面的气味或进入第 18 回合，就提前写成已经到了外面。",
+					"一回合约数小时。三个回合从白天推进到天黑，不得写成已经过去了几天。"));
+
+	private static final Map<String, Map<BoxScene.Category, StageText>> AFTERMATH_STAGES =
+			Map.of(ANIMAL_LIFE_BOX.archetype(), ANIMAL_LIFE_AFTERMATH_STAGES);
+
+	/** 某世界某结算路径的余波段信息;未登记 → {@code null}。 */
+	static StageText aftermathStage(String archetype, Path result) {
+		Map<BoxScene.Category, StageText> m = AFTERMATH_STAGES.get(archetype);
+		return m == null || result == null ? null : m.get(result.category);
+	}
+
 	/** 登记处:世界 → 局面表(只有登记在这里的世界会接局面层;其余世界一行不受影响)。 */
 	private static final Map<String, Table> BOXES = Map.of(ANIMAL_LIFE_BOX.archetype(), ANIMAL_LIFE_BOX);
 	private static final Map<String, Pools> POOLS = Map.of(ANIMAL_LIFE_BOX.archetype(), ANIMAL_LIFE_POOLS);
@@ -259,7 +290,7 @@ final class BoxSceneTables {
 	static {
 		// 登记面对拍(ADR-028 决策 6):局面挂在一生制世界上,且窗口落在该世界时钟表之内 —— 挂错 = 加载即抛。
 		BOXES.forEach((key, table) -> {
-			if (!key.equals(table.archetype()) || !POOLS.containsKey(key)) {
+			if (!key.equals(table.archetype()) || !POOLS.containsKey(key) || !AFTERMATH_STAGES.containsKey(key)) {
 				throw new IllegalStateException("局面表登记面不一致:" + key);
 			}
 			if (LifeStageTables.of(key) == null) {

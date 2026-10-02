@@ -40,16 +40,27 @@ class AnimalLifeClockFourSegmentsTest {
 		assertThat(t.stageAt(36).advanceClause()).isEqualTo(legacy.stageAt(28).advanceClause());
 	}
 
+	/**
+	 * 末段与收敛不动。刀 2 补充起 T1–17 不再与旧表相同:T1–10 三句沿用旧「屋里」原文(只收窄范围),
+	 * T11–17 换成纸箱段 —— 那部分由 {@code BoxSceneClockOverrideTest} 逐字守;这里只守「末段照旧」与 T1–10 三句。
+	 */
 	@Test
-	void finalStageAndConvergenceUnchanged_andT1To17Untouched() {
+	void finalStageAndConvergenceUnchanged_andT1To10KeepTheOldThreeSentences() {
 		assertThat(t.finalStageFromTurn()).isEqualTo(42);
 		assertThat(t.stageAt(42).label()).isEqualTo("末段");
 		assertThat(t.convergeFrom()).isEqualTo(45);
 		assertThat(t.convergeTo()).isEqualTo(48);
 		LifeStageTable legacy = LifeStageTables.legacyOf("animal_life");
-		for (int turn : List.of(1, 14, 15, 17, 42, 60)) {
+		for (int turn : List.of(42, 60)) {
 			assertThat(t.stageAt(turn)).as("T" + turn).isEqualTo(legacy.stageAt(turn));
 		}
+		for (int turn : List.of(1, 10)) {
+			LifeStage now = t.stageAt(turn);
+			LifeStage old = legacy.stageAt(turn);
+			assertThat(List.of(now.label(), now.spanNote(), now.advanceClause())).as("T" + turn)
+					.isEqualTo(List.of(old.label(), old.spanNote(), old.advanceClause()));
+		}
+		assertThat(t.stageAt(11).label()).isNotEqualTo(legacy.stageAt(11).label());
 	}
 
 	@Test

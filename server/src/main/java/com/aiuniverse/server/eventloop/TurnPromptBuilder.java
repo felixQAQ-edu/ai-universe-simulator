@@ -189,7 +189,7 @@ public final class TurnPromptBuilder {
 	 * 一辈子只读一次的(结局池 / 极性表 / 早逝三段式)归 <b>world-gen 侧</b>那个槽,不在这里。
 	 */
 	private static String archetypeTurnDirective(String archetype, int nextTurn) {
-		return archetypeTurnDirective(archetype, nextTurn, false, "");
+		return archetypeTurnDirective(archetype, nextTurn, false, "", null);
 	}
 
 	/**
@@ -197,9 +197,11 @@ public final class TurnPromptBuilder {
 	 *
 	 * @param legacy            旧局:模板与时钟表都取旧版(与 {@code 583abc9} 逐字节相同);不接任何片段
 	 * @param situationFragment 按权威处境注入的片段(接在主干之后;空串 = 处境为空 / 非《动物人生》)
+	 * @param stageOverride     局面层给的段信息覆盖(ADR-028 刀 2 补充:结算后、窗口内按结果取);
+	 *                          {@code null} = 照时钟表。只替换段名 / 设计标注 / 推进语三项;旧局一律不接
 	 */
 	private static String archetypeTurnDirective(String archetype, int nextTurn, boolean legacy,
-			String situationFragment) {
+			String situationFragment, BoxSceneTables.StageText stageOverride) {
 		String template = legacy ? LEGACY_TURN_DIRECTIVES.get(archetype) : TURN_DIRECTIVES.get(archetype);
 		if (template == null) {
 			return ""; // 四个既有世界:与开槽前逐字节一致(parity 线)
@@ -213,6 +215,11 @@ public final class TurnPromptBuilder {
 					LifetimeFamily.aliveAtTheEnd("", "\n    "), "");
 		}
 		LifeStage stage = table.stageAt(nextTurn);
+		if (stageOverride != null && !legacy) {
+			// 时钟表仍是纯回合号函数;覆盖发生在这里,只换注入时钟契约的三项(族层模板不动)。
+			stage = new LifeStage(stage.fromTurn(), stage.toTurn(), stageOverride.label(), stageOverride.spanNote(),
+					stageOverride.advanceClause(), stage.exitText(), stage.guidance());
+		}
 		// 阶段说明(ADR-028 §已决 C:四段说明 + 三条共同限制)只有《动物人生》第 18–41 回合的阶段带;
 		// 接在主干之后、处境片段之前。没有就是空串 → 其余世界与阶段逐字节不变。
 		String guidance = stage.guidance() == null ? "" : "\n\n" + stage.guidance();
@@ -511,6 +518,15 @@ public final class TurnPromptBuilder {
 	 */
 	public String buildTurnPrompt(Engine engine, String actionId, String actionText, String sceneBlock,
 			String situationFragment, boolean legacyScene) {
+		return buildTurnPrompt(engine, actionId, actionText, sceneBlock, situationFragment, legacyScene, null);
+	}
+
+	/**
+	 * 全参 + 段信息覆盖(ADR-028 刀 2 补充):{@code stageOverride} 由局面层按结算结果给出
+	 * ({@link BoxSceneTurn#stageOverride});{@code null} → 与上一个重载逐字节相同。旧局忽略覆盖。
+	 */
+	String buildTurnPrompt(Engine engine, String actionId, String actionText, String sceneBlock,
+			String situationFragment, boolean legacyScene, BoxSceneTables.StageText stageOverride) {
 		TurnContext ctx = resolveContext(engine, legacyScene);
 		String action = actionText == null || actionText.isBlank() ? actionId : actionId + " · " + actionText;
 		String system = SKELETON.formatted(
@@ -525,7 +541,7 @@ public final class TurnPromptBuilder {
 				// %9$s per-archetype 单体指令(缺省空串)。传的是**正在生成的那一回合**(= turn()+1,
 				// 与骨架末行「请推进第 N 回合」同一个 N),一生制时钟据它算阶段。
 				ctx.fused() ? "" : archetypeTurnDirective(ctx.archetype(), engine.turn() + 1, legacyScene,
-						legacyScene ? "" : situationFragment));
+						legacyScene ? "" : situationFragment, legacyScene ? null : stageOverride));
 		return system
 				+ "\n\n世界设定与当前状态(state 是真理之源):\n"
 				+ engine.contextJson()

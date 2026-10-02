@@ -69,6 +69,22 @@ final class BoxSceneTurn {
 	}
 
 	/**
+	 * 本回合时钟契约三项的覆盖(ADR-028 §已决 B / 决策 3,刀 2 补充):<b>结算之后、窗口末回合以内</b>,
+	 * 段名 / 设计标注 / 推进语由局面层<b>按结算结果</b>给出(R1 / R2 → 第二组,R3a / b / c → 第三组)。
+	 *
+	 * <p>结算发生在「生成下一回合」那一刻(玩家在阶段 3 做出提前结算的选择 → 生成第 14 回合时结算,
+	 * {@code settledTurn = 14}),故判据看的是<b>本回合编排</b>里的结果,而不是落地前存档里的值:
+	 * R1 从第 14 回合起覆盖、R2 / R3 从第 15 回合起覆盖。结算之前不覆盖,走时钟表的局面段;
+	 * 窗口之后不覆盖,走时钟表。旧局 / 不接局面层 → 编排为 {@code null} → 不覆盖。
+	 */
+	static BoxSceneTables.StageText stageOverride(Table t, Plan p, int nextTurn) {
+		if (p == null || p.newResult() == null || nextTurn > windowEnd(t)) {
+			return null;
+		}
+		return BoxSceneTables.aftermathStage(t.archetype(), p.newResult());
+	}
+
+	/**
 	 * 算本回合编排;旧局或无事可做 → {@code null}(调用方据此走今天的原路径,一个字节都不变)。
 	 */
 	static Plan plan(Table t, Pools pools, LifeStageTable clock, BoxSceneState st, int nextTurn, String chosenSlot) {
