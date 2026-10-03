@@ -279,23 +279,78 @@ class BoxSceneWiringTest {
 		return s;
 	}
 
+	/** 「刚出门」三条的内部意图(数据表顺序 = A / B / C)。 */
+	private static List<String> justOutsideIntents() {
+		return ANIMAL_LIFE_BOX.justOutside().stream().map(BoxScene.Option::intent).toList();
+	}
+
 	@Test
 	void leaveHomeLandsOutside_andOutsideTakesEffectFromTheNextTurn() {
 		GameSession s = leftThroughB3();
 		Turn t18 = turn(s, "C");
 		assertThat(t18.prompt()).contains(BoxSceneTurn.narrated(ANIMAL_LIFE_BOX.leaveFeedback()));
 		assertThat(s.boxScene().situation).isEqualTo(Situation.OUTSIDE);
-		assertThat(s.boxScene().slots).isEmpty(); // OUTSIDE 选项回到模型自由生成
+		// ADR-028 §已决 L 第 1 条:离开回合的下一组 A/B/C 固定为「刚出门」三条(刀 2b 原为模型自由生成)
+		assertThat(t18.prompt()).contains("availableActions 必须恰好三个");
+		for (BoxScene.Option o : ANIMAL_LIFE_BOX.justOutside()) {
+			assertThat(t18.prompt()).contains("· " + o.slot() + ":" + o.template());
+		}
+		assertThat(s.boxScene().slots.values()).containsExactlyElementsOf(justOutsideIntents());
 		assertThat(texts(t18.sink().delta.path("availableActions"))).containsExactly("模型写的A", "模型写的B", "模型写的C");
 
 		Turn t19 = turn(s, "A");
 		assertThat(t19.prompt()).doesNotContain("availableActions 必须恰好三个");
 		assertThat(s.boxScene().situation).isEqualTo(Situation.OUTSIDE);
+		assertThat(s.boxScene().slots).isEmpty(); // 此后 OUTSIDE 选项回到模型自由生成(§已决 E)
+		assertThat(s.boxScene().history).isEmpty(); // 按刚出门映射结算:不记意图历史
 
-		// 刀 2b:片段按【权威处境】选 —— 转移那一回合仍是空旧屋片段,屋外片段从下一回合起(§已决 A 第 6 条)
-		assertThat(t18.prompt()).contains(EMPTY_HOME_HEADER).doesNotContain(OUTSIDE_HEADER);
+		// ⚠️ §已决 L 第 1 条订正刀 2b(原断言:t18 含旧屋片段、不含屋外片段 —— 「转移那一回合仍是空旧屋片段」):
+		// 离开回合本身就用屋外片段,不再同时注入旧屋片段;权威处境仍在落地之后才写为 OUTSIDE。
+		assertThat(t18.prompt()).contains(OUTSIDE_HEADER).doesNotContain(EMPTY_HOME_HEADER)
+				.doesNotContain(NEW_HOME_HEADER);
 		assertThat(t19.prompt()).contains(OUTSIDE_HEADER).doesNotContain(EMPTY_HOME_HEADER)
 				.doesNotContain(NEW_HOME_HEADER);
+	}
+
+	@Test
+	void leaveTurnMissingSlotsAreFilledFromTheJustOutsideTemplates() {
+		GameSession s = leftThroughB3();
+		ScriptedLlm llm = new ScriptedLlm();
+		llm.script(ok("A", "B"));        // 主调用:缺 C → 修复
+		llm.script(tail("A", "B", "D")); // 修复仍缺 C、多 D → 模板补齐
+		Sink sink = new Sink();
+		new EventLoopService(llm, prompts, mapper).execute(s, "C", sink);
+		assertThat(llm.prompts).hasSize(2);
+		assertThat(texts(sink.delta.path("availableActions")))
+				.containsExactly("模型写的A", "模型写的B", ANIMAL_LIFE_BOX.justOutside().get(2).template());
+		assertThat(s.boxScene().situation).isEqualTo(Situation.OUTSIDE);
+	}
+
+	@Test
+	void theTurnAfterLeavingSettlesByTheJustOutsideMapping_withoutTransitionOrHistory() {
+		for (String slot : List.of("A", "B", "C")) {
+			GameSession copy = leftThroughB3();
+			turn(copy, "C");
+			Turn t19 = turn(copy, slot);
+			assertThat(copy.boxScene().situation).as(slot).isEqualTo(Situation.OUTSIDE);
+			assertThat(copy.boxScene().history).as(slot).isEmpty();
+			assertThat(t19.prompt()).as(slot).doesNotContain(BoxSceneTurn.narrated(ANIMAL_LIFE_BOX.leaveFeedback()));
+		}
+	}
+
+	@Test
+	void anEndingLeaveTurnDoesNotOfferTheJustOutsideSlots() {
+		GameSession s = leftThroughB3();
+		ScriptedLlm llm = new ScriptedLlm();
+		llm.script("它把鼻子贴近地面。" + SentinelSplitter.SENTINEL
+				+ "{\"stateUpdate\":{\"body\":0,\"warmth\":60,\"ground\":50,\"close\":50,\"timeline\":\"日子\"},"
+				+ "\"availableActions\":[],\"ending\":{\"id\":\"hit\",\"reached\":true}}");
+		Sink sink = new Sink();
+		new EventLoopService(llm, prompts, mapper).execute(s, "C", sink);
+		assertThat(s.engine().status()).isEqualTo("ended");
+		assertThat(llm.prompts).hasSize(1); // 结局回合不按槽位要求触发修复
+		assertThat(texts(sink.delta.path("availableActions"))).doesNotContainAnyElementsOf(
+				ANIMAL_LIFE_BOX.justOutside().stream().map(BoxScene.Option::template).toList());
 	}
 
 	private static final String NEW_HOME_HEADER = "【处境片段 · 当前处境:新屋";

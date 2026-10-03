@@ -178,6 +178,13 @@ final class BoxSceneTables {
 
 
 	/**
+	 * 第 (9) 条里移到 OUTSIDE 每回合共同边界的那一句(ADR-028 §已决 L 第 1 条,原句原样,附录第三节 7-D 原文)。
+	 * (9) 其余「末段落在楼道口」的内容仍只在末段生效。
+	 */
+	static final String OUTSIDE_THRESHOLD_LINE =
+			"楼道、楼梯间和门前都属于 `OUTSIDE`。它可以走到旧家的门前，但不能进入旧屋；不得写门为它打开，也不得制造 `OUTSIDE → EMPTY_HOME`。";
+
+	/**
 	 * 处境片段(ADR-028 刀 2b;§已决 · 刀 2 实现口径第 5 条):按会话里的<b>权威处境</b>注入回合 prompt,
 	 * 接在《动物人生》回合指令主干之后。内容逐字取自 §附录 · 第二刀文案定稿
 	 * (第一节 §2 / §3 的共同边界、第三节 7-A 四条核心对应的标题与本处境那一行、7-D 的 (7)(9) 与 OUTSIDE 专属结局;
@@ -221,6 +228,9 @@ final class BoxSceneTables {
 					"   - `EMPTY_HOME`：有些旧位置还在，但家具、人和日常声音已经改变，那里不再自动兑现过去的安全。")),
 			Situation.OUTSIDE, "\n\n" + String.join("\n", List.of(
 					"【处境片段 · 当前处境:屋外(以下只在这一处境下成立)】",
+					// ADR-028 §已决 L 第 1 条:第 (9) 条里这一句原样移出,作每回合共同边界(离开回合起每个 OUTSIDE 回合都在)。
+					"屋外共同边界:",
+					"- " + OUTSIDE_THRESHOLD_LINE,
 					"四条核心对应在当前处境下的回应:",
 					"1. **金属声 = 门要开**",
 					"   - `OUTSIDE`：那声音来自别的门，不是它等的那一扇。",
@@ -239,7 +249,6 @@ final class BoxSceneTables {
 					"这一条只在权威处境为 `OUTSIDE` 且已经进入末段时生效。",
 					"最后一个可玩回合的场景必须落在某个楼道口。冷天往背风处钻，因此返回旧地、寻找新的地方或留在附近都可以走到楼道口。",
 					"只有玩家明确选择返回旧地时，这个楼道口才是旧家的那栋楼，并允许提出【走回门前】；其他路径可以落在别的楼道口，不得偷写成已经回到旧家。",
-					"楼道、楼梯间和门前都属于 `OUTSIDE`。它可以走到旧家的门前，但不能进入旧屋；不得写门为它打开，也不得制造 `OUTSIDE → EMPTY_HOME`。",
 					"**【`OUTSIDE` 专属结局】**",
 					"- 【太近了】：仅当【近人】高位且【身子】归零时允许提出；",
 					"- 【走回门前】：仅在末段、玩家明确选择返回旧地并抵达旧家门前后允许提出；",
@@ -256,7 +265,12 @@ final class BoxSceneTables {
 	 * 时钟契约三项的覆盖值(段名 = {@code LifeStage.label} / 设计标注 = {@code spanNote} / 推进语 = {@code advanceClause})。
 	 * 只替换注入进时钟契约的这三项,族层模板(LifetimeFamily)不动。
 	 */
-	record StageText(String label, String spanNote, String advanceClause) {
+	record StageText(String label, String spanNote, String advanceClause, String clockException) {
+
+		/** 附录原文的三项(不带时钟例外)。 */
+		StageText(String label, String spanNote, String advanceClause) {
+			this(label, spanNote, advanceClause, null);
+		}
 	}
 
 	/**
@@ -283,6 +297,63 @@ final class BoxSceneTables {
 		return m == null || result == null ? null : m.get(result.category);
 	}
 
+	// ── 被留下余波 B1–B3 的逐拍时钟(ADR-028 §已决 L 第 2 条,Felix 2026-10-03 原文)────────────────
+
+	/** 时钟例外:B1–B3 回合的推进语,同时整句替换时钟契约里与之冲突的那一句。 */
+	static final String LEFT_CLOCK_EXCEPTION =
+			"【仅被留下余波适用的时钟例外】这三个回合发生在同一天，相邻两拍相隔数小时。本回合只推进到当前这一拍，不跨到第二天。";
+
+	/** B1–B3 渲染时从第三组设计标注里删去的一句(校勘处置;附录原文保留)。 */
+	static final String LEFT_SPAN_NOTE_REMOVED = "三个回合发生在同一天：光先落在地板上，随后移到墙上，最后天黑。";
+
+	/**
+	 * 族层时钟契约里被时钟例外整句替换的那一句(在渲染处替换,族层源码不改)。
+	 * 族层将来改了这句 → {@link #withClockException} 找不到原文即抛,本类加载时先验一次。
+	 */
+	static final String FAMILY_SAME_DAY_BAN = "【绝不允许】两个回合停在同一天、同一顿饭、同一次谈话里把一件事说完;";
+
+	/** 当前一拍的时钟与征兆指令(只注入本拍那一行;不要求逐字搬进正文)。按拍号,不按回合号。 */
+	static final Map<String, String> LEFT_BEAT_CLOCK_LINES = Map.of(
+			"B1", "【本回合第 1/3 拍】光落在地板上。不得提前写光移到墙上或天黑。",
+			"B2", "【本回合第 2/3 拍】光挪到了墙上，叫声没有招来任何人。不得提前写天黑。",
+			"B3", "【本回合第 3/3 拍】天黑了，门缝里透进来的风有外面的味道。");
+
+	/** 本拍的时钟与征兆行;不是被留下余波的拍 → {@code null}。 */
+	static String leftBeatClockLine(String beatId) {
+		return beatId == null ? null : LEFT_BEAT_CLOCK_LINES.get(beatId);
+	}
+
+	/**
+	 * 某结算路径、某一拍的余波段信息(渲染用)。被留下余波 B1–B3:设计标注删去 {@link #LEFT_SPAN_NOTE_REMOVED},
+	 * 推进语改为 {@link #LEFT_CLOCK_EXCEPTION},并带上时钟例外;其余(被带走余波、补位)= {@link #aftermathStage} 原样。
+	 */
+	static StageText aftermathStageForBeat(String archetype, Path result, String beatId) {
+		StageText base = aftermathStage(archetype, result);
+		if (base == null || result == null || result.category != BoxScene.Category.LEFT
+				|| leftBeatClockLine(beatId) == null) {
+			return base;
+		}
+		if (!base.spanNote().contains(LEFT_SPAN_NOTE_REMOVED)) {
+			throw new IllegalStateException("第三组设计标注里找不到要删去的那一句:" + LEFT_SPAN_NOTE_REMOVED);
+		}
+		return new StageText(base.label(), base.spanNote().replace(LEFT_SPAN_NOTE_REMOVED, ""),
+				LEFT_CLOCK_EXCEPTION, LEFT_CLOCK_EXCEPTION);
+	}
+
+	/**
+	 * 把已渲染的时钟契约里 {@link #FAMILY_SAME_DAY_BAN} 整句替换为例外;{@code exception == null} → 原样。
+	 * 找不到那一句(族层改了)→ 抛,不静默不替换(§已决 L:不能把「例外」和「绝不允许」并排交给模型)。
+	 */
+	static String withClockException(String renderedContract, String exception) {
+		if (exception == null) {
+			return renderedContract;
+		}
+		if (!renderedContract.contains(FAMILY_SAME_DAY_BAN)) {
+			throw new IllegalStateException("时钟契约里找不到要被例外替换的那一句:" + FAMILY_SAME_DAY_BAN);
+		}
+		return renderedContract.replace(FAMILY_SAME_DAY_BAN, exception);
+	}
+
 	/** 登记处:世界 → 局面表(只有登记在这里的世界会接局面层;其余世界一行不受影响)。 */
 	private static final Map<String, Table> BOXES = Map.of(ANIMAL_LIFE_BOX.archetype(), ANIMAL_LIFE_BOX);
 	private static final Map<String, Pools> POOLS = Map.of(ANIMAL_LIFE_BOX.archetype(), ANIMAL_LIFE_POOLS);
@@ -298,6 +369,16 @@ final class BoxSceneTables {
 			}
 			if (!table.leaveIntent().equals(LEAVE_HOME) || !POOLS.get(key).leaveTemplate().equals(LEAVE_HOME_TEMPLATE)) {
 				throw new IllegalStateException("离开意图登记不一致:" + key);
+			}
+			// §已决 L:B1–B3 的渲染要能找到被删的那一句与被替换的那一句 —— 任一处原文变了,加载即抛。
+			for (Beat b : table.leftAftermath()) {
+				for (Path p : Path.values()) {
+					if (p.category == BoxScene.Category.LEFT) {
+						StageText r = aftermathStageForBeat(key, p, b.id());
+						withClockException(com.aiuniverse.server.archetype.LifetimeFamily.clockContract(1, "", "", "",
+								"", 0, 0, ""), r.clockException());
+					}
+				}
 			}
 			// §已决 K 安全阀:全部叙事素材预跑一遍人称转换 —— 含「它们」即在类加载时拒绝,不拖到某个回合。
 			BoxSceneTurn.narrativeMaterials(table, POOLS.get(key)).forEach(BoxSceneTurn::narrated);

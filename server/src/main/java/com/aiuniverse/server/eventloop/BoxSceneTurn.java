@@ -58,10 +58,20 @@ final class BoxSceneTurn {
 	 */
 	record Plan(String feedback, String omen, List<String> memoryFacts, String habit,
 			List<Slot> slots, List<Slot> degradeSlots, boolean transition,
-			int newG, Path newResult, Integer newSettledTurn, Situation newSituation, Pick record, String beatId) {
+			int newG, Path newResult, Integer newSettledTurn, Situation newSituation, Pick record, String beatId,
+			String beatClockLine) {
+
+		/** 不带逐拍时钟行(§已决 L 之前的形状)。 */
+		Plan(String feedback, String omen, List<String> memoryFacts, String habit,
+				List<Slot> slots, List<Slot> degradeSlots, boolean transition,
+				int newG, Path newResult, Integer newSettledTurn, Situation newSituation, Pick record, String beatId) {
+			this(feedback, omen, memoryFacts, habit, slots, degradeSlots, transition, newG, newResult, newSettledTurn,
+					newSituation, record, beatId, null);
+		}
 
 		boolean injectsNothing() {
-			return feedback == null && omen == null && memoryFacts.isEmpty() && habit == null && slots == null;
+			return feedback == null && omen == null && memoryFacts.isEmpty() && habit == null && slots == null
+					&& beatClockLine == null;
 		}
 	}
 
@@ -78,12 +88,15 @@ final class BoxSceneTurn {
 	 * {@code settledTurn = 14}),故判据看的是<b>本回合编排</b>里的结果,而不是落地前存档里的值:
 	 * R1 从第 14 回合起覆盖、R2 / R3 从第 15 回合起覆盖。结算之前不覆盖,走时钟表的局面段;
 	 * 窗口之后不覆盖,走时钟表。旧局 / 不接局面层 → 编排为 {@code null} → 不覆盖。
+	 *
+	 * <p>ADR-028 §已决 L 第 2 条:被留下余波 B1–B3 按<b>拍号</b>渲染(设计标注删一句、推进语与时钟契约用时钟例外);
+	 * 被带走余波与补位原样。
 	 */
 	static BoxSceneTables.StageText stageOverride(Table t, Plan p, int nextTurn) {
 		if (p == null || p.newResult() == null || nextTurn > windowEnd(t)) {
 			return null;
 		}
-		return BoxSceneTables.aftermathStage(t.archetype(), p.newResult());
+		return BoxSceneTables.aftermathStageForBeat(t.archetype(), p.newResult(), p.beatId());
 	}
 
 	/**
@@ -157,12 +170,14 @@ final class BoxSceneTurn {
 			omen = beat.omen();
 			slots = fromBeat(beat);
 			beatId = beat.id();
-		} else if (!transition && effective != Situation.OUTSIDE) {
+		} else if (transition) {
+			// ADR-028 §已决 L 第 1 条:离开回合的下一组 A/B/C 固定为已定稿的「刚出门」三条(与降级同一份数据)。
+			// 本回合若以结局收束,EventLoopService 不下发这组(结局回合不接管选项)。
+			slots = justOutside(t);
+		} else if (effective != Situation.OUTSIDE) {
 			slots = fromPool(pools, clock, effective, n, end, t.leaveIntent());
 		}
-		List<Slot> degradeSlots = transition
-				? t.justOutside().stream().map(o -> new Slot(o.slot(), o.intent(), o.template(), null, null)).toList()
-				: slots;
+		List<Slot> degradeSlots = transition ? justOutside(t) : slots;
 
 		// ── 4. 记忆事实(结算后每回合)与习惯句(第 28 回合起,NEW_HOME / EMPTY_HOME)──
 		List<String> facts = result == null ? List.of() : BoxScene.memoryFacts(t, result);
@@ -174,9 +189,17 @@ final class BoxSceneTurn {
 			}
 		}
 
+		// §已决 L 第 2 条:被留下余波的当前一拍(只这一拍,按拍号)。
+		String beatClockLine = result != null && result.category == BoxScene.Category.LEFT
+				? BoxSceneTables.leftBeatClockLine(beatId) : null;
 		Plan p = new Plan(feedback, omen, facts, habit, slots, degradeSlots, transition,
-				g, result, settledTurn, effective, record, beatId);
+				g, result, settledTurn, effective, record, beatId, beatClockLine);
 		return p.injectsNothing() && record == null && !transition ? null : p;
+	}
+
+	/** 「刚出门」三条模板(离开回合的正常与降级共用一份)。 */
+	private static List<Slot> justOutside(Table t) {
+		return t.justOutside().stream().map(o -> new Slot(o.slot(), o.intent(), o.template(), null, null)).toList();
 	}
 
 	private static List<Slot> fromBeat(Beat b) {
@@ -303,6 +326,9 @@ final class BoxSceneTurn {
 		}
 		if (p.omen() != null) {
 			sb.append("\n- 本回合正文须写到的变化(可融入正文、不必逐字复述,但不能遗漏):").append(narrated(p.omen()));
+		}
+		if (p.beatClockLine() != null) {
+			sb.append("\n- ").append(p.beatClockLine());
 		}
 		if (!p.memoryFacts().isEmpty()) {
 			sb.append("\n- 它带着的记忆(不必每回合复述,但不得与之矛盾):").append(String.join(";", p.memoryFacts().stream().map(BoxSceneTurn::narrated).toList()));

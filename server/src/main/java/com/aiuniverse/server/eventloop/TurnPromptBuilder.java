@@ -236,8 +236,12 @@ public final class TurnPromptBuilder {
 				LifetimeFamily.aliveAtTheEnd("", "\n    "),
 				// %12$s 族级时钟契约(ADR-021 刀 2 上提):句式与逻辑在族层,
 				// 人称与终点词是 per-world 词槽,取自本世界的时钟表。
-				LifetimeFamily.clockContract(nextTurn, table.pronoun(), stage.label(), stage.spanNote(),
-						stage.advanceClause(), table.convergeFrom(), table.convergeTo(), table.terminalWord()),
+				// ADR-028 §已决 L 第 2 条:被留下余波 B1–B3 的时钟例外在渲染处整句替换族层那句「绝不允许……同一天」;
+				// 族层源码不改,其余回合 / 世界 exception 为 null → 原样。找不到原句 → 抛(不静默)。
+				BoxSceneTables.withClockException(
+						LifetimeFamily.clockContract(nextTurn, table.pronoun(), stage.label(), stage.spanNote(),
+								stage.advanceClause(), table.convergeFrom(), table.convergeTo(), table.terminalWord()),
+						stageOverride != null && !legacy ? stageOverride.clockException() : null),
 				// %13$s 逐字句窗口(ADR-029):挂在新局 (5) 末行行尾;空串时那一行与之前逐字节相同。
 				legacy || verbatimWindow.isEmpty() ? "" : "\n" + verbatimWindow)
 				+ guidance + (situationFragment == null ? "" : situationFragment);

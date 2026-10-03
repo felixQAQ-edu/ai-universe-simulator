@@ -177,11 +177,14 @@ public class EventLoopService implements TurnExecutor {
 		// ADR-028 刀 2a:局面层编排(纯函数,不改状态;状态只在落地后提交)。旧局 / 不接局面层 → null,
 		// 注入段为空串,prompt 与今天逐字节相同。
 		BoxSceneTurn.Plan scene = scenePlan(session, actionId);
-		// ADR-028 刀 2b:处境片段按【权威处境】选 —— 落地前存档里的那个值;转移那一回合仍是空旧屋,
-		// 屋外片段从下一回合起注入(§已决 A 第 6 条)。旧局走旧指令 + 旧时钟 + 旧近人说明,逐字节同 583abc9。
+		// ADR-028 刀 2b:处境片段按【权威处境】选 —— 落地前存档里的那个值。旧局走旧指令 + 旧时钟 + 旧近人说明,逐字节同 583abc9。
+		// ⚠️ §已决 L 第 1 条(订正刀 2b「转移那一回合仍是空旧屋片段」):离开回合(本回合编排 transition)生成的是
+		// 「跨过门槛及刚出门」的结果,改用屋外片段、不再注入旧屋片段。判据取本回合编排;
+		// 会话里的权威处境照旧在落地之后才写为 OUTSIDE(BoxSceneTurn.commit),未落地什么都不写。
 		BoxSceneState st = session.boxScene();
 		boolean legacyScene = st != null && st.isLegacy();
-		String situationFragment = st == null || legacyScene ? "" : BoxSceneTables.situationFragment(st.situation);
+		String situationFragment = st == null || legacyScene ? ""
+				: BoxSceneTables.situationFragment(scene != null && scene.transition() ? scene.newSituation() : st.situation);
 		// ADR-028 刀 2 补充:结算后、窗口内的段信息由局面层按结果覆盖(时钟表只放纸箱段)。
 		BoxSceneTables.StageText stageOverride = scene == null ? null
 				: BoxSceneTurn.stageOverride(BoxSceneTables.box(archetypeOf(engine)), scene, engine.turn() + 1);

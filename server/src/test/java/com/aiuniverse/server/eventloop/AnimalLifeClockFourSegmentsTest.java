@@ -74,7 +74,11 @@ class AnimalLifeClockFourSegmentsTest {
 			assertThat(s.guidance()).startsWith("【阶段说明 · " + s.label() + "】" + desc + "\n共同限制:\n")
 					.endsWith(String.join("\n", limits));
 		}
-		for (int turn : List.of(1, 15, 42)) {
+		// ADR-028 §已决 L 第 3 条:T1–10 带纸箱时间锚点(Felix 原文),T11 起无(原断言 T1 为 null,已按新口径改写)。
+		for (int turn : List.of(1, 10)) {
+			assertThat(t.stageAt(turn).guidance()).as("T" + turn).isEqualTo(BoxSceneDecisionLTest.BOX_NOT_YET);
+		}
+		for (int turn : List.of(11, 15, 42)) {
 			assertThat(t.stageAt(turn).guidance()).as("T" + turn).isNull();
 		}
 	}
