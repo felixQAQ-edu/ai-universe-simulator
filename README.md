@@ -150,6 +150,7 @@ API key 只进环境变量,**绝不写进 yaml / 代码 / 提交**。
 - [ADR-026](docs/adr/ADR-026-turn-acceptance-record.md) — 回合受理记录:把「接下了」与「落地了」拆成两次提交(`pg` profile)
 - [ADR-027](docs/adr/ADR-027-delivery-failure-keeps-turn-and-bidirectional-cursor.md) — 送达失败不丢回合 + 游标双向比对
 - [ADR-028](docs/adr/ADR-028-box-scene-changeable-left-behind.md) — 纸箱:《动物人生》里可以被改变的「被留下」(已采纳)
+- [ADR-029](docs/adr/ADR-029-animal-life-verbatim-sentence-windows.md) — 《动物人生》逐字句排窗:金属声句组与床脚句按回合注入允许 / 禁用指令(已采纳)
 
 ## 文档
 
