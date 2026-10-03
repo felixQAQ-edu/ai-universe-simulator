@@ -324,10 +324,11 @@ public class EventLoopService implements TurnExecutor {
 	private TurnResult degrade(GameSession session, String actionId, String narrative, TurnEventSink sink,
 			long startedAtMs, BoxSceneTurn.Plan scene) {
 		Engine engine = session.engine();
-		// ADR-028 §已决 A 第 7 条 (i):离开那一回合若降级,先补一句叙事(数据表的离开反馈事实,逐字)再发 delta;
-		// 这句也进 log,下一回合的模型才知道它已经出门了。
+		// ADR-028 §已决 A 第 7 条 (i):离开那一回合若降级,先补一句叙事(数据表的离开反馈事实)再发 delta;
+		// 这句也进 log,下一回合的模型才知道它已经出门了。它直接显示给玩家、又作为正文回喂,
+		// 故按 §已决 K 转成「你」(数据表原文不变)。
 		String leaveNarrative = scene != null && scene.transition()
-				? (narrative.isEmpty() ? "" : "\n\n") + scene.feedback()
+				? (narrative.isEmpty() ? "" : "\n\n") + BoxSceneTurn.narrated(scene.feedback())
 				: null;
 		engine.applyNoOp(leaveNarrative == null ? narrative : narrative + leaveNarrative, actionId);
 		if (scene != null) {

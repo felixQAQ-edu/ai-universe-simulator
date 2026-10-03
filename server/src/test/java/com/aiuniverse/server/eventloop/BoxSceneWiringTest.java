@@ -180,7 +180,7 @@ class BoxSceneWiringTest {
 		BoxSceneState st = s.boxScene();
 
 		Turn t11 = turn(s, "A"); // 玩家在纸箱前的自由选项里选 A → 第 11 回合 = 阶段 1
-		assertThat(t11.prompt()).contains(ANIMAL_LIFE_BOX.stages().get(0).omen())
+		assertThat(t11.prompt()).contains(BoxSceneTurn.narrated(ANIMAL_LIFE_BOX.stages().get(0).omen()))
 				.contains("跟着孩子").contains("钻进纸箱闻一闻").contains("回到平时趴着的地方");
 		assertThat(st.slots).containsExactly(
 				java.util.Map.entry("A", "FOLLOW"), java.util.Map.entry("B", "SNIFF_BOX"),
@@ -188,7 +188,7 @@ class BoxSceneWiringTest {
 		assertThat(ids(t11.sink().delta.path("availableActions"))).containsExactly("A", "B", "C");
 
 		Turn t12 = turn(s, "A"); // FOLLOW +1
-		assertThat(t12.prompt()).contains("孩子蹲下来摸了它一下").contains(ANIMAL_LIFE_BOX.stages().get(1).omen());
+		assertThat(t12.prompt()).contains("孩子蹲下来摸了你一下").contains(BoxSceneTurn.narrated(ANIMAL_LIFE_BOX.stages().get(1).omen()));
 		assertThat(st.g).isEqualTo(1);
 		turn(s, "A"); // 阶段 2 FOLLOW → g=2,第 13 回合 = 阶段 3
 		assertThat(st.g).isEqualTo(2);
@@ -196,14 +196,14 @@ class BoxSceneWiringTest {
 		assertThat(st.result).isEqualTo(Path.R1);
 		assertThat(st.settledTurn).isEqualTo(14);
 		assertThat(st.situation).isEqualTo(Situation.NEW_HOME);
-		assertThat(t14.prompt()).contains("门外响着车声时，它自己跳进了那个正被人抱走的箱子。")
-				.contains(ANIMAL_LIFE_BOX.takenAftermath().get(0).omen());
+		assertThat(t14.prompt()).contains("门外响着车声时，你自己跳进了那个正被人抱走的箱子。")
+				.contains(BoxSceneTurn.narrated(ANIMAL_LIFE_BOX.takenAftermath().get(0).omen()));
 
-		assertThat(turn(s, "A").prompt()).contains(ANIMAL_LIFE_BOX.takenAftermath().get(1).omen());
-		assertThat(turn(s, "A").prompt()).contains(ANIMAL_LIFE_BOX.takenAftermath().get(2).omen());
+		assertThat(turn(s, "A").prompt()).contains(BoxSceneTurn.narrated(ANIMAL_LIFE_BOX.takenAftermath().get(1).omen()));
+		assertThat(turn(s, "A").prompt()).contains(BoxSceneTurn.narrated(ANIMAL_LIFE_BOX.takenAftermath().get(2).omen()));
 		Turn t17 = turn(s, "A");
-		assertThat(t17.prompt()).contains(ANIMAL_LIFE_BOX.r1Turn17Fill().omen())
-				.contains("门外响着车声时，它自己跳进了那个正被人抱走的箱子。"); // 记忆事实此后每回合都在
+		assertThat(t17.prompt()).contains(BoxSceneTurn.narrated(ANIMAL_LIFE_BOX.r1Turn17Fill().omen()))
+				.contains("门外响着车声时，你自己跳进了那个正被人抱走的箱子。"); // 记忆事实此后每回合都在
 		assertThat(st.slots.values()).containsExactly("MEET_FOOTSTEPS", "STAY_NEW_CORNER", "WAIT_BY_OLD_BOWL");
 
 		// 第 18 回合起:NEW_HOME 意图池接管三槽
@@ -222,7 +222,7 @@ class BoxSceneWiringTest {
 		s.boxScene().slots.put("B", "SNIFF_BOX");
 		s.boxScene().slots.put("C", "FOLLOW");
 		Turn t = turn(s, "A");
-		assertThat(t.prompt()).contains("没有人往它这边看"); // OLD_SPOT 的反馈事实
+		assertThat(t.prompt()).contains("没有人往你这边看"); // OLD_SPOT 的反馈事实
 		assertThat(s.boxScene().g).isZero();                 // OLD_SPOT g+0;若反查到 FOLLOW 会是 1
 	}
 
@@ -283,7 +283,7 @@ class BoxSceneWiringTest {
 	void leaveHomeLandsOutside_andOutsideTakesEffectFromTheNextTurn() {
 		GameSession s = leftThroughB3();
 		Turn t18 = turn(s, "C");
-		assertThat(t18.prompt()).contains(ANIMAL_LIFE_BOX.leaveFeedback());
+		assertThat(t18.prompt()).contains(BoxSceneTurn.narrated(ANIMAL_LIFE_BOX.leaveFeedback()));
 		assertThat(s.boxScene().situation).isEqualTo(Situation.OUTSIDE);
 		assertThat(s.boxScene().slots).isEmpty(); // OUTSIDE 选项回到模型自由生成
 		assertThat(texts(t18.sink().delta.path("availableActions"))).containsExactly("模型写的A", "模型写的B", "模型写的C");
@@ -377,13 +377,13 @@ class BoxSceneWiringTest {
 		new EventLoopService(llm, prompts, mapper).execute(s, "C", sink);
 
 		assertThat(sink.events).containsSubsequence("narrative", "delta");
-		assertThat(sink.narrative.toString()).isEqualTo(ANIMAL_LIFE_BOX.leaveFeedback());
+		assertThat(sink.narrative.toString()).isEqualTo(BoxSceneTurn.narrated(ANIMAL_LIFE_BOX.leaveFeedback()));
 		assertThat(s.boxScene().situation).isEqualTo(Situation.OUTSIDE);
 		assertThat(texts(sink.delta.path("availableActions")))
 				.containsExactly("顺着楼道里的气味往前走", "回到那扇门前等一会儿", "躲进楼梯拐角的阴影里")
 				.doesNotContain(BoxSceneTables.LEAVE_HOME_TEMPLATE);
 		assertThat(s.engine().log().get(s.engine().log().size() - 1).path("narrative").asString())
-				.contains(ANIMAL_LIFE_BOX.leaveFeedback()); // 下一回合的模型知道它已经出门了
+				.contains(BoxSceneTurn.narrated(ANIMAL_LIFE_BOX.leaveFeedback())); // 下一回合的模型知道它已经出门了
 	}
 
 	@Test
@@ -412,7 +412,7 @@ class BoxSceneWiringTest {
 	@Test
 	void habitIsInjectedFromTurn28Only_andNeverOutside() {
 		GameSession s = leftThroughB3();
-		List<String> habits = ANIMAL_LIFE_POOLS.emptyHome().stream().map(PoolIntent::habit).toList();
+		List<String> habits = ANIMAL_LIFE_POOLS.emptyHome().stream().map(PoolIntent::habit).map(BoxSceneTurn::narrated).toList();
 		String prompt27 = null;
 		String prompt28 = null;
 		for (int n = 18; n <= 28; n++) {
@@ -464,8 +464,8 @@ class BoxSceneWiringTest {
 		Turn b = turn(none, "A");
 		// 刀 2b:旧局走旧指令(逐字节同 583abc9,见 AnimalLifeLegacyGoldenTest);新局(无局面状态)走新主干。
 		// 两者都不注入局面层。
-		assertThat(a.prompt()).doesNotContain(ANIMAL_LIFE_BOX.stages().get(0).omen()).contains("纸箱的味道");
-		assertThat(b.prompt()).doesNotContain(ANIMAL_LIFE_BOX.stages().get(0).omen()).doesNotContain("纸箱的味道");
+		assertThat(a.prompt()).doesNotContain(BoxSceneTurn.narrated(ANIMAL_LIFE_BOX.stages().get(0).omen())).contains("纸箱的味道");
+		assertThat(b.prompt()).doesNotContain(BoxSceneTurn.narrated(ANIMAL_LIFE_BOX.stages().get(0).omen())).doesNotContain("纸箱的味道");
 		assertThat(texts(a.sink().delta.path("availableActions"))).containsExactly("模型写的A", "模型写的B", "模型写的C");
 		assertThat(legacy.boxScene().isLegacy()).isTrue();
 		assertThat(SessionDocument.encode(legacy, mapper).path(BoxSceneState.DOC_KEY).toString())
@@ -479,5 +479,59 @@ class BoxSceneWiringTest {
 		assertThat(turn(fresh, "A").prompt()).isEqualTo(turn(none, "A").prompt());
 		assertThat(fresh.boxScene().situation).isNull();
 		assertThat(fresh.boxScene().slots).isEmpty();
+	}
+
+	// ── §已决 K(F-033)· 叙事人称:端到端 ────────────────────────────────
+
+	/** 局面块(视图 2):从标题到「请推进」之前。 */
+	static String sceneBlockOf(String prompt) {
+		int i = prompt.indexOf("【本回合由引擎给定的局面事实");
+		int j = prompt.indexOf("\n\n请推进第 ");
+		return i < 0 ? "" : prompt.substring(i, j);
+	}
+
+	@Test
+	void r1Path_t13RendersTheFeedbackInSecondPerson_t14TheMemoryFact() {
+		GameSession s = sessionAt(10, BoxSceneState.fresh());
+		turn(s, "A"); // T11
+		turn(s, "A"); // T12 FOLLOW
+		Turn t13 = turn(s, "A"); // FOLLOW → 「孩子叫了它的名字」
+		String block13 = sceneBlockOf(t13.prompt());
+		assertThat(block13).contains("孩子叫了你的名字").doesNotContain("孩子叫了它的名字");
+		Turn t14 = turn(s, "A"); // INTO_BOX → R1
+		assertThat(s.boxScene().result).isEqualTo(Path.R1);
+		assertThat(sceneBlockOf(t14.prompt()))
+				.contains("门外响着车声时，你自己跳进了那个正被人抱走的箱子。")
+				.doesNotContain("门外响着车声时，它自己跳进了那个正被人抱走的箱子。");
+	}
+
+	@Test
+	void conversionIsNeverPersisted_tablesAndDocKeepTheOriginal() {
+		GameSession s = sessionAt(10, BoxSceneState.fresh());
+		for (int i = 0; i < 4; i++) {
+			turn(s, "A"); // 走到 T14 R1
+		}
+		String doc = SessionDocument.encode(s, mapper).toString();
+		assertThat(doc).doesNotContain("你自己跳进").doesNotContain("孩子叫了你的名字");
+		assertThat(SessionDocument.encode(s, mapper).path(BoxSceneState.DOC_KEY).path("result").asString())
+				.isEqualTo("R1");
+		assertThat(ANIMAL_LIFE_BOX.memoryFacts().get(Path.R1))
+				.isEqualTo("门外响着车声时，它自己跳进了那个正被人抱走的箱子。");
+		assertThat(ANIMAL_LIFE_BOX.stages().get(1).slot("A").feedback()).isEqualTo("孩子叫了它的名字");
+	}
+
+	@Test
+	void degradedLeaveNarrative_isTheConvertedLeaveFeedback_withoutIt() {
+		GameSession s = leftThroughB3();
+		ScriptedLlm llm = new ScriptedLlm();
+		llm.fail(new LlmException("流中断"));
+		Sink sink = new Sink();
+		new EventLoopService(llm, prompts, mapper).execute(s, "C", sink);
+		String narrative = sink.narrative.toString();
+		assertThat(narrative).isEqualTo(BoxSceneTurn.narrated(ANIMAL_LIFE_BOX.leaveFeedback()))
+				.doesNotContain("它");
+		assertThat(s.engine().log().get(s.engine().log().size() - 1).path("narrative").asString())
+				.contains(narrative).doesNotContain(ANIMAL_LIFE_BOX.leaveFeedback());
+		assertThat(ANIMAL_LIFE_BOX.leaveFeedback()).contains("它"); // 数据表原文不变
 	}
 }

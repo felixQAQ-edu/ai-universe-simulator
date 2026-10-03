@@ -299,6 +299,8 @@ final class BoxSceneTables {
 			if (!table.leaveIntent().equals(LEAVE_HOME) || !POOLS.get(key).leaveTemplate().equals(LEAVE_HOME_TEMPLATE)) {
 				throw new IllegalStateException("离开意图登记不一致:" + key);
 			}
+			// §已决 K 安全阀:全部叙事素材预跑一遍人称转换 —— 含「它们」即在类加载时拒绝,不拖到某个回合。
+			BoxSceneTurn.narrativeMaterials(table, POOLS.get(key)).forEach(BoxSceneTurn::narrated);
 		});
 	}
 

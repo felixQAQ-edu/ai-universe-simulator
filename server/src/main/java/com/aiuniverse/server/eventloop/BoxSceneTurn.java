@@ -229,6 +229,63 @@ final class BoxSceneTurn {
 		st.slots = slots;
 	}
 
+	/**
+	 * 叙事素材注入时的人称转换(ADR-028 §已决 K,F-033):数据表里指代动物的「它」→「你」。
+	 *
+	 * <p><b>纯函数,只在渲染时调用</b>:数据表、ADR 附录、落盘的 boxScene 一律保持「它」;
+	 * 只用在会被正文直接承认的<b>叙事素材字段</b>上(见 {@link #narrativeMaterials}),
+	 * 不用在结构标题、槽位模板、意图含义与边界、处境片段、设计标注上 —— <b>不得对整个 prompt 做全局替换</b>。
+	 *
+	 * <p><b>安全阀</b>:素材里出现「它们」即抛 —— 那不是这只动物,硬替换会静默改错。
+	 * 加载期由 {@code BoxSceneTables} 对全部素材预跑一遍,故实际在类加载时就拒绝,不会拖到某个回合。
+	 */
+	static String narrated(String material) {
+		if (material == null) {
+			return null;
+		}
+		if (material.contains("它们")) {
+			throw new IllegalArgumentException("叙事素材含「它们」,不能按「它 = 这只动物」转换:" + material);
+		}
+		return material.replace("它", "你");
+	}
+
+	/**
+	 * 一张局面表 + 意图池里<b>全部叙事素材字段</b>的条目(按字段确定,不按条目数确定):
+	 * 阶段征兆(含阶段 4 的两个分叉)、反馈事实、结算记忆事实与共同兜底事实、余波征兆(两种)、
+	 * 离开反馈、补位征兆、两个意图池的习惯短语。null(未定稿的征兆)略过。
+	 */
+	static List<String> narrativeMaterials(Table t, Pools pools) {
+		List<String> out = new ArrayList<>();
+		List<Beat> beats = new ArrayList<>(t.stages());
+		beats.add(t.stage4().high());
+		beats.add(t.stage4().low());
+		beats.addAll(t.takenAftermath());
+		beats.addAll(t.leftAftermath());
+		beats.add(t.r1Turn17Fill());
+		for (Beat b : beats) {
+			if (b.omen() != null) {
+				out.add(b.omen());
+			}
+			for (Option o : b.options()) {
+				if (o.feedback() != null) {
+					out.add(o.feedback());
+				}
+			}
+		}
+		for (Path p : Path.values()) {
+			out.add(t.memoryFacts().get(p));
+		}
+		out.add(t.leftCommonFact());
+		out.add(t.leaveFeedback());
+		for (PoolIntent p : pools.newHome()) {
+			out.add(p.habit());
+		}
+		for (PoolIntent p : pools.emptyHome()) {
+			out.add(p.habit());
+		}
+		return out;
+	}
+
 	/** 本回合的局面注入段(视图 2):只有人话,不含意图编号、g、映射。全空 → 空串(提示词逐字不变)。 */
 	static String promptBlock(Plan p) {
 		if (p == null || p.injectsNothing()) {
@@ -236,16 +293,16 @@ final class BoxSceneTurn {
 		}
 		StringBuilder sb = new StringBuilder("\n\n【本回合由引擎给定的局面事实(只措辞,不改事实)】");
 		if (p.feedback() != null) {
-			sb.append("\n- 玩家上一步行动的结果(本回合正文须写到):").append(p.feedback());
+			sb.append("\n- 玩家上一步行动的结果(本回合正文须写到):").append(narrated(p.feedback()));
 		}
 		if (p.omen() != null) {
-			sb.append("\n- 本回合正文须写到的变化(可融入正文、不必逐字复述,但不能遗漏):").append(p.omen());
+			sb.append("\n- 本回合正文须写到的变化(可融入正文、不必逐字复述,但不能遗漏):").append(narrated(p.omen()));
 		}
 		if (!p.memoryFacts().isEmpty()) {
-			sb.append("\n- 它带着的记忆(不必每回合复述,但不得与之矛盾):").append(String.join(";", p.memoryFacts()));
+			sb.append("\n- 它带着的记忆(不必每回合复述,但不得与之矛盾):").append(String.join(";", p.memoryFacts().stream().map(BoxSceneTurn::narrated).toList()));
 		}
 		if (p.habit() != null) {
-			sb.append("\n- 它这些天反复做的事(只承认玩家过去的行动,不新增数值、不改变处境):").append(p.habit());
+			sb.append("\n- 它这些天反复做的事(只承认玩家过去的行动,不新增数值、不改变处境):").append(narrated(p.habit()));
 		}
 		if (p.slots() != null) {
 			sb.append("\n- 本回合结构化尾巴的 availableActions 必须恰好三个,id 依次为 A、B、C,不得有 D;")
