@@ -189,7 +189,7 @@ public final class TurnPromptBuilder {
 	 * 一辈子只读一次的(结局池 / 极性表 / 早逝三段式)归 <b>world-gen 侧</b>那个槽,不在这里。
 	 */
 	private static String archetypeTurnDirective(String archetype, int nextTurn) {
-		return archetypeTurnDirective(archetype, nextTurn, false, "", null);
+		return archetypeTurnDirective(archetype, nextTurn, false, "", null, "");
 	}
 
 	/**
@@ -199,9 +199,11 @@ public final class TurnPromptBuilder {
 	 * @param situationFragment 按权威处境注入的片段(接在主干之后;空串 = 处境为空 / 非《动物人生》)
 	 * @param stageOverride     局面层给的段信息覆盖(ADR-028 刀 2 补充:结算后、窗口内按结果取);
 	 *                          {@code null} = 照时钟表。只替换段名 / 设计标注 / 推进语三项;旧局一律不接
+	 * @param verbatimWindow    逐字句窗口注入文字(ADR-029;取代新局第 (6) 条,放在 {@code %13$s});
+	 *                          空串 = 不注入。旧局模板与《寻常》模板没有这个占位,传什么都不渲染
 	 */
 	private static String archetypeTurnDirective(String archetype, int nextTurn, boolean legacy,
-			String situationFragment, BoxSceneTables.StageText stageOverride) {
+			String situationFragment, BoxSceneTables.StageText stageOverride, String verbatimWindow) {
 		String template = legacy ? LEGACY_TURN_DIRECTIVES.get(archetype) : TURN_DIRECTIVES.get(archetype);
 		if (template == null) {
 			return ""; // 四个既有世界:与开槽前逐字节一致(parity 线)
@@ -212,7 +214,7 @@ public final class TurnPromptBuilder {
 			// (刀 1 之前这条管道被焊死在《寻常》的时钟上 —— ADR-021 立字六勘察补充二,本刀解开。)
 			return template.formatted(nextTurn, "", "", "", 0, 0, 0, LifeStageTable.EXIT_ACTION_ID,
 					LifetimeFamily.NO_AGE_DISPLAY, LifetimeFamily.NO_DEDICATED_TURN,
-					LifetimeFamily.aliveAtTheEnd("", "\n    "), "");
+					LifetimeFamily.aliveAtTheEnd("", "\n    "), "", "");
 		}
 		LifeStage stage = table.stageAt(nextTurn);
 		if (stageOverride != null && !legacy) {
@@ -235,7 +237,9 @@ public final class TurnPromptBuilder {
 				// %12$s 族级时钟契约(ADR-021 刀 2 上提):句式与逻辑在族层,
 				// 人称与终点词是 per-world 词槽,取自本世界的时钟表。
 				LifetimeFamily.clockContract(nextTurn, table.pronoun(), stage.label(), stage.spanNote(),
-						stage.advanceClause(), table.convergeFrom(), table.convergeTo(), table.terminalWord()))
+						stage.advanceClause(), table.convergeFrom(), table.convergeTo(), table.terminalWord()),
+				// %13$s 逐字句窗口(ADR-029):挂在新局 (5) 末行行尾;空串时那一行与之前逐字节相同。
+				legacy || verbatimWindow.isEmpty() ? "" : "\n" + verbatimWindow)
 				+ guidance + (situationFragment == null ? "" : situationFragment);
 	}
 
@@ -290,12 +294,7 @@ public final class TurnPromptBuilder {
 			    - 此后：以会话保存的 `NEW_HOME`、`EMPTY_HOME` 或 `OUTSIDE` 为准，使用对应处境片段。
 			    不得根据回合号、模型刚写出的地点或叙事中的一句话反推处境。权威处境没有发生转换时，正文也不得自行转换地点。
 			    系统绝不提示“规律变了”，也不比较过去和现在；只把这一次具体发生的结果写出来，不加说明。
-			    有一条永远改不掉：听见金属声抬头。它到死都还在。
-			(6)【逐字不变的句子 · 硬约束】以下句子每次出现都必须【逐字相同】,不许改写、不许加字、
-			    不许在后面接任何东西(包括省略号):
-			    「楼道里有金属碰金属的声音。」(不许出现「钥匙」,不许出现「多年以后」)
-			    「你去床脚那块地方趴下。」(不写「回到」——那暗示归属;只写「去」)
-			    「你抬起头。」「是别的门。」「你把头放下去。」「不是。」「你抬了一下头。」
+			    有一条永远改不掉：听见金属声抬头。它到死都还在。%13$s
 			【叙事人称 · 硬约束】本回合叙事正文一律使用第二人称「你」指代玩家所扮演的动物，不得改用「它」，也不得在同一段正文里混用「你」与「它」。提示中的设计说明、状态标题和处境边界可以使用「它」；其中的「它」仍指这只动物，写进正文时必须改成「你」。
 			**（8）【局面与处境不得由时钟代替】**
 			    第 11–17 回合的纸箱局面和余波，由局面层提供征兆、反馈、记忆与选项意图。
@@ -528,6 +527,18 @@ public final class TurnPromptBuilder {
 	 */
 	String buildTurnPrompt(Engine engine, String actionId, String actionText, String sceneBlock,
 			String situationFragment, boolean legacyScene, BoxSceneTables.StageText stageOverride) {
+		return buildTurnPrompt(engine, actionId, actionText, sceneBlock, situationFragment, legacyScene, stageOverride,
+				null);
+	}
+
+	/**
+	 * 全参 + 逐字句窗口(ADR-029):{@code verbatimWindow} 由 {@code EventLoopService} 按局面编排算出
+	 * ({@link VerbatimWindows});{@code null} = 未给 → 按回合号、无编排、未结算的口径就地算一份
+	 * (只服务于不经过局面层的直接调用;生产路径总是显式给值)。
+	 */
+	String buildTurnPrompt(Engine engine, String actionId, String actionText, String sceneBlock,
+			String situationFragment, boolean legacyScene, BoxSceneTables.StageText stageOverride,
+			String verbatimWindow) {
 		TurnContext ctx = resolveContext(engine, legacyScene);
 		String action = actionText == null || actionText.isBlank() ? actionId : actionId + " · " + actionText;
 		String system = SKELETON.formatted(
@@ -542,13 +553,25 @@ public final class TurnPromptBuilder {
 				// %9$s per-archetype 单体指令(缺省空串)。传的是**正在生成的那一回合**(= turn()+1,
 				// 与骨架末行「请推进第 N 回合」同一个 N),一生制时钟据它算阶段。
 				ctx.fused() ? "" : archetypeTurnDirective(ctx.archetype(), engine.turn() + 1, legacyScene,
-						legacyScene ? "" : situationFragment, legacyScene ? null : stageOverride));
+						legacyScene ? "" : situationFragment, legacyScene ? null : stageOverride,
+						verbatimWindow != null ? verbatimWindow
+								: defaultVerbatimWindow(ctx.archetype(), engine, legacyScene)));
 		return system
 				+ "\n\n世界设定与当前状态(state 是真理之源):\n"
 				+ engine.contextJson()
 				+ currentBandBlock(ctx.axes(), engine)
 				+ (sceneBlock == null ? "" : sceneBlock)
 				+ "\n\n请推进第 " + (engine.turn() + 1) + " 回合。玩家本回合选择的行动:" + action;
+	}
+
+	/** 未给窗口时的就地判定:无编排、未结算、无处境(ADR-029)。不接局面层的世界 → 空串。 */
+	private static String defaultVerbatimWindow(String archetype, Engine engine, boolean legacy) {
+		BoxScene.Table t = archetype == null ? null : BoxSceneTables.box(archetype);
+		if (t == null) {
+			return "";
+		}
+		return VerbatimWindows.render(VerbatimWindows.judge(t, engine.turn() + 1, legacy, null, null, null,
+				"ended".equals(engine.status())));
 	}
 
 	/** 修复提示(开回 json_object,规格 §6.4):带上校验错误 + 上次失败尾巴,只要修正后的尾巴 JSON。 */

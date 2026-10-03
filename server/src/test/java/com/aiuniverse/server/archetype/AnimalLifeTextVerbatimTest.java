@@ -131,6 +131,14 @@ class AnimalLifeTextVerbatimTest {
 		}
 	}
 
+	/** 附录末「修订(Felix 2026-10-03)」里改后的那一行。 */
+	private static String revisedOutsideLine(List<String> all) {
+		int i = all.indexOf("### 修订(Felix 2026-10-03)");
+		assertThat(i).as("ADR-028 附录末找不到修订节").isGreaterThanOrEqualTo(0);
+		return all.subList(i, all.size()).stream().filter(l -> l.startsWith("- `OUTSIDE`：")).findFirst()
+				.orElseThrow();
+	}
+
 	@Test
 	void worldGenBlockIs7A_withTheFamilyLineInTodaysForm() throws Exception {
 		List<String> all = adr();
@@ -141,7 +149,13 @@ class AnimalLifeTextVerbatimTest {
 				body.add(all.get(k).stripTrailing());
 			}
 		}
+		// ADR-029:7-A 里被附录末「修订(Felix 2026-10-03)」取代的那一行,改对照修订节(原句不改)。
+		String revised = revisedOutsideLine(all);
+		String superseded = "- `OUTSIDE`：那是别人的钥匙、别人的门，不是它等的那一扇。";
+		assertThat(body.stream().map(String::strip).toList()).as("7-A 原句仍在附录里").contains(superseded);
+		body.replaceAll(l -> l.strip().equals(superseded) ? l.replace(superseded, revised) : l);
 		String prompt = new WorldGenPromptBuilder(registry).buildWorldPrompt("animal_life");
+		assertThat(prompt).doesNotContain(superseded).doesNotContain("钥匙");
 		String famOriginal = "- 【身子归零 = 撞上；老死 = 走完回合表、身子低但未归零】。族级共用片段“活到最后”继续生效。";
 		for (String line : body) {
 			if (line.equals(famOriginal)) {

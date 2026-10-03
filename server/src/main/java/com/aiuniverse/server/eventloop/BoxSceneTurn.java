@@ -53,10 +53,12 @@ final class BoxSceneTurn {
 	 * @param degradeSlots 本回合若降级落地,下一组用的模板(null = 沿用今天:复用上一组)
 	 * @param transition   玩家选了离开意图:落地时提交 EMPTY_HOME → OUTSIDE
 	 * @param record       落地时要记进意图历史的一条(null = 不记)
+	 * @param beatId       本回合编排所用那一拍的 {@code Beat.id}(局面阶段 / 余波 / 补位);处境期没有拍 = null。
+	 *                     ADR-029 的逐字句窗口按它判定 A1 / A2 / B1–B3,不按回合号反推
 	 */
 	record Plan(String feedback, String omen, List<String> memoryFacts, String habit,
 			List<Slot> slots, List<Slot> degradeSlots, boolean transition,
-			int newG, Path newResult, Integer newSettledTurn, Situation newSituation, Pick record) {
+			int newG, Path newResult, Integer newSettledTurn, Situation newSituation, Pick record, String beatId) {
 
 		boolean injectsNothing() {
 			return feedback == null && omen == null && memoryFacts.isEmpty() && habit == null && slots == null;
@@ -139,18 +141,22 @@ final class BoxSceneTurn {
 		// ── 3. 本回合给什么:征兆与槽位 ──
 		String omen = null;
 		List<Slot> slots = null;
+		String beatId = null;
 		if (result == null) {
 			Beat beat = BoxScene.present(t, n - t.firstTurn() + 1, g);
 			omen = beat.omen();
 			slots = fromBeat(beat);
+			beatId = beat.id();
 		} else if (n - settledTurn < BoxScene.aftermath(t, result).size()) {
 			Beat beat = BoxScene.aftermath(t, result).get(n - settledTurn);
 			omen = beat.omen();
 			slots = fromBeat(beat);
+			beatId = beat.id();
 		} else if (n <= end) {
 			Beat beat = t.r1Turn17Fill(); // 窗口内余波之后的空档(只有提前结算才会走到)
 			omen = beat.omen();
 			slots = fromBeat(beat);
+			beatId = beat.id();
 		} else if (!transition && effective != Situation.OUTSIDE) {
 			slots = fromPool(pools, clock, effective, n, end, t.leaveIntent());
 		}
@@ -169,7 +175,7 @@ final class BoxSceneTurn {
 		}
 
 		Plan p = new Plan(feedback, omen, facts, habit, slots, degradeSlots, transition,
-				g, result, settledTurn, effective, record);
+				g, result, settledTurn, effective, record, beatId);
 		return p.injectsNothing() && record == null && !transition ? null : p;
 	}
 

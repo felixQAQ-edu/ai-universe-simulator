@@ -185,8 +185,10 @@ public class EventLoopService implements TurnExecutor {
 		// ADR-028 刀 2 补充:结算后、窗口内的段信息由局面层按结果覆盖(时钟表只放纸箱段)。
 		BoxSceneTables.StageText stageOverride = scene == null ? null
 				: BoxSceneTurn.stageOverride(BoxSceneTables.box(archetypeOf(engine)), scene, engine.turn() + 1);
+		// ADR-029:逐字句窗口(取代新局第 (6) 条),按本回合编排确定性判定;旧局 / 局已结束 → 空串。
+		String verbatimWindow = verbatimWindow(engine, st, legacyScene, scene);
 		String prompt = promptBuilder.buildTurnPrompt(engine, actionId, actionText, BoxSceneTurn.promptBlock(scene),
-				situationFragment, legacyScene, stageOverride);
+				situationFragment, legacyScene, stageOverride, verbatimWindow);
 
 		// ── GENERATING:流式 + 哨兵切分(叙事逐字下发,尾巴缓冲)──
 		StringBuilder narrativeBuf = new StringBuilder();
@@ -352,6 +354,25 @@ public class EventLoopService implements TurnExecutor {
 	}
 
 	// ── 局面层(ADR-028 刀 2a)──────────────────────────────────────────────
+
+	/**
+	 * 本回合逐字句窗口注入文字(ADR-029)。结果、处境、拍号取本回合编排(结算 / 离开发生在生成那一刻);
+	 * 编排为 null 时回落存档值。不接局面层的世界 → 空串(其模板也没有这个占位)。
+	 */
+	private static String verbatimWindow(Engine engine, BoxSceneState st, boolean legacy, BoxSceneTurn.Plan scene) {
+		if (engine.world().path("archetypes").size() != 1) {
+			return "";
+		}
+		BoxScene.Table table = BoxSceneTables.box(archetypeOf(engine));
+		if (table == null) {
+			return "";
+		}
+		BoxScene.Path result = scene != null ? scene.newResult() : st == null ? null : st.result;
+		BoxScene.Situation situation = scene != null ? scene.newSituation() : st == null ? null : st.situation;
+		String beatId = scene == null ? null : scene.beatId();
+		return VerbatimWindows.render(VerbatimWindows.judge(table, engine.turn() + 1, legacy, result, situation,
+				beatId, "ended".equals(engine.status())));
+	}
 
 	/** 本回合局面编排;不接局面层 / 旧局 / 无事可做 → null。 */
 	private BoxSceneTurn.Plan scenePlan(GameSession session, String actionId) {

@@ -88,7 +88,7 @@ class AnimalLifeRuptureDirectiveTest {
 		}
 	}
 
-	/** 新主干逐字换上 7-D 的 (5)(8);(6)(10) 仍在。 */
+	/** 新主干逐字换上 7-D 的 (5)(8);(10) 仍在;(6) 自 ADR-029 起由逐字句窗口取代(旧局不变)。 */
 	@Test
 	void newTrunkCarriesReplacedRules5And8_andKeeps6And10() {
 		String p = animalPrompt(null);
@@ -96,8 +96,10 @@ class AnimalLifeRuptureDirectiveTest {
 				.contains("不得根据回合号、模型刚写出的地点或叙事中的一句话反推处境。")
 				.contains("**（8）【局面与处境不得由时钟代替】**")
 				.contains("空的处境不是上述三种处境中的任何一种；不得替它猜默认值。")
-				.contains("(6)【逐字不变的句子 · 硬约束】")
+				.contains("【逐字句窗口 · 本回合】")
 				.contains("(10)【最后一回合是活着的】");
+		assertThat(p).doesNotContain("(6)【逐字不变的句子 · 硬约束】");
+		assertThat(legacyPrompt()).contains("(6)【逐字不变的句子 · 硬约束】").doesNotContain("【逐字句窗口");
 		assertThat(p).doesNotContain("(5)【误读回收 · 每回合的裁决】").doesNotContain("(7)【动词分区")
 				.doesNotContain("(9)【末段落在楼道口");
 	}

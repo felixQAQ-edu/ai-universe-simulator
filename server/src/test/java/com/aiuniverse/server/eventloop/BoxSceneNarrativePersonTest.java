@@ -38,7 +38,7 @@ class BoxSceneNarrativePersonTest {
 
 	private static BoxSceneTurn.Plan planOf(String feedback, String omen, List<String> facts, String habit) {
 		return new BoxSceneTurn.Plan(feedback, omen, facts, habit, null, null, false,
-				0, null, null, null, null);
+				0, null, null, null, null, null);
 	}
 
 	/** 局面块里每条素材行冒号之后的内容(结构标题在冒号之前,允许带「它」)。 */

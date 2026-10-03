@@ -1586,3 +1586,11 @@ NEW_HOME / EMPTY_HOME 下引擎**知道**每回合选的意图,故由引擎从�
 #### T1–10
 
 T1–10 继续使用现有三句，只把适用范围明确为第 1–10 回合；文字本身不改。
+
+### 修订(Felix 2026-10-03)
+
+[ADR-029](ADR-029-animal-life-verbatim-sentence-windows.md) §5:第三节 7-A「1. **金属声 = 门要开**」下 `OUTSIDE` 那一行改为:
+
+- `OUTSIDE`：那声音来自别的门，不是它等的那一扇。
+
+本行取代 7-A `OUTSIDE` 那一行;数据表(`BoxSceneTables` 的 `OUTSIDE` 片段)与 world-gen 按本节对齐。第三节原句不改。
