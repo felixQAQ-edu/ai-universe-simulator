@@ -217,11 +217,11 @@ class BoxSceneClockOverrideTest {
 			assertThat(st.result).as(c.getKey()).isEqualTo(c.getValue());
 			assertThat(st.settledTurn).isEqualTo(15);
 			assertThat(c.getValue().category).isEqualTo(Category.LEFT);
-			// ADR-028 §已决 L 第 2 条:B1–B3 回合按渲染文本(设计标注删一句、推进语 = 时钟例外);
+			// ADR-028 §已决 L 第 2 条(及其修正):B1–B3 回合按渲染文本(设计标注删一句、推进语 = 第三组推进语前半句);
 			// 原断言用附录第三组原文,已按新口径改写。附录原文本身由 clockTableT11To14IsGroup1_andAftermathGroupsLiveInTheSceneTable_verbatim 照旧守。
 			StageText g3 = appendixGroup(G3);
 			StageText rendered = new StageText(g3.label(),
-					g3.spanNote().replace(BoxSceneDecisionLTest.REMOVED_SENTENCE, ""), BoxSceneDecisionLTest.EXCEPTION);
+					g3.spanNote().replace(BoxSceneDecisionLTest.REMOVED_SENTENCE, ""), BoxSceneDecisionLTest.BEAT_ADVANCE);
 			checkPath(p, 15, rendered, appendixGroup(G2), appendixGroup(G1), c.getValue());
 			for (int turn = 15; turn <= 17; turn++) {
 				assertThat(p.get(turn)).as("T" + turn).doesNotContain(BoxSceneDecisionLTest.REMOVED_SENTENCE)

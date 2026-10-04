@@ -36,6 +36,13 @@ class BoxSceneDecisionLTest {
 	static final String B3 = "【本回合第 3/3 拍】天黑了，门缝里透进来的风有外面的味道。";
 	static final String REMOVED_SENTENCE = "三个回合发生在同一天：光先落在地板上，随后移到墙上，最后天黑。";
 	static final String SAME_DAY_BAN = "【绝不允许】两个回合停在同一天、同一顿饭、同一次谈话里把一件事说完;";
+	/** §已决 L 修正(Felix 2026-10-04):B1–B3 的推进语、被删的后半句与原推进语后半句。 */
+	static final String BEAT_ADVANCE = "一回合约数小时。";
+	static final String AFTER_DAYS = "上一回合正在发生的事,本回合应当【已经过去了】,写的是它之后的日子。";
+	static final String AFTER_DAYS_LEFT = "上一回合正在发生的事,本回合应当【已经过去了】。";
+	static final String AFTER_DAYS_TAIL = "写的是它之后的日子";
+	static final String DAY_TO_NIGHT = "三个回合从白天推进到天黑";
+	static final String SAME_DAY_TWO_TURNS = "两个回合停在同一天";
 	static final String THRESHOLD =
 			"楼道、楼梯间和门前都属于 `OUTSIDE`。它可以走到旧家的门前，但不能进入旧屋；不得写门为它打开，也不得制造 `OUTSIDE → EMPTY_HOME`。";
 	static final String WORLD_GEN_ANCHOR = "`openingNarrative` 发生在第 1 回合之前。旧屋里仍有人照常生活，纸箱尚未出现，家具尚未搬空；"
@@ -193,12 +200,31 @@ class BoxSceneDecisionLTest {
 	}
 
 	@Test
+	void leftAftermathClockContract_exceptionOnce_advanceIsHoursOnly_noConflictingSentences() {
+		Map<Integer, String> p = r3a(sessionAt(10, BoxSceneState.fresh()), "B");
+		for (int turn = 15; turn <= 17; turn++) {
+			String prompt = p.get(turn);
+			String why = "T" + turn;
+			assertThat(count(prompt, EXCEPTION)).as(why + " 例外只出现一次").isEqualTo(1);
+			assertThat(prompt).as(why + " 推进语")
+					.contains("【本回合必须推进时间,这是硬要求不是风格建议】" + BEAT_ADVANCE + "——本回合结束时,");
+			assertThat(count(prompt, AFTER_DAYS_LEFT)).as(why).isEqualTo(1);
+			assertThat(prompt).as(why).doesNotContain(DAY_TO_NIGHT).doesNotContain(SAME_DAY_TWO_TURNS)
+					.doesNotContain(AFTER_DAYS_TAIL);
+		}
+		for (int turn : List.of(11, 14, 18)) {
+			assertThat(p.get(turn)).as("T" + turn).contains(AFTER_DAYS).doesNotContain(DAY_TO_NIGHT);
+		}
+	}
+
+	@Test
 	void takenAftermathAndR1FillKeepTheOriginalClockContract() {
 		Map<Integer, String> r1 = run(sessionAt(10, BoxSceneState.fresh()), "A", "A", "A", "A", "A", "A", "A");
 		Map<Integer, String> r2 = run(sessionAt(10, BoxSceneState.fresh()), "A", "A", "A", "B", "A", "A", "A");
 		for (Map<Integer, String> p : List.of(r1, r2)) {
 			for (Map.Entry<Integer, String> e : p.entrySet()) {
-				assertThat(e.getValue()).as("T" + e.getKey()).contains(SAME_DAY_BAN).doesNotContain(EXCEPTION)
+				assertThat(e.getValue()).as("T" + e.getKey()).contains(SAME_DAY_BAN).contains(AFTER_DAYS)
+						.doesNotContain(AFTER_DAYS_LEFT).doesNotContain(EXCEPTION)
 						.doesNotContain(B1).doesNotContain(B2).doesNotContain(B3);
 			}
 		}
@@ -212,6 +238,11 @@ class BoxSceneDecisionLTest {
 				.contains(EXCEPTION);
 		assertThat(BoxSceneTables.withClockException(contract, null)).isEqualTo(contract);
 		assertThatThrownBy(() -> BoxSceneTables.withClockException(contract.replace(SAME_DAY_BAN, ""), EXCEPTION))
+				.isInstanceOf(IllegalStateException.class);
+		assertThat(contract).contains(AFTER_DAYS);
+		assertThat(BoxSceneTables.withClockException(contract, EXCEPTION)).doesNotContain(AFTER_DAYS_TAIL)
+				.contains(AFTER_DAYS_LEFT);
+		assertThatThrownBy(() -> BoxSceneTables.withClockException(contract.replace(AFTER_DAYS, ""), EXCEPTION))
 				.isInstanceOf(IllegalStateException.class);
 	}
 

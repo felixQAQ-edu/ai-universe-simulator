@@ -299,12 +299,24 @@ final class BoxSceneTables {
 
 	// ── 被留下余波 B1–B3 的逐拍时钟(ADR-028 §已决 L 第 2 条,Felix 2026-10-03 原文)────────────────
 
-	/** 时钟例外:B1–B3 回合的推进语,同时整句替换时钟契约里与之冲突的那一句。 */
+	/** 时钟例外:B1–B3 回合整句替换时钟契约里与之冲突的那一句(只出现在这一处;§已决 L 修正)。 */
 	static final String LEFT_CLOCK_EXCEPTION =
 			"【仅被留下余波适用的时钟例外】这三个回合发生在同一天，相邻两拍相隔数小时。本回合只推进到当前这一拍，不跨到第二天。";
 
 	/** B1–B3 渲染时从第三组设计标注里删去的一句(校勘处置;附录原文保留)。 */
 	static final String LEFT_SPAN_NOTE_REMOVED = "三个回合发生在同一天：光先落在地板上，随后移到墙上，最后天黑。";
+
+	/** B1–B3 回合的推进语:第三组推进语定稿原文的前半句(§已决 L 修正,Felix 2026-10-04)。 */
+	static final String LEFT_BEAT_ADVANCE = "一回合约数小时。";
+
+	/**
+	 * B1–B3 渲染时时钟契约里被改写的那一句(在渲染处替换,族层源码不改;§已决 L 修正)。
+	 * 「写的是它之后的日子」与「同一天、相隔数小时」冲突,删去后半句。
+	 */
+	static final String FAMILY_AFTER_DAYS = "上一回合正在发生的事,本回合应当【已经过去了】,写的是它之后的日子。";
+
+	/** {@link #FAMILY_AFTER_DAYS} 在 B1–B3 回合的改写结果。 */
+	static final String FAMILY_AFTER_DAYS_LEFT = "上一回合正在发生的事,本回合应当【已经过去了】。";
 
 	/**
 	 * 族层时钟契约里被时钟例外整句替换的那一句(在渲染处替换,族层源码不改)。
@@ -325,7 +337,7 @@ final class BoxSceneTables {
 
 	/**
 	 * 某结算路径、某一拍的余波段信息(渲染用)。被留下余波 B1–B3:设计标注删去 {@link #LEFT_SPAN_NOTE_REMOVED},
-	 * 推进语改为 {@link #LEFT_CLOCK_EXCEPTION},并带上时钟例外;其余(被带走余波、补位)= {@link #aftermathStage} 原样。
+	 * 推进语改为 {@link #LEFT_BEAT_ADVANCE},并带上时钟例外;其余(被带走余波、补位)= {@link #aftermathStage} 原样。
 	 */
 	static StageText aftermathStageForBeat(String archetype, Path result, String beatId) {
 		StageText base = aftermathStage(archetype, result);
@@ -336,13 +348,17 @@ final class BoxSceneTables {
 		if (!base.spanNote().contains(LEFT_SPAN_NOTE_REMOVED)) {
 			throw new IllegalStateException("第三组设计标注里找不到要删去的那一句:" + LEFT_SPAN_NOTE_REMOVED);
 		}
+		if (!base.advanceClause().startsWith(LEFT_BEAT_ADVANCE)) {
+			throw new IllegalStateException("第三组推进语不以这一句开头:" + LEFT_BEAT_ADVANCE);
+		}
 		return new StageText(base.label(), base.spanNote().replace(LEFT_SPAN_NOTE_REMOVED, ""),
-				LEFT_CLOCK_EXCEPTION, LEFT_CLOCK_EXCEPTION);
+				LEFT_BEAT_ADVANCE, LEFT_CLOCK_EXCEPTION);
 	}
 
 	/**
-	 * 把已渲染的时钟契约里 {@link #FAMILY_SAME_DAY_BAN} 整句替换为例外;{@code exception == null} → 原样。
-	 * 找不到那一句(族层改了)→ 抛,不静默不替换(§已决 L:不能把「例外」和「绝不允许」并排交给模型)。
+	 * 把已渲染的时钟契约里 {@link #FAMILY_SAME_DAY_BAN} 整句替换为例外,并把 {@link #FAMILY_AFTER_DAYS} 改写为
+	 * {@link #FAMILY_AFTER_DAYS_LEFT};{@code exception == null} → 原样(其余回合、《寻常》不受影响)。
+	 * 任一句找不到(族层改了)→ 抛,不静默不替换(§已决 L:不能把「例外」和「绝不允许」并排交给模型)。
 	 */
 	static String withClockException(String renderedContract, String exception) {
 		if (exception == null) {
@@ -351,7 +367,11 @@ final class BoxSceneTables {
 		if (!renderedContract.contains(FAMILY_SAME_DAY_BAN)) {
 			throw new IllegalStateException("时钟契约里找不到要被例外替换的那一句:" + FAMILY_SAME_DAY_BAN);
 		}
-		return renderedContract.replace(FAMILY_SAME_DAY_BAN, exception);
+		if (!renderedContract.contains(FAMILY_AFTER_DAYS)) {
+			throw new IllegalStateException("时钟契约里找不到要改写的那一句:" + FAMILY_AFTER_DAYS);
+		}
+		return renderedContract.replace(FAMILY_SAME_DAY_BAN, exception)
+				.replace(FAMILY_AFTER_DAYS, FAMILY_AFTER_DAYS_LEFT);
 	}
 
 	/** 登记处:世界 → 局面表(只有登记在这里的世界会接局面层;其余世界一行不受影响)。 */
