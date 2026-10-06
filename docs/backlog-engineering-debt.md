@@ -703,6 +703,18 @@ PostgreSQL / MySQL 迁移待评估的形态清单(**只是清单,不是方案,�
 **处置**:只记账,不改代码(层 3.1 勘察时发现,那一刀是纯 docs)。改法是一行注释。
 **解冻条件**:下次碰 `LifeStageTables.java` 时顺手改。
 
+## 挂账 · 不存在的 `triggeredRuleIds` / `discoveredRuleIds` 被静默接受或忽略(记于 2026-10-06,低优先级)
+
+**事实**(层 3.2 勘察底稿 O-9):`Engine.apply` 步骤 6(`Engine.java:287-292`)对 `triggeredRuleIds` 逐个 `triggered.add(id)`,
+**不核对该 id 是否在 `world.rules[]` 里** —— 不存在的 id 照样进 `triggered` 集合(随快照落盘);
+`discoveredRuleIds` 走 `markRuleDiscovered`(`Engine.java:439-445`),遍历 rules 找不到就**什么都不做、不记 issue**。
+两条路径都没有任何日志或 `issues` 痕迹。
+
+**今天为什么没伤到人**:`triggered` 在 main 源码里只被落盘(`toPersistedState`)/ 回载(`restore`)读写,`Engine.triggered()` 访问器在 main 源码里没有调用方,不参与任何判定或玩家可见呈现;多出一个不存在的 id 只是让落盘集合多一项。
+
+**处置**:只记不修。动它要碰 `Engine.apply` 结算序列 → golden 须重核,不值得单开一刀。
+**解冻条件**:下次因别的事要动 `Engine.apply` 步骤 6,或 γ(回合执行轨迹)需要把「模型提议被拒」记成可读事实时一并看。
+
 ---
 
 ## 另记 · 一条状态(不是待办,是已做的决定)
