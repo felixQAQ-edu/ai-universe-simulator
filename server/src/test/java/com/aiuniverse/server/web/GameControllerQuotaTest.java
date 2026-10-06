@@ -14,6 +14,7 @@ import com.aiuniverse.server.eventloop.GameSessionManager;
 import com.aiuniverse.server.eventloop.TurnStateMachine;
 import com.aiuniverse.server.llm.LlmUsage;
 import com.aiuniverse.server.quota.QuotaGate;
+import com.aiuniverse.server.worldgen.WorldGenProperties;
 
 import tools.jackson.databind.ObjectMapper;
 
@@ -49,7 +50,9 @@ class GameControllerQuotaTest {
 	private GameController controller(RecordingQuota quota) {
 		return new GameController(new GameSessionManager(new ObjectMapper()),
 				new TurnStateMachine((s, a, sink) -> null), null, quota,
-				new TurnAdmission(1, Runnable::run)); // init 路径不碰准入,给个不会被用到的
+				new TurnAdmission(1, Runnable::run), // init 路径不碰回合准入,给个不会被用到的
+				new InitAdmission(1, Runnable::run), // 开局准入:在调用线程上跑,结果同步可读(ADR-030)
+				new WorldGenProperties(WorldGenProperties.DEFAULT_SEGMENT_DEADLINE_MS));
 	}
 
 	@Test
@@ -59,8 +62,8 @@ class GameControllerQuotaTest {
 		http.addHeader("Fly-Client-IP", "203.0.113.9");
 		http.addHeader("X-Device-Id", "dev-42");
 
-		ResponseEntity<?> resp = controller(quota)
-				.init(new GameController.InitRequest("rules_creepy", null), http);
+		ResponseEntity<?> resp = (ResponseEntity<?>) controller(quota)
+				.init(new GameController.InitRequest("rules_creepy", null), http).getResult();
 
 		assertThat(resp.getStatusCode().value()).isEqualTo(429);
 		@SuppressWarnings("unchecked")

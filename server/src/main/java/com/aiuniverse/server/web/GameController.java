@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.context.request.async.DeferredResult;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import com.aiuniverse.server.eventloop.GameSession;
@@ -26,6 +27,7 @@ import com.aiuniverse.server.quota.QuotaGate;
 import com.aiuniverse.server.worldgen.GameInitService;
 import com.aiuniverse.server.worldgen.InitResponse;
 import com.aiuniverse.server.worldgen.WorldGenException;
+import com.aiuniverse.server.worldgen.WorldGenProperties;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -34,8 +36,9 @@ import jakarta.validation.constraints.NotBlank;
 /**
  * 整局闭环线上端点。薄适配(ADR-005),业务在 worldgen / eventloop 包,本类只搬运:
  * <ul>
- *   <li><b>{@code POST /api/game/init}</b>(设计稿 §3,plain POST 无 SSE):跑 world-gen 胖调用 →
- *       播种会话 → 返消毒投影 + openingNarrative + 初始动作;world-gen 救不回 → 5xx ERROR(无会话残留)。</li>
+ *   <li><b>{@code POST /api/game/init}</b>(设计稿 §3,plain POST 无 SSE):{@link InitAdmission 开局准入}
+ *       (占到名额才领线程,ADR-030)→ 池线程上跑 world-gen 胖调用 → 播种会话 → 返消毒投影 +
+ *       openingNarrative + 初始动作;world-gen 救不回 → 5xx ERROR(无会话残留)。</li>
  *   <li><b>{@code POST /api/game/{saveId}/turn}</b>(规格 §4.1):取会话 → 游标比对(ADR-023)→
  *       守卫 1 合法性 → {@link TurnAdmission 并发准入}(占到名额才领线程)→ 池线程上跑
  *       {@link TurnStateMachine#submitAction}(阻塞含流式)→ 完成时 complete。
@@ -62,6 +65,18 @@ public class GameController {
 	private final TurnAdmission admission;
 
 	/**
+	 * 开局并发准入(ADR-030 决策 2)。与 {@link #admission} <b>分开</b>(决策 3):两个信号量、两个池。
+	 * 池同样归它所有 —— 本类手边仍然没有任何可绕过准入的线程池(同一条源码级断言钉着)。
+	 */
+	private final InitAdmission initAdmission;
+
+	/**
+	 * 开局 {@link DeferredResult} 超时(ms)= {@link #initResultTimeoutMs(WorldGenProperties)}。
+	 * <b>必须显式给</b>:不给就吃 Servlet 异步默认 30 s,超过 30 s 的 world-gen 会被容器判超时(ADR-030 勘察)。
+	 */
+	private final long initResultTimeoutMs;
+
+	/**
 	 * 叙事历史只读接缝(ADR-025 刀 2):pg profile 下读库,其它 profile 恒为「本环境无历史」。
 	 * 与 {@code sessions} 互不相干 —— 历史只报库里有的,不混内存。
 	 */
@@ -69,13 +84,30 @@ public class GameController {
 
 	@Autowired
 	public GameController(GameSessionManager sessions, TurnStateMachine stateMachine, GameInitService initService,
-			QuotaGate quota, TurnAdmission admission, NarrativeHistoryReader history) {
+			QuotaGate quota, TurnAdmission admission, InitAdmission initAdmission, WorldGenProperties worldGen,
+			NarrativeHistoryReader history) {
 		this.sessions = sessions;
 		this.stateMachine = stateMachine;
 		this.initService = initService;
 		this.quota = quota;
 		this.admission = admission;
+		this.initAdmission = initAdmission;
+		this.initResultTimeoutMs = initResultTimeoutMs(worldGen);
 		this.history = history;
+	}
+
+	/** 无历史存储的便捷构造(开局路径的测试用它)。 */
+	public GameController(GameSessionManager sessions, TurnStateMachine stateMachine, GameInitService initService,
+			QuotaGate quota, TurnAdmission admission, InitAdmission initAdmission, WorldGenProperties worldGen) {
+		this(sessions, stateMachine, initService, quota, admission, initAdmission, worldGen,
+				new UnavailableHistoryReader());
+	}
+
+	/** 无历史存储的便捷构造(既有测试调用点零改,同 {@code QuotaGate.NOOP} 的接缝形态)。 */
+	public GameController(GameSessionManager sessions, TurnStateMachine stateMachine, GameInitService initService,
+			QuotaGate quota, TurnAdmission admission, NarrativeHistoryReader history) {
+		this(sessions, stateMachine, initService, quota, admission, closedInitAdmission(),
+				new WorldGenProperties(WorldGenProperties.DEFAULT_SEGMENT_DEADLINE_MS), history);
 	}
 
 	/** 无历史存储的便捷构造(既有测试调用点零改,同 {@code QuotaGate.NOOP} 的接缝形态)。 */
@@ -85,26 +117,91 @@ public class GameController {
 	}
 
 	/**
-	 * 起一局新世界(INITIALIZING,设计稿 §3):plain POST 阻塞返 JSON。
-	 * 成本闸门前置(ADR-016):拒绝 → 429 + 结构化 error,world-gen <b>零调用</b>(拒绝成本 ≈0);
-	 * archetype 非法/未开放 → 400(ADR-008 决策 4);world-gen ERROR → 502 + 重生成提示。
+	 * 只走回合路径的便捷构造给的开局准入:<b>容量 0,恒拒</b>(开局恒 503)。刻意不给一个「在调用线程上直接跑」
+	 * 的执行器 —— 那等于在便捷构造里把开局放回容器线程,正是 ADR-030 要拿掉的形态。开局测试走带
+	 * {@link InitAdmission} 参数的构造器。
+	 */
+	private static InitAdmission closedInitAdmission() {
+		return new InitAdmission(0, work -> {
+			throw new IllegalStateException("容量 0 的开局准入不该提交任何工作");
+		});
+	}
+
+	/**
+	 * 开局 {@link DeferredResult} 超时 = {@code 2 × 段时限 + 30 s}(ADR-030 决策 1;默认 2 × 180 s + 30 s = 390 s)。
+	 * 必须大于 world-gen 受保护路径的最坏耗时(主调用 + 修复调用各一段),否则会出现「客户端已收到失败、
+	 * 服务端随后成功建了 session、额度也扣了」。从配置推导而非写死:env 压低段时限时它跟着变。
+	 * ⚠️ 修复调用变成两发以上时「2 ×」当场失效(ADR-030 重新审视条件)。
+	 */
+	static long initResultTimeoutMs(WorldGenProperties worldGen) {
+		return 2 * worldGen.segmentDeadlineMs() + INIT_RESULT_TIMEOUT_MARGIN_MS;
+	}
+
+	/** {@link #initResultTimeoutMs} 的余量(ADR-030 决策 1)。 */
+	static final long INIT_RESULT_TIMEOUT_MARGIN_MS = 30_000L;
+
+	/**
+	 * 起一局新世界(INITIALIZING,设计稿 §3):plain POST,异步返 JSON(ADR-030 决策 1)。拒绝链,顺序不可换:
+	 *
+	 * <pre>
+	 * ├─ 准入 submit()          → 503 {error:{code:"server_at_capacity", message}}  ← 容器线程,零线程 + WARN
+	 * ├──────────────【交接:名额已占,此后在池线程上】──────────────
+	 * ├─ 成本闸门 checkInit     → 429 {error:{code:"quota_exceeded", message}}      ← world-gen 零调用
+	 * ├─ archetype 非法/未开放  → 400 {error:{code:"invalid_archetype", message}}
+	 * ├─ world-gen 救不回       → 502 {error:{code:"world_gen_failed", message}}
+	 * ├─ 成功                   → 200 InitResponse
+	 * └─ DeferredResult 超时    → 502 {error:{code:"world_gen_failed"}}            ← 只在彻底静默时可达
+	 * </pre>
+	 *
+	 * <p><b>准入在额度之前,与回合侧一致</b>:被准入拒绝的请求零次 {@code checkInit}(不扣额度)、
+	 * 零次 world-gen、不建 session。容器线程上只做三件事:读定 {@code ClientKey}(不跨线程摸 request)→
+	 * 建带显式超时的 {@link DeferredResult} → 提交。
+	 *
+	 * <p>⚠️ 超时<b>不中断 worker</b>(ADR-030 已知代价 2):名额要等 worker 自己结束才还;超时那条只发 code,
+	 * 文案归前端兜底表(没有服务端独有的细节可说)。
+	 *
+	 * <p>所有错误响应都显式 {@code contentType(APPLICATION_JSON)}(ADR-022 闸 C 的 406 风险同样适用)。
 	 */
 	@PostMapping("/api/game/init")
-	public ResponseEntity<?> init(@Valid @RequestBody InitRequest req, HttpServletRequest http) {
-		QuotaGate.Decision decision = quota.checkInit(clientKey(http));
+	public DeferredResult<ResponseEntity<?>> init(@Valid @RequestBody InitRequest req, HttpServletRequest http) {
+		QuotaGate.ClientKey client = clientKey(http); // 头在容器线程读定,不跨线程摸 request
+		DeferredResult<ResponseEntity<?>> result = new DeferredResult<>(initResultTimeoutMs);
+		result.onTimeout(() -> result.setResult(jsonError(HttpStatus.BAD_GATEWAY, "world_gen_failed", null)));
+		List<String> archetypes = req.resolved();
+		boolean admitted = initAdmission.submit(archetypes, () -> {
+			try {
+				result.setResult(runInit(archetypes, client));
+			} catch (Throwable t) {
+				// 意料之外的异常:交回 MVC 的异常处理(与改异步之前同步抛出时一样 → 500),
+				// 而不是让请求一直挂到超时那一刻才收到一个 502。
+				result.setErrorResult(t);
+				if (t instanceof Error err) {
+					throw err;
+				}
+			}
+		});
+		if (!admitted) {
+			// 文案只有服务端知道(「此刻开局的人太多」),故 message 归服务端发(ADR-022 闸 A 立字 11);
+			// 定稿正文见 ADR-030 已决 3(逐字,全角标点)。不带 Retry-After(理由同 ADR-022 裁定 2)。
+			result.setResult(jsonError(HttpStatus.SERVICE_UNAVAILABLE, "server_at_capacity",
+					"此刻同时开局的人太多，请过几秒再试。"));
+		}
+		return result;
+	}
+
+	/** 池线程上:成本闸门 → world-gen → 播种。错误映射逐字沿用 ADR-030 之前的口径。 */
+	private ResponseEntity<?> runInit(List<String> archetypes, QuotaGate.ClientKey client) {
+		QuotaGate.Decision decision = quota.checkInit(client);
 		if (!decision.allowed()) {
-			return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
-					.body(Map.of("error", Map.of("code", "quota_exceeded", "message", decision.message())));
+			return jsonError(HttpStatus.TOO_MANY_REQUESTS, "quota_exceeded", decision.message());
 		}
 		try {
-			InitResponse resp = initService.init(req.resolved());
+			InitResponse resp = initService.init(archetypes);
 			return ResponseEntity.ok(resp);
 		} catch (IllegalArgumentException e) {
-			return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-					.body(Map.of("error", Map.of("code", "invalid_archetype", "message", e.getMessage())));
+			return jsonError(HttpStatus.BAD_REQUEST, "invalid_archetype", e.getMessage());
 		} catch (WorldGenException e) {
-			return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
-					.body(Map.of("error", Map.of("code", "world_gen_failed", "message", e.getMessage())));
+			return jsonError(HttpStatus.BAD_GATEWAY, "world_gen_failed", e.getMessage());
 		}
 	}
 

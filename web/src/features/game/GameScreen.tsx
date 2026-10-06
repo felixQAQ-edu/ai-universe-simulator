@@ -64,9 +64,14 @@ function InitErrorScreen() {
   const lastArchetype = useGameStore((s) => s.lastArchetype);
   const startGame = useGameStore((s) => s.startGame);
   const reset = useGameStore((s) => s.reset);
-  // 成本闸门拦截(ADR-016)不是「失败」——标题与副标题(「今日名额已满」)口径一致;
+  // 成本闸门拦截(ADR-016)与开局准入拒绝(ADR-030 已决 3)都不是「失败」——标题与服务端正文口径一致;
   // world-gen 救不回 / 网络等真失败仍报「世界生成失败」。
-  const title = errorCode === 'quota_exceeded' ? '今日名额已满' : '世界生成失败';
+  const title =
+    errorCode === 'quota_exceeded'
+      ? '今日名额已满'
+      : errorCode === 'server_at_capacity'
+        ? '稍等一下再开局'
+        : '世界生成失败';
   return (
     <main className={styles.screen}>
       <div className={styles.centered}>

@@ -60,4 +60,13 @@ class GameControllerNoThreadPoolSourceTest {
 		assertThat(Files.readString(admission, StandardCharsets.UTF_8))
 				.contains("Executors.newCachedThreadPool()");
 	}
+
+	/** 反面对照(ADR-030 决策 2):开局准入同样自持池 —— controller 手边仍然一个都没有。 */
+	@Test
+	void initAdmissionOwnsItsOwnPool() throws IOException {
+		Path admission = Path.of("src/main/java/com/aiuniverse/server/web/InitAdmission.java");
+		assertThat(admission).isRegularFile();
+		assertThat(Files.readString(admission, StandardCharsets.UTF_8))
+				.contains("Executors.newCachedThreadPool()");
+	}
 }

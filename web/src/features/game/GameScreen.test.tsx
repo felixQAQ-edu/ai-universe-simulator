@@ -81,3 +81,17 @@ describe('游戏内返回(退出不弃局)', () => {
     expect(useGameStore.getState().status).toBe('idle');
   });
 });
+
+describe('开局错误屏标题(ADR-030 已决 3)', () => {
+  it('server_at_capacity → 标题「稍等一下再开局」,正文用服务端那句', () => {
+    useGameStore.setState({
+      status: 'initError',
+      errorCode: 'server_at_capacity',
+      errorMessage: '此刻同时开局的人太多，请过几秒再试。',
+      lastArchetype: 'rules_creepy',
+    });
+    render(<GameScreen />);
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('稍等一下再开局');
+    expect(screen.getByText('此刻同时开局的人太多，请过几秒再试。')).toBeInTheDocument();
+  });
+});

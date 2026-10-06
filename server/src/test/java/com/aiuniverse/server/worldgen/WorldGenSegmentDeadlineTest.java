@@ -30,6 +30,7 @@ import com.aiuniverse.server.llm.TokenStream;
 import com.aiuniverse.server.persistence.SessionStore;
 import com.aiuniverse.server.quota.QuotaGate;
 import com.aiuniverse.server.web.GameController;
+import com.aiuniverse.server.web.InitAdmission;
 import com.aiuniverse.server.web.TurnAdmission;
 
 import ch.qos.logback.classic.Level;
@@ -162,8 +163,10 @@ class WorldGenSegmentDeadlineTest {
 		GameSessionManager sessions = new GameSessionManager(mapper, store);
 		GameInitService initService = new GameInitService(worldGen, sessions, registry, mapper);
 		GameController controller = new GameController(sessions, new TurnStateMachine((s, a, sink) -> null),
-				initService, quota, new TurnAdmission(1, Runnable::run));
-		return controller.init(new GameController.InitRequest("rules_creepy", null), new MockHttpServletRequest());
+				initService, quota, new TurnAdmission(1, Runnable::run), new InitAdmission(1, Runnable::run),
+				new WorldGenProperties(DEADLINE));
+		return (ResponseEntity<?>) controller
+				.init(new GameController.InitRequest("rules_creepy", null), new MockHttpServletRequest()).getResult();
 	}
 
 	private static String validWorld() {

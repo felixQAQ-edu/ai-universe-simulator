@@ -62,6 +62,12 @@ aiuniverse:
   # ⚠️ 它只负责 turn 路径上的「不死」,成本仍归下面的 quota 闸,两道闸不互相替代。
   turn:
     max-concurrent: 8
+  # ── 开局并发准入(ADR-030 决策 2 / 已决 4)─────────────────────────────────
+  # 默认 4,无实测依据(并发开局从未观察到);与回合准入分开(决策 3)。
+  # env 覆盖:规范写法 AIUNIVERSE_INIT_MAXCONCURRENT;AIUNIVERSE_INIT_MAX_CONCURRENT 经 Spring 的
+  # legacy 下划线映射同样生效(2026-10-06 绑定实验 + InitPropertiesEnvBindingTest 实测)。
+  init:
+    max-concurrent: 4
   # ── world-gen 流式段时限(ADR-030 决策 4 / 已决 2)────────────────────────
   # 主调用与修复调用各一段、各自独立计时;过线 → 502 world_gen_failed,不建 session。
   # 180 s 无实测依据(先宽后收,收紧以 [world-gen] durMs 日志读数为依据)。
