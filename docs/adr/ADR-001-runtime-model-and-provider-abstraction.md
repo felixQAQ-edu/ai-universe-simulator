@@ -1,5 +1,7 @@
 # ADR-001 · 运行模型选 DeepSeek V4-Flash 为主力,provider 走 OpenAI 兼容配置表抽象
 
+> ⚠️ **注记(2026-10-07;上句原文保留)**:2026-09-10 起实际由 V4.1-Flash 应答,2026-10-07 起配置改为 `deepseek-flash`([FINDINGS F-036](../../bakeoff/FINDINGS.md))。
+
 - **日期**:2026-06-17
 - **状态**:已采纳
 - **决策者**:Felix
@@ -62,6 +64,8 @@ Phase 0 · 核心验证阶段。MVP(规则怪谈 `rules_creepy`,单体模式)要
 
 **方案 C — OpenAI 兼容 + 配置表抽象**,主力 **DeepSeek V4-Flash**。
 
+> ⚠️ **注记(2026-10-07;上句原文保留)**:2026-09-10 起实际由 V4.1-Flash 应答,2026-10-07 起配置改为 `deepseek-flash`([FINDINGS F-036](../../bakeoff/FINDINGS.md))。
+
 ### 1. provider 配置表
 
 单一事实源 [`bakeoff/providers.py`](../../bakeoff/providers.py),每个 provider 一条记录:`base_url` / `model` / `api_key_env` / `price`(命中/未命中/输出分列)/ `thinking` / `max_context`。换 provider = 改这张表。本轮实跑 `deepseek-v4-flash`,Qwen / GLM / Pro 为横评占位。
@@ -73,6 +77,7 @@ Phase 0 · 核心验证阶段。MVP(规则怪谈 `rules_creepy`,单体模式)要
 ### 3. 分层与兜底(建议,待横评最终确认)
 
 - **主力**:DeepSeek V4-Flash 跑高频 event-loop(本轮已验证)。
+  > ⚠️ **注记(2026-10-07;上句原文保留)**:2026-09-10 起实际由 V4.1-Flash 应答,2026-10-07 起配置改为 `deepseek-flash`([FINDINGS F-036](../../bakeoff/FINDINGS.md))。
 - **高价值步骤**:world-gen / 难场景建议走 DeepSeek V4-Pro(占位,单价待核)。
 - **兜底**:建议通义千问(阿里云基建稳),待横评数据确认后定。
 
@@ -119,6 +124,7 @@ Phase 0 · 核心验证阶段。MVP(规则怪谈 `rules_creepy`,单体模式)要
 - **横评数据出来**:Qwen / GLM 等跑完同样场景组 A+B,若某家在叙事质量或成本/延迟上明显优于 DeepSeek,重定主力 / 兜底 / 分层。
 - **人工盲评不达标**:DeepSeek 叙事均分 < 3.5 → 即便工程指标全过也不做主力。
 - **DeepSeek 出事**:限流频发 / 大幅涨价 / V4-Flash 下架 → 启用兜底并重排配置表优先级。
+  > ⚠️ **注记(2026-10-07;上句原文保留)**:2026-09-10 起实际由 V4.1-Flash 应答,2026-10-07 起配置改为 `deepseek-flash`([FINDINGS F-036](../../bakeoff/FINDINGS.md))。
 - **延迟劣化**:线上 TTFT 持续 > 2s 或回合延迟 > 10s → 重新评估模型档位或分层策略。
 - **Phase 3 混合模式(fusion)**:多套设定调和的 meta-prompt 对模型能力要求更高,可能需要给 world-gen/fusion 单独选更强档位(Pro 或他家)。
 - **接入仅有原生接口的新 provider**:触发抽象层从「纯 OpenAI 兼容」向「兼容 + 原生适配器」演进(代价 5)。
@@ -141,6 +147,8 @@ Phase 0 · 核心验证阶段。MVP(规则怪谈 `rules_creepy`,单体模式)要
 ## 实际效果(事后补充)
 
 *横评 + 人工盲评完成时回填:DeepSeek V4-Flash 是否真为最优主力(对照 Qwen/GLM 的成本/延迟/叙事质量),兜底与分层的最终配置,以及真实玩家「同存档连续回合」下的缓存命中率与省钱幅度。*
+
+> ⚠️ **注记(2026-10-07;上句原文保留)**:2026-09-10 起实际由 V4.1-Flash 应答,2026-10-07 起配置改为 `deepseek-flash`([FINDINGS F-036](../../bakeoff/FINDINGS.md))。
 
 *MVP 上线后回填:线上真实 TTFT / 回合延迟 / 错误率是否与实测一致。*
 

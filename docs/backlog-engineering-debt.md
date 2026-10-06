@@ -717,6 +717,26 @@ PostgreSQL / MySQL 迁移待评估的形态清单(**只是清单,不是方案,�
 
 ---
 
+## 挂账 · `OpenAiStreamDecoder` 编译时有 deprecation 警告(记于 2026-10-07,低优先级)
+
+**事实**:编译 `server/` 时 javac 报
+`OpenAiStreamDecoder.java uses or overrides a deprecated API.`(2026-10-07 在 `fab3eda` 上 `./mvnw compile` 复现;
+未加 `-Xlint:deprecation` 看明细,据 brief 为 Jackson API)。只是警告,构建与测试不受影响。
+
+**处置**:只记不修。
+**解冻条件**:下次因别的事动 `OpenAiStreamDecoder.java` 时一并处理。
+
+## 挂账 · `TurnProperties` 注释仍写「init 阻塞占 Tomcat 线程」(记于 2026-10-07,低优先级)
+
+**事实**:`TurnProperties.java:23-24` 注释写着「`POST /api/game/init` 仍阻塞占 Tomcat 容器线程(默认上限 200),
+本刀完全没管它(ADR-015 已知代价 2,另刀)」。[ADR-030](adr/ADR-030-init-admission-and-world-gen-deadline.md) 刀 2 之后
+init 已改为独立准入 + `DeferredResult`,不再占容器线程 —— **这句注释已不成立**。
+
+**风险**:下一个读注释的人会以为 init 路径仍没有准入。
+
+**处置**:只记不修(本刀纯 docs)。改法是两行注释。
+**解冻条件**:下次碰 `TurnProperties.java` 时顺手改。
+
 ## 另记 · 一条状态(不是待办,是已做的决定)
 
 ### main 与线上差了整整一个视觉移植阶段

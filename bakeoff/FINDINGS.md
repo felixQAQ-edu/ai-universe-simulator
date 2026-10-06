@@ -1288,3 +1288,10 @@ T29–T33 五回合全是「扒那块颜色不一样的地砖」的变体。
     输出也是旧值的 2 倍;按高峰档,三项依次为 2 / 2 / 4 倍。9-10 以后的月账 ¥ 累计因此偏低(上文「不写方向」那句的方向就此确定)。
   - 处置:`application.yml` 改为 `model: deepseek-flash` + 高峰档单价,usage 日志行追加 `model=` 与 `reasoningChars=`
     (改动所在分支 `claude/brave-hopper-txb1jd`,待合并);ADR-016 阈值推导处加重算注记。
+- ⚠️ **追加(2026-10-07,迁移后日志读数;上文原文保留,只记事实)**:
+  - 上一条追加所说的改动(`claude/brave-hopper-txb1jd`)已合并,`main = fab3eda` 已部署
+    (Felix 2026-10-07 悉尼时间部署;线上新进程启动于 2026-10-06T14:17Z;`/actuator/info` `build.commit = fab3eda`)。
+  - **本地冒烟(2026-10-07)**:world-gen 与回合的 usage 行均为 `model=deepseek-flash reasoningChars=0`;
+    world-gen `durMs=8383 repaired=false`;T1 `durMs=2817`,正常落账。
+  - **线上(`fab3eda` 部署后)**:world-gen 与回合的 usage 行均为 `model=deepseek-flash reasoningChars=0`。
+  - 由此:`thinking.type=disabled` 在 V4.1-Flash 上仍生效 —— F-006(本文件)的结论在新模型上成立(n=4 行日志)。

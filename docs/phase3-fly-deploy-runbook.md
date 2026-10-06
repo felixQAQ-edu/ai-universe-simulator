@@ -274,6 +274,7 @@ fly logs --app <app 名> | grep -i -m5 'active\|llm\|deepseek'
 ```
 
 - 判定:日志须表明 provider 是 `deepseek-v4-flash` **而非 mock**;起局后叙事应是**真实生成的中文**(mock 是逐字 echo 固定文案,一眼可辨)。
+  ⚠️ **注记(2026-10-07;上句原文保留)**:provider key 仍为 `deepseek-v4-flash`,实际模型为 `deepseek-flash`(`application.yml` 的 `model` 字段;[FINDINGS F-036](../bakeoff/FINDINGS.md))。
 - **若起局「生成很久然后失败」**:先按本节回头查 active 与 key,**不要先怀疑应用代码** —— 本次就是在这里绕了一圈。
 
 ### 3.2 附录 B 冒烟清单(顺序固定)
@@ -284,6 +285,7 @@ fly logs | grep -i -m5 'active\|llm'
 ```
 - 判定:启动日志证明线上 provider 是 deepseek-v4-flash 而非 mock;起局后叙事为真实
   生成中文(mock 是逐字 echo 固定文案,一眼可辨)。
+  ⚠️ **注记(2026-10-07;上句原文保留)**:provider key 仍为 `deepseek-v4-flash`,实际模型为 `deepseek-flash`(`application.yml` 的 `model` 字段;[FINDINGS F-036](../bakeoff/FINDINGS.md))。
 
 **⑥ 真 key 起局 + 落盘进卷**:浏览器开 `https://wanjie-ai.fly.dev/` 起一局;然后:
 ```sh

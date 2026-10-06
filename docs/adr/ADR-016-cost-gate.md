@@ -144,6 +144,8 @@ env 覆盖走 Spring relaxed binding(`AIUNIVERSE_QUOTA_DAILY_BUDGET_CNY` 等),�
 
 **价格配置消费(立字)**:¥ 记账单价**只读** `aiuniverse.llm.providers.<active>.price` 三段(ADR-001 配置表现成字段,此前仅文档性),**跟官方价走,改配置不改码**。DeepSeek V4-Flash 计价(input cache-miss ¥1.0 / cache-hit ¥0.02 / output ¥2.0,CNY/1M)查证日期 **2026-07-20**(④ 成本闸门勘察批,官方计价页;命中/未命中价差 50 倍)。
 
+> ⚠️ **注记(2026-10-07;上句原文保留)**:上句单价是 V4-Flash 的,已不适用 —— 2026-09-10 起实际由 V4.1-Flash 应答,配置已改为 `deepseek-flash` + V4.1-Flash 高峰档单价。新单价与按新单价的重算见本 ADR 阈值表下方「注记(2026-10-06,单价更新后重算)」,事实见 [FINDINGS F-036](../../bakeoff/FINDINGS.md)。
+
 ### 5. 拒绝语义(玩家可见面)
 
 - **init 被拦**:HTTP **429** + `{error:{code:"quota_exceeded",message:"今日体验名额已满,明天再来"}}`(文案实现时润色);前端归一为 `GameApiError` 走现有 initError 分支(「重新生成」屏样式复用,文案换配额提示)。
