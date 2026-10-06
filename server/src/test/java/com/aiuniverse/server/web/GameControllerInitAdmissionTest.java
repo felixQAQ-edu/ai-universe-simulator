@@ -95,8 +95,14 @@ class GameControllerInitAdmissionTest {
 				.build();
 	}
 
+	/**
+	 * ⚠️ {@code Accept: text/event-stream} 是刻意的:默认 {@code *}{@code /*} 下 Spring 无论如何都会挑 JSON 转换器,
+	 * 「错误体是 JSON」那条断言就分不出 {@code contentType} 是不是显式给的(变异实测:去掉显式 contentType 照样绿)。
+	 * 换成一个 JSON 转换器不接受的 Accept,不显式指定就是 406 —— ADR-022 闸 C 同一个坑。
+	 */
 	private MvcResult dispatchInit(MockMvc mvc, String body) throws Exception {
-		MvcResult started = mvc.perform(post("/api/game/init").contentType(MediaType.APPLICATION_JSON).content(body))
+		MvcResult started = mvc.perform(post("/api/game/init").contentType(MediaType.APPLICATION_JSON)
+				.accept(MediaType.TEXT_EVENT_STREAM).content(body))
 				.andExpect(request().asyncStarted()).andReturn();
 		return mvc.perform(asyncDispatch(started)).andReturn();
 	}
@@ -105,6 +111,7 @@ class GameControllerInitAdmissionTest {
 	void rejectedInitReturns503JsonWithFinalCopyAndNoRetryAfter() throws Exception {
 		MockMvc mvc = mvc(0); // 容量 0 = 恒拒
 		MvcResult started = mvc.perform(post("/api/game/init").contentType(MediaType.APPLICATION_JSON)
+				.accept(MediaType.TEXT_EVENT_STREAM) // 理由见 dispatchInit
 				.content("{\"archetype\":\"rules_creepy\"}")).andExpect(request().asyncStarted()).andReturn();
 		MvcResult done = mvc.perform(asyncDispatch(started))
 				.andExpect(status().isServiceUnavailable())

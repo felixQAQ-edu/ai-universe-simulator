@@ -6,6 +6,7 @@ import java.util.Map;
 
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.core.env.StandardEnvironment;
 import org.springframework.core.env.SystemEnvironmentPropertySource;
@@ -19,13 +20,16 @@ import org.springframework.core.env.SystemEnvironmentPropertySource;
  */
 class InitPropertiesEnvBindingTest {
 
+	/** 前缀取自记录自己的注解 —— 写死字符串的话,注解前缀被改名这条测试照样是绿的(变异实测过)。 */
+	private static final String PREFIX = InitProperties.class.getAnnotation(ConfigurationProperties.class).value();
+
 	@ParameterizedTest
 	@ValueSource(strings = { "AIUNIVERSE_INIT_MAXCONCURRENT", "AIUNIVERSE_INIT_MAX_CONCURRENT" })
 	void envSpellingBindsInitMaxConcurrent(String envName) {
 		StandardEnvironment env = new StandardEnvironment();
 		env.getPropertySources().addFirst(new SystemEnvironmentPropertySource(
 				StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME, Map.of(envName, "1")));
-		InitProperties props = Binder.get(env).bindOrCreate("aiuniverse.init", InitProperties.class);
+		InitProperties props = Binder.get(env).bindOrCreate(PREFIX, InitProperties.class);
 		assertThat(props.maxConcurrent()).isEqualTo(1);
 	}
 
@@ -36,7 +40,7 @@ class InitPropertiesEnvBindingTest {
 		StandardEnvironment env = new StandardEnvironment();
 		env.getPropertySources().addFirst(new SystemEnvironmentPropertySource(
 				StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME, Map.of(envName, "1")));
-		InitProperties props = Binder.get(env).bindOrCreate("aiuniverse.init", InitProperties.class);
+		InitProperties props = Binder.get(env).bindOrCreate(PREFIX, InitProperties.class);
 		assertThat(props.maxConcurrent()).isEqualTo(4);
 	}
 }
