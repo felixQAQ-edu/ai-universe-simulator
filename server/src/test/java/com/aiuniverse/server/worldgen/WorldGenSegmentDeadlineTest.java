@@ -206,6 +206,21 @@ class WorldGenSegmentDeadlineTest {
 		assertThat(store.persists).as("过线必须不建 session(sessions.create 必落盘,故落盘次数 = 0)").isZero();
 	}
 
+	// ── 1b. 段超时的原因必须进失败日志(cause= 取 cause 链最内层),502 body 仍是固定文案 ──
+	@Test
+	void deadlineFailureLogCarriesRootCause() {
+		ResponseEntity<?> resp = init(new ScriptedLlm(validWorld()),
+				new ScriptedClock(0L, 0L, DEADLINE + 1, DEADLINE + 500));
+
+		assertThat(resp.getStatusCode().value()).isEqualTo(502);
+		assertThat(infoMessages())
+				.as("失败那行 INFO 要带出段超时的根因,否则与网络错误 / 上游非 200 分不开")
+				.anySatisfy(m -> assertThat(m).contains(" 失败 durMs=").contains("cause=流式段超过"));
+		@SuppressWarnings("unchecked")
+		Map<String, Map<String, String>> body = (Map<String, Map<String, String>>) resp.getBody();
+		assertThat(body.get("error").get("message")).as("502 body 不暴露内部原因").doesNotContain("流式段超过");
+	}
+
 	// ── 2. 恰好等于上界:放过(闭合方向 `>` 才掐)──
 	@Test
 	void exactlyAtDeadlineIsNotKilled() {
@@ -270,5 +285,8 @@ class WorldGenSegmentDeadlineTest {
 				.as("失败终点一行 INFO,durMs = 1_234,repaired=false")
 				.anySatisfy(m -> assertThat(m)
 						.startsWith("[world-gen] archetypes=[rules_creepy] 失败 durMs=1234 repaired=false"));
+		assertThat(infoMessages())
+				.as("失败那行 INFO 要带出上游的根因(cause=)")
+				.anySatisfy(m -> assertThat(m).contains(" 失败 durMs=").contains("cause=上游 402"));
 	}
 }

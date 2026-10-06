@@ -108,10 +108,22 @@ public class WorldGenService {
 					clock.millis() - startedAtMs, repaired[0]);
 			return world;
 		} catch (RuntimeException e) {
-			log.info("[world-gen] archetypes={} 失败 durMs={} repaired={} reason={}", archetypes,
-					clock.millis() - startedAtMs, repaired[0], e.getMessage());
+			// cause= 取 cause 链最内层的消息:WorldGenException 的 message 是给玩家的固定文案,
+			// 真正的原因(段超时 / 网络 / 上游非 200)在 cause 里。不取它,日志分不开这几种失败,
+			// ADR-030 重新审视条件第 1 条(识别误掐)就无从执行。只进日志,502 body 不变。
+			log.info("[world-gen] archetypes={} 失败 durMs={} repaired={} reason={} cause={}", archetypes,
+					clock.millis() - startedAtMs, repaired[0], e.getMessage(), rootCauseMessage(e));
 			throw e;
 		}
+	}
+
+	/** cause 链最内层的消息;没有 cause 就是 {@code e} 本身(防自引用环)。 */
+	private static String rootCauseMessage(Throwable e) {
+		Throwable t = e;
+		while (t.getCause() != null && t.getCause() != t) {
+			t = t.getCause();
+		}
+		return t.getMessage();
 	}
 
 	private ObjectNode generateOnce(List<String> archetypes, boolean[] repaired) {
