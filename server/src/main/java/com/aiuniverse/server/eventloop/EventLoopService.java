@@ -314,7 +314,7 @@ public class EventLoopService implements TurnExecutor {
 	 */
 	private void logUsage(GameSession session, String call, UsageCapture usage) {
 		if (usage.usage() != null) {
-			log.info("[event-loop] save={} usage {} {}", session.saveId(), call, usage.usage().display());
+			log.info("[event-loop] save={} usage {} {}", session.saveId(), call, usage.logLine());
 		}
 		quota.record(usage.usage());
 	}

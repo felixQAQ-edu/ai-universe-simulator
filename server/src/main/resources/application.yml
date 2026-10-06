@@ -48,6 +48,7 @@ management:
 # active 取值:
 #   mock              → MockLlmClient,离线逐字 echo,不读 key、不发真实请求(默认 / 回退)
 #   deepseek-v4-flash → OpenAiCompatLlmClient,调真实 DeepSeek(需 DEEPSEEK_API_KEY 环境变量)
+#                       ⚠️ 这是 provider 的配置 key,不是模型 ID —— 实际请求的模型见该条目的 model。
 # 切真实模型:把 active 改成 deepseek-v4-flash 并 export DEEPSEEK_API_KEY=<key> 后再启动。
 aiuniverse:
   # ── 会话落盘(ADR-015 C3:每 saveId 一个 JSON,最小续局)────────────────────
@@ -86,14 +87,22 @@ aiuniverse:
   llm:
     active: mock
     providers:
+      # key 是内部配置名,保留旧名以免部署时改 fly secret(AIUNIVERSE_LLM_ACTIVE=deepseek-v4-flash);
+      # 实际模型见 model。2026-09-10 起 deepseek-v4-flash 由 V4.1-Flash 应答,正式 ID 为
+      # deepseek-flash(F-036;Felix 2026-10-06 据官网价格页与平台用量页核实)。
       deepseek-v4-flash:
-        label: "DeepSeek V4-Flash(非思考)"
+        label: "DeepSeek V4.1-Flash(非思考)"
         base-url: https://api.deepseek.com
-        model: deepseek-v4-flash
+        model: deepseek-flash
         api-key-env: DEEPSEEK_API_KEY
+        # V4.1-Flash 默认思考模式;false → ThinkingAdapter 显式发 thinking.type=disabled。
+        # 是否真关上看 usage 日志行的 reasoningChars(应为 0)。
         thinking: false
         max-context: 1000000
+        # CNY / 1M tokens。取高峰档,宁可多算;不实现分时计价;核实日期 2026-10-06
+        # (V4.1-Flash 空闲 / 高峰:命中 0.02 / 0.04、未命中 1 / 2、输出 4 / 8)。
+        # 旧值(1.0 / 0.02 / 2.0,V4-Flash)自 2026-09-10 起少算,见 F-036。
         price:
-          input-cache-miss: 1.0
-          input-cache-hit: 0.02
-          output: 2.0
+          input-cache-miss: 2.0
+          input-cache-hit: 0.04
+          output: 8.0

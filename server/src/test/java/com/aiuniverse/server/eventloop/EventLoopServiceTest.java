@@ -132,6 +132,25 @@ class EventLoopServiceTest {
 		assertThat(logs.list).noneSatisfy(e -> assertThat(e.getFormattedMessage()).contains("usage"));
 	}
 
+	// ── 0b. usage 行带 model= 与 reasoningChars=(经真解码器,F-036 可观测)──
+	@Test
+	void usageLogCarriesModelAndReasoningCharsFromDecoder() {
+		ch.qos.logback.classic.Logger logger =
+				(ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(EventLoopService.class);
+		ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> logs =
+				new ch.qos.logback.core.read.ListAppender<>();
+		logs.start();
+		logger.addAppender(logs);
+
+		String sse = com.aiuniverse.server.llm.SyntheticSse.stream("deepseek-flash", new String[] { "嗯" },
+				wire("灯闪了一下。", validTail(90, 85, "null")));
+		new EventLoopService(com.aiuniverse.server.llm.SyntheticSse.replaying(sse), prompts, mapper)
+				.execute(session(), "A", new RecordingSink());
+
+		assertThat(logs.list).anySatisfy(e -> assertThat(e.getFormattedMessage())
+				.contains("usage 主调用").contains("model=deepseek-flash").contains("reasoningChars=1"));
+	}
+
 	// ── 1. happy path:SSE 时序 narrative → delta;消毒;数值落账 ──
 	@Test
 	void happyPathOrdersNarrativeThenSanitizedDelta() {

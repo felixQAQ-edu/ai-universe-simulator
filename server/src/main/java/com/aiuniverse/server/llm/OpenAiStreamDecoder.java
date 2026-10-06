@@ -15,6 +15,12 @@ import tools.jackson.databind.ObjectMapper;
  * <p>移植自 bakeoff {@code client.py} 的 chunk 消费循环(只取 {@code delta.content},空串/无 content
  * 跳过;{@code choices=[]} 的流末 usage 块解出 token 用量走 {@link TokenStream#onUsage} 纯观测回调)。把它独立成纯函数,正是为了能用一段【录制样本】做
  * 确定性单测,无需打真实 API。
+ *
+ * <p><b>响应元信息(纯观测,2026-10-06)</b>:顺带记下响应里的 {@code model} 字段(取最后一个非空值)与
+ * {@code choices[0].delta.reasoning_content} 的累计字符数(按 code point 计,<b>只记数、不记内容、不转发</b>),
+ * 在流正常结束({@code [DONE]} 或自然 EOF)时经 {@link TokenStream#onResponseMeta} 回调一次。
+ * 用途:确认线上实际应答的模型(F-036)与思考开关是否真的关上(reasoningChars 应为 0)。
+ * 流中途 IO 失败则不回调(与 usage 同一口径:没有完整响应就没有读数)。
  */
 public class OpenAiStreamDecoder {
 
@@ -33,6 +39,7 @@ public class OpenAiStreamDecoder {
 	 */
 	public void decode(Reader reader, TokenStream sink) {
 		BufferedReader br = reader instanceof BufferedReader b ? b : new BufferedReader(reader);
+		Meta meta = new Meta();
 		try {
 			String line;
 			while ((line = br.readLine()) != null) {
@@ -46,16 +53,24 @@ public class OpenAiStreamDecoder {
 				}
 				String payload = trimmed.substring(DATA_PREFIX.length()).strip();
 				if (DONE.equals(payload)) {
+					sink.onResponseMeta(meta.model, meta.reasoningChars);
 					return;
 				}
-				String content = extractContent(payload, sink);
+				String content = extractContent(payload, sink, meta);
 				if (content != null && !content.isEmpty()) {
 					sink.onToken(content);
 				}
 			}
+			sink.onResponseMeta(meta.model, meta.reasoningChars);
 		} catch (IOException e) {
 			throw new LlmException("读取模型流式响应中断", e);
 		}
+	}
+
+	/** 单次 decode 的响应元信息累加器(不跨调用共享)。 */
+	private static final class Meta {
+		String model;
+		long reasoningChars;
 	}
 
 	/**
@@ -63,12 +78,16 @@ public class OpenAiStreamDecoder {
 	 * chunk 若带 {@code usage} 对象(stream_options.include_usage 的流末块),顺带回调
 	 * {@code sink.onUsage}(纯观测;缺字段容错记 -1,无 usage 的 chunk 不回调)。
 	 */
-	private String extractContent(String json, TokenStream sink) {
+	private String extractContent(String json, TokenStream sink, Meta meta) {
 		JsonNode node;
 		try {
 			node = mapper.readTree(json);
 		} catch (JacksonException e) {
 			throw new LlmException("解析模型流式响应失败", e);
+		}
+		JsonNode model = node.path("model");
+		if (model.isTextual() && !model.asText().isBlank()) {
+			meta.model = model.asText();
 		}
 		JsonNode usage = node.path("usage");
 		if (usage.isObject()) {
@@ -83,7 +102,13 @@ public class OpenAiStreamDecoder {
 		if (!choices.isArray() || choices.isEmpty()) {
 			return null; // usage-only 块
 		}
-		JsonNode content = choices.get(0).path("delta").path("content");
+		JsonNode delta = choices.get(0).path("delta");
+		JsonNode reasoning = delta.path("reasoning_content");
+		if (reasoning.isTextual()) {
+			String r = reasoning.asText();
+			meta.reasoningChars += r.codePointCount(0, r.length());
+		}
+		JsonNode content = delta.path("content");
 		return content.isTextual() ? content.asText() : null;
 	}
 }

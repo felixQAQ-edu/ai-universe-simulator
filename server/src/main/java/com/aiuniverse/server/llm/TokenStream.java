@@ -19,4 +19,11 @@ public interface TokenStream {
 	 */
 	default void onUsage(LlmUsage usage) {
 	}
+
+	/**
+	 * 流正常结束时的响应元信息回调(纯观测,默认 no-op):{@code model} 为响应里的模型字段
+	 * (未出现为 null),{@code reasoningChars} 为思考内容累计字符数(未出现为 0,只计数不含内容)。
+	 */
+	default void onResponseMeta(String model, long reasoningChars) {
+	}
 }

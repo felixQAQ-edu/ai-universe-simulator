@@ -173,7 +173,7 @@ public class WorldGenService {
 		}
 		// usage 收口(ADR-016):INFO 观测 + ¥ 记账旁挂;无 usage 块(mock 等)静默跳过、天然免疫。
 		if (usage.usage() != null) {
-			log.info("[world-gen] usage {}", usage.usage().display());
+			log.info("[world-gen] usage {}", usage.logLine());
 		}
 		quota.record(usage.usage());
 		return buf.toString();

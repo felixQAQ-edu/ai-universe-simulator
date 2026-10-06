@@ -182,6 +182,18 @@ class WorldGenServiceTest {
 	}
 
 	@Test
+	void usageLogCarriesModelAndReasoningCharsFromDecoder() {
+		String sse = com.aiuniverse.server.llm.SyntheticSse.stream("deepseek-flash", new String[0], validWorld());
+		ListAppender<ILoggingEvent> logs = attachLogCapture();
+
+		new WorldGenService(com.aiuniverse.server.llm.SyntheticSse.replaying(sse), prompts, mapper)
+				.generate("rules_creepy");
+
+		assertThat(logs.list).anySatisfy(e -> assertThat(e.getFormattedMessage())
+				.contains("[world-gen] usage").contains("model=deepseek-flash").contains("reasoningChars=0"));
+	}
+
+	@Test
 	void noUsageBlockStaysSilentNoWarning() {
 		ScriptedLlm llm = new ScriptedLlm(); // mock 形态:从不回调 onUsage
 		llm.script(validWorld());

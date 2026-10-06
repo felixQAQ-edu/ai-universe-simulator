@@ -126,4 +126,38 @@ class OpenAiStreamDecoderTest {
 		assertThatThrownBy(() -> decodeAll(new StringReader(sse)))
 				.isInstanceOf(LlmException.class);
 	}
+
+	// ── 响应元信息(2026-10-06,F-036):model 字段 + reasoning_content 累计字符数 ─────────
+
+	@Test
+	void recordsModelAndReasoningCharsWithoutForwardingReasoningAsTokens() {
+		// 思考段 "想一想" (3) + "再想" (2) = 5 个字符;正文只有 "雨夜"。
+		String sse = SyntheticSse.stream("deepseek-flash", new String[] { "想一想", "再想" }, "雨夜");
+		List<String> tokens = new ArrayList<>();
+		UsageCapture cap = new UsageCapture(tokens::add);
+		decoder.decode(new StringReader(sse), cap);
+		assertThat(tokens).as("思考内容只计数、绝不当正文转发").containsExactly("雨夜");
+		assertThat(cap.model()).isEqualTo("deepseek-flash");
+		assertThat(cap.reasoningChars()).isEqualTo(5);
+		assertThat(cap.logLine()).endsWith(" model=deepseek-flash reasoningChars=5");
+	}
+
+	@Test
+	void noReasoningContentMeansZeroAndModelStillRecorded() {
+		String sse = SyntheticSse.stream("deepseek-flash", new String[0], "雨夜");
+		UsageCapture cap = decodeCapturing(new StringReader(sse));
+		assertThat(cap.model()).isEqualTo("deepseek-flash");
+		assertThat(cap.reasoningChars()).isZero();
+		assertThat(cap.logLine()).endsWith(" model=deepseek-flash reasoningChars=0");
+	}
+
+	@Test
+	void recordedSampleReportsItsHistoricalModel() throws Exception {
+		// 录制样本保持原样:它记录的是当时的真实响应(model=deepseek-v4-flash、无 reasoning_content)。
+		try (InputStream in = getClass().getResourceAsStream("/deepseek-sse-sample.txt")) {
+			UsageCapture cap = decodeCapturing(new InputStreamReader(in, StandardCharsets.UTF_8));
+			assertThat(cap.model()).isEqualTo("deepseek-v4-flash");
+			assertThat(cap.reasoningChars()).isZero();
+		}
+	}
 }
