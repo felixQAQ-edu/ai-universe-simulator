@@ -156,6 +156,7 @@ API key 只进环境变量,**绝不写进 yaml / 代码 / 提交**。
 - [ADR-027](docs/adr/ADR-027-delivery-failure-keeps-turn-and-bidirectional-cursor.md) — 送达失败不丢回合 + 游标双向比对
 - [ADR-028](docs/adr/ADR-028-box-scene-changeable-left-behind.md) — 纸箱:《动物人生》里可以被改变的「被留下」(已采纳)
 - [ADR-029](docs/adr/ADR-029-animal-life-verbatim-sentence-windows.md) — 《动物人生》逐字句排窗:金属声句组与床脚句按回合注入允许 / 禁用指令(已采纳)
+- [ADR-030](docs/adr/ADR-030-init-admission-and-world-gen-deadline.md) — init 独立准入 + world-gen 流式段时限:开局不占容器线程,world-gen 不再无上限(已采纳)
 
 ## 文档
 

@@ -683,6 +683,7 @@ boolean submit(String saveId, Runnable work);
 - **多副本部署**(ADR-015 单副本约束解除)→ per-instance 准入失效,与 ADR-016 内存计数同批重估;
 - **「超时那一刀」落地**(emitter 到期中断 worker / 流体阶段设上界)→ 已知代价 3 缓解,可重估 N;
 - **init 路径 Tomcat 占用那一刀**(ADR-015 已知代价 2)落地 → 两处准入是否该合并成一道,回本 ADR;
+  ⚠️ **注记(2026-10-06,原文保留)**:[ADR-030](ADR-030-init-admission-and-world-gen-deadline.md) 决策 3 已回答:分开(两个信号量、两个池、两个配置项)。
 - **换有界池实现** → 回本 ADR 确认「准入是唯一上限、池不设第二个上限」是否仍成立(防两份真相);
 - **引入账号体系**(Phase 4 微信生态解冻)→ 准入是否要 per-account 而非全局,与 ADR-016 软闸键升级同批;
 - **关闭期被真人撞到**(滚动部署时玩家收到通用兜底错误且反馈上来,或日志里看到关闭窗口的 `RejectedExecutionException`)

@@ -71,8 +71,8 @@ aiuniverse:
   # ── world-gen 流式段时限(ADR-030 决策 4 / 已决 2)────────────────────────
   # 主调用与修复调用各一段、各自独立计时;过线 → 502 world_gen_failed,不建 session。
   # 180 s 无实测依据(先宽后收,收紧以 [world-gen] durMs 日志读数为依据)。
-  # env 覆盖名是 AIUNIVERSE_WORLDGEN_SEGMENTDEADLINEMS(relaxed binding 去掉连字符;
-  # 写成 AIUNIVERSE_WORLD_GEN_… 会被拆成 world.gen,静默不生效)。
+  # env 覆盖:规范写法 AIUNIVERSE_WORLDGEN_SEGMENTDEADLINEMS;AIUNIVERSE_WORLD_GEN_SEGMENT_DEADLINE_MS 经 Spring 的
+  # legacy 下划线映射同样生效(2026-10-06 ADR-030 刀 2 绑定实验实测)。
   world-gen:
     segment-deadline-ms: 180000
   # ── 成本闸门四阈值(ADR-016;Felix 拍板,基于线上真实 usage + 52% 缓存命中率)────
