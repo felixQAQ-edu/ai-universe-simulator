@@ -62,6 +62,13 @@ aiuniverse:
   # ⚠️ 它只负责 turn 路径上的「不死」,成本仍归下面的 quota 闸,两道闸不互相替代。
   turn:
     max-concurrent: 8
+  # ── world-gen 流式段时限(ADR-030 决策 4 / 已决 2)────────────────────────
+  # 主调用与修复调用各一段、各自独立计时;过线 → 502 world_gen_failed,不建 session。
+  # 180 s 无实测依据(先宽后收,收紧以 [world-gen] durMs 日志读数为依据)。
+  # env 覆盖名是 AIUNIVERSE_WORLDGEN_SEGMENTDEADLINEMS(relaxed binding 去掉连字符;
+  # 写成 AIUNIVERSE_WORLD_GEN_… 会被拆成 world.gen,静默不生效)。
+  world-gen:
+    segment-deadline-ms: 180000
   # ── 成本闸门四阈值(ADR-016;Felix 拍板,基于线上真实 usage + 52% 缓存命中率)────
   # 全部可 env 覆盖(如 AIUNIVERSE_QUOTA_DAILY_BUDGET_CNY),冒烟压低阈值 = 临时 env。
   # 日界线 = 北京时间;阈值哲学:假想敌是脚本刷不是真人玩,宽到真人永远撞不到。

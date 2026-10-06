@@ -1,5 +1,6 @@
 package com.aiuniverse.server.worldgen;
 
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -13,6 +14,7 @@ import com.aiuniverse.server.engine.LooseJson;
 import com.aiuniverse.server.llm.ChatRequest;
 import com.aiuniverse.server.llm.LlmClient;
 import com.aiuniverse.server.llm.LlmException;
+import com.aiuniverse.server.llm.StreamSegmentDeadline;
 import com.aiuniverse.server.llm.UsageCapture;
 import com.aiuniverse.server.quota.QuotaGate;
 
@@ -42,18 +44,40 @@ public class WorldGenService {
 	private final WorldGenPromptBuilder prompts;
 	private final ObjectMapper mapper;
 	private final QuotaGate quota;
+	/**
+	 * 段时限与 {@code durMs} 锚点共用的时钟(ADR-030 决策 4 / 已决 1)。注入而非内联读时钟——
+	 * 房规同 {@code EventLoopService} / {@code QuotaService}:真实耗时是变量,不注入就测不了。
+	 */
+	private final Clock clock;
+	/** 流式段总时长上界(ADR-030 决策 4 / 已决 2):主调用与修复调用各自一段。 */
+	private final long segmentDeadlineMs;
 
 	/** 无闸门形态(ADR-016 之前行为;既有测试调用点零改)。 */
 	public WorldGenService(LlmClient llm, WorldGenPromptBuilder prompts, ObjectMapper mapper) {
 		this(llm, prompts, mapper, QuotaGate.NOOP);
 	}
 
-	@Autowired
+	/** 缺省时限 + 系统时钟(既有构造调用点零改,同 {@code QuotaGate.NOOP} 的接缝形态)。 */
 	public WorldGenService(LlmClient llm, WorldGenPromptBuilder prompts, ObjectMapper mapper, QuotaGate quota) {
+		this(llm, prompts, mapper, quota, Clock.systemUTC(), WorldGenProperties.DEFAULT_SEGMENT_DEADLINE_MS);
+	}
+
+	/** 生产装配:时限取 {@code aiuniverse.world-gen.segment-deadline-ms}(env 可覆盖)。 */
+	@Autowired
+	public WorldGenService(LlmClient llm, WorldGenPromptBuilder prompts, ObjectMapper mapper, QuotaGate quota,
+			WorldGenProperties props) {
+		this(llm, prompts, mapper, quota, Clock.systemUTC(), props.segmentDeadlineMs());
+	}
+
+	/** 全参形态(测试注入假时钟与时限)。 */
+	public WorldGenService(LlmClient llm, WorldGenPromptBuilder prompts, ObjectMapper mapper, QuotaGate quota,
+			Clock clock, long segmentDeadlineMs) {
 		this.llm = llm;
 		this.prompts = prompts;
 		this.mapper = mapper;
 		this.quota = quota;
+		this.clock = clock;
+		this.segmentDeadlineMs = segmentDeadlineMs;
 	}
 
 	/**
@@ -74,6 +98,23 @@ public class WorldGenService {
 	 * 校验/修复/ERROR 管线与单体完全一致(融合不加失败面,守 ADR-007)。
 	 */
 	public ObjectNode generate(List<String> archetypes) {
+		// ── world-gen 总耗时锚点(ADR-030 已决 1):成功、失败两个终点各一行 INFO,零行为改动。
+		// 消费方写死:段时限 180 s 的复核(已决 2「先宽后收,收紧以 durMs 读数为依据」)。不打客户端 IP。
+		long startedAtMs = clock.millis();
+		boolean[] repaired = {false};
+		try {
+			ObjectNode world = generateOnce(archetypes, repaired);
+			log.info("[world-gen] archetypes={} 成功 durMs={} repaired={}", archetypes,
+					clock.millis() - startedAtMs, repaired[0]);
+			return world;
+		} catch (RuntimeException e) {
+			log.info("[world-gen] archetypes={} 失败 durMs={} repaired={} reason={}", archetypes,
+					clock.millis() - startedAtMs, repaired[0], e.getMessage());
+			throw e;
+		}
+	}
+
+	private ObjectNode generateOnce(List<String> archetypes, boolean[] repaired) {
 		String prompt = prompts.buildWorldPrompt(archetypes);
 		String raw = call(prompt); // 主调用(开 json_object)
 
@@ -86,6 +127,7 @@ public class WorldGenService {
 		// 一次修复(设计稿 §4.3):带校验错误回喂「只回修正后的完整 world JSON」,同样开 json_object。
 		log.warn("[world-gen] archetypes={} 首次产出未过校验({} 条),触发一次修复:{}", archetypes, errors.size(), errors);
 		String repairPrompt = prompts.buildRepairPrompt(archetypes, raw, errors);
+		repaired[0] = true;
 		String raw2 = call(repairPrompt);
 
 		List<String> errors2 = new ArrayList<>();
@@ -99,10 +141,18 @@ public class WorldGenService {
 		throw new WorldGenException("世界生成失败,请重新生成");
 	}
 
-	/** 胖调用:累积流式 token 成整串(world-gen 不逐字流给玩家,叙事随 init 一次性下发)。开 json_object。 */
+	/**
+	 * 胖调用:累积流式 token 成整串(world-gen 不逐字流给玩家,叙事随 init 一次性下发)。开 json_object。
+	 *
+	 * <p>每次调用一段流式时限(ADR-030 决策 4):主调用与修复调用各自独立计时。守卫在 {@link UsageCapture}
+	 * 里层(ADR-024 立字 3);过线抛 {@link LlmException},落进下面既有的 catch → {@link WorldGenException}
+	 * → 502,且 {@code GameInitService} 里 generate 在建 session 之前,故不建 session。
+	 * ⚠️ 彻底静默(再无 token)不在保护范围内(ADR-030 已决 0),不许为此加看门线程。
+	 */
 	private String call(String prompt) {
 		StringBuilder buf = new StringBuilder();
-		UsageCapture usage = new UsageCapture(buf::append);
+		UsageCapture usage = new UsageCapture(
+				StreamSegmentDeadline.guard(buf::append, clock, segmentDeadlineMs, "本次开局作废"));
 		try {
 			llm.streamChat(new ChatRequest(prompt, true), usage);
 		} catch (LlmException e) {

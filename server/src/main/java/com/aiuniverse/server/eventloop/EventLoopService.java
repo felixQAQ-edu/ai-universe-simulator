@@ -16,6 +16,7 @@ import com.aiuniverse.server.engine.GameSchemas;
 import com.aiuniverse.server.llm.ChatRequest;
 import com.aiuniverse.server.llm.LlmClient;
 import com.aiuniverse.server.llm.LlmException;
+import com.aiuniverse.server.llm.StreamSegmentDeadline;
 import com.aiuniverse.server.llm.TokenStream;
 import com.aiuniverse.server.llm.UsageCapture;
 import com.aiuniverse.server.quota.QuotaGate;
@@ -114,16 +115,9 @@ public class EventLoopService implements TurnExecutor {
 	 * <b>那是为了让老测试绿而选的实现参数,不选,也不要因为它更省事而回来选它</b>(ADR-024 方案 C)。
 	 */
 	private TokenStream streamDeadlineGuard(TokenStream delegate) {
-		long segmentStartedAtMs = clock.millis();
-		return token -> {
-			long elapsedMs = clock.millis() - segmentStartedAtMs;
-			// 闭合方向写死:`>` 才掐,恰好等于上界放过(边界由两条纯时钟脚本用例钉住)。
-			if (elapsedMs > STREAM_DEADLINE_MS) {
-				throw new LlmException("流式段超过 " + STREAM_DEADLINE_MS + "ms 上界(已流 " + elapsedMs
-						+ "ms),自掐降级");
-			}
-			delegate.onToken(token);
-		};
+		// 语义与读时钟次数不变,实现抽到 llm 包与 world-gen 共用(ADR-030 决策 4);
+		// 闭合方向仍是 `>` 才掐(边界由两条纯时钟脚本用例钉住)。
+		return StreamSegmentDeadline.guard(delegate, clock, STREAM_DEADLINE_MS, "自掐降级");
 	}
 
 	/** 无闸门形态(ADR-016 之前行为;既有测试调用点零改)。 */
