@@ -1,0 +1,318 @@
+# ADR-031 · 回合执行轨迹 + 不调模型回放:记下每回合模型交来的东西,离线重放结算
+
+- **日期**:2026-10-06
+- **状态**:**提议**(未采纳;待决见文末,不替校勘与 Felix 选)
+- **决策者**:Felix
+- **前提**:`main@f89fea6`。依据 [层 3.2 勘察底稿](../tool-calling-survey.md) 候选 γ、O-7、O-8,
+  [求职线 3.2 状态更新](../backlog-career-track.md)(裁定为 γ,不引入 tool calling)。
+- 路径前缀 `…/` = `server/src/main/java/com/aiuniverse/server/`。行号以 `f89fea6` 为准,会漂。
+  推断标「**推测**」,没核实的标「**未证实**」。
+
+---
+
+## 置顶:γ 的前提勘察结论 —— 成立,但有两条限定
+
+**没有发现 γ 的价值或可行性前提不成立。** 两条限定写在这里,因为它们决定了后面的选项:
+
+1. **「线上问题复盘」这条用途只有文件落点能兑现。** 线上没有数据库(ADR-025 刀 4 挂账,方案 D),
+   而 ADR-026 已决 G 对 `llm_call` 的裁定理由逐字是「它的价值在线上可观测性,线上没库之前为零」
+   (`ADR-026-turn-acceptance-record.md:190`)。**同一条理由原样适用于「只在 pg 下落库的轨迹」**:
+   它能做回归测试素材(本地 / CI 的 pg),做不了线上复盘。
+2. **回放只在「同一代码版本」下有「应当一致」的含义。** 跨版本重放出现差异是预期行为(那正是回归测试要报的东西),
+   不是轨迹坏了。故每条轨迹必须带代码版本(`build.commit`,`server/pom.xml:122`)。
+
+---
+
+## 背景
+
+一个回合今天留下的持久记录只有覆盖写的存档(`<saveId>.json`,`SessionDocument.encode`,
+`…/persistence/SessionDocument.java:38-48`)与 pg 下的叙事历史 / 受理记录(ADR-025 / ADR-026,线上未启用)。
+**模型这一回合实际交来了什么、被怎样改写后落账,任何地方都没有持久记录**(底稿问题 8)。
+日志里有一部分(usage、durMs、落账后数值、修复「条数」),但日志是瞬时的(工程债挂账「日志是瞬时的」)。
+
+今天唯一「不调模型的回放」是 `EngineGoldenTest`(`server/src/test/java/…/engine/EngineGoldenTest.java:23`):
+喂 bake-off 录制的 `{actionId, parsed}`(`server/src/test/resources/golden/event-loop-golden.json`,
+`paths.*.turns[*]` 的键实测就是这两个)给 `Engine`,断言终态。**γ 就是把这个形态从「三条 bake-off 路径」
+推广到「线上任何一个回合」。**
+
+### 命名(底稿 O-7)
+
+| 词 | 含义 | 宿主 |
+|----|------|------|
+| **回看** | 只读展示已发生的叙事 | ADR-025(`/history`,pg 下) |
+| **回放** | 从记录下的「回合前状态 + 模型产出」**重新执行服务端结算**,不重新生成叙事 | **本 ADR** |
+| **轨迹** | 回放所需的那份记录 | **本 ADR** |
+
+本 ADR 里「回放」只指第二行。不在本 ADR 范围内把两者合并成一个功能。
+
+---
+
+## 一、记什么
+
+### 1.1 回合链路上,哪些东西决定了落账后状态(勘察)
+
+`EventLoopService.execute`(`…/eventloop/EventLoopService.java:160-233`)一个回合的顺序:
+
+1. 局面编排 `scenePlan`(`:173`,纯函数,输入 = 存档里的 `boxScene` + `actionId` + 回合号)、渲染 prompt(`:185-186`)。
+2. 主调用流式 → `SentinelSplitter` 切出叙事与尾巴(`:189-206`);流中断走 `degrade`(`:198-203`)。
+3. 叙事空 / 无哨兵 / 无尾巴 → `degrade`(`:214-218`)。
+4. `TurnReinfuser.reinfuse` + `GameSchemas.validateTurn`(`:236-244`);局面槽位检查(`:222-227`)。
+5. 失败 → `repairOnce`(`:250-273`):修复错误清单在 `:254-261` 算出,**只把条数写进日志**(`:271`);
+   修复产出回灌同一叙事(`:272`)。
+6. 仍失败 → `degrade`(`:231`);成功 → `settle`(`:277-311`)。
+7. `settle`:**`clampClosingVigorFloor` 先就地改写 `parsed`**(`:280`,`:581-617`)→ `engine.apply(parsed, actionId)`(`:281`)
+   → `BoxSceneTurn.commit`(`:285`)→ 选项:局面回合 `sceneActions`(`:299`),否则 `updateActionsFromParsed`
+   (`:301`,内部 `appendLifeExitAction`,`:491-498`、`:515-533`)。
+8. `degrade`:`engine.applyNoOp(已流出叙事 [+ 离开叙事], actionId)`(`:332`)→ `BoxSceneTurn.commit`(`:335`)
+   → `markDegraded`(`:337`)→ 局面回合用模板槽位(`:343-346`)。
+9. 回到 `TurnStateMachine.submitAction`:`store.persist(session)`(`…/eventloop/TurnStateMachine.java:107`)。
+
+**`Engine.apply`(`…/engine/Engine.java:267-339`)对给定的「回合前引擎状态 + `parsed` + `actionId`」是确定的**(推测,依据:
+方法体内无随机数、无时钟读取;轴集合只做 `contains`,`:495`、`:504`;数值遍历用 `LinkedHashMap`,`:75`;
+golden parity 守它与 Python 引擎逐字段一致)。
+
+### 1.2 字段清单(回放必需 / 诊断用 / 可省)
+
+「回放」的两档定义见 §三。下表「必需」指**档 1**(重放落账)所需;标「档 2」的是**档 2**(重放整个 SETTLING 阶段)额外所需。
+
+| 字段 | 分类 | 理由(出处) |
+|------|------|------|
+| `schema`(轨迹格式版本)、`saveId`、`turnBefore`、`recordedAt` | 必需 | 定位与格式演进 |
+| `commit`(代码版本) | 必需 | 回放「应当一致」只在同版本成立(置顶 2);`/actuator/info` 的 `build.commit` 来源 `server/pom.xml:122` |
+| **回合前状态** `pre` = `SessionDocument.encode(session)` 在 `execute` 开头的副本 | 必需 | 含视图 1 全量 + `currentActions` + `boxScene`;`Engine.restore` 往返逐字节(ADR-015 附录 A)。可改为引用,见待决 W-2 |
+| `actionId` | 必需 | `apply` 的第二参数 |
+| `path` = `settled` / `degraded` | 必需 | 两条终止路径落账函数不同(`apply` vs `applyNoOp`) |
+| **`parsed`(改写后、apply 前)** | 必需(settled) | 即 `clampClosingVigorFloor` 之后的节点 —— 档 1 只重放 `apply`,服务端改写的结果已在其中 |
+| `degradeReason` + `streamedNarrative` | 必需(degraded) | `applyNoOp` 的入参就是已流出叙事(`:332`);三种降级原因今天只在 WARN 里(`:200`、`:216`、`:231` 经修复失败) |
+| `rawNarrative` + `rawTail` | 档 2 必需;档 1 可省 | 档 2 要从原始文本重跑回灌与校验;成功回合里叙事已在 `parsed.narrative` 中,尾巴≈`parsed` 去叙事 |
+| `repair` = `{errors[], rawTail}` | 档 2 必需;诊断用 | 修复错误**内容**今天无处可查(日志只有条数,`:271`) |
+| `parsedBeforeRewrite` 或「改写差异」 | 诊断用 | 只在钳制触发时与 `parsed` 不同;钳制本身已进 `issues`(`:612-613`)并随存档落盘 |
+| `promptSha256` | 诊断用 | 同版本下 prompt 可由 `pre` + `actionId` 重新渲染(`TurnPromptBuilder` 给定输入逐字节确定,底稿问题 9),哈希用来核对「重渲染的就是当时那份」 |
+| prompt 全文 | **可省** | 同上,可重渲染;体积最大(见 1.3) |
+| `post` 摘要 = 落账后 `SessionDocument.encode` 去掉 `phaseHint` 的 sha256 + 各轴数值 | 必需 | 回放的比对目标。`phaseHint` 必须排除:它记的是 persist 那一刻的相位,正常回合为 `SETTLING`、主调用流中断降级为 `GENERATING`(相位在 `:207` 才置 `SETTLING`),**与落账无关** |
+| `usage`(含缓存命中)、`model`、`reasoningChars` | 诊断用 | 今天在 usage INFO 里(`:317`) |
+| `durMs` | 诊断用 | 今天在 per-turn INFO / 降级 WARN 里(`:295-297`、`:340-341`) |
+| `leak` 命中 | 诊断用 | 由 `apply` 确定地重算出来,今天在 WARN 里(`:287-289`) |
+
+### 1.3 单回合体积估算(算式)
+
+| 量 | 取值与出处 | 估算 |
+|----|------|------|
+| 开局存档 | 真实线上一档 **5917 B**(`ADR-015-overseas-deployment-form-factor.md:170`) | — |
+| 一条 log 叙事 | 基线语料 16 发 3059 字(`ADR-004-baseline-corpus.md`)→ 191 字/回合 × 3 B(UTF-8)≈ **575 B** | — |
+| `pre` | 5917 + 4 条 log × (575 + ~40 键) + `currentActions` ~500 + `logSummary` ~10 B×T | **≈ 8.9 KB**(T=30);**范围 6–9.5 KB** |
+| `parsed` | 叙事 575 + 选项(61 条 2014 字 / 16 回合 ≈ 126 字 × 3 B ≈ 380)+ JSON 键与 `stateUpdate`/`timeline` ~400 | **≈ 1.4 KB**(golden 里 bake-off 时代一条实测 970 B) |
+| `rawTail` | ≈ `parsed` − 叙事 | ≈ 0.8 KB |
+| `repair` | 错误 ~5 条 × 60 B + 修复尾巴 0.8 KB ≈ 1.1 KB × 触发率 **12.5%**(n=16,ROADMAP v10.5) | 期望 ≈ **0.14 KB** |
+| 元数据 + `post` 摘要 | 各键 + 两个 sha256(64 B)+ 数值 | ≈ **0.4 KB** |
+| prompt 全文 | 回合 SYSTEM 段 4016 B(rules_creepy)– 13233 B(life_sim)(ROADMAP v6.4 / v7.7 dump)+ contextJson ≈ `pre` 的世界部分 6–8 KB;金样本(玩具世界)实测 14679–15089 B(`golden/adr028-legacy-turn-prompts/*`) | **≈ 10–22 KB** |
+
+合计(每回合):
+
+- **档 1 自含**(`pre` 全量 + `parsed` + 元数据):8.9 + 1.4 + 0.4 ≈ **10.7 KB**
+- **档 1 + 档 2**(再加 `rawTail` + 期望 `repair`):10.7 + 0.8 + 0.14 ≈ **11.6 KB**
+- **链式**(`pre` 只在第 1 条存全量,其后只存引用):1.4 + 0.8 + 0.14 + 0.4 ≈ **2.8 KB**
+- 任一形态再存 prompt 全文:**+10–22 KB**
+
+折算到量:一局 50 回合 ≈ 0.58 MB(自含)/ 0.14 MB(链式)/ 1.1–1.7 MB(带 prompt)。
+按 ADR-016 重算注记的月闸上限 ≈ 1.9–2.1 万回合(`ADR-016-cost-gate.md:34-35`):自含 ≈ **230 MB/月**,链式 ≈ 60 MB/月,
+带 prompt ≈ 430–690 MB/月。按今天的实际量(本月 ¥4.05 ÷ ¥0.0083 ≈ 490 回合,ROADMAP v13.2 读数)自含 ≈ **5.6 MB/月**。
+Fly 卷 1 GB(`docs/phase3-fly-deploy-runbook.md:36`)。
+
+### 1.4 world-gen 记不记(问题 2)
+
+- 开局世界 **已在存档里**,但会被后续 `markRuleDiscovered` / `markEndingReached` 原地改写(底稿问题 9 第 1 条)。
+  **自含形态下,第 1 回合的 `pre` 就是开局世界的完整快照** —— 回放不需要另记 world-gen。
+- world-gen 的修复错误**已在日志里**(`…/worldgen/WorldGenService.java:140` 逐条打出 `errors`);场景种子是随机挑的
+  (`…/worldgen/WorldGenPromptBuilder.java:733`、`:742` `ThreadLocalRandom`),没有记录。
+- **world-gen 失败时没有 saveId**(`GameInitService.java:67` 先生成、`:85` 才建会话),失败那一发的轨迹**没有一个可以挂靠的存档**,
+  要记就得另有落点 —— 这一点对 §二 每个落点都成立。见待决 W-4。
+
+---
+
+## 二、存在哪里(底稿 O-8)
+
+### 2.1 写入时机与失败语义(对所有落点相同)
+
+- **采集**:`EventLoopService` 在已经持有这些值的位置往一个本回合收集器里放(`execute` 开头取 `pre`;`settle` 在 `apply` 前取 `parsed`;
+  `repairOnce` 取错误与修复尾巴;`degrade` 取原因与已流出叙事)。流式期间只追加到内存里已有的 `StringBuilder`(`:189`、`:265`),
+  **不做任何 I/O**。
+- **写出**:在 `TurnStateMachine.submitAction` 里、`store.persist(session)` **之后**(`:107` 之后、`:108` 设相位之前),以及
+  「已落地未送达」分支的补写盘之后(`:120`)。此处:流已结束;不持有任何锁(并发控制是相位 CAS,`:95`,不是互斥锁);
+  pg 下 persist 的事务已提交(轨迹若进 pg,用**另一段**短事务,见待决 W-5)。
+- **失败语义**:写轨迹失败**只记一条 WARN**,catch 范围与 `FileSessionStore.persist` 的 best-effort 同口径;**不改相位、不抛、不影响回合结果、
+  不回滚**。轨迹是旁路记录,不是关键路径(同 CONTEXT §三.17 (4) 对 persist 的定性)。
+- **未落地分支**(`:122-128`):回合没有落账,没有 `post`。记不记一条「未落地」轨迹 → 待决 W-6。
+- **时延**:写出发生在 worker 线程上、准入名额之内(ADR-022「名额跟 worker 走」),会让名额多占一次写操作;同 `persist` 的位置,
+  `durMs` 锚点不包含它(那个锚点在 `execute` 内结束)。
+
+### 2.2 三个落点 + 一个参照
+
+| | A · 写进存档本身 | B · 每局一个追加写轨迹文件 | C · 只在 pg profile 下落库 | 参照 · 只打日志 |
+|---|---|---|---|---|
+| **形态** | `SessionDocument` 加一个 `trace` 数组 | `<saveId>.trace.jsonl`,一回合一行 | 新表(`game_turn_trace`)或扩 `turn_request` | 一回合一行 INFO |
+| **单机文件存储下可行性** | 可写,但存档随回合线性增长 | 可行 | **默认 profile 不存在** | 可行 |
+| **Fly 卷 1 GB** | 同 B 的体积,但见下「覆盖写」 | 今天量 ≈ 5.6 MB/月(自含);月闸上限 ≈ 230 MB/月 → 约 4 个月写满,**必须有清理** | 不占卷 | 不占卷 |
+| **整份覆盖写的代价** | **每回合重写整份**:写入量随回合数平方增长(一局 50 回合自含 ≈ Σ 10.7 KB×k ≈ 13.6 MB);且 **`loadAll` 启动时把所有存档读进内存**(`FileSessionStore.java:115-123`),今天 145 档(ROADMAP v12.4)× 0.58 MB ≈ 84 MB,对 512 MB 机器上默认堆约 128 MB(runbook `:345`)是实际风险;`GameSession` 还得在内存里常驻整份轨迹才能重编码 | 追加写,写入量线性;启动不读(`loadAll` 只收 `.json` 结尾,`:123`;`.trace.jsonl` 不匹配) | 与 persist 同库,不覆盖 | 不适用 |
+| **ADR-022「第三个租户」** | 不触发(仍是存档文件) | **触发**:存档、月账之后第三个往 `store-dir` 写文件的模块,`ADR-022-…:670` 逐字解冻条件。放子目录是否算「往这个目录写」→ 待决 W-3 | 不触发 | 不触发 |
+| **与 ADR-025 叙事历史** | 无关;但文件 profile 下存档里会第一次出现全量叙事 | 文件 profile 下轨迹里含全量叙事(`parsed.narrative`)—— 与 ADR-025「文件 profile 下 `/history` 返回 501」并存,**不得被当成回看数据源**(非目标 §四) | `game_event` 已有叙事;轨迹可只存 `parsed` 去叙事 + 引用 `(save_id, turn)`,或冗余存 | 无关 |
+| **与 ADR-026** | 无关 | 无关 | 已决 G 的理由原样适用(置顶 1);形态上可挂在 `turn_request` 行上 | 无关 |
+| **崩溃一致性** | 与快照原子一致(同一次原子写) | 与快照**不原子**:写在 persist 之后,崩溃在两者之间 → 存档有该回合、轨迹没有(少一条,可接受);末行可能半截 → 读取方跳过不能解析的末行。每条自含,丢一条不影响其他条的回放 | 若与 persist 同事务则原子;若另一段事务则同 B(待决 W-5) | 无保证 |
+| **保留期与清理** | 跟存档一起,今天无 TTL(future-experience §2.3) | 须新定:每文件上限 / 总量上限 / 局结束后保留 N 天(待决 W-7)。今天存档本身也无 TTL | SQL 可清理;无卷压力 | 随日志消失(Fly 无 drain) |
+| **兑现「线上复盘」** | 能 | 能 | **不能**(线上无库) | 不能(瞬时) |
+| **兑现「转回归用例」** | 能 | 能(一行即一个用例) | 能(本地 / CI) | 不能 |
+
+### 2.3 一句话结论(问题 3)
+
+- **A · 写进存档**:原子一致是唯一优点,但每回合整份重写与启动全量载入让体积问题落在内存和写放大上,**不可行**(推测,依据上表两条算式)。
+- **B · 每局追加写文件**:**唯一能在线上兑现复盘的落点**,代价是触发 ADR-022 第三个租户解冻、并且必须同时定清理规则。
+- **C · 只在 pg 落库**:实现最干净、一致性最好,但**线上零价值**,与 ADR-026 已决 G 的挂账理由相同;只能服务回归测试。
+
+---
+
+## 三、回放是什么(底稿 O-7)
+
+### 3.1 可测试的定义
+
+**档 1 · 落账回放**:给定一条轨迹 `r`,在 `r.commit` 对应的代码上,
+
+1. `session0 = SessionDocument.decode(r.saveId, r.pre, …)`(经 registry 重派生轴集,与回载同一路径);
+2. `path=settled`:`session0.engine().apply(r.parsed, r.actionId)`,再按局面编排 `BoxSceneTurn.commit`、按 `settle` 同一规则更新选项;
+   `path=degraded`:`applyNoOp(r.streamedNarrative [+ 离开叙事], r.actionId)` + 同 `degrade` 的后续;
+3. 断言 `sha256(encode(session0) − phaseHint) == r.post.sha256`。
+
+**不重新调模型、不重新生成叙事。** 不经过 SSE、准入、配额、游标。
+
+**档 2 · 结算回放**:从 `r.rawNarrative` + `r.rawTail`(及 `r.repair.rawTail`)出发,重跑「切分 → 回灌 → 校验 → 槽位检查 →
+(修复产出回灌)→ `clampClosingVigorFloor` → 落账」,断言得到的 `parsed` 等于 `r.parsed`、终态同档 1。
+档 2 能把**校验失败、修复失败**的真实回合变成用例 —— 这类回合在档 1 里只是一个 `applyNoOp`,没有可测的东西。
+切分的分块无关性由 `TransformParityTest` 守(推测:以整串一次喂入切分器与逐 token 喂入结果相同)。
+
+### 3.2 今天会破坏确定性的因素
+
+| 因素 | 出处 | 档 1 | 档 2 |
+|------|------|------|------|
+| 模型输出(temperature 0.7) | `OpenAiCompatLlmClient.java:38` | 不重新生成,用记录的 `parsed` | 用记录的原始文本 |
+| 随机数 | 回合路径无;仅 world-gen 种子 `WorldGenPromptBuilder.java:733,742` | 无影响(world-gen 不在回放内) | 同左 |
+| 时钟 | `EventLoopService` 注入 `Clock`(`:67`),只用于 `durMs` 与段时限(`:117-121`) | 不进状态;无影响 | 段时限是否触发**不重放**:以记录的 `path`/`degradeReason` 为准 |
+| `clampClosingVigorFloor` 改写 `parsed` | `:280`、`:581-617` | 已含在记录的 `parsed` 里 | 重算;依赖 registry 与 `LifeStageTable`(同版本下确定) |
+| `appendLifeExitAction` 改选项 | `:515-533`,读 `engine.log()`/`logSummary`(`:547-556`) | 只影响 `currentActions`,由回合前状态确定地重算 | 同左 |
+| 纸箱局面编排与结算 | `scenePlan` `:375`、`BoxSceneTurn.plan` `BoxSceneTurn.java:105`、`commit` `:285`/`:335` | 纯函数,输入在 `pre.boxScene` 里;重算 | 同左;另需重跑 `slotErrors`(`:394`) |
+| 泄露检测 | `Engine.apply` 内 `LeakDetector.detect` | 确定;结果只进日志,不比对 | 同左 |
+| `phaseHint` | `SessionDocument.java:42` | 不比对(见 1.2) | 同左 |
+| 代码版本 | — | 同版本应一致;跨版本差异是**报告**而非失败,由回放工具标出 | 同左 |
+| 外部依赖:registry 数据 | `SessionDocument.decode` 重派生轴集 `:66-70` | 属代码版本的一部分 | 同左 |
+
+### 3.3 用途(写死两条)
+
+1. **线上问题复盘**:拿到一个出问题的 `saveId` + 回合号,取那条轨迹,本地档 1 / 档 2 重放,看结算每一步的输入输出。
+2. **真实失败回合转回归用例**:把一条轨迹放进测试资源,作为一条 JUnit 用例的夹具(形态同 `EngineGoldenTest`)。
+
+**不做**通用评测平台、批量统计、模型对比、prompt A/B。
+
+---
+
+## 四、边界
+
+### 4.1 隐私与体积
+
+- **玩家输入是闭集**(ADR-004 §背景订正;守卫 1 精确相等),prompt 与 `pre` 里没有玩家自由文本、没有 IP / deviceId
+  (这两个只在配额键里,`QuotaGate.ClientKey`)、没有 API key。
+- **`pre` 是视图 1 全量,含 `isTrue` / `hiddenLogic`**;prompt 是视图 2,同样含 `hiddenLogic`。轨迹的保密级别**等同存档**:
+  只在服务端,**不得经任何出网路径下发**(CONTEXT §三.9、§三.17 (1);今天任何出网都必须过 `toClientState`,`Engine.java:374`)。
+  文件落点须与存档同样在 web 根之外(ADR-015 启动断言同口径)。
+- **日志里已有的诊断字段**(usage / durMs / 落账数值 / 泄露命中)默认不在轨迹里重复存 —— 但日志是瞬时的,
+  不存就意味着复盘时可能拿不到。见待决 W-8。
+- 体积大头是 `pre`(若存全量)与 prompt 全文(若存);两者都有可省的形态(引用 / 哈希)。
+
+### 4.2 非目标
+
+- **tool calling**(3.2 裁定为 γ;「Agent 工具调用」继续在「不要写」清单,`backlog-engineering-debt.md:867`)。
+- **Agent 编排**、多次模型往返。
+- **指标平台**、仪表盘、批量统计(统计脚本仍按其自身解冻条件冻结)。
+- **前端回放界面**;轨迹不下发前端、不作为 `/history` 的数据源。
+- **重放时重新调用模型**、叙事重生成、模型对比评测。
+- world-gen 失败的轨迹(除非 W-4 选择记)。
+
+---
+
+## 候选方案对比(汇总)
+
+| 维度 | A 存档内 | B 追加文件 | C 仅 pg |
+|---|---|---|---|
+| 线上复盘 | 能 | 能 | 不能 |
+| 回归用例 | 能 | 能 | 能 |
+| 内存 / 启动 | 差(全量载入) | 不受影响 | 不受影响 |
+| 写放大 | 平方 | 线性 | 线性 |
+| 一致性 | 与快照原子 | 可能少末条 / 半行 | 可原子 |
+| 新增运维 | 无 | 清理规则 + 第三租户分家 | 无(线上不跑) |
+| 与既有裁定冲突 | 无 | 触发 ADR-022 解冻条件 | 与 ADR-026 已决 G 同理由 |
+
+---
+
+## 待决(需要校勘或 Felix 裁定;本 ADR 不选)
+
+- **W-1 · 落点**:A / B / C 选哪个,或 B + C 都做(两个 profile 各一个实现)。
+- **W-2 · `pre` 全量还是引用**:自含(≈10.7 KB/回合,每条独立可回放)vs 链式(≈2.8 KB/回合,回放第 N 回合要从第一条起连续重放,
+  任何一条缺失或代码版本变化就断链)。用途 2「一条即一个用例」倾向自含,但这是取舍不是结论。
+- **W-3 · B 的目录**:与存档同目录(`<saveId>.trace.jsonl`)还是子目录;子目录算不算「第三个模块往这个目录写文件」,
+  决定要不要先做 ADR-022 §挂账的分家那一刀(代价 1–3 见 `ADR-022-…:661-668`)。
+- **W-4 · world-gen**:不记 / 只在成功时作为第 0 条记种子与修复错误 / 失败时也记(失败没有 saveId,需要另一个落点)。
+- **W-5 · C 的事务**:轨迹与 persist 同一事务(原子,但轨迹写失败会不会拖累 persist 要单独论证)还是另一段短事务。
+- **W-6 · 未落地回合**:记一条只有 `pre` + 失败原因的轨迹,还是不记。
+- **W-7 · 保留期与清理**:每文件上限 / 总量上限 / 局结束后保留天数;与存档无 TTL(future-experience §2.3)是否同批处理。
+- **W-8 · 已在日志里的诊断字段**:按「日志里已有的不重复存」不存,还是因日志瞬时而存。两条原则在这里冲突。
+- **W-9 · prompt**:只存 sha256(可重渲染)还是存全文(+10–22 KB/回合,但不依赖「同版本可重渲染」这条推测)。
+- **W-10 · 回放入口形态**:只做测试侧工具(读轨迹文件 → 断言),还是另有一个服务端只读入口。后者要新端点,与 echo-stream 那次教训同类风险。
+
+---
+
+## 测试面(实现时加,本 ADR 只列;每条做变异校验,须能单独失败)
+
+1. **轨迹写失败不影响回合**:注入抛异常的轨迹写入器,回合照常落账、相位照常、存档照常写。
+2. **档 1 往返**:正常回合、降级回合(三种原因各一)、纸箱局面回合(含离开回合)、一生制钳制触发回合、结局回合 —— 各录一条轨迹,
+   回放后 `post` 摘要相等。
+3. **`phaseHint` 不进摘要**:主调用流中断降级(`GENERATING`)与正常回合(`SETTLING`)的摘要计算不读它。
+4. **`parsed` 取在改写之后**:钳制触发的回合,记录的 `stateUpdate` 是钳制后的值;变异「在钳制之前取」→ 档 1 回放失败。
+5. **档 2**:校验失败 → 修复成功的真实回合,从原始文本重跑得到相同 `parsed`;修复仍失败的回合重跑得到「降级」。
+6. **跨版本**:改动 `Engine.apply` 的一处行为后,回放工具报告差异而不是静默通过。
+7. **采集不在流式期间做 I/O**:流式回调里不调用写入器(源码级或桩计数)。
+8. **消毒**:轨迹不出现在任何出网响应里(源码级断言:控制器层不引用轨迹类型)。
+9. (若选 B)**`loadAll` 不读轨迹文件**;半截末行不影响前面各行的读取。
+10. (若选 B)**清理规则**按 W-7 的结论各一条。
+
+---
+
+## 实施分刀建议
+
+1. **刀 1 · 采集 + 接缝(不落盘)**:本回合收集器 + `TraceSink` 接口 + `NOOP` 实现(照 `SessionStore` / `TurnLedger` 的接缝形态);
+   写出点放在 `TurnStateMachine` 两处 persist 之后;测试面 1、3、4、7。默认 profile 行为逐字节不变。
+2. **刀 2 · 回放工具(测试侧)**:读一条轨迹 → 档 1 回放 → 比对摘要;用刀 1 在测试里产出的轨迹做往返(测试面 2、6)。
+   这一刀不依赖落点选择。
+3. **刀 3 · 落点实现**:按 W-1 / W-3 / W-7 的结论(B 则可能先做 ADR-022 分家那一刀;C 则 Flyway V3)。
+4. **刀 4 · 档 2**(可选):原始文本与修复记录 + 结算回放(测试面 5)。
+5. **刀 5 · 首个真实用例**:从线上取一条真实轨迹(Felix 亲手取文件),转成回归测试,作为本 ADR 的实际效果读数。
+
+每刀:引擎 / 校验 / golden / prompt lockstep / `schemaVersion`(保 "0.4")零动。
+
+---
+
+## 已知代价
+
+1. **轨迹的保密级别等于存档**,多一份含 `hiddenLogic` 的文件需要同样的边界保护。
+2. **B 让卷第一次有一个随流量线性增长、且无人消费时也一直增长的写入者**;不定清理就是在等卷写满。
+3. **回放只证明「同版本下结算可复现」**,不证明叙事质量、不证明模型行为;它不是评测。
+4. 写出点在名额之内,每回合多一次文件写(量级同 persist)。
+
+## 重新审视的触发条件
+
+- 线上切库(ADR-025 刀 4 解冻)→ C 获得线上价值,重估 W-1;同时 ADR-026 已决 G 解冻。
+- 回合内出现多次模型调用(任何形式的往返)→ 轨迹条目从「回合」细化到「调用」。
+- 卷用量或启动载入时间出现可观察的增长 → 重估保留期。
+
+## 跟其他文档的交叉引用
+
+- [层 3.2 勘察底稿](../tool-calling-survey.md) 候选 γ、O-7、O-8、问题 8 / 9 / 12。
+- ADR-015(持久化边界、restore 往返)/ ADR-016(重算注记)/ ADR-022(§挂账「落盘目录分家」)/ ADR-025(回看)/
+  ADR-026(已决 G)/ ADR-027(已落地必写盘的写出点)/ ADR-028(纸箱局面)。
+- 本 ADR 未改 README / ROADMAP §五 索引:按本刀范围只新增本文件,采纳时一并补。
