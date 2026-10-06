@@ -1,7 +1,7 @@
 # ADR-030 · init 独立准入 + world-gen 流式段时限:开局不占容器线程,world-gen 不再无上限
 
 - **日期**:2026-10-06
-- **状态**:已采纳(2026-10-06);实现未起
+- **状态**:已采纳(2026-10-06);实施刀 1 已合并(`c55bb60`);实施刀 2 已在分支、待校勘 / 未合并
 - **决策者**:Felix
 
 ## 背景
@@ -95,6 +95,13 @@
 - **提议默认 `aiuniverse.init.max-concurrent = 4`**,理由:正常情况一名玩家同一时刻至多 1 个在途 init;
   4 覆盖「一小撮朋友同时开局」;turn 8 + init 4 = 上游同时最多 12 条流。**无实测依据**(并发开局从未观察到),
   env `AIUNIVERSE_INIT_MAX_CONCURRENT` 可覆盖,真被证伪的信号见重新审视条件。
+  ⚠️ **env 名核实(实施刀 2,2026-10-06)**:校勘曾怀疑此名按 relaxed binding 不生效。实测**生效**,本节与
+  实施步骤 3 里的写法**不改**:规范写法是 `AIUNIVERSE_INIT_MAXCONCURRENT`,`AIUNIVERSE_INIT_MAX_CONCURRENT`
+  走 Spring Boot 的 legacy 下划线映射,同样绑定到 `aiuniverse.init.max-concurrent`。依据两条:
+  `Binder` + `SystemEnvironmentPropertySource` 绑真记录(`InitPropertiesEnvBindingTest`,两种写法各一条;
+  写错的名字落回默认 4 作对照);以及真起 Spring 上下文,各设一个 env,启动日志分别读到
+  `[init-admission] 准入容量 N=2` / `N=3`。同一实验下 `AIUNIVERSE_TURN_MAX_CONCURRENT=5` 读到
+  `[turn-admission] N=5`,与 ADR-022 刀 3 线上冒烟的 `inFlight=1/1` 一致。
 
 ### 勘察顺带撞见、影响实现的一处事实
 
