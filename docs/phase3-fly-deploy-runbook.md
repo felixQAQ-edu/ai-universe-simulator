@@ -248,6 +248,8 @@ curl -s https://wanjie-ai.fly.dev/ | grep -o 'assets/index-[^"]*\.js'
 
 > 退路的**已知弱点**(也是升级 SHA 的理由之一):bundle 哈希只覆盖**前端**——纯后端改动不改 dist,哈希一致并不能证明 jar 换了;且它证明不了「换成了**哪个** commit」,只能证明「与本地这次构建相同」。（另:验前端接线证据仍可用,如线上 bundle `grep -c X-Device-Id` 应回 `2` = init + turn 两处。）
 
+**部署记录(2026-10-06 立)**:Felix 部署并核对 `build.commit` 与 preflight 期望值一致后,由 CC 在**下一次 docs 提交**中把部署 SHA 与日期记进 ROADMAP 当周记录,并在相关 ADR / FINDINGS 状态行追加「已部署 `<SHA>`(日期)」—— 部署状态与验证状态分开写。
+
 ### 3.1.6 secret 完整性检查(每次 `fly deploy` 后、功能冒烟前必做)
 
 > **弯路教训立字(2026-07-29,ADR-018 刀 4 真机冒烟)**:临时 app 上冒烟时,`AIUNIVERSE_LLM_ACTIVE` **漏设**、`DEEPSEEK_API_KEY` **值有误** → 线上**静默退回 mock / 调用失败**,表现为「**生成很久然后失败**」。排查方向一开始全指向应用代码(以为是流式或超时),实际是环境配置。
