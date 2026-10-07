@@ -1,7 +1,7 @@
 # ADR-031 · 回合执行轨迹 + 不调模型回放:记下每回合模型交来的东西,离线重放结算
 
 - **日期**:2026-10-06
-- **状态**:**已采纳(2026-10-07)**;实现未起。原「待决」已改为「已决」(Felix 裁定),原文保留在已决之下
+- **状态**:**已采纳(2026-10-07)**;刀 1(采集 + `TraceSink` 接缝,`NOOP`)已实现,待校勘 / 未合并(2026-10-07;见文末「实现进度」)。原「待决」已改为「已决」(Felix 裁定),原文保留在已决之下
 - **决策者**:Felix
 - **前提**:`main@f89fea6`。依据 [层 3.2 勘察底稿](../tool-calling-survey.md) 候选 γ、O-7、O-8,
   [求职线 3.2 状态更新](../backlog-career-track.md)(裁定为 γ,不引入 tool calling)。
@@ -337,6 +337,15 @@ Fly 卷 1 GB(`docs/phase3-fly-deploy-runbook.md:36`)。
 5. **刀 5 · 首个真实用例**:从线上取一条真实轨迹(Felix 亲手 `fly ssh` 取文件),转成回归测试,作为本 ADR 的实际效果读数。
 
 每刀:引擎 / 校验 / golden / prompt lockstep / `schemaVersion`(保 "0.4")零动。
+
+### 实现进度
+
+- **刀 1(2026-10-07,待校勘 / 未合并)**:`TurnTrace` 记录类型 + `TraceSink` 接缝(默认装配 `NOOP`)+ 会话级本回合收集器
+  `TurnTraceCollector`;写出点 = `TurnStateMachine` 两处 persist 之后,未落地分支只丢弃收集器;写出 catch `Throwable` + WARN。
+  测试面 1、3、4、7、8、12 已加,**另提前加了测试面 11**(prompt 重渲染核对,本节原排在刀 2):`promptSha256` 刀 1 就开始记,
+  不在同一刀证实「可重渲染」,这个哈希一落地就是一条没人核对的推测。为此把主调用 prompt 的渲染抽成
+  `EventLoopService.renderTurnPrompt`(`execute` 也只经它渲染)。`post` 按 §1.2 存 sha256 **与**各轴落账值。
+  默认 profile 下 prompt 与存档 encode 字节与 `51980ca` 逐字节一致(临时对拍 8 组 16 份,工具未入库)。
 
 ---
 
