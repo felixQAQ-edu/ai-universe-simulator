@@ -1,7 +1,7 @@
 # ADR-031 · 回合执行轨迹 + 不调模型回放:记下每回合模型交来的东西,离线重放结算
 
 - **日期**:2026-10-06
-- **状态**:**已采纳(2026-10-07)**;刀 1(采集 + `TraceSink` 接缝,`NOOP`)已合并(`main@fb2209d`);刀 2(编解码 + 测试侧档 1 回放)已实现,待校勘 / 未合并,**一生制钳制回合与 §三 档 1 定义冲突、待裁定**(2026-10-07;见文末「实现进度」)。原「待决」已改为「已决」(Felix 裁定),原文保留在已决之下
+- **状态**:**已采纳(2026-10-07)**;刀 1(采集 + `TraceSink` 接缝,`NOOP`)已合并(`main@fb2209d`);刀 2(编解码 + 测试侧档 1 回放)已实现,待校勘 / 未合并;一生制钳制回合与 §三 档 1 的冲突**已裁定 (b) 并补实现**(2026-10-07;见文末「实现进度」)。原「待决」已改为「已决」(Felix 裁定),原文保留在已决之下
 - **决策者**:Felix
 - **前提**:`main@f89fea6`。依据 [层 3.2 勘察底稿](../tool-calling-survey.md) 候选 γ、O-7、O-8,
   [求职线 3.2 状态更新](../backlog-career-track.md)(裁定为 γ,不引入 tool calling)。
@@ -94,6 +94,10 @@ golden parity 守它与 Python 引擎逐字段一致)。
 | `durMs` | 诊断用 | 今天在 per-turn INFO / 降级 WARN 里(`:295-297`、`:340-341`) |
 | `leak` 命中 | 诊断用 | 由 `apply` 确定地重算出来,今天在 WARN 里(`:287-289`) |
 
+> **订正(2026-10-07,刀 2 冲突已裁定 (b);上文原文保留)**:`parsed` 改为取在服务端改写**之前**(校验 / 修复通过之后、
+> `clampClosingVigorFloor` 之前)。改写由共用落账入口 `EventLoopService.landSettled` 在 `apply` 之前做,
+> 线上与回放走同一个入口完成「改写 → `apply` → 局面 → 选项」,钳制写进 `issues` 的那一条因此能在回放中重现。
+
 ### 1.3 单回合体积估算(算式)
 
 | 量 | 取值与出处 | 估算 |
@@ -180,6 +184,9 @@ Fly 卷 1 GB(`docs/phase3-fly-deploy-runbook.md:36`)。
 2. `path=settled`:`session0.engine().apply(r.parsed, r.actionId)`,再按局面编排 `BoxSceneTurn.commit`、按 `settle` 同一规则更新选项;
    `path=degraded`:`applyNoOp(r.streamedNarrative [+ 离开叙事], r.actionId)` + 同 `degrade` 的后续;
 3. 断言 `sha256(encode(session0) − phaseHint) == r.post.sha256`。
+
+> **订正(2026-10-07,刀 2 冲突已裁定 (b);上文原文保留)**:第 2 步 settled 改为经 `landSettled`(先 `clampClosingVigorFloor`
+> 再 `apply`,再局面与选项)——轨迹里的 `r.parsed` 是改写前的节点,改写在回放中重做。degraded 经 `landDegraded`。
 
 **不重新调模型、不重新生成叙事。** 不经过 SSE、准入、配额、游标。
 
@@ -312,6 +319,8 @@ Fly 卷 1 GB(`docs/phase3-fly-deploy-runbook.md:36`)。
    回放后 `post` 摘要相等。
 3. **`phaseHint` 不进摘要**:主调用流中断降级(`GENERATING`)与正常回合(`SETTLING`)的摘要计算不读它。
 4. **`parsed` 取在改写之后**:钳制触发的回合,记录的 `stateUpdate` 是钳制后的值;变异「在钳制之前取」→ 档 1 回放失败。
+   > **订正(2026-10-07,已裁定 (b);上行原文保留)**:改为「轨迹记录的是改写前的 `parsed`;回放经 `landSettled` 重做钳制,
+   > 钳制回合的 `post` 摘要与线上一致(含那条 issue)」;变异「记录点挪回钳制之后」→ 重钳不产生 issue → 摘要不等 → 变红。
 5. **档 2**:校验失败 → 修复成功的真实回合,从原始文本重跑得到相同 `parsed`;修复仍失败的回合重跑得到「降级」。
 6. **跨版本**:改动 `Engine.apply` 的一处行为后,回放工具报告差异而不是静默通过。
 7. **采集不在流式期间做 I/O**:流式回调里不调用写入器(源码级或桩计数)。
@@ -352,8 +361,12 @@ Fly 卷 1 GB(`docs/phase3-fly-deploy-runbook.md:36`)。
   里「拿到 `parsed`(或已流出叙事)之后的落账部分」抽成 `EventLoopService.landSettled` / `landDegraded`(不依赖模型与 sink;
   日志与 `durMs` 终点经钩子留在原位置),`scenePlan` 改包内可见;对拍 11 个场景的存档 encode / prompt / 日志与抽取前逐字节一致。
   测试侧 `TraceReplayer`(`src/test`,不进生产装配):`decode(pre)` → `scenePlan` → 同一份落账方法 → 比 `post` 摘要与各轴;
-  结果一致 / 不一致 / 跨版本(差异照列、不算失败)。测试面 2(除下述一类)、6 已加;测试面 11 刀 1 已加。
-  - ⚠️ **与 §三 档 1 定义冲突,待裁定:一生制钳制触发的回合回放不一致。** `clampClosingVigorFloor` 在 `apply` **之前**
+  结果一致 / 不一致 / 跨版本(差异照列、不算失败)。测试面 2、6 已加(测试面 4 按裁定改写);测试面 11 刀 1 已加。
+  - ✅ **已裁定 (b)(校勘,2026-10-07),补刀已实现**:记录点挪到钳制之前;`clampClosingVigorFloor` 挪进 `landSettled`、
+    `apply` 之前;测试面 4 按上方订正改写;`TraceScenarios.lifetimeClamp` 纳入测试面 2 场景集。生产行为逐字节不变
+    (11 个场景的存档 encode / prompt / sink 事件 / 日志与 `fb2209d` 对拍全等)。**`schema` 不升版(仍 1)**:刀 1 的写出端
+    是 `NOOP`,线上还没有任何一条轨迹落地,不存在按旧语义(改写后的 `parsed`)写出的轨迹需要区分。下列为裁定前的原记录:
+  - ⚠️ **与 §三 档 1 定义冲突,裁定前:一生制钳制触发的回合回放不一致。** `clampClosingVigorFloor` 在 `apply` **之前**
     往引擎 `issues` 记一条「收束下限钳制 5->15」;`pre` 取在它之前,`parsed` 已是钳制后的值 → 回放 `apply(parsed)` 重现不出
     那条 issue(原始值 5 不在轨迹里),快照摘要对不上(实测:`pre.issues=[]`,线上终态多出该条)。§1.2 把
     `parsedBeforeRewrite 或「改写差异」` 列为「诊断用」、注「钳制本身已进 issues」—— 进的是**本回合的 post**,不是 `pre`。
