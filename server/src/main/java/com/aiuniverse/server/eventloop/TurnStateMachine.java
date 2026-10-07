@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import com.aiuniverse.server.persistence.SessionStore;
+import com.aiuniverse.server.persistence.TraceSink;
 import com.aiuniverse.server.persistence.TurnLedger;
 import com.aiuniverse.server.quota.QuotaGate;
 
@@ -47,6 +48,7 @@ public final class TurnStateMachine {
 	private final SessionStore store;
 	private final QuotaGate quota;
 	private final TurnLedger ledger;
+	private final TraceSink traces;
 
 	/** 纯内存形态(测试 / Slice 2 之前行为)。 */
 	public TurnStateMachine(TurnExecutor executor) {
@@ -63,12 +65,19 @@ public final class TurnStateMachine {
 		this(executor, store, quota, TurnLedger.NOOP);
 	}
 
-	@Autowired
+	/** 无回合轨迹(ADR-031 之前行为;既有测试调用点零改)。 */
 	public TurnStateMachine(TurnExecutor executor, SessionStore store, QuotaGate quota, TurnLedger ledger) {
+		this(executor, store, quota, ledger, TraceSink.NOOP);
+	}
+
+	@Autowired
+	public TurnStateMachine(TurnExecutor executor, SessionStore store, QuotaGate quota, TurnLedger ledger,
+			TraceSink traces) {
 		this.executor = executor;
 		this.store = store;
 		this.quota = quota;
 		this.ledger = ledger;
+		this.traces = traces;
 	}
 
 	/** 无客户端标识形态(既有调用点/测试零改):跳过软闸键计数,只受全局闸约束。 */
@@ -99,12 +108,14 @@ public final class TurnStateMachine {
 		// CAS 之后读:忙态守卫保证此刻本线程是这一局唯一写者,两次读之间无人能推进回合
 		// (ADR-027 决策 1;CAS 之前读则另一线程可能在两次读之间推进)。
 		int turnBefore = session.engine().turn();
+		session.takeTurnTrace(); // 清掉任何残留,本回合的收集器只能由本回合的 execute 放入(ADR-031)
 		try {
 			ledger.accept(session, actionId); // ADR-026 决策 1:CAS 之后、调模型之前;best-effort(见 TurnLedger)
 			TurnResult result = executor.execute(session, actionId, sink);
 			// 写盘时机 = 临界区尾部(ADR-015 勘察 2):executor 返回后、相位放回之前——
 			// 忙态守卫保证每 saveId 单写者,零新锁;best-effort 不抛(写失败局面继续活在内存)。
 			store.persist(session);
+			writeTrace(session); // ADR-031:persist 之后、设相位之前;不抛
 			session.phase().set(result.ended() ? TurnPhase.ENDED : TurnPhase.AWAITING_ACTION);
 		} catch (RuntimeException e) {
 			if (session.engine().turn() != turnBefore) {
@@ -118,14 +129,36 @@ public final class TurnStateMachine {
 				log.warn("[turn] save={} 回合已落地(turn {}->{}),送达/收尾失败,补写盘:{}",
 						session.saveId(), turnBefore, session.engine().turn(), e.toString());
 				store.persist(session);
+				writeTrace(session); // 已落地 ⇒ 轨迹照写(它和写盘是同一个事实的两份记录)
 				session.phase().set("ended".equals(session.engine().status())
 						? TurnPhase.ENDED : TurnPhase.AWAITING_ACTION);
 			} else {
 				// 未落地:executor 自身已尽力降级(§6);跑到这里是意料外故障 → 放回 AWAITING 不锁死该存档。
 				ledger.failed(session); // ADR-026 决策 4 / ADR-027 决策 5:只在未落地分支;须在放回相位之前
+				session.takeTurnTrace(); // ADR-031 已决 W-6:未落地回合不记轨迹(只丢弃收集器)
 				session.phase().set(TurnPhase.AWAITING_ACTION);
 				sink.error("internal_error", "回合处理失败,请重试");
 			}
+		}
+	}
+
+	/**
+	 * 写出本回合轨迹(ADR-031 刀 1)。只在回合<b>已落地</b>并 persist 之后调用(两处);未落地回合不调用(已决 W-6)。
+	 *
+	 * <p>⚠️ <b>轨迹写失败绝不拖累回合</b>(ADR-031 §2.1):catch {@code Throwable} 而不是 {@code RuntimeException} ——
+	 * 本方法跑在 try 块里,若让任何东西漏出去,它会落进下面的「已落地」分支再写一次盘、再写一次轨迹,
+	 * 而一个 {@code Error} 则会直接冲出 {@code submitAction}、相位停在 GENERATING/SETTLING = 该存档永久 busy
+	 * (同 ADR-022 刀 2 对 {@code catch (RuntimeException)} 过窄的那次审阅)。只记 WARN,回合、相位、存档照常。
+	 */
+	private void writeTrace(GameSession session) {
+		TurnTraceCollector collector = session.takeTurnTrace();
+		if (collector == null) {
+			return; // 执行器没有采集(测试桩 / 采集失败)
+		}
+		try {
+			traces.record(collector.build(session));
+		} catch (Throwable e) {
+			log.warn("[trace] save={} 回合轨迹写出失败,回合不受影响:{}", session.saveId(), e.toString());
 		}
 	}
 }

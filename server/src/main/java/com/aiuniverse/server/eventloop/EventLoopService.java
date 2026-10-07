@@ -3,6 +3,7 @@ package com.aiuniverse.server.eventloop;
 import java.time.Clock;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -166,26 +167,13 @@ public class EventLoopService implements TurnExecutor {
 		// **worker**,而 ADR-022 立字「名额跟 worker 走、不跟 emitter 走」;用户感知时长包含准入排队,
 		// **那个数拿来定超时会定偏**。本方法已在池线程上(准入名额之内),故起点就在这里。
 		long startedAtMs = clock.millis();
-		Engine engine = session.engine();
-		String actionText = actionTextOf(session, actionId);
+		// ADR-031 刀 1:本回合轨迹收集器。回合前状态取在这里 —— 此刻会话还没有被本回合改动过任何东西。
+		session.setTurnTrace(beginTrace(session, actionId));
 		// ADR-028 刀 2a:局面层编排(纯函数,不改状态;状态只在落地后提交)。旧局 / 不接局面层 → null,
 		// 注入段为空串,prompt 与今天逐字节相同。
 		BoxSceneTurn.Plan scene = scenePlan(session, actionId);
-		// ADR-028 刀 2b:处境片段按【权威处境】选 —— 落地前存档里的那个值。旧局走旧指令 + 旧时钟 + 旧近人说明,逐字节同 583abc9。
-		// ⚠️ §已决 L 第 1 条(订正刀 2b「转移那一回合仍是空旧屋片段」):离开回合(本回合编排 transition)生成的是
-		// 「跨过门槛及刚出门」的结果,改用屋外片段、不再注入旧屋片段。判据取本回合编排;
-		// 会话里的权威处境照旧在落地之后才写为 OUTSIDE(BoxSceneTurn.commit),未落地什么都不写。
-		BoxSceneState st = session.boxScene();
-		boolean legacyScene = st != null && st.isLegacy();
-		String situationFragment = st == null || legacyScene ? ""
-				: BoxSceneTables.situationFragment(scene != null && scene.transition() ? scene.newSituation() : st.situation);
-		// ADR-028 刀 2 补充:结算后、窗口内的段信息由局面层按结果覆盖(时钟表只放纸箱段)。
-		BoxSceneTables.StageText stageOverride = scene == null ? null
-				: BoxSceneTurn.stageOverride(BoxSceneTables.box(archetypeOf(engine)), scene, engine.turn() + 1);
-		// ADR-029:逐字句窗口(取代新局第 (6) 条),按本回合编排确定性判定;旧局 / 局已结束 → 空串。
-		String verbatimWindow = verbatimWindow(engine, st, legacyScene, scene);
-		String prompt = promptBuilder.buildTurnPrompt(engine, actionId, actionText, BoxSceneTurn.promptBlock(scene),
-				situationFragment, legacyScene, stageOverride, verbatimWindow);
+		String prompt = renderPrompt(session, actionId, scene);
+		trace(session, t -> t.prompt(prompt));
 
 		// ── GENERATING:流式 + 哨兵切分(叙事逐字下发,尾巴缓冲)──
 		StringBuilder narrativeBuf = new StringBuilder();
@@ -200,7 +188,7 @@ public class EventLoopService implements TurnExecutor {
 			// 流中断:flush 残留(不会再有哨兵),把已生成的部分叙事当氛围,再保守 no-op。
 			splitter.end();
 			log.warn("[event-loop] save={} 主调用流中断,保守 no-op 降级:{}", session.saveId(), e.getMessage());
-			return degrade(session, actionId, narrativeBuf.toString(), sink, startedAtMs, scene);
+			return degrade(session, actionId, narrativeBuf.toString(), sink, startedAtMs, scene, DEGRADE_STREAM);
 		}
 		splitter.end();
 		logUsage(session, "主调用", usage);
@@ -213,7 +201,7 @@ public class EventLoopService implements TurnExecutor {
 		if (narrative.isBlank() || !splitter.sentinelSeen() || tail.isBlank()) {
 			log.warn("[event-loop] save={} 叙事空或无结构化尾巴(sentinel={}),保守 no-op 降级",
 					session.saveId(), splitter.sentinelSeen());
-			return degrade(session, actionId, narrative, sink, startedAtMs, scene);
+			return degrade(session, actionId, narrative, sink, startedAtMs, scene, DEGRADE_NO_TAIL);
 		}
 
 		// ── SETTLING:回灌 → 校验 → (修复) → apply ──
@@ -227,9 +215,66 @@ public class EventLoopService implements TurnExecutor {
 			parsed = repairOnce(session, narrative, tail, sink, scene);
 		}
 		if (parsed == null) {
-			return degrade(session, actionId, narrative, sink, startedAtMs, scene);
+			return degrade(session, actionId, narrative, sink, startedAtMs, scene, DEGRADE_REPAIR_FAILED);
 		}
 		return settle(session, parsed, actionId, sink, startedAtMs, scene);
+	}
+
+	/**
+	 * 本回合主调用 prompt(纯函数,不改状态)。抽出来是为了 ADR-031 已决 W-9:轨迹只存 prompt 的 sha256,
+	 * 同版本下由轨迹里的 {@code pre} + {@code actionId} 走<b>同一个方法</b>重渲染、核对哈希(测试面 11)。
+	 * {@code execute} 也只经这里渲染,故两者不可能分叉。
+	 */
+	String renderTurnPrompt(GameSession session, String actionId) {
+		return renderPrompt(session, actionId, scenePlan(session, actionId));
+	}
+
+	private String renderPrompt(GameSession session, String actionId, BoxSceneTurn.Plan scene) {
+		Engine engine = session.engine();
+		String actionText = actionTextOf(session, actionId);
+		// ADR-028 刀 2b:处境片段按【权威处境】选 —— 落地前存档里的那个值。旧局走旧指令 + 旧时钟 + 旧近人说明,逐字节同 583abc9。
+		// ⚠️ §已决 L 第 1 条(订正刀 2b「转移那一回合仍是空旧屋片段」):离开回合(本回合编排 transition)生成的是
+		// 「跨过门槛及刚出门」的结果,改用屋外片段、不再注入旧屋片段。判据取本回合编排;
+		// 会话里的权威处境照旧在落地之后才写为 OUTSIDE(BoxSceneTurn.commit),未落地什么都不写。
+		BoxSceneState st = session.boxScene();
+		boolean legacyScene = st != null && st.isLegacy();
+		String situationFragment = st == null || legacyScene ? ""
+				: BoxSceneTables.situationFragment(scene != null && scene.transition() ? scene.newSituation() : st.situation);
+		// ADR-028 刀 2 补充:结算后、窗口内的段信息由局面层按结果覆盖(时钟表只放纸箱段)。
+		BoxSceneTables.StageText stageOverride = scene == null ? null
+				: BoxSceneTurn.stageOverride(BoxSceneTables.box(archetypeOf(engine)), scene, engine.turn() + 1);
+		// ADR-029:逐字句窗口(取代新局第 (6) 条),按本回合编排确定性判定;旧局 / 局已结束 → 空串。
+		String verbatimWindow = verbatimWindow(engine, st, legacyScene, scene);
+		return promptBuilder.buildTurnPrompt(engine, actionId, actionText, BoxSceneTurn.promptBlock(scene),
+				situationFragment, legacyScene, stageOverride, verbatimWindow);
+	}
+
+	// ── 回合执行轨迹(ADR-031 刀 1:只采集,不写)────────────────────────────
+
+	/** 降级原因(ADR-031 §1.2 {@code degradeReason};三种原因今天只在 WARN 里)。 */
+	static final String DEGRADE_STREAM = "stream_interrupted";
+	static final String DEGRADE_NO_TAIL = "no_structured_tail";
+	static final String DEGRADE_REPAIR_FAILED = "repair_failed";
+
+	/**
+	 * 起一个本回合收集器。⚠️ <b>采集失败绝不拖累回合</b>(ADR-031 §2.1 失败语义):取回合前状态若抛,
+	 * 只记一条 WARN、本回合不采集,回合照跑。正常情况下不会发生,故默认日志不变。
+	 */
+	private TurnTraceCollector beginTrace(GameSession session, String actionId) {
+		try {
+			return TurnTraceCollector.begin(session, actionId, mapper);
+		} catch (RuntimeException e) {
+			log.warn("[trace] save={} 回合前状态采集失败,本回合不记轨迹:{}", session.saveId(), e.toString());
+			return null;
+		}
+	}
+
+	/** 往本回合收集器里放东西;本回合没有收集器(采集失败)则什么都不做。 */
+	private static void trace(GameSession session, Consumer<TurnTraceCollector> f) {
+		TurnTraceCollector t = session.turnTrace();
+		if (t != null) {
+			f.accept(t);
+		}
 	}
 
 	/** 回灌 + 校验;通过返回节点,任何失败(解析/校验)返回 null(交修复)。校验<b>必经回灌后节点</b>(§9)。 */
@@ -258,6 +303,8 @@ public class EventLoopService implements TurnExecutor {
 		} catch (LlmException e) {
 			errors = List.of("结构化尾巴非合法 JSON");
 		}
+		List<String> repairErrors = errors;
+		trace(session, t -> t.repairErrors(repairErrors)); // W-8:修复错误「内容」今天只有条数进日志
 		String repairPrompt = promptBuilder.buildRepairPrompt(failedTail, errors);
 
 		StringBuilder repairBuf = new StringBuilder(); // 修复发不下发叙事(叙事已 canonical),只收尾巴
@@ -278,6 +325,8 @@ public class EventLoopService implements TurnExecutor {
 			long startedAtMs, BoxSceneTurn.Plan scene) {
 		Engine engine = session.engine();
 		clampClosingVigorFloor(session, parsed);
+		// ADR-031 §1.2:轨迹里的 parsed 取在服务端改写【之后】、apply 之前(档 1 只重放 apply)。
+		trace(session, t -> t.settled(parsed));
 		List<String> leak = engine.apply(parsed, actionId);
 		// ADR-028 §已决 A 第 7 条:局面 / 处境写入与落地同一时刻 —— 紧跟 apply,排在任何 sink 写之前
 		// (已落地未送达 → ADR-027 补写盘带走的快照里已是新状态;未落地 → 这里根本没跑到,什么都没写)。
@@ -292,8 +341,10 @@ public class EventLoopService implements TurnExecutor {
 		// ⚠️ durMs = 回合总耗时锚点 · 终点其一(层 1 第 4 条)。**两条终止路径都要打**:只打这一处,
 		// 新锚点一出生就带着 per-turn INFO 已有的那个病 —— degrade() 不打它,**降级回合会被漏出分母**,
 		// 而**降级回合恰恰是最可能耗时异常的那一类**(流中断 / 修复仍败),漏掉它等于专门漏掉要找的样本。
+		long endedAtMs = clock.millis(); // 终点只读这一次时钟:日志与轨迹共用(时钟读次数不变)
+		trace(session, t -> t.finished(endedAtMs, endedAtMs - startedAtMs));
 		log.info("[event-loop] save={} T{} durMs={} action={} 落账 attrs={} ending={}",
-				session.saveId(), engine.turn(), clock.millis() - startedAtMs, actionId, engine.attributes(),
+				session.saveId(), engine.turn(), endedAtMs - startedAtMs, actionId, engine.attributes(),
 				parsed.path("ending").isNull() ? "null" : parsed.path("ending").path("id").asString(""));
 		if (scene != null && scene.slots() != null && "ongoing".equals(engine.status())) {
 			session.setCurrentActions(sceneActions(session, parsed, scene.slots()));
@@ -316,13 +367,16 @@ public class EventLoopService implements TurnExecutor {
 		if (usage.usage() != null) {
 			log.info("[event-loop] save={} usage {} {}", session.saveId(), call, usage.logLine());
 		}
+		trace(session, t -> t.usage(call, usage)); // W-8:日志是瞬时的,轨迹里也存一份
 		quota.record(usage.usage());
 	}
 
 	/** 保守 no-op 降级(§6.5/§6.6):turn++、不脏写、复用动作、响亮告警、发 delta 让玩家可继续。 */
 	private TurnResult degrade(GameSession session, String actionId, String narrative, TurnEventSink sink,
-			long startedAtMs, BoxSceneTurn.Plan scene) {
+			long startedAtMs, BoxSceneTurn.Plan scene, String reason) {
 		Engine engine = session.engine();
+		// ADR-031 §三 档 1:轨迹记的是传给 applyNoOp 的已流出叙事,不含离开叙事(那段由编排确定地重算)。
+		trace(session, t -> t.degraded(reason, narrative));
 		// ADR-028 §已决 A 第 7 条 (i):离开那一回合若降级,先补一句叙事(数据表的离开反馈事实)再发 delta;
 		// 这句也进 log,下一回合的模型才知道它已经出门了。它直接显示给玩家、又作为正文回喂,
 		// 故按 §已决 K 转成「你」(数据表原文不变)。
@@ -337,8 +391,10 @@ public class EventLoopService implements TurnExecutor {
 		session.markDegraded(engine.turn()); // ADR-026 决策 2:pg 下受理行据此标 DEGRADED(会话级标记,不进 Engine)
 		// ⚠️ durMs = 回合总耗时锚点 · 终点其二(层 1 第 4 条)。见 settle() 那处注释:这一处才是
 		// 「降级回合不被漏出分母」的落点,**摘掉它这条约束就是一句空话**(由一条独立变异用例钉住)。
+		long endedAtMs = clock.millis(); // 同 settle:终点只读这一次
+		trace(session, t -> t.finished(endedAtMs, endedAtMs - startedAtMs));
 		log.warn("[event-loop] save={} 回合 no-op 降级落地:turn={} durMs={} hp/san 未动,复用上一组动作",
-				session.saveId(), engine.turn(), clock.millis() - startedAtMs);
+				session.saveId(), engine.turn(), endedAtMs - startedAtMs);
 		if (scene != null && scene.degradeSlots() != null) {
 			// 局面回合不复用上一组(那组对应上一阶段的映射,ADR-028 决策 4.3);离开回合用「刚出门」模板。
 			session.setCurrentActions(templateActions(scene.degradeSlots()));

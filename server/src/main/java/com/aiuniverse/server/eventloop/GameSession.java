@@ -49,6 +49,13 @@ public final class GameSession {
 	 */
 	private BoxSceneState boxScene;
 
+	/**
+	 * 本回合轨迹收集器(ADR-031 刀 1)。{@code EventLoopService.execute} 开头放入,{@code TurnStateMachine}
+	 * 在回合结束后取走(落地则写出,未落地则丢弃)。<b>不进 Engine、不进快照、不进任何视图</b>(同 {@link #pendingTurnRecord})。
+	 * 临界区内由 CAS 串行,{@code volatile} 只为跨回合换线程的可见性。
+	 */
+	private volatile TurnTraceCollector turnTrace;
+
 	/** 一条受理行的内存把手:行 id + 它确认落地时快照应到的回合号。 */
 	public record TurnRecord(long id, int targetTurn) {
 	}
@@ -93,6 +100,21 @@ public final class GameSession {
 
 	public int degradedTurn() {
 		return degradedTurn;
+	}
+
+	void setTurnTrace(TurnTraceCollector collector) {
+		this.turnTrace = collector;
+	}
+
+	TurnTraceCollector turnTrace() {
+		return turnTrace;
+	}
+
+	/** 取走并清空(无论写不写出都清空,下一回合不会读到上一回合的残留)。 */
+	TurnTraceCollector takeTurnTrace() {
+		TurnTraceCollector c = turnTrace;
+		turnTrace = null;
+		return c;
 	}
 
 	/** 局面状态;不接局面层的世界为 {@code null}。 */
