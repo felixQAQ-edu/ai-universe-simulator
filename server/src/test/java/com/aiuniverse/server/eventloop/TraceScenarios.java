@@ -31,6 +31,8 @@ final class TraceScenarios {
 	SessionStore store = SessionStore.NOOP;
 	/** 每回合的 sink(默认丢弃);对拍工具可换成记录事件的实现。 */
 	java.util.function.Supplier<TurnEventSink> sinks = TurnTraceTest.Sink::new;
+	/** 轨迹另抄一份到这里(默认不抄);对拍工具用它把真实文件落点接进来,比较「有无文件落点」两种运行。 */
+	com.aiuniverse.server.persistence.TraceSink traceTee = com.aiuniverse.server.persistence.TraceSink.NOOP;
 
 	TraceScenarios(ObjectMapper mapper, ArchetypeRegistry registry) {
 		this.mapper = mapper;
@@ -142,7 +144,10 @@ final class TraceScenarios {
 		}
 		TurnTraceTest.RecordingTraceSink traces = new TurnTraceTest.RecordingTraceSink();
 		TurnStateMachine machine = new TurnStateMachine(new EventLoopService(llm, prompts, mapper),
-				store, QuotaGate.NOOP, TurnLedger.NOOP, traces);
+				store, QuotaGate.NOOP, TurnLedger.NOOP, t -> {
+					traces.record(t);
+					traceTee.record(t);
+				});
 		for (String a : actions) {
 			int before = s.engine().turn();
 			machine.submitAction(s, a, sinks.get());

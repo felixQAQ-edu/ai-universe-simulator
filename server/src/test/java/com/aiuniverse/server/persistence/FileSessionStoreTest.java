@@ -306,6 +306,37 @@ class FileSessionStoreTest {
 		}
 	}
 
+	// ── ADR-031 测试面 9:loadAll 不读轨迹子目录(W-3 前提的守护)────────
+
+	/**
+	 * 轨迹目录默认 = 存档目录下的 {@code traces/}。W-3 认定它「不构成第三个租户」的唯一前提是 {@code loadAll}
+	 * 不递归:子目录里的文件根本不进候选集。这里在 {@code traces/} 里放一份<b>存档形状</b>的 {@code .json}
+	 * (递归就会多载入一档)、一份非存档 {@code .json}(递归就会多跳过一个)与一份 {@code .trace.jsonl},
+	 * 断言载入的档与「跳过 / 拒载」计数和放之前一字不差。变异「{@code Files.list} → {@code Files.walk}」必须使本条变红。
+	 */
+	@Test
+	void loadAllIgnoresTraceSubdirectory() throws Exception {
+		FileSessionStore store = store();
+		store.persist(playingSession("save-1"));
+		Files.writeString(tmp.resolve("quota-2026-07.json"), "{\"month\":\"2026-07\",\"spentCny\":0.01}");
+		captureLogs();
+		List<String> before = store.loadAll().stream().map(GameSession::saveId).toList();
+		String summaryBefore = logsAt(Level.INFO).get(logsAt(Level.INFO).size() - 1);
+
+		Path traces = Files.createDirectories(tmp.resolve("traces"));
+		Files.copy(tmp.resolve("save-1.json"), traces.resolve("save-copy.json"));
+		Files.writeString(traces.resolve("odd.json"), "{\"a\":1}");
+		Files.writeString(traces.resolve("save-1.trace.jsonl"), "{\"schema\":1}\n");
+
+		List<String> after = store.loadAll().stream().map(GameSession::saveId).toList();
+		String summaryAfter = logsAt(Level.INFO).get(logsAt(Level.INFO).size() - 1);
+
+		assertThat(before).containsExactly("save-1");
+		assertThat(after).isEqualTo(before);
+		assertThat(summaryBefore).contains("载入 1 档").contains("跳过 1 个").contains("0 档拒载");
+		assertThat(summaryAfter).isEqualTo(summaryBefore);
+	}
+
 	// ── helpers ────────────────────────────────────────────────────────
 
 	private GameSession playingSession(String saveId) {

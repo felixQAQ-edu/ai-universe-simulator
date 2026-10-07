@@ -75,7 +75,7 @@ public class FileSessionStore implements SessionStore {
 		this.mapper = mapper;
 		this.archetypes = archetypes;
 		this.dir = Path.of(storeDir).toAbsolutePath().normalize();
-		assertOutsideWebRoot(this.dir, classpathWebRoots());
+		assertOutsideWebRoot(this.dir, classpathWebRoots(getClass().getClassLoader()));
 		try {
 			Files.createDirectories(this.dir);
 		} catch (IOException e) {
@@ -200,11 +200,14 @@ public class FileSessionStore implements SessionStore {
 
 	// ── 路径安全断言(附录 A 第 3 条:落盘目录不得位于 static resources 之下)──
 
-	/** classpath 上会被当 web 根伺服的文件系统目录(打包 jar 时为 jar: URL,自然不参与比较)。 */
-	private List<Path> classpathWebRoots() {
+	/**
+	 * classpath 上会被当 web 根伺服的文件系统目录(打包 jar 时为 jar: URL,自然不参与比较)。
+	 * 包内可见:轨迹目录({@link FileTraceSink},ADR-031 W-3)受同一断言约束,共用这一份判定。
+	 */
+	static List<Path> classpathWebRoots(ClassLoader loader) {
 		List<Path> roots = new ArrayList<>();
 		for (String loc : List.of("static", "public")) {
-			URL url = getClass().getClassLoader().getResource(loc);
+			URL url = loader.getResource(loc);
 			if (url != null && "file".equals(url.getProtocol())) {
 				try {
 					roots.add(Path.of(url.toURI()).toAbsolutePath().normalize());
@@ -218,11 +221,17 @@ public class FileSessionStore implements SessionStore {
 
 	/** 纯校验(包私有供测试):dir 位于任一 web 根之下 → 拒绝启动,不降级。 */
 	static void assertOutsideWebRoot(Path dir, List<Path> webRoots) {
+		assertOutsideWebRoot(dir, webRoots, "会话落盘目录",
+				"aiuniverse.session.store-dir(env AIUNIVERSE_SESSION_STORE_DIR)");
+	}
+
+	/** 同上,带调用方自己的目录名与配置项(轨迹目录复用,ADR-031 W-3)。 */
+	static void assertOutsideWebRoot(Path dir, List<Path> webRoots, String what, String configHint) {
 		for (Path root : webRoots) {
 			if (dir.startsWith(root)) {
-				throw new IllegalStateException("会话落盘目录位于 static web 根之下(视图 1 全量含 "
+				throw new IllegalStateException(what + "位于 static web 根之下(视图 1 全量含 "
 						+ "isTrue/hiddenLogic,绝不出网,CONTEXT §三.9):" + dir + " ⊆ " + root
-						+ ";请改配 aiuniverse.session.store-dir(env AIUNIVERSE_SESSION_STORE_DIR)");
+						+ ";请改配 " + configHint);
 			}
 		}
 	}

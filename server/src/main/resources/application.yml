@@ -56,6 +56,17 @@ aiuniverse:
   # 持久卷挂载点(如 /data)。目录必须在 web 根之外(启动断言,违者拒启)。
   session:
     store-dir: ./data
+  # ── 回合执行轨迹(ADR-031 刀 3)──────────────────────────────────────────
+  # 每局一个 <saveId>.trace.jsonl,每个已落地回合追加一行。目录默认 = 存档目录下的 traces/
+  # (线上 AIUNIVERSE_SESSION_STORE_DIR=/data → /data/traces);子目录不进存档回载的扫描面(W-3)。
+  # 同受「web 根之外」启动断言。上限到了只停写 + WARN 一次,不自动删除(W-7);清理见 runbook「回合轨迹」。
+  # env:AIUNIVERSE_TRACE_ENABLED(=false 应急关闭)/ AIUNIVERSE_TRACE_DIR /
+  #      AIUNIVERSE_TRACE_MAX_FILE_BYTES / AIUNIVERSE_TRACE_MAX_TOTAL_BYTES
+  trace:
+    enabled: true
+    dir: ${aiuniverse.session.store-dir}/traces
+    max-file-bytes: 5242880      # 5 MB ≈ 460 回合
+    max-total-bytes: 209715200   # 200 MB
   # ── 回合并发准入(ADR-022):同时在途的回合数上限 ─────────────────────────
   # SSE 回合是阻塞长连接(线上实测 ~15s),假想敌不是高 QPS,是一个 15 秒不还的线程 ——
   # 故闸装在「同时占用」上,不在「每秒请求」上。可 env 覆盖

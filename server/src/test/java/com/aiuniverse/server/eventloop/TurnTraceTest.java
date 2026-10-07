@@ -325,7 +325,7 @@ class TurnTraceTest {
 			TurnTraceCollector openTraceCollector(GameSession session, String actionId) {
 				return new TurnTraceCollector(mapper, session, actionId, mapper.createObjectNode()) {
 					@Override
-					void settled(ObjectNode parsedAfterRewrite) {
+					void settled(ObjectNode parsedBeforeRewrite) {
 						throw new IllegalStateException("采集炸了");
 					}
 				};

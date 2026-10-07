@@ -73,9 +73,9 @@ class TurnTraceCollector {
 	}
 
 	/** settle:在服务端改写({@code clampClosingVigorFloor})<b>之前</b>调用;存副本(ADR-031 §1.2 订正)。 */
-	void settled(ObjectNode parsedAfterRewrite) {
+	void settled(ObjectNode parsedBeforeRewrite) {
 		this.path = TurnTrace.PATH_SETTLED;
-		this.parsed = parsedAfterRewrite.deepCopy();
+		this.parsed = parsedBeforeRewrite.deepCopy();
 	}
 
 	/** degrade:{@code applyNoOp} 之前调用。 */
