@@ -1,7 +1,7 @@
 # ADR-031 · 回合执行轨迹 + 不调模型回放:记下每回合模型交来的东西,离线重放结算
 
 - **日期**:2026-10-06
-- **状态**:**已采纳(2026-10-07)**;刀 1(采集 + `TraceSink` 接缝,`NOOP`)已合并(`main@fb2209d`);刀 2(编解码 + 测试侧档 1 回放)已实现,待校勘 / 未合并;一生制钳制回合与 §三 档 1 的冲突**已裁定 (b) 并补实现**(2026-10-07;见文末「实现进度」)。原「待决」已改为「已决」(Felix 裁定),原文保留在已决之下
+- **状态**:**已采纳(2026-10-07)**;刀 1(采集 + `TraceSink` 接缝,`NOOP`)已合并(`main@fb2209d`);刀 2(编解码 + 测试侧档 1 回放,含钳制冲突 (b))已合并(`main@7d46367`);刀 3(文件落点 + 上限 + runbook)已实现,待校勘 / 未合并、未部署(见文末「实现进度」)。原「待决」已改为「已决」(Felix 裁定),原文保留在已决之下
 - **决策者**:Felix
 - **前提**:`main@f89fea6`。依据 [层 3.2 勘察底稿](../tool-calling-survey.md) 候选 γ、O-7、O-8,
   [求职线 3.2 状态更新](../backlog-career-track.md)(裁定为 γ,不引入 tool calling)。
@@ -374,6 +374,21 @@ Fly 卷 1 GB(`docs/phase3-fly-deploy-runbook.md:36`)。
     (a) 轨迹补记「改写差异」(钳制写入的 issue),落账入口在 `apply` 前补记它 —— 字段从「诊断用」升「必需」,`schema` 是否升版另议;
     (b) 记 `parsedBeforeRewrite`,落账入口改为从改写前重跑钳制 —— 测试面 4 的变异(「在钳制之前取」)将不再使回放失败,需改写该条;
     (c) 摘要不比 `issues` —— 削弱比对,不推荐。
+
+- **刀 3(2026-10-07,待校勘 / 未合并,未部署)**:`FileTraceSink`(替换默认装配的 `NOOP`;两个 profile 一样装,W-1)。
+  - **目录**:`aiuniverse.trace.dir`,默认 `${aiuniverse.session.store-dir}/traces`(`application.yml` 与 `@Value` 缺省一致)——
+    本地(`server/` 下启动)解析为 `server/data/traces`;线上 `fly.toml` 的 `AIUNIVERSE_SESSION_STORE_DIR=/data` → `/data/traces`
+    (以该 env 起一次 Spring 上下文实测)。同受 web 根之外启动断言(与存档共用一份判定,`FileSessionStore.assertOutsideWebRoot`)。
+  - **写法**:每局 `<saveId>.trace.jsonl`,每个已落地回合一行(`TurnTraceCodec` + 换行),每次打开 → 追加 → 关闭;saveId 非 UUID 形拒写
+    (与存档同一条正则)。写失败抛,由 `TurnStateMachine` 吞并 WARN(刀 1 口径)。
+  - **上限(W-7)**:`max-file-bytes` 默认 5 MB、`max-total-bytes` 默认 200 MB;到限停写,单文件按局、总量全局各只 WARN 一次;
+    总量 = 启动时目录下 `*.trace.jsonl`(不递归)之和 + 运行中累加,**手动删文件不回落,需重启**(runbook 写明)。
+    启动打一行 `[trace] 目录 = … enabled=… 单文件上限=… 总量上限=… 当前总量=…`。`aiuniverse.trace.enabled=false` → `NOOP`、不建目录。
+  - **读取(W-10)**:测试侧 `TraceFileReader`,不以换行结尾的末段视为半行跳过,中间行坏照旧抛。
+  - 测试面 9(`loadAll` 不读 `traces/`,变异 `Files.list`→`Files.walk` 单独变红;半截末行)、10(两种上限、各 WARN 一次、回合照常落账与写盘);
+    另有启动现值行、开关、默认目录解析、端到端(文件行数 = 落地回合数、逐行回放一致)。变异 11 条各自变红。
+    默认行为对拍:11 个场景的存档 encode / prompt / sink 事件,`main@7d46367`、本刀 `NOOP`、本刀接文件落点三者逐字节一致;
+    日志只多出启动那一行 `[trace]`。runbook §七「回合轨迹」。
 
 ---
 

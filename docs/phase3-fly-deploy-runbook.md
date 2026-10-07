@@ -350,3 +350,47 @@ fly logs | grep -i usage
 
 ROADMAP Slice 3 收口条 + ADR-015 附录 B 回填 ✅ 已落档;CONTEXT v1.5 回写评估结论
 待回 Project 窗口对齐(本轮不动 CONTEXT)→ ff 合并 + push 等点头。
+
+## 七、回合轨迹(ADR-031 刀 3,2026-10-07 起)
+
+线上每个已落地回合往 `/data/traces/<saveId>.trace.jsonl` 追加一行(每局一个文件)。
+目录 = 存档目录下的 `traces/`(`AIUNIVERSE_SESSION_STORE_DIR=/data` → `/data/traces`),
+可用 `AIUNIVERSE_TRACE_DIR` 单独改。⚠️ **保密级别同存档**:每行含回合前状态全量(含 `isTrue` / `hiddenLogic`),
+取回的文件**不进仓库、不贴进聊天或截图**;本地放在仓库目录之外。
+
+**启动现值**(每次部署后看一眼,与 §3.1.5 / §3.1.6 同批):
+```sh
+fly logs | grep -m1 '\[trace\]'
+# 期望形如:[trace] 目录 = /data/traces enabled=true 单文件上限=5242880 总量上限=209715200 当前总量=<字节>
+```
+
+**看大小**:
+```sh
+fly ssh console -C 'du -sh /data/traces'
+fly ssh console -C 'ls -la /data/traces'
+```
+- 上限:单文件 5 MB(该局停写,WARN 一次)、目录总量 200 MB(全部停写,WARN 一次);**不自动删除**。
+  到限的读数:`fly logs | grep '\[trace\]'` 里出现「将超单文件上限」或「将超上限,此后全部停写」。
+  出现即 ADR-031「重新审视的触发条件」命中(重估上限与清理),不是故障:回合照常。
+
+**取回某一局到本地**(`<saveId>` 从浏览器 localStorage 或 `ls` 结果里抄):
+```sh
+fly ssh sftp get /data/traces/<saveId>.trace.jsonl ~/wanjie-traces/<saveId>.trace.jsonl
+```
+- 本地读取走测试侧工具 `TraceFileReader`(半截末行自动跳过),回放走 `TraceReplayer`(ADR-031 刀 2)。
+
+**手动删除某一局的轨迹**(只删指定的那一个文件):
+```sh
+fly ssh console -C 'rm /data/traces/<saveId>.trace.jsonl'
+```
+- ⚠️ 进程里的「当前总量」是启动时统计 + 运行中累加,**删文件不会让它回落**;若是为了解除总量停写而删,
+  删完要重启一次才重新统计:`fly apps restart wanjie-ai`(重启会断开进行中的 SSE 回合,挑没人玩的时候)。
+- 不写通配删除:要删多个就逐个执行上面这一行。
+
+**临时关闭写入**(应急;不改代码、不重新构建,线上 SHA 不变):
+```sh
+fly secrets set AIUNIVERSE_TRACE_ENABLED=false   # 触发一次机器重启;启动行变为 enabled=false
+# 恢复:
+fly secrets unset AIUNIVERSE_TRACE_ENABLED
+```
+- 关闭期间回合照常,只是不写轨迹;已有文件原样保留。
