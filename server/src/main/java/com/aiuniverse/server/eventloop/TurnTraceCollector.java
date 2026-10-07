@@ -26,7 +26,7 @@ import tools.jackson.databind.node.ObjectNode;
  *
  * <p>临界区内由相位 CAS 串行,单线程读写,无需同步。
  */
-final class TurnTraceCollector {
+class TurnTraceCollector {
 
 	/** 代码版本(ADR-031 置顶 2):{@code build-info} 生成的 {@code build.commit};读不到为 {@code unknown}。 */
 	static final String COMMIT = readCommit();
@@ -46,7 +46,8 @@ final class TurnTraceCollector {
 	private long durMs = -1;
 	private String recordedAt;
 
-	private TurnTraceCollector(ObjectMapper mapper, GameSession session, String actionId, ObjectNode pre) {
+	/** 包内可见只为测试替身(采集点抛异常);生产路径只经 {@link #begin}。 */
+	TurnTraceCollector(ObjectMapper mapper, GameSession session, String actionId, ObjectNode pre) {
 		this.mapper = mapper;
 		this.saveId = session.saveId();
 		this.turnBefore = session.engine().turn();

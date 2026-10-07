@@ -262,18 +262,35 @@ public class EventLoopService implements TurnExecutor {
 	 */
 	private TurnTraceCollector beginTrace(GameSession session, String actionId) {
 		try {
-			return TurnTraceCollector.begin(session, actionId, mapper);
+			return openTraceCollector(session, actionId);
 		} catch (RuntimeException e) {
 			log.warn("[trace] save={} 回合前状态采集失败,本回合不记轨迹:{}", session.saveId(), e.toString());
 			return null;
 		}
 	}
 
-	/** 往本回合收集器里放东西;本回合没有收集器(采集失败)则什么都不做。 */
+	/** 测试接缝:起本回合收集器。生产路径只走 {@link TurnTraceCollector#begin}。 */
+	TurnTraceCollector openTraceCollector(GameSession session, String actionId) {
+		return TurnTraceCollector.begin(session, actionId, mapper);
+	}
+
+	/**
+	 * 往本回合收集器里放东西;本回合没有收集器(采集失败)则什么都不做。
+	 *
+	 * <p>⚠️ <b>采集失败绝不拖累回合</b>(ADR-031 §2.1,与 {@link #beginTrace} 同口径):任一采集点抛
+	 * {@link RuntimeException} 只记一条 WARN,并<b>清掉会话上的收集器</b> —— 本回合不写出半截轨迹
+	 * ({@code settled} 在 {@code engine.apply} 之前,不接住它回合就成了未落地)。不接 {@link Error},走既有路径。
+	 */
 	private static void trace(GameSession session, Consumer<TurnTraceCollector> f) {
 		TurnTraceCollector t = session.turnTrace();
-		if (t != null) {
+		if (t == null) {
+			return;
+		}
+		try {
 			f.accept(t);
+		} catch (RuntimeException e) {
+			session.setTurnTrace(null);
+			log.warn("[trace] save={} 本回合采集失败,放弃本回合轨迹:{}", session.saveId(), e.toString());
 		}
 	}
 

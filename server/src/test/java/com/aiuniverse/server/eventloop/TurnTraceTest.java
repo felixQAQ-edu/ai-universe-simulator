@@ -316,6 +316,53 @@ class TurnTraceTest {
 				.anySatisfy(e -> assertThat(e.getFormattedMessage()).contains("[trace]"));
 	}
 
+	// ── 采集点抛异常也不拖累回合(ADR-031 §2.1 失败语义,刀 1 追补)──────────────
+
+	/** 收集器替身:{@code settled}(在 {@code engine.apply} 之前)抛 RuntimeException。 */
+	private EventLoopService serviceWithThrowingSettled(LlmClient llm) {
+		return new EventLoopService(llm, prompts, mapper) {
+			@Override
+			TurnTraceCollector openTraceCollector(GameSession session, String actionId) {
+				return new TurnTraceCollector(mapper, session, actionId, mapper.createObjectNode()) {
+					@Override
+					void settled(ObjectNode parsedAfterRewrite) {
+						throw new IllegalStateException("采集炸了");
+					}
+				};
+			}
+		};
+	}
+
+	@Test
+	void collectorThrowingInSettledDoesNotAffectTheTurn() {
+		ch.qos.logback.classic.Logger svcLogger =
+				(ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(EventLoopService.class);
+		ListAppender<ILoggingEvent> warn = new ListAppender<>();
+		warn.start();
+		svcLogger.addAppender(warn);
+		try {
+			RecordingTraceSink traces = new RecordingTraceSink();
+			CountingStore store = new CountingStore();
+			Sink sink = new Sink();
+			GameSession s = session("rules_creepy", 0, false);
+			TurnStateMachine m = new TurnStateMachine(serviceWithThrowingSettled(new ScriptedLlm().then(RC_OK)),
+					store, QuotaGate.NOOP, TurnLedger.NOOP, traces);
+
+			assertThatCode(() -> m.submitAction(s, "A", sink)).doesNotThrowAnyException();
+
+			assertThat(s.engine().turn()).as("回合照常落账").isEqualTo(1);
+			assertThat(s.engine().attributes()).containsEntry("hp", 85.0);
+			assertThat(s.phase().get()).as("相位照常放回").isEqualTo(TurnPhase.AWAITING_ACTION);
+			assertThat(store.persisted).as("存档照常写、且只写一次").isEqualTo(1);
+			assertThat(sink.errors).isEmpty();
+			assertThat(traces.traces).as("TraceSink 零调用:本回合不写出半截轨迹").isEmpty();
+			assertThat(warn.list).filteredOn(e -> e.getLevel() == Level.WARN)
+					.anySatisfy(e -> assertThat(e.getFormattedMessage()).contains("[trace]").contains("采集失败"));
+		} finally {
+			svcLogger.detachAppender(warn);
+		}
+	}
+
 	// ── 测试面 3:phaseHint 不进 post 摘要 ──────────────────────────────
 
 	@Test
