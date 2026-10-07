@@ -344,30 +344,21 @@ public class EventLoopService implements TurnExecutor {
 		clampClosingVigorFloor(session, parsed);
 		// ADR-031 §1.2:轨迹里的 parsed 取在服务端改写【之后】、apply 之前(档 1 只重放 apply)。
 		trace(session, t -> t.settled(parsed));
-		List<String> leak = engine.apply(parsed, actionId);
-		// ADR-028 §已决 A 第 7 条:局面 / 处境写入与落地同一时刻 —— 紧跟 apply,排在任何 sink 写之前
-		// (已落地未送达 → ADR-027 补写盘带走的快照里已是新状态;未落地 → 这里根本没跑到,什么都没写)。
-		if (scene != null) {
-			BoxSceneTurn.commit(session.boxScene(), scene, scene.slots());
-		}
-		if (!leak.isEmpty()) {
-			log.warn("[event-loop] save={} T{} 泄露遥测命中(非实时拦截,§1c):{}",
-					session.saveId(), engine.turn(), leak);
-		}
-		// 可观测性(E'' 顺带):正常回合一条 INFO(action + 落账后数值 + 提议 ending),冒烟排查不再解剖 heap。
-		// ⚠️ durMs = 回合总耗时锚点 · 终点其一(层 1 第 4 条)。**两条终止路径都要打**:只打这一处,
-		// 新锚点一出生就带着 per-turn INFO 已有的那个病 —— degrade() 不打它,**降级回合会被漏出分母**,
-		// 而**降级回合恰恰是最可能耗时异常的那一类**(流中断 / 修复仍败),漏掉它等于专门漏掉要找的样本。
-		long endedAtMs = clock.millis(); // 终点只读这一次时钟:日志与轨迹共用(时钟读次数不变)
-		trace(session, t -> t.finished(endedAtMs, endedAtMs - startedAtMs));
-		log.info("[event-loop] save={} T{} durMs={} action={} 落账 attrs={} ending={}",
-				session.saveId(), engine.turn(), endedAtMs - startedAtMs, actionId, engine.attributes(),
-				parsed.path("ending").isNull() ? "null" : parsed.path("ending").path("id").asString(""));
-		if (scene != null && scene.slots() != null && "ongoing".equals(engine.status())) {
-			session.setCurrentActions(sceneActions(session, parsed, scene.slots()));
-		} else {
-			updateActionsFromParsed(session, parsed);
-		}
+		landSettled(session, parsed, actionId, scene, leak -> {
+			if (!leak.isEmpty()) {
+				log.warn("[event-loop] save={} T{} 泄露遥测命中(非实时拦截,§1c):{}",
+						session.saveId(), engine.turn(), leak);
+			}
+			// 可观测性(E'' 顺带):正常回合一条 INFO(action + 落账后数值 + 提议 ending),冒烟排查不再解剖 heap。
+			// ⚠️ durMs = 回合总耗时锚点 · 终点其一(层 1 第 4 条)。**两条终止路径都要打**:只打这一处,
+			// 新锚点一出生就带着 per-turn INFO 已有的那个病 —— degrade() 不打它,**降级回合会被漏出分母**,
+			// 而**降级回合恰恰是最可能耗时异常的那一类**(流中断 / 修复仍败),漏掉它等于专门漏掉要找的样本。
+			long endedAtMs = clock.millis(); // 终点只读这一次时钟:日志与轨迹共用(时钟读次数不变)
+			trace(session, t -> t.finished(endedAtMs, endedAtMs - startedAtMs));
+			log.info("[event-loop] save={} T{} durMs={} action={} 落账 attrs={} ending={}",
+					session.saveId(), engine.turn(), endedAtMs - startedAtMs, actionId, engine.attributes(),
+					parsed.path("ending").isNull() ? "null" : parsed.path("ending").path("id").asString(""));
+		});
 		sink.delta(buildDelta(session));
 		if ("ended".equals(engine.status())) {
 			sink.ending(buildEnding(engine));
@@ -394,6 +385,61 @@ public class EventLoopService implements TurnExecutor {
 		Engine engine = session.engine();
 		// ADR-031 §三 档 1:轨迹记的是传给 applyNoOp 的已流出叙事,不含离开叙事(那段由编排确定地重算)。
 		trace(session, t -> t.degraded(reason, narrative));
+		String leaveNarrative = landDegraded(session, narrative, actionId, scene, () -> {
+			// ⚠️ durMs = 回合总耗时锚点 · 终点其二(层 1 第 4 条)。见 settle() 那处注释:这一处才是
+			// 「降级回合不被漏出分母」的落点,**摘掉它这条约束就是一句空话**(由一条独立变异用例钉住)。
+			long endedAtMs = clock.millis(); // 同 settle:终点只读这一次
+			trace(session, t -> t.finished(endedAtMs, endedAtMs - startedAtMs));
+			log.warn("[event-loop] save={} 回合 no-op 降级落地:turn={} durMs={} hp/san 未动,复用上一组动作",
+					session.saveId(), engine.turn(), endedAtMs - startedAtMs);
+		});
+		if (leaveNarrative != null) {
+			sink.narrative(leaveNarrative);
+		}
+		sink.delta(buildDelta(session)); // 非局面回合:复用 session.currentActions(未更新)
+		return new TurnResult(false);
+	}
+
+	// ── 落账(ADR-031 刀 2:execute 与档 1 回放共用)──────────────────────────
+
+	/**
+	 * settled 回合的<b>落账部分</b>:{@code apply} → 局面提交 → 选项更新。不依赖模型、不碰 sink;
+	 * {@link #settle} 与 ADR-031 档 1 回放(测试侧)走的是<b>同一份</b>代码,回放器不得自己再写一遍。
+	 *
+	 * <p>输入 {@code parsed} = 服务端改写({@code clampClosingVigorFloor})<b>之后</b>的节点 —— 与轨迹里记的是同一个节点。
+	 *
+	 * @param afterLanding 落地之后、选项更新之前的观测钩子(收到泄露命中;settle 在这里打日志、读终点时钟)。
+	 *                     放在这个位置是为了让日志顺序与抽取前逐字相同(选项更新可能打一条补齐槽位的 WARN)。
+	 *                     回放传空钩子。
+	 */
+	void landSettled(GameSession session, ObjectNode parsed, String actionId, BoxSceneTurn.Plan scene,
+			Consumer<List<String>> afterLanding) {
+		Engine engine = session.engine();
+		List<String> leak = engine.apply(parsed, actionId);
+		// ADR-028 §已决 A 第 7 条:局面 / 处境写入与落地同一时刻 —— 紧跟 apply,排在任何 sink 写之前
+		// (已落地未送达 → ADR-027 补写盘带走的快照里已是新状态;未落地 → 这里根本没跑到,什么都没写)。
+		if (scene != null) {
+			BoxSceneTurn.commit(session.boxScene(), scene, scene.slots());
+		}
+		afterLanding.accept(leak);
+		if (scene != null && scene.slots() != null && "ongoing".equals(engine.status())) {
+			session.setCurrentActions(sceneActions(session, parsed, scene.slots()));
+		} else {
+			updateActionsFromParsed(session, parsed);
+		}
+	}
+
+	/**
+	 * degraded 回合的<b>落账部分</b>:离开叙事(由编排确定地算出)→ {@code applyNoOp} → 局面提交 → 降级标记 → 选项。
+	 * 不依赖模型、不碰 sink;与 {@link #landSettled} 同理,{@link #degrade} 与档 1 回放共用。
+	 *
+	 * @param narrative    已流出叙事(= 轨迹的 {@code streamedNarrative},不含离开叙事)
+	 * @param afterLanding 落地之后、选项更新之前的观测钩子(degrade 在这里读终点时钟、打 WARN);回放传空钩子
+	 * @return 离开叙事(离开回合降级时补的那一句,调用方要下发给玩家);非离开回合为 {@code null}
+	 */
+	String landDegraded(GameSession session, String narrative, String actionId, BoxSceneTurn.Plan scene,
+			Runnable afterLanding) {
+		Engine engine = session.engine();
 		// ADR-028 §已决 A 第 7 条 (i):离开那一回合若降级,先补一句叙事(数据表的离开反馈事实)再发 delta;
 		// 这句也进 log,下一回合的模型才知道它已经出门了。它直接显示给玩家、又作为正文回喂,
 		// 故按 §已决 K 转成「你」(数据表原文不变)。
@@ -406,21 +452,12 @@ public class EventLoopService implements TurnExecutor {
 			BoxSceneTurn.commit(session.boxScene(), scene, scene.degradeSlots());
 		}
 		session.markDegraded(engine.turn()); // ADR-026 决策 2:pg 下受理行据此标 DEGRADED(会话级标记,不进 Engine)
-		// ⚠️ durMs = 回合总耗时锚点 · 终点其二(层 1 第 4 条)。见 settle() 那处注释:这一处才是
-		// 「降级回合不被漏出分母」的落点,**摘掉它这条约束就是一句空话**(由一条独立变异用例钉住)。
-		long endedAtMs = clock.millis(); // 同 settle:终点只读这一次
-		trace(session, t -> t.finished(endedAtMs, endedAtMs - startedAtMs));
-		log.warn("[event-loop] save={} 回合 no-op 降级落地:turn={} durMs={} hp/san 未动,复用上一组动作",
-				session.saveId(), engine.turn(), endedAtMs - startedAtMs);
+		afterLanding.run();
 		if (scene != null && scene.degradeSlots() != null) {
 			// 局面回合不复用上一组(那组对应上一阶段的映射,ADR-028 决策 4.3);离开回合用「刚出门」模板。
 			session.setCurrentActions(templateActions(scene.degradeSlots()));
 		}
-		if (leaveNarrative != null) {
-			sink.narrative(leaveNarrative);
-		}
-		sink.delta(buildDelta(session)); // 非局面回合:复用 session.currentActions(未更新)
-		return new TurnResult(false);
+		return leaveNarrative;
 	}
 
 	// ── 局面层(ADR-028 刀 2a)──────────────────────────────────────────────
@@ -444,8 +481,11 @@ public class EventLoopService implements TurnExecutor {
 				beatId, "ended".equals(engine.status())));
 	}
 
-	/** 本回合局面编排;不接局面层 / 旧局 / 无事可做 → null。 */
-	private BoxSceneTurn.Plan scenePlan(GameSession session, String actionId) {
+	/**
+	 * 本回合局面编排;不接局面层 / 旧局 / 无事可做 → null。纯函数(输入 = 回合前存档里的局面键 + 回合号 + 动作),
+	 * 包内可见供 ADR-031 档 1 回放由轨迹的 {@code pre} 重算 —— 与 {@code execute} 是同一个方法。
+	 */
+	BoxSceneTurn.Plan scenePlan(GameSession session, String actionId) {
 		BoxSceneState st = session.boxScene();
 		if (st == null || st.isLegacy()) {
 			return null;
