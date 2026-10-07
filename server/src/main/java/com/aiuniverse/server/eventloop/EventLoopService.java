@@ -341,8 +341,8 @@ public class EventLoopService implements TurnExecutor {
 	private TurnResult settle(GameSession session, ObjectNode parsed, String actionId, TurnEventSink sink,
 			long startedAtMs, BoxSceneTurn.Plan scene) {
 		Engine engine = session.engine();
-		clampClosingVigorFloor(session, parsed);
-		// ADR-031 §1.2:轨迹里的 parsed 取在服务端改写【之后】、apply 之前(档 1 只重放 apply)。
+		// ADR-031 §1.2 订正(2026-10-07,刀 2 已裁定 (b)):轨迹里的 parsed 取在服务端改写【之前】
+		// (校验 / 修复通过之后);钳制在 landSettled 里重做 —— 线上与回放走同一个入口,钳制写的那条 issue 才回放得出来。
 		trace(session, t -> t.settled(parsed));
 		landSettled(session, parsed, actionId, scene, leak -> {
 			if (!leak.isEmpty()) {
@@ -406,7 +406,9 @@ public class EventLoopService implements TurnExecutor {
 	 * settled 回合的<b>落账部分</b>:{@code apply} → 局面提交 → 选项更新。不依赖模型、不碰 sink;
 	 * {@link #settle} 与 ADR-031 档 1 回放(测试侧)走的是<b>同一份</b>代码,回放器不得自己再写一遍。
 	 *
-	 * <p>输入 {@code parsed} = 服务端改写({@code clampClosingVigorFloor})<b>之后</b>的节点 —— 与轨迹里记的是同一个节点。
+	 * <p>输入 {@code parsed} = 校验 / 修复通过之后、服务端改写<b>之前</b>的节点 —— 与轨迹里记的是同一个节点。
+	 * 改写({@code clampClosingVigorFloor},它会往引擎 {@code issues} 记一条)就在这里、{@code apply} 之前做,
+	 * 回放因此能重现那条 issue(ADR-031 刀 2 冲突,已裁定 (b))。
 	 *
 	 * @param afterLanding 落地之后、选项更新之前的观测钩子(收到泄露命中;settle 在这里打日志、读终点时钟)。
 	 *                     放在这个位置是为了让日志顺序与抽取前逐字相同(选项更新可能打一条补齐槽位的 WARN)。
@@ -415,6 +417,7 @@ public class EventLoopService implements TurnExecutor {
 	void landSettled(GameSession session, ObjectNode parsed, String actionId, BoxSceneTurn.Plan scene,
 			Consumer<List<String>> afterLanding) {
 		Engine engine = session.engine();
+		clampClosingVigorFloor(session, parsed);
 		List<String> leak = engine.apply(parsed, actionId);
 		// ADR-028 §已决 A 第 7 条:局面 / 处境写入与落地同一时刻 —— 紧跟 apply,排在任何 sink 写之前
 		// (已落地未送达 → ADR-027 补写盘带走的快照里已是新状态;未落地 → 这里根本没跑到,什么都没写)。

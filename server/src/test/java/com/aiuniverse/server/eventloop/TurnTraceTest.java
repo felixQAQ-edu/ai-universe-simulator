@@ -392,10 +392,15 @@ class TurnTraceTest {
 				.isEqualTo(TurnTrace.postSha256(now, mapper));
 	}
 
-	// ── 测试面 4:parsed 取在钳制之后 ────────────────────────────────────
+	// ── 测试面 4(订正 2026-10-07,ADR-031 刀 2 已裁定 (b)):parsed 取在改写之前,回放重做钳制 ──
 
+	/**
+	 * 轨迹记录的是<b>改写前</b>的 parsed(模型给的气力 5);回放经 {@code landSettled} 重做钳制,
+	 * 钳制回合的 post 摘要与线上一致 —— 含那条「收束下限钳制 5->15」issue。
+	 * 记录点若挪回钳制之后(轨迹里是 15),重钳不产生 issue → 摘要不等 → 本条变红。
+	 */
 	@Test
-	void recordedParsedIsTheClampedOne() {
+	void recordedParsedIsBeforeRewrite_andReplayRedoesTheClampIncludingItsIssue() {
 		int finalFrom = LifeStageTables.of("life_sim").finalStageFromTurn();
 		GameSession s = session("life_sim", finalFrom, false); // 下一回合在末段内
 		ScriptedLlm llm = new ScriptedLlm()
@@ -405,9 +410,13 @@ class TurnTraceTest {
 		machine(llm, new CountingStore(), traces).submitAction(s, "A", new Sink());
 
 		assertThat(s.engine().issues()).as("前提:钳制确实触发了").anyMatch(i -> i.contains("收束下限钳制 5->15"));
-		assertThat(traces.traces.get(0).parsed().path("stateUpdate").path("vigor").asDouble())
-				.as("轨迹里的 stateUpdate 是钳制后的值(档 1 只重放 apply)")
-				.isEqualTo(15.0);
+		TurnTrace t = traces.traces.get(0);
+		assertThat(t.parsed().path("stateUpdate").path("vigor").asDouble())
+				.as("轨迹里的 stateUpdate 是改写前、模型给的值").isEqualTo(5.0);
+		TraceReplayer.Report report = new TraceReplayer(service(new ScriptedLlm()), mapper, registry,
+				TurnTraceCollector.COMMIT).replay(t);
+		assertThat(report.differences()).as("回放重做钳制(含 issue),摘要与线上一致").isEmpty();
+		assertThat(report.outcome()).isEqualTo(TraceReplayer.Outcome.CONSISTENT);
 	}
 
 	// ── 测试面 7:流式期间不做 I/O ───────────────────────────────────────

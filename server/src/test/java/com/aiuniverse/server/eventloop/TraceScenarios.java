@@ -29,6 +29,8 @@ final class TraceScenarios {
 	private final TurnPromptBuilder prompts;
 	/** 落盘替身(默认不落盘);对拍工具可换成记录 encode 字节的实现。 */
 	SessionStore store = SessionStore.NOOP;
+	/** 每回合的 sink(默认丢弃);对拍工具可换成记录事件的实现。 */
+	java.util.function.Supplier<TurnEventSink> sinks = TurnTraceTest.Sink::new;
 
 	TraceScenarios(ObjectMapper mapper, ArchetypeRegistry registry) {
 		this.mapper = mapper;
@@ -56,6 +58,7 @@ final class TraceScenarios {
 		out.put("box_scene_through_leave", boxSceneThroughLeave());
 		out.put("box_scene_leave_degraded", boxSceneLeaveDegraded());
 		out.put("lifetime_exit_action", lifetimeExitAction());
+		out.put("lifetime_clamp", lifetimeClamp());
 		return out;
 	}
 
@@ -123,14 +126,7 @@ final class TraceScenarios {
 				wire("那年夏天很长。", "\"vigor\":60,\"longing\":40,\"crossroads\":30,\"ties\":35", "null", "A", "B"));
 	}
 
-	/**
-	 * 一生制末段钳制触发(模型给气力 5,服务端抬到 15)。
-	 *
-	 * <p>⚠️ <b>刻意不在 {@link #all()} 里</b>:这一类回合今天档 1 回放<b>不一致</b>,与 ADR-031 §三 档 1 定义冲突,
-	 * 待裁定。原因:{@code clampClosingVigorFloor} 在 {@code apply} 之前往引擎 {@code issues} 里记了一条
-	 * 「收束下限钳制 5->15」;{@code pre} 取在它之前、{@code parsed} 已是钳制后的值,故回放既重现不出那条 issue
-	 * (原始值 5 不在轨迹里),快照摘要就对不上。见 ADR-031「实现进度 · 刀 2」。
-	 */
+	/** 一生制末段钳制触发(模型给气力 5,服务端抬到 15 并记一条 issue;回放经落账入口重做钳制)。 */
 	Run lifetimeClamp() {
 		int finalFrom = LifeStageTables.of("life_sim").finalStageFromTurn();
 		return run(session("life_sim", finalFrom, false), List.of("A"),
@@ -149,7 +145,7 @@ final class TraceScenarios {
 				store, QuotaGate.NOOP, TurnLedger.NOOP, traces);
 		for (String a : actions) {
 			int before = s.engine().turn();
-			machine.submitAction(s, a, new TurnTraceTest.Sink());
+			machine.submitAction(s, a, sinks.get());
 			if (s.engine().turn() != before + 1) {
 				throw new IllegalStateException("场景前提不成立:动作 " + a + " 没有落地");
 			}

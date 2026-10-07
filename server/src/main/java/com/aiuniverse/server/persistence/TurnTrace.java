@@ -30,7 +30,8 @@ import tools.jackson.databind.node.ObjectNode;
  * @param actionId          本回合玩家所选动作
  * @param path              {@code settled} / {@code degraded}
  * @param pre               回合前状态 = {@code SessionDocument.encode} 在 {@code execute} 开头的副本(W-2 全量)
- * @param parsed            settled:{@code clampClosingVigorFloor} 改写<b>之后</b>、{@code apply} 之前的节点副本;degraded 为 {@code null}
+ * @param parsed            settled:校验 / 修复通过之后、服务端改写({@code clampClosingVigorFloor})<b>之前</b>的节点副本
+ *                          (改写由共用落账入口在回放中重做;ADR-031 §1.2 订正 2026-10-07);degraded 为 {@code null}
  * @param degradeReason     degraded:{@code stream_interrupted} / {@code no_structured_tail} / {@code repair_failed};settled 为 {@code null}
  * @param streamedNarrative degraded:传给 {@code applyNoOp} 的已流出叙事(不含离开叙事 —— 那段由编排确定地重算,ADR §三 档 1);settled 为 {@code null}
  * @param promptSha256      主调用 prompt 的 sha256(W-9:不存全文,同版本由 {@code pre} + {@code actionId} 重渲染核对)
