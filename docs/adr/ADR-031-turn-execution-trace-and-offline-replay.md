@@ -1,7 +1,7 @@
 # ADR-031 · 回合执行轨迹 + 不调模型回放:记下每回合模型交来的东西,离线重放结算
 
 - **日期**:2026-10-06
-- **状态**:**已采纳(2026-10-07)**;刀 1(采集 + `TraceSink` 接缝,`NOOP`)已实现,待校勘 / 未合并(2026-10-07;见文末「实现进度」)。原「待决」已改为「已决」(Felix 裁定),原文保留在已决之下
+- **状态**:**已采纳(2026-10-07)**;刀 1(采集 + `TraceSink` 接缝,`NOOP`)已合并(`main@fb2209d`);刀 2(编解码 + 测试侧档 1 回放)已实现,待校勘 / 未合并,**一生制钳制回合与 §三 档 1 定义冲突、待裁定**(2026-10-07;见文末「实现进度」)。原「待决」已改为「已决」(Felix 裁定),原文保留在已决之下
 - **决策者**:Felix
 - **前提**:`main@f89fea6`。依据 [层 3.2 勘察底稿](../tool-calling-survey.md) 候选 γ、O-7、O-8,
   [求职线 3.2 状态更新](../backlog-career-track.md)(裁定为 γ,不引入 tool calling)。
@@ -346,6 +346,21 @@ Fly 卷 1 GB(`docs/phase3-fly-deploy-runbook.md:36`)。
   不在同一刀证实「可重渲染」,这个哈希一落地就是一条没人核对的推测。为此把主调用 prompt 的渲染抽成
   `EventLoopService.renderTurnPrompt`(`execute` 也只经它渲染)。`post` 按 §1.2 存 sha256 **与**各轴落账值。
   默认 profile 下 prompt 与存档 encode 字节与 `51980ca` 逐字节一致(临时对拍 8 组 16 份,工具未入库)。
+
+- **刀 2(2026-10-07,待校勘 / 未合并)**:`TurnTraceCodec`(main,刀 3 同用):一条轨迹 ⇄ 一行 JSON,键序固定、
+  可空字段显式写 `null`,解码严格(未知 `schema` / 缺键 / 不认识的键 / 类型不对一律抛)。生产重构:`settle` / `degrade`
+  里「拿到 `parsed`(或已流出叙事)之后的落账部分」抽成 `EventLoopService.landSettled` / `landDegraded`(不依赖模型与 sink;
+  日志与 `durMs` 终点经钩子留在原位置),`scenePlan` 改包内可见;对拍 11 个场景的存档 encode / prompt / 日志与抽取前逐字节一致。
+  测试侧 `TraceReplayer`(`src/test`,不进生产装配):`decode(pre)` → `scenePlan` → 同一份落账方法 → 比 `post` 摘要与各轴;
+  结果一致 / 不一致 / 跨版本(差异照列、不算失败)。测试面 2(除下述一类)、6 已加;测试面 11 刀 1 已加。
+  - ⚠️ **与 §三 档 1 定义冲突,待裁定:一生制钳制触发的回合回放不一致。** `clampClosingVigorFloor` 在 `apply` **之前**
+    往引擎 `issues` 记一条「收束下限钳制 5->15」;`pre` 取在它之前,`parsed` 已是钳制后的值 → 回放 `apply(parsed)` 重现不出
+    那条 issue(原始值 5 不在轨迹里),快照摘要对不上(实测:`pre.issues=[]`,线上终态多出该条)。§1.2 把
+    `parsedBeforeRewrite 或「改写差异」` 列为「诊断用」、注「钳制本身已进 issues」—— 进的是**本回合的 post**,不是 `pre`。
+    该类回合暂不进测试面 2 的场景集(`TraceScenarios.lifetimeClamp` 留着、类注释写明)。可选方向(未选):
+    (a) 轨迹补记「改写差异」(钳制写入的 issue),落账入口在 `apply` 前补记它 —— 字段从「诊断用」升「必需」,`schema` 是否升版另议;
+    (b) 记 `parsedBeforeRewrite`,落账入口改为从改写前重跑钳制 —— 测试面 4 的变异(「在钳制之前取」)将不再使回放失败,需改写该条;
+    (c) 摘要不比 `issues` —— 削弱比对,不推荐。
 
 ---
 
