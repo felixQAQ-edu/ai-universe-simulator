@@ -33,7 +33,9 @@ import tools.jackson.databind.ObjectMapper;
  *       不会让累计值回落,要重启才重新统计(runbook「回合轨迹」一节写明)。</li>
  *   <li><b>失败</b>:写失败抛 {@link UncheckedIOException},由唯一调用方 {@code TurnStateMachine} 吞并 WARN(刀 1 口径),
  *       回合、相位、存档不受影响。被上限挡下不是失败:不抛,只按上面那样 WARN 一次。</li>
- *   <li><b>保密级别同存档</b>({@code pre} 是视图 1 全量):目录与存档目录同受「必须在 web 根之外」的启动断言。</li>
+ *   <li><b>保密级别同存档</b>({@code pre} 是视图 1 全量):目录与存档目录同受「必须在 web 根之外」的启动断言
+ *       (失败抛 {@link IllegalStateException},拒启)。目录不可创建 / 不可统计则抛
+ *       {@link TraceDirUnavailableException},由装配处降级为不写轨迹 —— 两类失败类型不同,见 {@link TraceSinkConfig}。</li>
  * </ul>
  *
  * <p>{@code record} 加锁:总量的「判断 + 累加」必须原子,不同局的 worker 线程会并发写不同文件。锁内只有一次小文件追加,
@@ -73,7 +75,7 @@ public class FileTraceSink implements TraceSink {
 		try {
 			Files.createDirectories(this.dir);
 		} catch (IOException e) {
-			throw new IllegalStateException("回合轨迹目录不可创建:" + this.dir, e);
+			throw new TraceDirUnavailableException("回合轨迹目录不可创建:" + this.dir, e);
 		}
 		this.totalBytes = currentTotal(this.dir);
 		log.info("[trace] 目录 = {} enabled=true 单文件上限={} 总量上限={} 当前总量={}", this.dir,
@@ -127,7 +129,7 @@ public class FileTraceSink implements TraceSink {
 			}
 			return sum;
 		} catch (IOException e) {
-			throw new IllegalStateException("回合轨迹目录不可统计:" + dir, e);
+			throw new TraceDirUnavailableException("回合轨迹目录不可统计:" + dir, e);
 		}
 	}
 

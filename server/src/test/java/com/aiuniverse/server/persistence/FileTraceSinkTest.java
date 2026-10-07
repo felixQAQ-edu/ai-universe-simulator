@@ -196,6 +196,49 @@ class FileTraceSinkTest {
 		assertThat(dir).doesNotExist();
 	}
 
+	// ── 两类启动失败(ADR-031 刀 3 补):目录不可用 → 降级 NOOP;web 根 → 照旧拒启 ──────
+
+	/** 目标路径是一个已存在的普通文件 → 目录不可创建:不抛、装 NOOP、打一条 ERROR。 */
+	@Test
+	void unusableDirDegradesToNoopWithErrorAndDoesNotThrow() throws Exception {
+		Path file = Files.writeString(tmp.resolve("not-a-dir"), "x");
+		assertThatThrownBy(() -> new FileTraceSink(file, 1234, 56789, mapper, List.of()))
+				.isInstanceOf(TraceDirUnavailableException.class);
+
+		TraceSink sink = TraceSinkConfig.fileOrNoop(file, 1234, 56789, mapper, List.of());
+		assertThat(sink).isSameAs(TraceSink.NOOP);
+		sink.record(trace("save-x", 0)); // NOOP:不抛、不写
+		assertThat(Files.readString(file)).isEqualTo("x");
+		assertThat(logsAt(Level.ERROR)).singleElement().asString()
+				.startsWith("[trace] 目录不可用,本次进程不写轨迹:").contains(file.toString());
+	}
+
+	/** 同上,走 Spring 装配:上下文照常起来(服务不下线),bean 是 NOOP。 */
+	@Test
+	void unusableDirKeepsContextUp() throws Exception {
+		Path file = Files.writeString(tmp.resolve("also-not-a-dir"), "x");
+		new ApplicationContextRunner().withUserConfiguration(TraceSinkConfig.class)
+				.withBean(ObjectMapper.class, () -> mapper)
+				.withPropertyValues("aiuniverse.trace.dir=" + file)
+				.run(ctx -> {
+					assertThat(ctx).hasNotFailed();
+					assertThat(ctx.getBean(TraceSink.class)).isSameAs(TraceSink.NOOP);
+				});
+	}
+
+	/** web 根断言经装配处仍然抛出、不降级:保密防线不能被「目录不可用」的降级一并吞掉。 */
+	@Test
+	void traceDirUnderWebRootStillRefusesThroughConfig() {
+		Path root = tmp.resolve("static");
+		Path dir = root.resolve("traces");
+		assertThatThrownBy(() -> TraceSinkConfig.fileOrNoop(dir, 1234, 56789, mapper, List.of(root)))
+				.isInstanceOf(IllegalStateException.class)
+				.isNotInstanceOf(TraceDirUnavailableException.class)
+				.hasMessageContaining("回合轨迹目录");
+		assertThat(dir).doesNotExist();
+		assertThat(logsAt(Level.ERROR)).isEmpty();
+	}
+
 	/** 目录缺省 = 存档目录下的 traces/(线上 AIUNIVERSE_SESSION_STORE_DIR=/data → /data/traces)。 */
 	@Test
 	void defaultDirIsTracesUnderSessionStoreDir() {
