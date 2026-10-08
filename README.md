@@ -24,7 +24,7 @@
 
 ## 世界
 
-> **截至 `4ebb430`。** 本表是快照,**登记处是 `ArchetypeRegistry` 的构造器**
+> **截至 `973054b`。** 本表是快照,**登记处是 `ArchetypeRegistry` 的构造器**
 > (`server/src/main/java/com/aiuniverse/server/archetype/ArchetypeRegistry.java`);
 > 线上当前目录以 `GET /api/archetypes` 与[选择屏](https://wanjie-ai.fly.dev)为准。
 
@@ -67,6 +67,10 @@
   理由与代价写在 [ADR-015 §已知代价 4](docs/adr/ADR-015-overseas-deployment-form-factor.md),
   并已预登记重新审视的触发条件(「真实流量需要多副本」)。
   回合并发另有一道**准入闸**(ADR-022),它换来的是「有限名额」而不是「不会被占满」。
+- **回合轨迹与回放的边界**(ADR-031,已部署 `681721a`,2026-10-08):轨迹只写在**单实例的文件存储**上
+  (每局一个追加写文件,线上 `/data/traces/`),**不自动清理**,只有单文件 / 总量两个上限(到限停写);
+  回放只做到**档 1**(用记下的模型产出重放落账、比对落账后摘要),**档 2 挂账**;
+  真实回归夹具目前**只有 1 份**(6 回合,全为正常落账),**没有降级回合**。
 
 ## 当前进度
 
@@ -83,7 +87,11 @@
 ## 技术栈
 
 - **前端**:React + Vite(移动优先 H5)+ GSAP;**小程序 / Taro 线随路线 B 冻结**,接口纪律仍占住迁移边界(见 ADR-003 / ADR-017)
-- **运行模型**:DeepSeek 为主,provider 可换(OpenAI 兼容配置表抽象)— 见 ADR-001
+- **运行模型**:DeepSeek **V4.1-Flash**(model ID `deepseek-flash`,非思考模式),2026-10-07 起;provider 可换(OpenAI 兼容配置表抽象)— 见 ADR-001。
+  usage 日志每行带响应里的 `model` 与 `reasoningChars`(上游模型被替换时日志里看得见,见 FINDINGS F-036)
+- **开局准入与 world-gen 时限**:开局走独立准入(不占容器线程,满了回 503)+ world-gen 流式段时限 — 见 ADR-030(已部署 `706027d`,2026-10-06)
+- **回合执行轨迹 + 不调模型回放**:线上每个落地回合写一行轨迹(含降级回合);测试侧档 1 回放重放落账并比对;
+  首份真实回归夹具 1 份、6 回合 — 见 ADR-031(已部署 `681721a`,2026-10-08)
 - **后端**:Spring Boot(编译目标 **Java 21**,以 `server/pom.xml` 的 `<java.version>` 与 `Dockerfile` 为准)— 形态见 ADR-002,已由 ADR-015 修订
 - **流式传输**:Spring MVC `SseEmitter` + 可换 WebFlux 的薄接缝(`TokenStream` 解耦核心与传输)— 见 ADR-005
 - **部署**:Fly.io(syd)**同源单容器** + 持久卷续局落盘 — 见 ADR-015

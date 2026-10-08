@@ -189,6 +189,9 @@ CI badge / 演示视频或 GIF。
 - 真实流量很小,不写 P95 与优化百分比,已有 `durMs` 读数只能连同样本量引用;
 - 成本、修复率等指标只有从真实日志算出后才写;
 - 部署状态与验证状态分开写;
+- 回合轨迹 / 回放:只能说「单实例、文件落点、测试侧回放、1 份真实夹具」,不说「可观测平台」「全链路追踪」(ADR-031);
+- 不说「用了 Tool Calling / Agent」;能说「评估后判定本项目不需要 Tool Calling」(见 [`tool-calling-survey.md`](tool-calling-survey.md));
+- 模型迁移:能说「发现上游模型静默替换并补了可观测性」(FINDINGS F-036,usage 日志带 `model` / `reasoningChars`),不说「做了模型评测」;
 - 每条亮点指向代码、测试、ADR、真实日志或演示,并写明 AI 协作中 Felix 的实际职责
   (需求与产品口径、技术取舍、校勘与验收、测试与上线)。
 
@@ -433,6 +436,12 @@ PostgreSQL + 幂等(层 2)
 「**Tool Calling 无新增游戏能力,trace 价值真实但不依赖它**」。校勘裁定 3.2 改为「**回合执行轨迹 + 不调模型回放**」
 (底稿候选 γ),**不引入 tool calling**;「Agent 工具调用」继续留在[「不要写」清单](backlog-engineering-debt.md)。
 下一步是 γ 的 ADR,其核心问题是**轨迹落点**(底稿 O-8)。**Felix 可否决。**
+
+⚠️ **状态更新(2026-10-08;上两段原文保留)**:候选 γ **已完成并上线** —— [ADR-031](adr/ADR-031-turn-execution-trace-and-offline-replay.md),
+已部署 `681721a`(2026-10-08),**不引入 tool calling**。边界照实写:
+- **落点**:单实例、文件存储,每局一个追加写轨迹文件(线上 `/data/traces/`),不自动清理、只有上限 —— `FileTraceSink`,测试 `FileTraceSinkTest` / `FileTraceSinkWiringTest`;
+- **回放**:只到**档 1**(用记下的模型产出重放落账、比对落账后摘要),只在测试侧 —— `TraceReplayer`,测试 `TraceReplayTest`;档 2 挂账(ADR-031 刀 4);
+- **真实夹具**:1 份(`first-real`,6 回合,无降级回合)—— `TraceFixtureReplayTest`。
 
 ---
 
