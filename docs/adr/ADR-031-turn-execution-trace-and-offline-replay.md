@@ -389,6 +389,9 @@ Fly 卷 1 GB(`docs/phase3-fly-deploy-runbook.md:36`)。
     另有启动现值行、开关、默认目录解析、端到端(文件行数 = 落地回合数、逐行回放一致)。变异 11 条各自变红。
     默认行为对拍:11 个场景的存档 encode / prompt / sink 事件,`main@7d46367`、本刀 `NOOP`、本刀接文件落点三者逐字节一致;
     日志只多出启动那一行 `[trace]`。runbook §七「回合轨迹」。
+  - **补(2026-10-08,待校勘 / 未合并)· 目录不可用时降级,不阻止启动**:目录不可创建 / 不可统计 → 抛 `TraceDirUnavailableException`,
+    `TraceSinkConfig` 只接住这一类型,打一条 ERROR `[trace] 目录不可用,本次进程不写轨迹:…` 并装配 `NOOP`,服务照常启动;
+    web 根断言失败仍是 `IllegalStateException`、照旧拒启(两类按异常类型区分,不看消息)。目录不可用时看启动 ERROR 行即可发现。
 
 ---
 
