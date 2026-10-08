@@ -53,7 +53,7 @@ class TraceFixtureConverterTest {
 		for (TurnTrace t : RUNS.get(scenario).traces()) {
 			sb.append(TurnTraceCodec.encode(edit.apply(withSaveId(t, ONLINE_LIKE_ID)), MAPPER)).append('\n');
 		}
-		Path p = tmp.resolve(scenario + ".trace.jsonl");
+		Path p = tmp.resolve(scenario + "-" + ONLINE_LIKE_ID + ".trace.jsonl"); // 线上文件名即 saveId
 		Files.writeString(p, sb.toString(), StandardCharsets.UTF_8);
 		return p;
 	}
@@ -131,6 +131,7 @@ class TraceFixtureConverterTest {
 					.isEqualTo(raw.get(i).post().sha256());
 		}
 		assertThat(r.reportText()).as("报告里原 saveId 残留一行为 0").containsPattern("残留:原 saveId\\s+0\\n");
+		assertThat(r.reportText()).as("报告也不回显原 saveId(线上文件名即 saveId)").doesNotContain(ONLINE_LIKE_ID);
 	}
 
 	// ── 扫描器 ───────────────────────────────────────────────────────────

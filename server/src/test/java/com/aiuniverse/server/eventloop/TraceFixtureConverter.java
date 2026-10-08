@@ -65,8 +65,8 @@ final class TraceFixtureConverter {
 		String fixtureSaveId = TraceFixture.SAVE_ID_PREFIX + name;
 		StringBuilder rep = new StringBuilder();
 		rep.append("# 回归夹具转换报告(ADR-031 刀 5a)\n");
-		rep.append("输入文件: ").append(in.getFileName()).append(read.partialTailSkipped() ? "(末尾半行已跳过)" : "")
-				.append('\n');
+		// 不回显输入文件名:线上取回的文件名就是原 saveId。
+		rep.append("输入文件: (不回显)").append(read.partialTailSkipped() ? "(末尾半行已跳过)" : "").append('\n');
 		rep.append("轨迹行数: ").append(raw.size()).append('\n');
 		rep.append("saveId 替换为: ").append(fixtureSaveId).append('\n');
 		rep.append("保留字段(白名单): ").append(String.join(", ", TraceFixture.KEYS))
