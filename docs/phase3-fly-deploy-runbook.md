@@ -376,9 +376,36 @@ fly ssh console -C 'ls -la /data/traces'
 
 **取回某一局到本地**(`<saveId>` 从浏览器 localStorage 或 `ls` 结果里抄):
 ```sh
+mkdir -p ~/wanjie-traces   # 仓库目录之外
 fly ssh sftp get /data/traces/<saveId>.trace.jsonl ~/wanjie-traces/<saveId>.trace.jsonl
 ```
+- ⚠️ **规则(ADR-031 已决 W-11,2026-10-08)**:取回的**原始**轨迹文件**一律不进仓库、不进聊天、不交给云端会话**;
+  只放在仓库目录之外(上面的 `~/wanjie-traces/`)。要进仓库的只能是下一步转换出来、经人工核对的**回归夹具**。
 - 本地读取走测试侧工具 `TraceFileReader`(半截末行自动跳过),回放走 `TraceReplayer`(ADR-031 刀 2)。
+
+**转换为回归夹具**(ADR-031 刀 5a;Felix 在本机运行,不经云端会话):
+- 前提:这一局是**为夹具专门开的、本人玩的局**。别人的局、或不确定是不是专门开的局,不转换。
+- 从**仓库根目录**运行(第一次会下载 `exec-maven-plugin`;`--in` / `--out` 路径不要含空格):
+```sh
+./server/mvnw -q -f server/pom.xml test-compile org.codehaus.mojo:exec-maven-plugin:3.5.0:java \
+  -Dexec.mainClass=com.aiuniverse.server.eventloop.TraceFixtureTool -Dexec.classpathScope=test \
+  -Dexec.args="--in $HOME/wanjie-traces/<saveId>.trace.jsonl --name <夹具名> --out $HOME/wanjie-traces/<夹具名>.fixture.jsonl"
+```
+  `<夹具名>` 只许小写字母、数字、连字符(如 `box-r1`);夹具里的 saveId 会被换成 `fixture-<夹具名>`。
+- 工具做的事:只保留回放必需字段(白名单);逐行档 1 回放自检(有差异 → 不写夹具);扫描将要写出的全文
+  (sk- / api-key / Authorization / Bearer / IPv4 / IPv6 / 邮箱 / 原 saveId 残留,任一命中 → 不写夹具)。
+  输入或输出在仓库目录之内 → 直接拒绝。无论成败都在 `<out>.report.txt` 写一份报告;拒绝时命令以非零退出。
+- **人工核对报告**(这一步工具替代不了):
+  1. 「保留字段」一行与 ADR-031 刀 5a 勘察的字段清单一致;
+  2. 「逐行」里每一行的 `actionId` 都是你本人在那一局里选的;
+  3. 「敏感形态扫描」全部为 0,「原 saveId 残留」为 0;
+  4. 结论是「已写出夹具」。
+  任一项不确定 → **不提交**。确认后手动拷入并提交(只拷 `.jsonl`,不拷报告):
+```sh
+cp ~/wanjie-traces/<夹具名>.fixture.jsonl server/src/test/resources/trace-fixtures/
+```
+- 自检失败且原因是「跨版本差异」(线上那一局的代码与当前 `main` 落账行为不同):这份夹具放进来在 `main` 上也会红,**不要提交**,
+  把报告里的差异行(不含原 saveId)发给校勘再定。
 
 **手动删除某一局的轨迹**(只删指定的那一个文件):
 ```sh

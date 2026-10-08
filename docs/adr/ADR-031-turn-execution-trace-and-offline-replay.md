@@ -1,7 +1,7 @@
 # ADR-031 · 回合执行轨迹 + 不调模型回放:记下每回合模型交来的东西,离线重放结算
 
 - **日期**:2026-10-06
-- **状态**:**已采纳(2026-10-07)**;刀 1(采集 + `TraceSink` 接缝,`NOOP`)已合并(`main@fb2209d`);刀 2(编解码 + 测试侧档 1 回放,含钳制冲突 (b))已合并(`main@7d46367`);刀 3(文件落点 + 上限 + runbook)已实现,待校勘 / 未合并、未部署(见文末「实现进度」)。原「待决」已改为「已决」(Felix 裁定),原文保留在已决之下
+- **状态**:**已采纳(2026-10-07)**;刀 1(采集 + `TraceSink` 接缝,`NOOP`)已合并(`main@fb2209d`);刀 2(编解码 + 测试侧档 1 回放,含钳制冲突 (b))已合并(`main@7d46367`);刀 3(文件落点 + 上限 + runbook,含目录不可用降级)已合并(`main@681721a`;部署状态本条未核);刀 5a(回归夹具转换工具 + 夹具回放测试,不含任何真实轨迹)已实现,待校勘 / 未合并、未部署;刀 5b(首个真实夹具)未起(见文末「实现进度」)。原「待决」已改为「已决」(Felix 裁定),原文保留在已决之下
 - **决策者**:Felix
 - **前提**:`main@f89fea6`。依据 [层 3.2 勘察底稿](../tool-calling-survey.md) 候选 γ、O-7、O-8,
   [求职线 3.2 状态更新](../backlog-career-track.md)(裁定为 γ,不引入 tool calling)。
@@ -293,6 +293,12 @@ Fly 卷 1 GB(`docs/phase3-fly-deploy-runbook.md:36`)。
 - **W-6 · 未落地回合不记**(`TurnStateMachine` 未落地分支);**降级回合照记**(它已落地,`applyNoOp`)。
 - **W-5 · 不适用**(不做 C)。
 - **W-10 · 只做测试侧回放工具,不加服务端端点。** 线上取轨迹走 `fly ssh`,实施时写进 runbook。
+- **W-11 · 原始轨迹与回归夹具(2026-10-08,Felix 裁定)。**
+  - **线上取回的原始轨迹文件:一律不进仓库、不进聊天、不交给云端会话。**
+  - **由原始文件转换出的回归夹具:只来自 Felix 为夹具专门开的、本人玩的局;只保留回放必需字段;替换能关联线上存档的标识;
+    确认无密钥 / 请求头 / IP / 非本人输入;字段清单与扫描报告经人工核对后才提交。若转换后无法明确划出安全字段,则不公开提交。**
+  - 机器能保证的那一半由 `TraceFixtureTool` 承担(白名单 / saveId 替换 / 逐行档 1 自检 / 敏感形态扫描 / 输入输出须在仓库之外);
+    「是不是本人专门开的局」「actionId 是不是本人选的」只能由人核对,工具只把核对所需的清单列进报告。字段清单与勘察见下「刀 5a 勘察」。
 
 ### 原待决(2026-10-06,保留)
 
@@ -344,6 +350,8 @@ Fly 卷 1 GB(`docs/phase3-fly-deploy-runbook.md:36`)。
 4. ~~**刀 4 · 档 2**~~ **挂账**。解冻条件:**线上出现第一条真实的校验失败或修复失败回合**(那时才有值得重跑的原始文本)。
    届时补记 `rawNarrative` / `rawTail` / 修复尾巴,测试面 5。
 5. **刀 5 · 首个真实用例**:从线上取一条真实轨迹(Felix 亲手 `fly ssh` 取文件),转成回归测试,作为本 ADR 的实际效果读数。
+   > **订正(2026-10-08,上句原文保留)**:按 W-11 拆为两刀 —— **5a** 转换工具 + 夹具回放测试(本仓库内,不接触任何真实轨迹);
+   > **5b** Felix 在本机对专门开的局运行工具、人工核对报告后提交第一份夹具。原始文件不经云端会话。
 
 每刀:引擎 / 校验 / golden / prompt lockstep / `schemaVersion`(保 "0.4")零动。
 
@@ -392,6 +400,34 @@ Fly 卷 1 GB(`docs/phase3-fly-deploy-runbook.md:36`)。
   - **补(2026-10-08,待校勘 / 未合并)· 目录不可用时降级,不阻止启动**:目录不可创建 / 不可统计 → 抛 `TraceDirUnavailableException`,
     `TraceSinkConfig` 只接住这一类型,打一条 ERROR `[trace] 目录不可用,本次进程不写轨迹:…` 并装配 `NOOP`,服务照常启动;
     web 根断言失败仍是 `IllegalStateException`、照旧拒启(两类按异常类型区分,不看消息)。目录不可用时看启动 ERROR 行即可发现。
+
+- **刀 5a(2026-10-08,待校勘 / 未合并,未部署)· 回归夹具转换工具 + 夹具回放测试(W-11;不含任何真实轨迹)**。勘察结论:
+  - **档 1 回放读取的字段**(以 `TraceReplayer.replay` 为准):`saveId`(只传给 `SessionDocument.decode`)、`commit`(只用于判一致 / 跨版本)、
+    `actionId`、`path`、`pre`、`parsed`(settled)、`streamedNarrative`(degraded)、`post.sha256`、`post.attributes`。
+    不读:`schema`(由编解码校验)/ `turnBefore` / `recordedAt` / `degradeReason` / `promptSha256` / `usage`(含 `model` / `reasoningChars`)/ `durMs` / `repairErrors`。
+  - **saveId 不进比对**:`SessionDocument.encode` = `toPersistedState()` + `currentActions` + `phaseHint` + `boxScene`,不含 saveId,
+    故 `pre` 与 `post` 摘要的计算输入里都没有它;`decode` 把它交给 `GameSession` 与 `BoxSceneState.restoreFor`,后者只用于一条 WARN;
+    main 代码里 eventloop / engine 对 `session.saveId()` 的其余使用全是日志。⇒ **替换 saveId 不破坏比对**,夹具里的 `post` 是线上记录的原值、
+    不重算(测试 `originalSaveIdDoesNotRemainAndReplayStillMatchesRecordedPost` 钉住)。
+  - **其余线上标识**:`recordedAt`(可与 `fly logs` 对时)、`usage` / `model` / `reasoningChars` / `durMs`、`promptSha256`、`repairErrors`
+    (含模型原文片段)—— 均非回放所需,**丢弃**;`commit` 是公开仓库的 SHA,保留(来源与分类)。轨迹类型本身没有 IP / 请求头 / deviceId 字段;
+    玩家输入只有 `actionId`(服务端闭集,ADR-004 §背景)。⚠️ 已知且接受:`pre` 里的世界文本与线上 `/data/<saveId>.json` 相同,
+    能读到线上卷的人仍可凭内容对上那一局 —— 那个人只有 Felix。
+  - **替换方案**:saveId → `fixture-<name>`,`name` 由运行工具的人给(`[a-z0-9-]`),**不由原 saveId 派生**(派生值可被拿来反查确认)。
+  - **「一致」的判定(本刀定义,⚠️ 待 Felix 确认)**:夹具回放按**差异清单为空**判,不按 `Outcome`。夹具记的是线上那次的 `commit`,
+    CI 与本地构建的 commit 不同(本地多为 `unknown`),回放器必然判「跨版本」;而 §置顶 2「跨版本差异不算失败」对**回归夹具**正好反了 ——
+    夹具存在的意义就是新代码在旧回合上回放出差异时变红。有意的落账行为变更导致夹具变红 → 重新生成或撤下该夹具,不放宽测试。
+    `TraceReplayer` 本身的三态语义不改。
+  - **实现(全部在 `src/test`,不进生产装配)**:`TraceFixture`(白名单格式,严格解码)/ `FixtureScanner`(sk- / api-key 字段名 /
+    Authorization / Bearer / IPv4 / IPv6 / 邮箱 / 原 saveId 残留;扫将要写出的全文,任一命中即拒绝)/ `TraceFixtureConverter`
+    (输入与输出须在仓库之外;逐行档 1 自检,任一行差异不空即拒绝;拒绝时删掉同名旧输出,报告照写)/ `TraceFixtureTool`(命令行入口,
+    `exec:java`,命令见 runbook §七)/ `TraceFixtureReplayTest`(扫 `src/test/resources/trace-fixtures/*.jsonl`;目录随 README 入库、
+    不存在即失败;为空则通过并打一行提示)。
+  - **测试**:`TraceFixtureConverterTest` 26 条(端到端演示 7 个场景:原始 → 转换 → 报告 → 夹具回放无差异;白名单键序独立写死;
+    非白名单字段里的密钥 / IP 被丢弃而非拷贝;原 saveId 不残留且 post 为记录值;扫描器植入样本报警 / 普通内容不报;
+    白名单字段内的命中、回放不一致、多个 saveId、输入或输出在仓库内 → 拒绝)。报告不回显输入文件名(线上文件名即原 saveId)。变异 9 条各自变红:报告回显输入文件名 / 非白名单字段加进编码 /
+    白名单常量与编码一并扩 / 不替换 saveId / 去掉 sk- 形态 / 跳过自检 / 去掉仓库路径闸门 / 落账行为改动(本地放一份演示夹具、
+    `Engine` clamp 减 1 → `TraceFixtureReplayTest` 红;演示夹具未入库)/ 夹具目录缺失。
 
 ---
 
