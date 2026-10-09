@@ -56,9 +56,9 @@ final class TraceFixtureConverter {
 		if (!NAME.matcher(name).matches()) {
 			throw new IllegalArgumentException("name 只许 [a-z0-9-],且以字母或数字开头(收到:" + name + ")");
 		}
-		insideRepo(in, "输入");
-		insideRepo(out, "输出");
-		insideRepo(report, "报告");
+		requireOutsideRepo(repoRoot, in, "输入");
+		requireOutsideRepo(repoRoot, out, "输出");
+		requireOutsideRepo(repoRoot, report, "报告");
 
 		TraceFileReader.Result read = TraceFileReader.read(in, mapper);
 		List<TurnTrace> raw = read.traces();
@@ -138,7 +138,8 @@ final class TraceFixtureConverter {
 		return o == TraceReplayer.Outcome.CONSISTENT ? "同版本" : "跨版本、无差异";
 	}
 
-	private void insideRepo(Path p, String what) throws IOException {
+	/** 路径落在 {@code repoRoot} 之下 → 抛。{@code repoRoot == null} 不检查。核读工具({@link TraceRecheck})共用这一道闸门。 */
+	static void requireOutsideRepo(Path repoRoot, Path p, String what) throws IOException {
 		if (repoRoot == null) {
 			return;
 		}
@@ -150,7 +151,7 @@ final class TraceFixtureConverter {
 		Path real = existing == null ? abs : existing.toRealPath().resolve(existing.relativize(abs));
 		if (real.startsWith(repoRoot.toRealPath())) {
 			throw new IllegalArgumentException(what + "路径在仓库目录之内(" + p
-					+ "):原始轨迹与未经核对的夹具一律放在仓库之外,核对后再手动拷入");
+					+ "):原始轨迹、未经核对的夹具与核读报告一律放在仓库之外");
 		}
 	}
 
