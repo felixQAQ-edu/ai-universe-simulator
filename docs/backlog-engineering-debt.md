@@ -297,6 +297,9 @@ ADR-004 走的是**反过来的方向**:
    「CAS 失败 = 该回合正被处理**或整局已结束**」,而它发出去的文案照旧是
    「上一回合仍在结算,请稍候」。⚠️ **与 turn 无关**(那次点击压根不落后,比较会放行),
    **故不进本刀**,单独记在这里,免得日后被当成 ADR-023 漏掉的一块。
+   ✅ **已关闭(2026-10-09,A 批小债,分支 `claude/intelligent-ptolemy-4pslne`,未部署)**:controller 游标比对把「局已结束」并入 stale 条件
+   (仍 ∧ 不在途),复用 `turn_stale` —— 前端既有处理是不提示、只拉 `/state`,那里有 `status: ended` 与结局;
+   **零新文案**。上文原文保留。
 
 ## 第 2 层 · 工程卫生 —— ✅ 三条已全部落地(2026-08-06,`chore/ci-and-buildinfo`)
 
@@ -691,6 +694,9 @@ PostgreSQL / MySQL 迁移待评估的形态清单(**只是清单,不是方案,�
 **处置**:只记账,不修(ADR-025 刀 2 勘察时发现,范围外)。修法是一行(改走 `jsonError` 只带 code),
 但要同时核对前端 `resumeGame` 的兜底文案是否存在 —— 那一半属前端。解冻条件:下次碰 `/state` 或续局失败的呈现时顺手做。
 
+✅ **已关闭(2026-10-09,A 批小债,分支 `claude/intelligent-ptolemy-4pslne`,未部署)**:改走 `jsonError` 只带 code(并补上显式 JSON)。
+前端核对结论:`resumeGame` 的 catch 不读 err、一律静默清指针回起局,**没有任何文案依赖这条 message**,故无可见变化。上文原文保留。
+
 ## 挂账 · `LifeStageTables` 注释把一句话的出处写错了(记于 2026-09-30)
 
 **事实**:`LifeStageTables.java:34-35` 注释说「不写死回合数上限,硬上限是引擎层决策不混入」是
@@ -702,6 +708,9 @@ PostgreSQL / MySQL 迁移待评估的形态清单(**只是清单,不是方案,�
 
 **处置**:只记账,不改代码(层 3.1 勘察时发现,那一刀是纯 docs)。改法是一行注释。
 **解冻条件**:下次碰 `LifeStageTables.java` 时顺手改。
+
+✅ **已关闭(2026-10-09,A 批小债,分支 `claude/intelligent-ptolemy-4pslne`,未部署)**:注释改为指向 `FUSION_TURN_DIRECTIVE` 的 javadoc 与 `prompts/event-loop.md`,
+并写明「不在运行时 prompt 串里」。上文原文保留。
 
 ## 挂账 · 不存在的 `triggeredRuleIds` / `discoveredRuleIds` 被静默接受或忽略(记于 2026-10-06,低优先级)
 
@@ -726,6 +735,9 @@ PostgreSQL / MySQL 迁移待评估的形态清单(**只是清单,不是方案,�
 **处置**:只记不修。
 **解冻条件**:下次因别的事动 `OpenAiStreamDecoder.java` 时一并处理。
 
+✅ **已关闭(2026-10-09,`e1f36fe`)**:明细是 Jackson 3 的 `JsonNode.isTextual()` / `asText()`,换为 `isString()` / `asString()`,
+本文件警告清零;录制样本解码结果改前改后一致。上文原文保留。
+
 ## 挂账 · `TurnProperties` 注释仍写「init 阻塞占 Tomcat 线程」(记于 2026-10-07,低优先级)
 
 **事实**:`TurnProperties.java:23-24` 注释写着「`POST /api/game/init` 仍阻塞占 Tomcat 容器线程(默认上限 200),
@@ -736,6 +748,9 @@ init 已改为独立准入 + `DeferredResult`,不再占容器线程 —— **这
 
 **处置**:只记不修(本刀纯 docs)。改法是两行注释。
 **解冻条件**:下次碰 `TurnProperties.java` 时顺手改。
+
+✅ **已关闭(2026-10-09,`2d8c2e5`)**:注释改为 ADR-030 现状。同文件「≈ ¥0.11/分」一句亦于 A 批小债按现行
+V4.1-Flash 高峰档单价重算(≈ ¥0.27/分、日闸约 23 分钟打满;指向 ADR-016 重算注记)。上文原文保留。
 
 ## 挂账 · 文件存储 profile 下前端仍请求 `/history`,控制台每局一条 501(记于 2026-10-09,低优先级)
 
@@ -748,9 +763,16 @@ init 已改为独立准入 + `DeferredResult`,不再占容器线程 —— **这
 **处置**:只记不修。
 **解冻条件**:下次因别的事动历史探测或 ADR-025 刀 4 解冻时一并看。
 
+✅ **已关闭(2026-10-09,A 批小债,分支 `claude/intelligent-ptolemy-4pslne`,未部署)**:`GET /api/archetypes` 新增只读 `capabilities.history`
+(`pg` 为 true,其余 false;缺失按 false),选择屏只在它为 true 时探测 `/history`。`/history` 本身仍回 501
+(ADR-025 已决 4 不变)。上文原文保留。
+
 ## 另记 · 一条状态(不是待办,是已做的决定)
 
 ### main 与线上差了整整一个视觉移植阶段
+
+✅ **已关闭(2026-08-07)**:正式线上发布,`/actuator/info` `build.commit = 1c0244b` 与 `main` 一致
+(ROADMAP Week 8「正式线上发布」条);下文两件建议顺带确认的事也已兑现(生成中点返回真机验过、SHA 比对首次用武)。下文原文保留。
 
 **四刀皮肤(规则怪谈 / 修仙 / 末日 / 克苏鲁)+ 修仙屏视觉收敛 + 导航层(返回键)+ B1 + B2 融合入口,
 全部已合并进 `main`,但从未部署到正式实例 `wanjie-ai`。** 每一刀的真机验收都用**临时 app**
