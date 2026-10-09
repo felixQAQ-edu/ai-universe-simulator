@@ -189,7 +189,7 @@ describe('listArchetypes', () => {
     ['false', { capabilities: { history: false } }, false],
     ['缺失(老后端)', {}, false],
     ['非布尔', { capabilities: { history: 'yes' } }, false],
-  ])('capabilities.history 为 %s → %s(只有字面 true 才算有)', async (_l, extra, expected) => {
+  ])('capabilities.history 为 %s → 只有字面 true 才算有', async (_l, extra, expected) => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(200, { archetypes: [], fusions: [], ...extra })));
     expect((await api.listArchetypes()).capabilities).toEqual({ history: expected });
   });
