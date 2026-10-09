@@ -20,8 +20,8 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  * </ul>
  * 「一小撮朋友同时试 ≈ 3–5」那条是取值方向、<b>不是论据</b>(线上读数是累计量,答不了并发问题)。
  *
- * <p>⚠️ <b>「只负责不死」限定到 turn 路径,不是全站承诺</b>:{@code POST /api/game/init} 仍阻塞占
- * Tomcat 容器线程(默认上限 200),本刀完全没管它(ADR-015 已知代价 2,另刀)。
+ * <p>⚠️ <b>本容量只管 turn 路径</b>:开局({@code POST /api/game/init})另有独立准入
+ * ({@link InitProperties} / {@code InitAdmission},ADR-030),不占容器线程、名额与本处分开不合并。
  */
 @ConfigurationProperties("aiuniverse.turn")
 public record TurnProperties(
