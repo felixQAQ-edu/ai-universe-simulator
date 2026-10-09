@@ -14,7 +14,9 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  * <ul>
  *   <li><b>上界(内存)</b>:8 × ~1MB 线程栈 ≈ 8MB <b>堆外</b>({@code Dockerfile} 无 {@code -Xmx}
  *       无 {@code MaxRAMPercentage},栈不占堆),对 512MB 可忽略。</li>
- *   <li><b>成本关系</b>:N=8 满负荷 ≈ 32 回合/分 ≈ ¥0.11/分 → ADR-016 日闸 ¥6 约 55 分钟打满,
+ *   <li><b>成本关系</b>:N=8 满负荷 ≈ 32 回合/分;按现行 V4.1-Flash 高峰档单回合 ≈ ¥0.0083
+ *       (ADR-016 阈值表下「注记(2026-10-06,单价更新后重算)」)≈ ¥0.27/分 → ADR-016 日闸 ¥6 约 23 分钟打满
+ *       (旧单价时的读数是 ¥0.11/分、约 55 分钟;结论不变,只是更快),
  *       即 <b>N=8 时先撞到的仍是 ADR-016 的真闸</b>。并发闸只负责 turn 路径上的「不死」,
  *       成本仍归 ADR-016,两道闸不互相替代。</li>
  * </ul>
