@@ -208,14 +208,14 @@ public class GameController {
 	/**
 	 * 续局查询(ADR-015 Slice 2):把内存表(含启动回载)里的会话状态一次性下发给前端。
 	 * 响应复用 {@code InitResponse} 形态(openingNarrative 恒空;world = 消毒视图 3);
-	 * 不存在 → 404(前端静默清 saveId 回正常起局)。
+	 * 不存在 → 404 {@code {error:{code:"session_not_found"}}},<b>只带 code</b>(ADR-022 立字 11:
+	 * 状态码本身就说得清,文案归前端;前端此处本就静默清 saveId 回正常起局,从不展示这条 message)。
 	 */
 	@GetMapping("/api/game/{saveId}/state")
 	public ResponseEntity<?> state(@PathVariable String saveId) {
 		InitResponse resp = initService.resume(saveId);
 		if (resp == null) {
-			return ResponseEntity.status(HttpStatus.NOT_FOUND)
-					.body(Map.of("error", Map.of("code", "session_not_found", "message", "存档不存在或已失效")));
+			return jsonError(HttpStatus.NOT_FOUND, "session_not_found", null);
 		}
 		return ResponseEntity.ok(resp);
 	}
