@@ -339,6 +339,25 @@ class GameControllerTurnGuardsTest {
 		assertThat(submitted).isEmpty();
 	}
 
+	/**
+	 * <b>局已结束 + 游标<u>相等</u> → 仍是 {@code turn_stale},不是 {@code busy}</b>(工程债 §1.4 挂账 2,2026-10-09)。
+	 * 结局那回合 delta 送达而 ending 没送达:客户端游标与服务端相等,仍停在可选状态。放行会落进守卫 2
+	 * 的 CAS(从 ENDED 起不来)→ 永远「上一回合仍在结算」。判 stale 后前端拉 /state 读到结局。
+	 */
+	@Test
+	void syncedTurnOnEndedGameIsStaleNotBusy() {
+		GameSessionManager manager = managerAtTurnOne(managerWithSession());
+		manager.get("save-1").phase().set(TurnPhase.ENDED);
+		List<Runnable> submitted = new ArrayList<>();
+		GameController c = controllerFor(manager, submitted);
+
+		ResponseEntity<?> resp = c.turn("save-1", new GameController.TurnRequest(1, "A"), request());
+
+		assertThat(resp.getStatusCode().value()).isEqualTo(HttpStatus.CONFLICT.value());
+		assertThat(errorOf(resp).get("code")).isEqualTo("turn_stale");
+		assertThat(submitted).isEmpty();
+	}
+
 	// ── 守卫 1:合法性(自 TurnStateMachineTest 搬家而来)──────────────────
 
 	/**

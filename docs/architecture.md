@@ -78,7 +78,7 @@ sequenceDiagram
     Note over P,C: 容器线程 · 零名额
     alt 会话不存在
         C-->>P: 404 session_not_found
-    else 游标不一致
+    else 游标不一致或局已结束
         C-->>P: 409 turn_stale
     else 动作非法
         C-->>P: 400 illegal_action

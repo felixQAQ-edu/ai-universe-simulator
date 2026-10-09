@@ -20,6 +20,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import com.aiuniverse.server.eventloop.GameSession;
 import com.aiuniverse.server.eventloop.GameSessionManager;
+import com.aiuniverse.server.eventloop.TurnPhase;
 import com.aiuniverse.server.eventloop.TurnStateMachine;
 import com.aiuniverse.server.persistence.NarrativeHistoryReader;
 import com.aiuniverse.server.persistence.UnavailableHistoryReader;
@@ -283,7 +284,7 @@ public class GameController {
 	 *
 	 * <pre>
 	 * ├─ session == null           → 404 {error:{code:"session_not_found"}}      ← 容器线程,零名额
-	 * ├─ 游标不一致 ∧ 相位不在途   → 409 {error:{code:"turn_stale"}}             ← 容器线程,零名额
+	 * ├─ (游标不一致 ∨ 局已结束)∧ 相位不在途 → 409 {error:{code:"turn_stale"}}  ← 容器线程,零名额
 	 * ├─ 守卫 1 合法性             → 400 {error:{code:"illegal_action", …}}      ← 容器线程,零名额
 	 * ├─ 准入 submit()             → 503 {error:{code:"server_at_capacity", …}}  ← 容器线程,零线程 + WARN
 	 * ├──────────────【交接:名额已占,此后在池线程上】──────────────
@@ -337,7 +338,14 @@ public class GameController {
 		// ——玩家在结局那回合断流、没看到结局、再点,今天永远是「上一回合仍在结算」,
 		// **局已经结束了,而他永远出不去**。
 		int serverTurn = session.engine().turn();
-		if (req.turn() != serverTurn && !session.phase().get().inFlight()) {
+		TurnPhase phase = session.phase().get();
+		// 局已结束 → 一律 turn_stale,**游标相等也算**(工程债 §1.4 挂账 2,2026-10-09):
+		// 结局那回合 delta 到了而 ending 没送达时,客户端游标与服务端相等、仍停在可选状态;
+		// 放行会落进守卫 2 的 CAS(从 ENDED 起不来)→ 永远拿到「上一回合仍在结算」。
+		// 复用 turn_stale 是因为客户端该做的事完全相同:丢掉本地视图、拉 /state —— 那里有
+		// status: ended 与结局。「你手里的局面与服务端不一致」在这里仍然是真话(你不知道局已结束)。
+		boolean stale = req.turn() != serverTurn || phase == TurnPhase.ENDED;
+		if (stale && !phase.inFlight()) {
 			if (req.turn() > serverTurn) {
 				// 超前从不是正常流程的产物:它只在「落盘没成 + 重启」之后出现,是默认 profile 下
 				// 「曾经丢过一次落盘」唯一可观测的痕迹(ADR-027 决策 2)。落后方向不打 —— 断流后重点一次
