@@ -9,6 +9,8 @@ import org.junit.jupiter.api.Test;
 import com.aiuniverse.server.archetype.ArchetypeRegistry;
 import com.aiuniverse.server.archetype.ArchetypeSummary;
 import com.aiuniverse.server.archetype.FusionSummary;
+import com.aiuniverse.server.persistence.NarrativeHistoryReader;
+import com.aiuniverse.server.persistence.UnavailableHistoryReader;
 
 /**
  * {@code GET /api/archetypes} 薄端点(ADR-008 决策 4 选择 UI 数据源 + ADR-019 融合组合只读投影):
@@ -17,7 +19,8 @@ import com.aiuniverse.server.archetype.FusionSummary;
  */
 class ArchetypeControllerTest {
 
-	private final ArchetypeController controller = new ArchetypeController(new ArchetypeRegistry());
+	private final ArchetypeController controller = new ArchetypeController(new ArchetypeRegistry(),
+			new UnavailableHistoryReader());
 
 	@Test
 	void listWrapsRegistrySelectionUnderArchetypesKey() {
@@ -37,5 +40,25 @@ class ArchetypeControllerTest {
 		assertThat(body.fusions()).isEqualTo(new ArchetypeRegistry().listFusionCombos());
 		assertThat(body.fusions().stream().map(FusionSummary::key))
 				.containsExactly("cultivation×rules_creepy", "rules_creepy×apocalypse");
+	}
+
+	/** 能力位直接来自历史读取器自己的 {@code available()},不在 controller 里另判 profile。 */
+	@Test
+	void historyCapabilityFollowsReader() {
+		assertThat(controller.list().capabilities().history()).isFalse();
+
+		NarrativeHistoryReader available = new NarrativeHistoryReader() {
+			@Override
+			public Result read(String saveId, Integer afterTurn) {
+				return new Unavailable();
+			}
+
+			@Override
+			public boolean available() {
+				return true;
+			}
+		};
+		assertThat(new ArchetypeController(new ArchetypeRegistry(), available).list().capabilities().history())
+				.isTrue();
 	}
 }

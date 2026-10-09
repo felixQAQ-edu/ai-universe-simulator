@@ -15,4 +15,9 @@ public class UnavailableHistoryReader implements NarrativeHistoryReader {
 	public Result read(String saveId, Integer afterTurn) {
 		return new Unavailable();
 	}
+
+	@Override
+	public boolean available() {
+		return false;
+	}
 }

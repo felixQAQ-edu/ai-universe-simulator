@@ -181,7 +181,17 @@ describe('listArchetypes', () => {
 
   it('异常响应体 → 两张表各自空兜底', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(200, { nope: 1 })));
-    expect(await api.listArchetypes()).toEqual({ archetypes: [], fusions: [] });
+    expect(await api.listArchetypes()).toEqual({ archetypes: [], fusions: [], capabilities: { history: false } });
+  });
+
+  it.each([
+    ['true', { capabilities: { history: true } }, true],
+    ['false', { capabilities: { history: false } }, false],
+    ['缺失(老后端)', {}, false],
+    ['非布尔', { capabilities: { history: 'yes' } }, false],
+  ])('capabilities.history 为 %s → %s(只有字面 true 才算有)', async (_l, extra, expected) => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(200, { archetypes: [], fusions: [], ...extra })));
+    expect((await api.listArchetypes()).capabilities).toEqual({ history: expected });
   });
 
   it('老后端(有世界表、无 fusions 字段)→ 空组合表,拖不出融合但选择屏照常可用', async () => {

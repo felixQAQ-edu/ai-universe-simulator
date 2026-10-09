@@ -15,6 +15,9 @@ let historyReplies: Reply[] = [];
 let seq = 0;
 let SID = 's-0';
 let historyCalls: string[] = [];
+/** 目录响应体。缺省 = pg 后端(有历史存储);能力位用例里按需换成 false / 缺失。 */
+const PG_CATALOG = { archetypes: [], fusions: [], capabilities: { history: true } };
+let catalogBody: unknown = PG_CATALOG;
 
 function mockFetch() {
   vi.stubGlobal(
@@ -33,7 +36,7 @@ function mockFetch() {
       return {
         ok: true,
         status: 200,
-        json: () => Promise.resolve({ archetypes: [], fusions: [] }),
+        json: () => Promise.resolve(catalogBody),
       } as unknown as Response;
     }),
   );
@@ -54,6 +57,9 @@ beforeEach(() => {
   SID = `s-${++seq}`;
   historyReplies = [];
   historyCalls = [];
+  catalogBody = PG_CATALOG;
+  // 能力位是模块级 store 状态:每条用例从「未知 = false」起,等本条的目录响应来定。
+  useGameStore.setState({ capabilities: { history: false } });
   mockFetch();
   useHistoryStore.setState({ visible: {}, viewing: null, entries: [], nextAfterTurn: null, more: 'idle', phase: 'loading' });
 });
@@ -121,6 +127,30 @@ describe('选择屏入口(口径 A/B/C/D)', () => {
     expect(screen.getByRole('button', { name: entryName })).toBeInTheDocument();
     await settle();
     expect(historyCalls).toHaveLength(1);
+  });
+});
+
+describe('能力位 capabilities.history(2026-10-09)', () => {
+  it.each([
+    ['false', { archetypes: [], fusions: [], capabilities: { history: false } }],
+    ['缺失(老后端)', { archetypes: [], fusions: [] }],
+  ])('目录里 history 为 %s → 有上局也不探测 /history、无入口', async (_l, body) => {
+    catalogBody = body;
+    useGameStore.setState({ resumableSaveId: SID });
+    render(<GameScreen />);
+    await settle();
+    await settle();
+    expect(historyCalls).toEqual([]);
+    expect(screen.queryByRole('button', { name: entryName })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /继续上局/ })).toBeInTheDocument();
+  });
+
+  it('目录里 history 为 true → 照旧探测一次', async () => {
+    useGameStore.setState({ resumableSaveId: SID });
+    historyReplies = [ok([ev(0, '开场', null)])];
+    render(<GameScreen />);
+    await screen.findByRole('button', { name: entryName });
+    expect(historyCalls).toEqual([`/api/game/${SID}/history`]);
   });
 });
 

@@ -37,6 +37,13 @@ public interface NarrativeHistoryReader {
 	 */
 	Result read(String saveId, Integer afterTurn);
 
+	/**
+	 * 本环境有没有历史存储 —— 选择屏据它决定要不要探测 {@code /history}
+	 * ({@code GET /api/archetypes} 的 {@code capabilities.history},2026-10-09)。
+	 * 与 {@link #read} 恒返 {@link Unavailable} 是<b>同一个事实</b>的两种问法,两个实现各自同时回答两处。
+	 */
+	boolean available();
+
 	/** 读历史的四种结局。 */
 	sealed interface Result permits Found, NotFound, Unavailable, Failed {
 	}

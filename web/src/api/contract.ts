@@ -68,10 +68,21 @@ export interface FusionCombo {
   key: string;
 }
 
+/**
+ * 本环境的只读能力标志(后端 `GET /api/archetypes` 的 `capabilities`,2026-10-09)。
+ * 前端据它决定要不要去探测某个接口,而不是先撞一次 501 再判断。
+ */
+export interface CatalogCapabilities {
+  /** 有没有叙事历史存储(后端 pg profile 才为 true)。false → 选择屏不探测 `/history`。 */
+  history: boolean;
+}
+
 /** 选择屏目录响应(世界表 + 组合表**同一次请求**,不会两个响应不同步)。 */
 export interface WorldCatalog {
   archetypes: ArchetypeSummary[];
   fusions: FusionCombo[];
+  /** 缺省(老后端 / 测试替身)一律按「全部为 false」处理。 */
+  capabilities?: CatalogCapabilities;
 }
 
 /**

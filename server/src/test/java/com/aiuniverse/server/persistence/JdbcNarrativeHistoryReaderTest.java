@@ -68,6 +68,8 @@ class JdbcNarrativeHistoryReaderTest {
 	@Autowired
 	NarrativeHistoryReader reader;
 	@Autowired
+	com.aiuniverse.server.web.ArchetypeController archetypes;
+	@Autowired
 	javax.sql.DataSource dataSource;
 	@Autowired
 	org.springframework.transaction.PlatformTransactionManager txManager;
@@ -83,6 +85,15 @@ class JdbcNarrativeHistoryReaderTest {
 	@Test
 	void pgProfileWiresJdbcReader() {
 		assertThat(reader).isInstanceOf(JdbcNarrativeHistoryReader.class);
+	}
+
+	/** 选择屏据此才去探测 /history(2026-10-09);pg profile 装配出来的目录端点必须报 true。 */
+	@Test
+	void pgProfileCatalogReportsHistoryCapability() throws Exception {
+		MvcResult r = MockMvcBuilders.standaloneSetup(archetypes).build().perform(get("/api/archetypes")).andReturn();
+		JsonNode caps = mapper.readTree(r.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8))
+				.path("capabilities");
+		assertThat(caps.path("history").asBoolean()).isTrue();
 	}
 
 	// ── 正常历史 ──────────────────────────────────────────────────────

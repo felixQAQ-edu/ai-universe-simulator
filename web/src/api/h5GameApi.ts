@@ -36,6 +36,8 @@ export function createH5GameApi(baseUrl = ''): GameApi {
       return {
         archetypes: Array.isArray(data?.archetypes) ? data.archetypes : [],
         fusions: Array.isArray(data?.fusions) ? data.fusions : [],
+        // 能力标志同样容错:缺失或非 true 一律按 false(老后端不会让选择屏去撞 /history)。
+        capabilities: { history: data?.capabilities?.history === true },
       };
     },
 

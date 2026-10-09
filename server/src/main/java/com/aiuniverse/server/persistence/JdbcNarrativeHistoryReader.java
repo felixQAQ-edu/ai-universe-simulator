@@ -71,6 +71,11 @@ public class JdbcNarrativeHistoryReader implements NarrativeHistoryReader {
 	}
 
 	@Override
+	public boolean available() {
+		return true;
+	}
+
+	@Override
 	public Result read(String saveId, Integer afterTurn) {
 		try {
 			return tx.execute(status -> {

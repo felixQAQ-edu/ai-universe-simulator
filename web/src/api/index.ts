@@ -8,6 +8,7 @@ export type {
   ClientWorld,
   DiscoveredRule,
   EndingPayload,
+  CatalogCapabilities,
   FusionCombo,
   GameApi,
   HistoryApi,

@@ -13,6 +13,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import com.aiuniverse.server.web.ArchetypeController;
 import com.aiuniverse.server.web.GameController;
 
 import tools.jackson.databind.JsonNode;
@@ -30,6 +31,8 @@ class DefaultProfileHistoryUnavailableTest {
 	GameController controller;
 	@Autowired
 	NarrativeHistoryReader reader;
+	@Autowired
+	ArchetypeController archetypes;
 
 	private MockMvc mvc;
 	private final ObjectMapper mapper = new ObjectMapper();
@@ -61,5 +64,15 @@ class DefaultProfileHistoryUnavailableTest {
 		JsonNode err = mapper.readTree(r.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8))
 				.path("error");
 		assertThat(err.path("code").asString()).isEqualTo("invalid_after_turn");
+	}
+
+	/** 选择屏据此不去探测 /history(2026-10-09);默认 profile 装配出来的目录端点必须报 false。 */
+	@Test
+	void defaultProfileCatalogReportsNoHistoryCapability() throws Exception {
+		MvcResult r = MockMvcBuilders.standaloneSetup(archetypes).build().perform(get("/api/archetypes")).andReturn();
+		JsonNode caps = mapper.readTree(r.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8))
+				.path("capabilities");
+		assertThat(caps.path("history").isBoolean()).isTrue();
+		assertThat(caps.path("history").asBoolean()).isFalse();
 	}
 }

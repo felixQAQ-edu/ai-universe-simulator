@@ -55,14 +55,16 @@ export function ArchetypeSelect() {
 
   // 「回看上局」入口(ADR-025 刀 3):只在「继续上局」出现时才可能出现;显示与否靠探测(口径 B)。
   // 去重与缓存在 historyStore 里:同一 saveId 在途不重发,已确认可见不再发,失败不记。
+  // 只在后端声明有历史存储时才探测(capabilities.history;非 pg 环境那里恒为 501,不去撞它)。
+  const historyCapable = useGameStore((s) => s.capabilities.history);
   const probeHistory = useHistoryStore((s) => s.probe);
   const openHistory = useHistoryStore((s) => s.open);
   const historyVisible = useHistoryStore((s) =>
     resumableSaveId ? s.visible[resumableSaveId] === true : false,
   );
   useEffect(() => {
-    if (resumableSaveId) probeHistory(resumableSaveId);
-  }, [resumableSaveId, probeHistory]);
+    if (resumableSaveId && historyCapable) probeHistory(resumableSaveId);
+  }, [resumableSaveId, historyCapable, probeHistory]);
 
   const canFuse = useCallback(
     (host: string, foreign: string) => isFusionAllowed(fusions, host, foreign),

@@ -12,6 +12,7 @@ import type {
   ClientWorld,
   DiscoveredRule,
   EndingPayload,
+  CatalogCapabilities,
   FusionCombo,
   GameApi,
   TurnStream,
@@ -46,6 +47,11 @@ export interface GameState {
    * 空表(老后端 / 加载失败)= 一律判无效组合:拖不出融合,但选择屏照常可用。
    */
   fusions: FusionCombo[];
+  /**
+   * 后端能力标志(与目录同一次请求)。`history` 为 false 时选择屏不探测 `/history`
+   * (ADR-025:非 pg 环境那里恒为 501,撞它只会在控制台留一条报错)。目录未到 / 老后端 = 全 false。
+   */
+  capabilities: CatalogCapabilities;
   archetypesLoading: boolean;
   /** 选择屏目录加载失败提示(可重试)。 */
   archetypesError: string | null;
@@ -280,6 +286,7 @@ export function createGameStore(api: GameApi) {
       // 目录状态在 INITIAL 之外维护 —— reset/startGame 不应清掉已拉取的可选世界列表。
       archetypes: [] as ArchetypeSummary[],
       fusions: [] as FusionCombo[],
+      capabilities: { history: false },
       archetypesLoading: false,
       archetypesError: null,
       // 同样在 INITIAL 之外:reset(换个世界)不该抹掉「继续上局」入口。
@@ -290,7 +297,12 @@ export function createGameStore(api: GameApi) {
         set({ archetypesLoading: true, archetypesError: null });
         try {
           const catalog = await api.listArchetypes();
-          set({ archetypes: catalog.archetypes, fusions: catalog.fusions, archetypesLoading: false });
+          set({
+            archetypes: catalog.archetypes,
+            fusions: catalog.fusions,
+            capabilities: { history: catalog.capabilities?.history === true },
+            archetypesLoading: false,
+          });
         } catch {
           set({ archetypesLoading: false, archetypesError: '世界列表加载失败,请重试' });
         }
