@@ -86,8 +86,8 @@ public class OpenAiStreamDecoder {
 			throw new LlmException("解析模型流式响应失败", e);
 		}
 		JsonNode model = node.path("model");
-		if (model.isTextual() && !model.asText().isBlank()) {
-			meta.model = model.asText();
+		if (model.isString() && !model.asString().isBlank()) {
+			meta.model = model.asString();
 		}
 		JsonNode usage = node.path("usage");
 		if (usage.isObject()) {
@@ -104,11 +104,11 @@ public class OpenAiStreamDecoder {
 		}
 		JsonNode delta = choices.get(0).path("delta");
 		JsonNode reasoning = delta.path("reasoning_content");
-		if (reasoning.isTextual()) {
-			String r = reasoning.asText();
+		if (reasoning.isString()) {
+			String r = reasoning.asString();
 			meta.reasoningChars += r.codePointCount(0, r.length());
 		}
 		JsonNode content = delta.path("content");
-		return content.isTextual() ? content.asText() : null;
+		return content.isString() ? content.asString() : null;
 	}
 }
