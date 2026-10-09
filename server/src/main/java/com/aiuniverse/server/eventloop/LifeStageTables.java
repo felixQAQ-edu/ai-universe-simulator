@@ -31,8 +31,9 @@ final class LifeStageTables {
 	 * 第一条明确不做的东西。加暮年后总回合数自然落 <b>45–55</b>;40–44 不可达是<b>有意放弃</b>
 	 * (区间的意义是「别太短也别太长」,不是每个值都要可达)。详见 ADR-020 §2 订正块。
 	 *
-	 * <p><b>时钟不给引擎强制</b>(照 {@code FUSION_TURN_DIRECTIVE} 逐字写着的「不写死回合数上限,
-	 * 硬上限是引擎层决策不混入」):本表只产出<b>位置感 + 收敛窗口</b>,收束由模型自己走到寿终、
+	 * <p><b>时钟不给引擎强制</b>(照 {@code TurnPromptBuilder} 里 {@code FUSION_TURN_DIRECTIVE} 的 javadoc
+	 * 与 {@code prompts/event-loop.md} 写着的「不写死回合数上限,硬上限是引擎层决策不混入」——
+	 * ⚠️ 那是设计说明,<b>不在运行时 prompt 串里</b>):本表只产出<b>位置感 + 收敛窗口</b>,收束由模型自己走到寿终、
 	 * 或由玩家按下「就到这里」。
 	 */
 	private static final LifeStageTable ORDINARY_LIFE = new LifeStageTable(
