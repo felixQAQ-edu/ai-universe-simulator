@@ -362,6 +362,7 @@ persist 时以事件的形式补进历史(见决策 2「事件从哪来」)—�
   >   另记:Fly 2026-10-01 起机器内存涨价(https://fly.io/pricing-update/),与本决定无直接关系,仅供将来重核。
   > - **CONTEXT §三.17**「不引数据库」与「解冻绑数据库那一刀」两处措辞**今天仍然成立**(线上确实没引数据库),
   >   本次不动;**随解冻那一刀收**(同上一句「收口时再判」,以及 §背景 那条「应读作绑 `turn_request` 那一刀」)。
+  > - **指针(2026-10-12)**:导入 / 导出见 [ADR-032](ADR-032-pg-cutover-readiness-import-export.md)(上文原文不改)。
 
 每刀一律:`Engine` / `compressLog` / `LOG_KEEP` / `TurnStateMachine` / 忙态 CAS / 引擎 golden /
 prompt lockstep / `schemaVersion`(保 "0.4")**零动**。

@@ -64,6 +64,8 @@
   正文在[工程债 §1.2](docs/backlog-engineering-debt.md) 与 ADR-004 已知代价。
 - **PostgreSQL 只在 `pg` profile 下生效,线上未切库**:叙事历史(ADR-025)与回合受理记录(ADR-026)
   的实现与测试已合并,默认 profile(也就是线上)仍走文件存储;切库挂账,理由见 ADR-025 刀 4。
+  生产默认文件存储;`pg` profile 为已实现、未上线,切库条件见
+  [ADR-032](docs/adr/ADR-032-pg-cutover-readiness-import-export.md)(导入 / 回退导出 / 启动语义,刀 1–3 待实施)。
 - **单实例不是高可用,且这是有约束下的主动选择**:内存 session + 进程内忙态守卫(`compareAndSet`)
   钉死单副本,水平扩展需先把守卫与 session 外置(Redis/DB)。
   理由与代价写在 [ADR-015 §已知代价 4](docs/adr/ADR-015-overseas-deployment-form-factor.md),
@@ -168,6 +170,7 @@ API key 只进环境变量,**绝不写进 yaml / 代码 / 提交**。
 - [ADR-029](docs/adr/ADR-029-animal-life-verbatim-sentence-windows.md) — 《动物人生》逐字句排窗:金属声句组与床脚句按回合注入允许 / 禁用指令(已采纳)
 - [ADR-030](docs/adr/ADR-030-init-admission-and-world-gen-deadline.md) — init 独立准入 + world-gen 流式段时限:开局不占容器线程,world-gen 不再无上限(已采纳)
 - [ADR-031](docs/adr/ADR-031-turn-execution-trace-and-offline-replay.md) — 回合执行轨迹 + 不调模型回放:记下每回合模型交来的东西,离线重放结算(已采纳)
+- [ADR-032](docs/adr/ADR-032-pg-cutover-readiness-import-export.md) — 切库准备:文件存档与数据库之间的导入 / 回退导出、连接配置、启动语义与演练(不执行线上切换)(已采纳)
 
 ## 文档
 
