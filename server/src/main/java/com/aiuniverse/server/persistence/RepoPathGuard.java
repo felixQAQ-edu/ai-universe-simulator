@@ -18,7 +18,11 @@ public final class RepoPathGuard {
 	private RepoPathGuard() {
 	}
 
-	/** 路径落在 {@code repoRoot} 之下 → 抛。{@code repoRoot == null} 不检查。核读工具(TraceRecheck)共用这一道闸门。 */
+	/**
+	 * 路径落在 {@code repoRoot} 之下 → 抛。{@code repoRoot == null} 不检查。
+	 * 共用方:夹具转换(TraceFixtureConverter)、轨迹核读(TraceRecheck)、存档导入 / 导出(ADR-032 刀 2)。
+	 * 报错文案只说通用规则,不点名某一个工具(ADR-032 刀 2 改;行为不变)。
+	 */
 	public static void requireOutsideRepo(Path repoRoot, Path p, String what) throws IOException {
 		if (repoRoot == null) {
 			return;
@@ -31,7 +35,7 @@ public final class RepoPathGuard {
 		Path real = existing == null ? abs : existing.toRealPath().resolve(existing.relativize(abs));
 		if (real.startsWith(repoRoot.toRealPath())) {
 			throw new IllegalArgumentException(what + "路径在仓库目录之内(" + p
-					+ "):原始轨迹、未经核对的夹具与核读报告一律放在仓库之外");
+					+ "):真实数据(存档、原始轨迹、未经核对的夹具)以及由它们产出的报告与导出结果,一律放在仓库之外");
 		}
 	}
 
