@@ -1,5 +1,7 @@
 package com.aiuniverse.server.persistence;
 
+import java.io.FileDescriptor;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
@@ -81,7 +83,10 @@ public final class StoreMigrationTool {
 	}
 
 	public static void main(String[] args) {
-		System.exit(run(args, MigrationPathGate.strict(), Seams.DEFAULT, System.out));
+		// 报告固定用 UTF-8 打到 stdout:报告是中文,而 System.out 的编码跟随终端 locale(POSIX 下中文全变成 ?);
+		// 本地实测踩到过(logback 的日志行不受影响)。
+		PrintStream out = new PrintStream(new FileOutputStream(FileDescriptor.out), true, StandardCharsets.UTF_8);
+		System.exit(run(args, MigrationPathGate.strict(), Seams.DEFAULT, out));
 	}
 
 	/** 导入的两个测试接缝;生产只用 {@link #DEFAULT}。 */
