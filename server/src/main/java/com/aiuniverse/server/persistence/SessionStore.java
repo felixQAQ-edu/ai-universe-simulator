@@ -21,6 +21,7 @@ public interface SessionStore {
 	/**
 	 * 启动回载:扫描落盘目录,把每个可读档还原为会话(经 {@code Engine.restore} + 轴集重派生,
 	 * phase 按 status 重置)。单文件损坏/拒载 → 跳过 + WARN + 保留原文件(留尸检),不阻断启动。
+	 * 例外:DB 实现({@link JdbcSessionStore})整张表读不出来时抛 —— 应用拒启(ADR-032 D-1)。
 	 */
 	List<GameSession> loadAll();
 

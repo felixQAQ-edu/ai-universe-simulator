@@ -8,6 +8,9 @@ spring:
     exclude: []
   datasource:
     hikari:
+      # 连接池上限(ADR-032 D-5):显式 5,不吃默认 10。env 覆盖 SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE;
+      # 最终取值由 PgStartupReport 在启动日志里打出(打绑定后的值,不打这里的字面量)。
+      maximum-pool-size: 5
       # ── 超时:显式配置,不吃驱动默认值(ADR-025 决策 3)────────────────────────────
       # persist 跑在准入名额之内(ADR-022),DB 挂起时它不会抛、它会等,等多久名额就被占多久。
       # 依据 ADR-024 两批真机读数(回合 durMs,不含 persist):

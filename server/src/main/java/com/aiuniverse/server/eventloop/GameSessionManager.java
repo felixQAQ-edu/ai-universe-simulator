@@ -46,7 +46,7 @@ public class GameSessionManager {
 		this.store = store;
 	}
 
-	/** 启动回载(ADR-015):坏档已由 store 跳过(WARN + 留尸检),不阻断启动。 */
+	/** 启动回载(ADR-015):坏档已由 store 跳过(WARN + 留尸检),不阻断启动;DB 版整表读不出来时 store 抛,应用拒启(ADR-032 D-1)。 */
 	@PostConstruct
 	public void reloadFromStore() {
 		for (GameSession session : store.loadAll()) {

@@ -154,7 +154,7 @@ public class JdbcSessionStore implements SessionStore {
 
 	/**
 	 * 从 {@code game_session} 还原全部会话,还原走 {@link SessionDocument#decode}(与文件实现同一套校验,
-	 * 拒载不半载)。与文件实现的汇总<b>不可直接比较</b>:表里没有「非存档文件」这一类(ADR-025 已知代价 1),
+	 * 拒载不半载)。<b>表读不出来(连接 / 语句失败)→ 抛,应用拒启</b>(ADR-032 D-1);单行拒载仍是跳过 + WARN。与文件实现的汇总<b>不可直接比较</b>:表里没有「非存档文件」这一类(ADR-025 已知代价 1),
 	 * 故只有「载入 / 拒载」两项。
 	 */
 	@Override
@@ -166,9 +166,12 @@ public class JdbcSessionStore implements SessionStore {
 			rows = jdbc.query("SELECT save_id, snapshot::text FROM game_session ORDER BY save_id",
 					(rs, i) -> new String[] { rs.getString(1), rs.getString(2) });
 		} catch (Exception e) {
-			log.error("[session-store:pg] 读取 game_session 失败(以空档启动):{}", e.toString());
-			interruptPendingTurns();
-			return loaded;
+			// ADR-032 D-1:启动期读不到 game_session → 拒绝启动,不再「以空档启动」。pg profile 下库是唯一真相源;
+			// 空档启动会让每一次续局都回 404,而前端对续局失败一律静默清掉存档指针(ADR-025 代价 9 同一机制)——
+			// DB 恢复后数据还在,玩家却再也回不去。原因行不含密码(驱动异常不带连接凭据,url 里也不放密码,见 DatabaseUrl)。
+			// ⚠️ 只管启动期这一次读取;运行中的 DB 故障语义仍是 ADR-025 决策 3(persist 记 ERROR、不杀回合),不在这里改。
+			log.error("[session-store:pg] 读取 game_session 失败 → 拒绝启动(ADR-032 D-1):{}", e.toString());
+			throw new IllegalStateException("启动回载失败:读取 game_session 出错,拒绝启动(ADR-032 D-1)", e);
 		}
 		for (String[] row : rows) {
 			try {
