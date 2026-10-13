@@ -34,7 +34,7 @@ final class SyntheticSaves {
 	/** 本类写出的、应被导入的存档 saveId(按情形命名)。 */
 	static final List<String> IMPORTABLE = List.of("s-rules-creepy", "s-apocalypse", "s-cthulhu", "s-cultivation",
 			"s-fusion", "s-life-sim", "s-animal-new", "s-animal-legacy", "s-ended", "s-phase-settling",
-			"s-phase-generating");
+			"s-phase-generating", "s-odd");
 	/** 写出的、应判为不可读的文件名。 */
 	static final List<String> UNREADABLE = List.of("bad-truncated.json", "s-unknown-archetype.json", "bad name.json");
 	/** 写出的非存档文件(月账)。 */
@@ -107,6 +107,8 @@ final class SyntheticSaves {
 		write(dir, "s-ended.json", mapper.writeValueAsString(ended));
 		write(dir, "s-phase-settling.json", withPhase("s-phase-settling", TurnPhase.SETTLING));
 		write(dir, "s-phase-generating.json", withPhase("s-phase-generating", TurnPhase.GENERATING));
+		// 字节形态与 encode 产出不同(空白 / 键序 / 转义):往返若在任一侧重新序列化,这一份会露馅
+		write(dir, "s-odd.json", oddlyFormatted("s-odd"));
 		// 不可读三种
 		write(dir, "bad-truncated.json", "{\"schemaVersion\":\"0.4\",\"world\":{\"archetypes\":[\"rules_cr");
 		ObjectNode unknown = doc(session("s-unknown-archetype", world("rules_creepy")));
