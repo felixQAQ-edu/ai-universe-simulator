@@ -19,6 +19,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import com.aiuniverse.server.persistence.RepoPathGuard;
 import com.aiuniverse.server.archetype.ArchetypeRegistry;
 import com.aiuniverse.server.llm.LlmUsage;
 import com.aiuniverse.server.persistence.TurnTrace;
@@ -36,7 +37,7 @@ class TraceFixtureConverterTest {
 	private static final ObjectMapper MAPPER = new ObjectMapper();
 	private static final ArchetypeRegistry REGISTRY = new ArchetypeRegistry();
 	private static final Map<String, TraceScenarios.Run> RUNS = new TraceScenarios(MAPPER, REGISTRY).all();
-	private static final Path REPO = TraceFixtureConverter.findRepoRoot(Path.of("").toAbsolutePath());
+	private static final Path REPO = RepoPathGuard.findRepoRoot(Path.of("").toAbsolutePath());
 	/** 形如线上的 saveId(UUID),用来查「原 saveId 不残留」。 */
 	private static final String ONLINE_LIKE_ID = "3f2b9c1e-7a4d-4e8b-9c0f-1a2b3c4d5e6f";
 

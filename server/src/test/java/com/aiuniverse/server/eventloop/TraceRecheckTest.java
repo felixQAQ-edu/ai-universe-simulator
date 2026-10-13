@@ -14,6 +14,7 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import com.aiuniverse.server.persistence.RepoPathGuard;
 import com.aiuniverse.server.archetype.ArchetypeRegistry;
 import com.aiuniverse.server.persistence.TurnTrace;
 import com.aiuniverse.server.persistence.TurnTraceCodec;
@@ -30,7 +31,7 @@ class TraceRecheckTest {
 	private static final ArchetypeRegistry REGISTRY = new ArchetypeRegistry();
 	private static final TraceScenarios SCENARIOS = new TraceScenarios(MAPPER, REGISTRY);
 	private static final Map<String, TraceScenarios.Run> RUNS = SCENARIOS.all();
-	private static final Path REPO = TraceFixtureConverter.findRepoRoot(Path.of("").toAbsolutePath());
+	private static final Path REPO = RepoPathGuard.findRepoRoot(Path.of("").toAbsolutePath());
 
 	@TempDir
 	Path tmp;

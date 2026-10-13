@@ -12,6 +12,7 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import com.aiuniverse.server.persistence.RepoPathGuard;
 import com.aiuniverse.server.archetype.ArchetypeRegistry;
 import com.aiuniverse.server.persistence.SessionDocument;
 import com.aiuniverse.server.persistence.TraceFileReader;
@@ -69,8 +70,8 @@ final class TraceRecheck {
 	/** 读文件、写 {@code <outPrefix>.recheck.txt};两条路径都必须在 {@code repoRoot} 之外。返回报告文件。 */
 	Path run(Path in, Path outPrefix, Path repoRoot) throws IOException {
 		Path out = outPrefix.resolveSibling(outPrefix.getFileName() + ".recheck.txt");
-		TraceFixtureConverter.requireOutsideRepo(repoRoot, in, "输入");
-		TraceFixtureConverter.requireOutsideRepo(repoRoot, out, "输出");
+		RepoPathGuard.requireOutsideRepo(repoRoot, in, "输入");
+		RepoPathGuard.requireOutsideRepo(repoRoot, out, "输出");
 		TraceFileReader.Result read = TraceFileReader.read(in, mapper);
 		Files.writeString(out, report(read.traces(), read.partialTailSkipped()), StandardCharsets.UTF_8);
 		return out;

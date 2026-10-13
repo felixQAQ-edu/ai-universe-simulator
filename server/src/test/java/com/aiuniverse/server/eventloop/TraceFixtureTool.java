@@ -2,6 +2,7 @@ package com.aiuniverse.server.eventloop;
 
 import java.nio.file.Path;
 
+import com.aiuniverse.server.persistence.RepoPathGuard;
 import com.aiuniverse.server.archetype.ArchetypeRegistry;
 
 import tools.jackson.databind.ObjectMapper;
@@ -36,7 +37,7 @@ public final class TraceFixtureTool {
 		if (in == null || name == null || out == null || args.length != 6) {
 			throw new IllegalArgumentException("用法:--in <原始 .trace.jsonl> --name <夹具名> --out <夹具 .jsonl>");
 		}
-		Path repoRoot = TraceFixtureConverter.findRepoRoot(Path.of("").toAbsolutePath());
+		Path repoRoot = RepoPathGuard.findRepoRoot(Path.of("").toAbsolutePath());
 		TraceFixtureConverter.Result r = new TraceFixtureConverter(new ObjectMapper(), new ArchetypeRegistry(), repoRoot)
 				.convert(Path.of(in), name, Path.of(out));
 		System.out.println(r.reportText());

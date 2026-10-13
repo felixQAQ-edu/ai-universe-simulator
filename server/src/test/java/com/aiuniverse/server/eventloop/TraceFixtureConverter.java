@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.regex.Pattern;
 
 import com.aiuniverse.server.archetype.ArchetypeRegistry;
+import com.aiuniverse.server.persistence.RepoPathGuard;
 import com.aiuniverse.server.persistence.TraceFileReader;
 import com.aiuniverse.server.persistence.TurnTrace;
 
@@ -56,9 +57,9 @@ final class TraceFixtureConverter {
 		if (!NAME.matcher(name).matches()) {
 			throw new IllegalArgumentException("name 只许 [a-z0-9-],且以字母或数字开头(收到:" + name + ")");
 		}
-		requireOutsideRepo(repoRoot, in, "输入");
-		requireOutsideRepo(repoRoot, out, "输出");
-		requireOutsideRepo(repoRoot, report, "报告");
+		RepoPathGuard.requireOutsideRepo(repoRoot, in, "输入");
+		RepoPathGuard.requireOutsideRepo(repoRoot, out, "输出");
+		RepoPathGuard.requireOutsideRepo(repoRoot, report, "报告");
 
 		TraceFileReader.Result read = TraceFileReader.read(in, mapper);
 		List<TurnTrace> raw = read.traces();
@@ -136,32 +137,5 @@ final class TraceFixtureConverter {
 
 	private static String label(TraceReplayer.Outcome o) {
 		return o == TraceReplayer.Outcome.CONSISTENT ? "同版本" : "跨版本、无差异";
-	}
-
-	/** 路径落在 {@code repoRoot} 之下 → 抛。{@code repoRoot == null} 不检查。核读工具({@link TraceRecheck})共用这一道闸门。 */
-	static void requireOutsideRepo(Path repoRoot, Path p, String what) throws IOException {
-		if (repoRoot == null) {
-			return;
-		}
-		Path abs = p.toAbsolutePath().normalize();
-		Path existing = abs;
-		while (existing != null && !Files.exists(existing)) {
-			existing = existing.getParent();
-		}
-		Path real = existing == null ? abs : existing.toRealPath().resolve(existing.relativize(abs));
-		if (real.startsWith(repoRoot.toRealPath())) {
-			throw new IllegalArgumentException(what + "路径在仓库目录之内(" + p
-					+ "):原始轨迹、未经核对的夹具与核读报告一律放在仓库之外");
-		}
-	}
-
-	/** 由 {@code start} 向上找含 {@code .git} 的目录。找不到抛:宁可不运行,也不在不知道仓库在哪的情况下写文件。 */
-	static Path findRepoRoot(Path start) {
-		for (Path p = start.toAbsolutePath().normalize(); p != null; p = p.getParent()) {
-			if (Files.exists(p.resolve(".git"))) {
-				return p;
-			}
-		}
-		throw new IllegalStateException("找不到仓库根目录(从 " + start + " 向上没有 .git):请在仓库内运行本工具");
 	}
 }

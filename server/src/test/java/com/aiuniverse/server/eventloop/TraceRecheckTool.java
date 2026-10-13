@@ -2,6 +2,7 @@ package com.aiuniverse.server.eventloop;
 
 import java.nio.file.Path;
 
+import com.aiuniverse.server.persistence.RepoPathGuard;
 import com.aiuniverse.server.archetype.ArchetypeRegistry;
 
 import tools.jackson.databind.ObjectMapper;
@@ -34,7 +35,7 @@ public final class TraceRecheckTool {
 		if (in == null || out == null || args.length != 4) {
 			throw new IllegalArgumentException("用法:--in <原始 .trace.jsonl> --out <输出前缀>");
 		}
-		Path repoRoot = TraceFixtureConverter.findRepoRoot(Path.of("").toAbsolutePath());
+		Path repoRoot = RepoPathGuard.findRepoRoot(Path.of("").toAbsolutePath());
 		Path report = new TraceRecheck(new ObjectMapper(), new ArchetypeRegistry()).run(Path.of(in), Path.of(out),
 				repoRoot);
 		System.out.println("核读报告: " + report.toAbsolutePath());
