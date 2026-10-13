@@ -1,7 +1,7 @@
 # ADR-032 · 切库准备:文件存档与数据库之间的导入 / 回退导出、连接配置、启动语义与演练(不执行线上切换)
 
 - **日期**:2026-10-12
-- **状态**:**Accepted(安全网范围)**,2026-10-12 定稿(草案 `cb4f70e`)。刀 1 已合并(`main@e17a71c`,未部署);刀 2、刀 3 待实施。
+- **状态**:**Accepted(安全网范围)**,2026-10-12 定稿(草案 `cb4f70e`)。刀 1 已合并(`main@e17a71c`,未部署);刀 2 已实现(分支 `claude/festive-galileo-cgdmbk`,待合并,未部署);刀 3 待实施。
 - **总基调**:**生产存储默认仍为文件存储;本 ADR 不启动线上切库。** 本 ADR 只交付五件事:
   文件 → DB 导入、DB → 文件导出(回退)、`pg` profile 连接配置、数据库不可用时的启动语义与测试、测试环境演练。
 - **决策者**:Felix
@@ -114,6 +114,21 @@ ADR-025 刀 4 挂账时列的三项前置代码(快照导入工具 / 启动时 D
   (两次导入之间源目录变了)→ **不覆盖**、计入 `skipped`、在报告中逐份列出「已存在且不同」,并且**非零退出**;
   **不整批回滚**,其余可读档照常导入;该次运行**不算通过的演练**(与下一条「任何非零退出都不算通过」一致)。
   草案原把它与「已有原生行」一起定为整批失败,与 D-2「只有读回不一致才整批回滚」冲突,故改。
+- **退出码(刀 2 定,Felix 2026-10-13)**:
+
+  | 退出码 | 含义 |
+  |---|---|
+  | 0 | 通过。导入只有满足上面「通过」定义才给 0;导出 = 全部写出且没有载不动的行 |
+  | 1 | 工具或配置错误(参数、路径闸门、不是 `pg` profile、连不上库 / Flyway 失败、导出目标非空等),**什么都没写** |
+  | 2 | 数据层面需要人看:导入有不可读档,或有「库与源文件不一致」的已有行(可读档已照常导入);导出有拒写或载不动的行 |
+  | 3 | 完整性失败:读回不一致(或提交前的对账不平),**整批已回滚** |
+
+  同时出现多种情况时取最大值;报告把每一类都列出来。
+  - 实现时的一处判读(刀 2 记,待 Felix 确认):已有**原生**行而快照与源文件**不同** → 列入「库与源文件不一致(不覆盖)」并给 2
+    (与「已存在且不同的导入行」同一格,按「库与源文件不一致」不分来源处理);已有原生行且字节**相同** → 只列出、不抬退出码。
+    §1.3 表里原生行那一格只写了「不覆盖、计入 skipped、逐份列出」,没写退出码,故在此写明。
+  - 对账两项(`N = imported + skipped + 不可读`、`导入后 − 导入前 = imported`)放在**提交之前、同一事务里**断言,
+    对不上即抛、整批回滚、给 3 —— 这样「对账不平」也落在「什么都没留下」的那一侧,不会出现「已提交但对不上」的状态。
 
 ### D-5 · 连接池
 
@@ -135,7 +150,7 @@ ADR-025 刀 4 挂账时列的三项前置代码(快照导入工具 / 启动时 D
 
 | 项 | 内容 | 状态 |
 |---|---|---|
-| D-3 · 工具的线上运行方式 | 同 jar 换主类在 `fly ssh console` 内执行是否可行(镜像 `ENTRYPOINT ["java","-jar","app.jar"]`,`Dockerfile:37`;换主类写法未在本项目实测) | **未验证** |
+| D-3 · 工具的线上运行方式 | 同 jar 换主类在 `fly ssh console` 内执行是否可行(镜像 `ENTRYPOINT ["java","-jar","app.jar"]`,`Dockerfile:37`)。刀 2 只在本地实测了 `PropertiesLauncher` + `-Dloader.main` 写法(§三),容器内未跑 | **未验证** |
 | D-4 · Flyway 是否需要单独的 direct 连接 | MPG 迁移走 direct URL、业务走 pooled URL(底稿 P-4,摘要读数);本 ADR 只预留 `spring.flyway.url` 可单独设置这一口 | **未验证** |
 | D-1 (a) · 平台重启策略 | 若 D-1 演练只在本地做,Fly 机器上的实际重启策略与重试上限仍未读 | **未验证**(演练在 Fly 上读到后改) |
 | D-5 · 生产内存 | 512 MB 单机下 `pg` profile 的 RSS(演练观测值只是单次读数) | **未验证** |
@@ -234,17 +249,22 @@ ADR-025 刀 4 挂账时列的三项前置代码(快照导入工具 / 启动时 D
 ## 三、工具形态
 
 - **离线命令,不加任何 HTTP 端点**(echo-stream 教训:一个能写库的端点就是一扇要记得关的门,ADR-005 退役记录)。
-- **入口(提议,待实现刀定)**:同一个 jar 内的独立 `main` 类(如 `…/persistence/migrate/StoreMigrationTool`),两个子命令
-  `import <dir>` / `export <dir>`;以 Spring 非 web 上下文运行(`spring.main.web-application-type=none`),
-  **只装配 DataSource + Flyway + `ArchetypeRegistry` + `ObjectMapper`**,不装配 `GameSessionManager`
-  (否则会触发 `@PostConstruct reloadFromStore()` 与启动收口,`…/eventloop/GameSessionManager.java:50-51`、
-  `JdbcSessionStore.java:144-152`)。
-  - 本地 / CI:`mvn -q exec:java` 或测试内直接调用;线上(若将来解冻):`fly ssh console` 内用 Spring Boot loader
-    以 `-Dloader.main=…` 指定入口 —— **未证实**(镜像今天 `ENTRYPOINT ["java","-jar","app.jar"]`,`Dockerfile:37`;
-    换主类的具体写法未在本项目实测),**线上运行不在本 ADR 范围**。
+- **入口(刀 2 实现)**:`com.aiuniverse.server.persistence.StoreMigrationTool`(同一个 jar 内的独立 `main` 类;
+  落在 `persistence` 包而不是提议里的 `persistence/migrate` 子包 —— 为了直接复用包内可见的 `FileSessionStore.SAFE_SAVE_ID`
+  与 `assertOutsideWebRoot`,不另开公共入口、不复制正则)。子命令 `import <dir>` / `export <dir>`,可选 `--report=<file>`;
+  其余 `--x=y` 原样交给 Spring。上下文由工具自己的 `ToolConfig` 起:`@ImportAutoConfiguration` 只引 DataSource / Flyway / Jackson,
+  外加一个 `ArchetypeRegistry` bean,**不用 `@SpringBootApplication`、不扫包**,非 web(`WebApplicationType.NONE`)。
+  装配面由 `StoreMigrationToolContextTest` 守:无 `GameSessionManager`、无任何 `SessionStore`、无 web 服务器
+  (变异「改回扫全包」→ 该用例红)。工具类都不是组件,默认 profile 的应用上下文不装配它们(`DefaultProfileHasNoMigrationToolTest`)。
+  - 调用(本地,合成数据,2026-10-13 实跑可用):
+    `SPRING_PROFILES_ACTIVE=pg DATABASE_URL=… java -cp app.jar -Dloader.main=com.aiuniverse.server.persistence.StoreMigrationTool org.springframework.boot.loader.launch.PropertiesLauncher import <dir> --report=<file>`。
+    ⚠️ 不能把解开的 `BOOT-INF/classes` 当 classpath 直接跑:`META-INF/spring.factories` 在 jar 根,不在那里,
+    `DATABASE_URL` 的解析(`PgConnectionEnvironmentPostProcessor`)会静默不生效(本地踩到过,报「url 未指定」)。
+  - 线上(`fly ssh console` 内)同一写法是否可行:**未验证**,仍在检查清单 D-3。
+  - ⚠️ **导入 / 导出时应用必须停着**:工具不防并发写者(应用的 persist 会与导入交错,对账读数也会失真)。刀 3 的 runbook 照这一条写。
 - **profile**:以 `pg` profile 运行(需要 `application-pg.yml` 的超时配置与 Flyway)。工具**先跑 Flyway migrate**
   再操作,保证在空库上也能用。⚠️ 工具里的超时:`application-pg.yml` 的 2 s 事务超时是为「persist 在准入名额内」定的
-  (`application-pg.yml:11-17,42-47`),整批导入在一个事务里会超过它 → 工具**须用自己的事务超时**(数值待实现刀按演练读数定),
+  (`application-pg.yml:11-17,42-47`),整批导入在一个事务里会超过它 → 工具**须用自己的事务超时**(刀 2:配置项 `aiuniverse.store-migration.tx-timeout-seconds`,缺省 300 s —— 一批约 145 档、每档三条毫秒级语句,上界只为「DB 挂起时不无限等」;单条语句仍受 `socketTimeout=2` 约束;演练读数出来后可再定),
   不得改动线上 persist 的超时。
 - **路径规则**:
   - 输入 / 输出路径一律经 `toAbsolutePath().normalize()`,不得位于 static web 根之下(复用 `FileSessionStore.assertOutsideWebRoot`)。
@@ -406,6 +426,8 @@ ADR-025 刀 4 待办原话)。刀 1 用测试把它**钉住为 D-1 = 拒启**:�
   启动语义测试钉住 D-1 = 拒启(测试面 13);Hikari 池 5 + 启动日志(测试面 14);`requireOutsideRepo` 移到 `src/main`(测试面 15);默认 profile 不受影响(测试面 16)。
 - **刀 2 · 导入 / 导出离线工具 + 往返**:§一、§二、§三(测试面 1–10);**D-2 的事务边界说明写进代码注释,故障测试为验收项**(测试面 7);
   **同刀在 ADR-025 刀 4 下加带读数的注记**(定稿这一刀只加了一行指针)。
+  ⤷ 刀 2 已实现(2026-10-13,分支待合并):测试面 1–10、16 落在 `StoreMigrationToolTest` / `StoreMigrationToolGateTest` /
+  `StoreMigrationToolContextTest` / `DefaultProfileHasNoMigrationToolTest`;退出码见「已决 · D-2」;入口见 §三。
 - **刀 3 · runbook 演练**:§六 步骤落进 runbook,含 D-1 的重启策略核对与「未回退文件存储」验证;**Felix 本地演练记录**
   (只贴报告,不贴存档);ROADMAP 记录。
 - 每刀:`schemaVersion` 保 "0.4"、默认 profile 行为逐字节不变、不碰线上、不改 `fly.toml`。

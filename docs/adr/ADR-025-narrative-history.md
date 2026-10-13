@@ -363,6 +363,11 @@ persist 时以事件的形式补进历史(见决策 2「事件从哪来」)—�
   > - **CONTEXT §三.17**「不引数据库」与「解冻绑数据库那一刀」两处措辞**今天仍然成立**(线上确实没引数据库),
   >   本次不动;**随解冻那一刀收**(同上一句「收口时再判」,以及 §背景 那条「应读作绑 `turn_request` 那一刀」)。
   > - **指针(2026-10-12)**:导入 / 导出见 [ADR-032](ADR-032-pg-cutover-readiness-import-export.md)(上文原文不改)。
+  > - **注记(2026-10-13,ADR-032 刀 2 落地后的读数;上文原文不改)**:解冻前三项代码里的第一项(快照导入工具)已有实现 ——
+  >   入口 `com.aiuniverse.server.persistence.StoreMigrationTool`(`import <dir>` / `export <dir>`,离线、不加端点、必须 `pg` profile、
+  >   应用须停着);退出码 0 通过 / 1 工具或配置错误 / 2 需要人看 / 3 读回不一致整批回滚;覆盖 ADR-032 测试面 1–10、16。
+  >   本地合成数据实跑:16 个 `*.json` → imported 12 / skipped 1(月账)/ 不可读 3,退出码 2;重跑 imported 0 / 重复导入 12;
+  >   导出 12 份与源文件逐字节相同。**线上从未运行**;第二项(启动时 DB 不可达)已由 ADR-032 刀 1 定为拒启;第三项(runbook 切库一节)归 ADR-032 刀 3。
 
 每刀一律:`Engine` / `compressLog` / `LOG_KEEP` / `TurnStateMachine` / 忙态 CAS / 引擎 golden /
 prompt lockstep / `schemaVersion`(保 "0.4")**零动**。
