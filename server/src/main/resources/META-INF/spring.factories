@@ -1,0 +1,5 @@
+# ADR-032 刀 1:pg profile 的连接来源(spring.datasource.* / DATABASE_URL)。
+# 键名按 Spring Boot 4.1 核对:org.springframework.boot.EnvironmentPostProcessor
+# (旧的 org.springframework.boot.env.EnvironmentPostProcessor 在 4.1 已 @Deprecated)。
+org.springframework.boot.EnvironmentPostProcessor=\
+com.aiuniverse.server.persistence.PgConnectionEnvironmentPostProcessor
