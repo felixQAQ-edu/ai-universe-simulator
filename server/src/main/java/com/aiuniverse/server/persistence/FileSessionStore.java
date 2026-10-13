@@ -64,7 +64,7 @@ public class FileSessionStore implements SessionStore {
 	private static final Logger log = LoggerFactory.getLogger(FileSessionStore.class);
 
 	/** saveId 只允许 UUID 形字符(服务端生成;防御:含路径分隔等一律拒写,防目录逃逸)。 */
-	private static final Pattern SAFE_SAVE_ID = Pattern.compile("[A-Za-z0-9-]+");
+	static final Pattern SAFE_SAVE_ID = Pattern.compile("[A-Za-z0-9-]+"); // 包内可见:存档导入 / 导出工具(ADR-032 刀 2)复用同一份,不复制正则
 
 	private final Path dir;
 	private final ObjectMapper mapper;
