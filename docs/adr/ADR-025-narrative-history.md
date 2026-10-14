@@ -368,6 +368,7 @@ persist 时以事件的形式补进历史(见决策 2「事件从哪来」)—�
   >   应用须停着);退出码 0 通过 / 1 工具或配置错误 / 2 需要人看 / 3 读回不一致整批回滚;覆盖 ADR-032 测试面 1–10、16。
   >   本地合成数据实跑:16 个 `*.json` → imported 12 / skipped 1(月账)/ 不可读 3,退出码 2;重跑 imported 0 / 重复导入 12;
   >   导出 12 份与源文件逐字节相同。**线上从未运行**;第二项(启动时 DB 不可达)已由 ADR-032 刀 1 定为拒启;第三项(runbook 切库一节)归 ADR-032 刀 3。
+  > - **注记(2026-10-14;上文原文不改)**:解冻前须先做的三项(快照导入工具 / 启动时 DB 不可达的行为 / runbook 切库一节)已由 ADR-032 刀 1–3 完成,并于 2026-10-14 在线上数据拷贝上演练通过(读数见 [pg-cutover-drill.md](../pg-cutover-drill.md)「Felix 真实演练记录」);**线上切库本身仍挂账,解冻条件不变**。
 
 每刀一律:`Engine` / `compressLog` / `LOG_KEEP` / `TurnStateMachine` / 忙态 CAS / 引擎 golden /
 prompt lockstep / `schemaVersion`(保 "0.4")**零动**。
