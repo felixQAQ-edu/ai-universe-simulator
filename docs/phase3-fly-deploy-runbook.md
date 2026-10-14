@@ -424,3 +424,9 @@ fly secrets set AIUNIVERSE_TRACE_ENABLED=false   # 触发一次机器重启;启�
 fly secrets unset AIUNIVERSE_TRACE_ENABLED
 ```
 - 关闭期间回合照常,只是不写轨迹;已有文件原样保留。
+
+## 八、切库演练(ADR-032 刀 3,2026-10-14 起)
+
+本地演练,**不部署、不碰线上**(第 9 步只读 Fly 机器配置)。步骤、判定与记录模板单独成文:
+[pg-cutover-drill.md](pg-cutover-drill.md)。放在本 runbook 之外的理由:本 runbook 是 `fly deploy` 的操作手册,
+而演练全程在本机 Docker + 本地 jar 上跑,混进来会让「部署步骤」与「演练步骤」在同一份文件里互相误读。
