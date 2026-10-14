@@ -31,6 +31,11 @@
 ## 一、准备
 
 ```sh
+java -version
+```
+要求 21 或以上;低于 21 → 停,报告。
+
+```sh
 docker version
 ```
 看到 `Server:` 段(有 `Version`)算过;**报错或只有 Client 段 → 停在这一步**(Docker Desktop 没起),报告。
@@ -74,6 +79,8 @@ echo ${#DEEPSEEK_API_KEY}
 只看长度(非 0 即可),**不要 echo 值**。不设 key 也能做完整个演练:第 5 步那一回合会走 mock、降级为 no-op,
 回合号照样 +1 并落库,验证的是落库与 `game_event`,不是叙事。
 
+2026-10-14 Felix 实跑时订正:加 `java -version` 一行。
+
 ## 二、第 1 步 · 起演练库
 
 ```sh
@@ -97,18 +104,16 @@ cp -p server/data/*.json ~/wanjie-drill/src/
 ```
 
 **(b) 线上卷的只读拷贝(可选)**:只读、不改动线上任何东西,拷到仓库外。
-⚠️ CC 没有 fly 权限,下面两行**未实跑**;`fly ssh sftp` 的确切子命令以 `fly ssh sftp --help` 为准,不对就停下报告,不要改用会写线上的办法。
+2026-10-14 已实跑。⚠️ `fly ssh sftp get` 要求目标目录**事先不存在**,否则报 `already there`;**不要**先 `mkdir` 它。
+拷下来的文件直接落在 `fly-raw/` 下,没有 `data/` 子目录。
 
-```sh
-mkdir -p ~/wanjie-drill/fly-raw
-```
 ```sh
 fly ssh sftp get -R /data ~/wanjie-drill/fly-raw -a wanjie-ai
 ```
 ```sh
-cp -p ~/wanjie-drill/fly-raw/data/*.json ~/wanjie-drill/src/
+cp -p ~/wanjie-drill/fly-raw/*.json ~/wanjie-drill/src/
 ```
-(若 `get -R` 落下来的目录不叫 `data`,按实际路径改第三行;只拷顶层 `*.json`。)
+(只拷顶层 `*.json`。)
 
 数一遍并记录:
 
@@ -119,6 +124,8 @@ ls ~/wanjie-drill/src/*.json | wc -l
 ls ~/wanjie-drill/src | grep -c '^quota-.*\.json$'
 ```
 第一个数记为 **SRC_N**(源目录直接下 `*.json` 总数),第二个记为 **QUOTA_N**(月账文件数)。
+
+2026-10-14 Felix 实跑时订正:(b) 删掉事先建 `fly-raw` 的一行(sftp 要求目标目录不存在),拷存档一行改为 `fly-raw/*.json`。
 
 ## 四、第 3 步 · 导入
 
@@ -201,6 +208,13 @@ curl -s -o /dev/null -w '%{http_code}\n' -X POST -H 'Content-Type: application/j
 ```
 应打出 `200`。(若该局的选项里没有 `A`,会是 `400 illegal_action`:换一局重做本节,不要改动存档。)
 
+换一局:
+
+```sh
+export DRILL_SID=$(docker exec wanjie-drill-pg psql -U drill -d wanjie_drill -tAc "select save_id from game_session where status='ongoing' order by save_id limit 1 offset 1")
+```
+然后从 `DRILL_T0` 那一行起重做;应用不用重启。
+
 ```sh
 docker exec wanjie-drill-pg psql -U drill -d wanjie_drill -tAc "select turn, source from game_session where save_id='$DRILL_SID'"
 ```
@@ -223,6 +237,8 @@ kill $DRILL_APP_PID
 sleep 3; ps -p $DRILL_APP_PID >/dev/null && echo 仍在运行 || echo 已停
 ```
 要看到 `已停` 才往下。
+
+2026-10-14 Felix 实跑时订正:补「换一局」的可复制命令,写明从 `DRILL_T0` 起重做、应用不用重启。
 
 ## 七、第 6 步 · 导出 + 比对
 
@@ -326,15 +342,24 @@ find ~/wanjie-drill/export -newer ~/wanjie-drill/reports/d1-marker | wc -l
 ## 十、第 9 步 · D-1 (a):读线上机器的重启策略(**只读**)
 
 ⚠️ **只读配置,不验证行为**:行为仍记为「**未在 Fly 上验证**」。**不得**重启、停机、`fly machine update` 或改任何配置。
-⚠️ CC 没有 fly 权限,下面命令**未实跑**;flag 以 `fly machine status --help` 为准。
+2026-10-14 已实跑。
 
 ```sh
 fly machine list -a wanjie-ai
 ```
+下面两行里的 `ID` 要换成上一行输出 ID 列的值(直接替换这两个字母;⚠️ 不要写成带尖括号的占位符,zsh 会把 `<` 当成重定向):
+
 ```sh
-fly machine status <上一行列出的机器 ID> -a wanjie-ai --display-config
+fly machine status ID -a wanjie-ai --display-config
+```
+可选,只看 restart 那一段:
+
+```sh
+fly machine status ID -a wanjie-ai --display-config | grep -A4 -i '"restart"'
 ```
 在输出里找 `"restart"` 一段,记下 `policy` 与 `max_retries`(若配置里**没有** `restart` 字段,记「配置中无 restart 字段,取平台默认,具体值未读到」——**不凭文档推断次数**)。
+
+2026-10-14 Felix 实跑时订正:去掉尖括号占位符(zsh 当重定向),改为替换 ID;补可选过滤命令;去掉「未实跑」警告。
 
 ## 十一、第 10 步 · 清理
 
@@ -374,6 +399,34 @@ unset DRILL_PG_PASSWORD DRILL_SID DRILL_T0 DRILL_T1 DRILL_APP_PID DEEPSEEK_API_K
 
 **演练通过**的判定照 ADR-032「已决 · D-2」:第 3 步退出码 0 且三项计数与源目录清点一致;第 3、4、6 步任何非零退出都不算通过。
 第 9 步不影响「通过」,但它的行为部分仍留在「切库前检查清单」里,不得写成已验证。
+
+## 十三、Felix 真实演练记录(2026-10-14)
+
+Felix 在自己的 Mac 上按本文第 1–10 步跑完;来源 (b)。第 1–8 步全部按判定通过,第 9 步只读到 restart 配置。
+只记数字与退出码,不含任何存档标识、文件名或存档内容。
+
+| 项 | 值 |
+|---|---|
+| 来源 | (b) 线上卷只读拷贝(2026-10-14) |
+| 构建 commit | `9899c5e` |
+| SRC_N / QUOTA_N | 234 / 4 |
+| 第 3 步 imported / skipped(非存档)/ integrity_failed / 不可读 / exit | 230 / 4(4)/ 0 / 0 / 0 |
+| 第 3 步 import 行数 前 → 后 | 0 → 230 |
+| 第 4 步 imported / 重复导入 / exit | 0 / 230 / 0 |
+| 第 5 步 载入 X / 拒载 | 230 / 0;`[session-store] 落盘目录` 行数 0 |
+| 第 5 步 连接来源 / 池大小 | `spring.datasource.*` / 5 |
+| 第 5 步 RSS(KB,演练观测值,Felix 的 Mac,非 512 MB 机器,单次) | 214320 |
+| 第 5 步 回合 HTTP / T0 → T1 / game_event 行数 | 200 / 0 → 1 / 1(该局导入时在第 0 回合,无旧回合可补) |
+| 第 5 步 是否走真模型 | 是:usage 行 `model=deepseek-flash`、`reasoningChars=0`,日志无降级 |
+| 第 6 步 导出 N / 写出 / 拒写 / 载不动 / exit | 230 / 230 / 0 / 0 / 0 |
+| 第 6 步 比对 相同 / 不同 / 缺失 / exit | 229 / 0 / 0 / 0(排除项:走过回合那一局「不同」、4 份月账「只在源」) |
+| 第 7 步 载入 X / 非存档 / 拒载;T0 → HTTP;T1 → HTTP | 230 / 0 / 0;0 → 409;1 → 200(mock 回合) |
+| 第 8 步 exit / 密码出现次数 / [session-store] 行数 / find 计数 / 比对 exit | 1 / 0 / 0 / 0 / 0;原因行 = 来源 `DATABASE_URL`、端口 1 → `FlywaySqlUnableToConnectToDbException`(`Connection to 127.0.0.1:1 refused`)→ `Application run failed`,无密码 |
+| 第 9 步 restart policy / max_retries | `on-failure` / `10`(只读配置;行为仍「未在 Fly 上验证」);线上 1 台机器 started、checks 1/1 |
+| 结论 | 通过(按 ADR-032「已决 · D-2」:第 3、4、6 步退出码均 0;第 8 步按判定成立) |
+
+本次实跑改了文档四处(各小节末尾标「2026-10-14 Felix 实跑时订正」):第一节加 `java -version`;
+第 2 步 (b) 的 sftp 目标目录与拷贝路径;第 5 步补「换一局」命令;第 9 步去掉尖括号占位符并补过滤命令。
 
 ---
 
