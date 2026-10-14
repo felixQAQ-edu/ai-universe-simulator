@@ -62,10 +62,10 @@
   自伤硬禁已写进 prompt 骨架、扫描器落在测试里**未接线**;主防线是软的且没有硬兜底;
   `LeakDetector` 按其自陈只是**事后遥测**,抓不到改写式泄露。
   正文在[工程债 §1.2](docs/backlog-engineering-debt.md) 与 ADR-004 已知代价。
-- **PostgreSQL 只在 `pg` profile 下生效,线上未切库**:叙事历史(ADR-025)与回合受理记录(ADR-026)
-  的实现与测试已合并,默认 profile(也就是线上)仍走文件存储;切库挂账,理由见 ADR-025 刀 4。
-  生产默认文件存储;`pg` profile 为已实现、未上线,切库条件见
-  [ADR-032](docs/adr/ADR-032-pg-cutover-readiness-import-export.md)(导入 / 回退导出 / 启动语义,刀 1–3 待实施)。
+- **PostgreSQL + Flyway 在 `pg` profile 下实现和验证(含导入 / 回退演练),线上未切库**:叙事历史(ADR-025)与
+  回合受理记录(ADR-026)的实现与测试已合并;导入 / 回退导出 / 启动语义见
+  [ADR-032](docs/adr/ADR-032-pg-cutover-readiness-import-export.md)(刀 1–3 已合并,2026-10-14 在线上数据的只读拷贝上演练通过)。
+  默认 profile(也就是线上)仍走文件存储;线上切库挂账,理由见 ADR-025 刀 4。不是生产迁移。
 - **单实例不是高可用,且这是有约束下的主动选择**:内存 session + 进程内忙态守卫(`compareAndSet`)
   钉死单副本,水平扩展需先把守卫与 session 外置(Redis/DB)。
   理由与代价写在 [ADR-015 §已知代价 4](docs/adr/ADR-015-overseas-deployment-form-factor.md),
