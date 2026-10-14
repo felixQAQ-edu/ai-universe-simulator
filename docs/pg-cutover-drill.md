@@ -80,9 +80,10 @@ echo ${#DEEPSEEK_API_KEY}
 docker run -d --name wanjie-drill-pg -e POSTGRES_USER=drill -e POSTGRES_DB=wanjie_drill -e POSTGRES_PASSWORD="$DRILL_PG_PASSWORD" -p 127.0.0.1:55432:5432 postgres:16-alpine
 ```
 ```sh
-for i in $(seq 30); do docker exec wanjie-drill-pg pg_isready -U drill -d wanjie_drill && break; sleep 1; done
+for i in $(seq 30); do docker exec wanjie-drill-pg pg_isready -h 127.0.0.1 -U drill -d wanjie_drill && break; sleep 1; done
 ```
-看到 `accepting connections` 算过;30 秒内没有 → 停,`docker logs wanjie-drill-pg` 看原因。
+看到 `127.0.0.1:5432 - accepting connections` 算过(必须带 `-h 127.0.0.1` 走 TCP:镜像初始化期间有一个只听 unix socket 的临时服务器,
+不带 `-h` 可能在它身上报「就绪」,随后它重启);30 秒内没有 → 停,`docker logs wanjie-drill-pg` 看原因。
 
 ## 三、第 2 步 · 拷存档、数文件
 
@@ -178,7 +179,7 @@ for i in $(seq 90); do curl -sf localhost:18080/actuator/health >/dev/null && ec
 ```sh
 grep -E '\[pg-connection\]|\[session-store:pg\] 启动回载' ~/wanjie-drill/reports/step5.log
 ```
-- **算过**:「启动回载:载入 X 档,0 档拒载」的 X = 第 3 步 `imported`;连接来源行写的是 `spring.datasource.url`;
+- **算过**:「启动回载:载入 X 档,0 档拒载」的 X = 第 3 步 `imported`;连接来源行写的是 `来源 = spring.datasource.*`(主机 `127.0.0.1`、端口 `55432`、库 `wanjie_drill`);
   连接池行 `maximum-pool-size = 5`(未设 env 时)。
 - **停**:X 不等、拒载非 0、连接来源不对。
 
@@ -307,7 +308,7 @@ grep -c "$DRILL_PG_PASSWORD" ~/wanjie-drill/reports/step8.log
 grep -cE '\[session-store\] (落盘目录|启动回载)' ~/wanjie-drill/reports/step8.log
 ```
 ```sh
-grep -E '\[pg-connection\]|拒绝启动|APPLICATION FAILED' ~/wanjie-drill/reports/step8.log | head -5
+grep -E '\[pg-connection\]|Application run failed|UnableToConnect' ~/wanjie-drill/reports/step8.log | cut -c1-200
 ```
 ```sh
 find ~/wanjie-drill/export -newer ~/wanjie-drill/reports/d1-marker | wc -l
@@ -317,7 +318,8 @@ find ~/wanjie-drill/export -newer ~/wanjie-drill/reports/d1-marker | wc -l
 ```
 
 - **算过**(这一步要的就是非零):`exit` **非 0**;密码出现次数 `0`;`[session-store]` 行数 `0`;
-  原因行能看出是连接 / 迁移失败(连接来源 `DATABASE_URL`,不含密码);`find` 计数 `0`(没有任何文件或目录被新建或改写);
+  原因行能看出是连接 / 迁移失败(`[pg-connection] 来源 = DATABASE_URL,主机 = 127.0.0.1,端口 = 1`、`Application run failed`、
+  `FlywaySqlUnableToConnectToDbException … Connection to 127.0.0.1:1 refused`;都不含密码);`find` 计数 `0`(没有任何文件或目录被新建或改写);
   比对脚本 `exit=0`(文件个数与内容都没变)。
 - **停**:`exit=0`(应用居然起来了)、密码出现、`[session-store]` 行出现、`find` 非 0、比对非 0 —— 任何一条都是 D-1 未成立。
 
@@ -372,3 +374,44 @@ unset DRILL_PG_PASSWORD DRILL_SID DRILL_T0 DRILL_T1 DRILL_APP_PID DEEPSEEK_API_K
 
 **演练通过**的判定照 ADR-032「已决 · D-2」:第 3 步退出码 0 且三项计数与源目录清点一致;第 3、4、6 步任何非零退出都不算通过。
 第 9 步不影响「通过」,但它的行为部分仍留在「切库前检查清单」里,不得写成已验证。
+
+---
+
+## 附 · CC 合成数据自跑记录(2026-10-14,刀 3 的「验产物」)
+
+⚠️ **这不是 Felix 的演练,不算「导入 / 回退演练通过」**(ADR-032「对外口径」不因本节改变):数据是合成的,
+环境是 CC 的 Linux 容器(bash,dockerd 现起),第 5 步没有真 key。
+
+- **数据**:测试侧 `SyntheticSaves.writeAll` 现场生成到仓库外 `~/drill-gen`(代替「(a) 本机 `server/data`」),
+  删掉三份按设计不可读的档(它们的非零退出由 CI 用例 `StoreMigrationToolTest` 覆盖),余 12 份存档 + 1 份月账 + `traces/`。
+  含四个基础世界、融合、《寻常》、《动物人生》新局与旧局、已结束局、`phaseHint=SETTLING/GENERATING`、一份字节形态与 encode 不同的档。
+- **与文档的差别**(只有这三处,其余命令逐字照抄):第 2 步拷的是 `~/drill-gen/*.json`;没执行设置 key 的三行(zsh 写法,容器是 bash,且走 mock);
+  因为每次工具调用是新 shell,密码与 `DRILL_*` 变量经仓库外的临时文件传递,跑完即删。
+
+| 项 | 值 |
+|---|---|
+| 来源 | 合成(代替 (a)) |
+| 构建 commit | `5b29c2a`(本刀提交 3) |
+| SRC_N / QUOTA_N | 13 / 1 |
+| 第 3 步 imported / skipped(非存档)/ integrity_failed / 不可读 / exit | 12 / 1(1)/ 0 / 0 / 0 |
+| 第 3 步 import 行数 前 → 后 | 0 → 12 |
+| 第 4 步 imported / 重复导入 / exit | 0 / 12 / 0 |
+| 第 5 步 载入 X / 拒载 | 12 / 0;`[session-store] 落盘目录` 行数 0 |
+| 第 5 步 连接来源 / 池大小 | `spring.datasource.*` / 5 |
+| 第 5 步 RSS(KB,演练观测值,CC 容器,非 512 MB 机器,单次) | 274036 |
+| 第 5 步 回合 HTTP / T0 → T1 / game_event 行数 | 200 / 5 → 6 / 1(合成档的 log 为空,无可补齐的旧回合,只有新回合 1 条) |
+| 第 5 步 是否走真模型 | 否:mock,ADR-024 段时限 20 s 自掐 → no-op 降级回合(`durMs=20048`),回合号仍 +1 并落库 |
+| 第 6 步 导出 N / 写出 / 拒写 / 载不动 / exit | 12 / 12 / 0 / 0 / 0 |
+| 第 6 步 比对 相同 / 不同 / 缺失 / exit | 11 / 0 / 0 / 0(排除项:走过回合那一局「不同」、月账「只在源」) |
+| 第 7 步 载入 X / 非存档 / 拒载;游标 T0 → HTTP;T1 → HTTP | 12 / 0 / 0;5 → 409;6 → 200 |
+| 第 8 步 exit / 密码出现次数 / [session-store] 行数 / find 计数 / 比对 exit | 1 / 0 / 0 / 0 / 0 |
+| 第 9 步 restart policy / max_retries | 未读(CC 无 fly 权限;D-1 (a) 仍「未在 Fly 上验证」) |
+| 第 10 步 | 容器已删,`~/wanjie-drill`、`~/drill-gen` 已删;仓库内 `server/data` 不存在(全程未被写) |
+| 结论 | 合成数据下第 1–8 步全部按判定通过;第 9 步未做 |
+
+**自跑中改过的文档(命令与实际不符的地方)**:
+1. 第 1 步 `pg_isready` 加 `-h 127.0.0.1`。⚠️ 这一处**不是实跑失败**:自跑时不带 `-h` 也等到了就绪;
+   改它是因为不带 `-h` 走 unix socket,会在镜像初始化期的临时服务器上报就绪(已知窗口)。改后的命令重跑过一次,输出 `127.0.0.1:5432 - accepting connections`。
+2. 第 5 步连接来源行的判定写错了:日志实际是 `来源 = spring.datasource.*`,不是 `spring.datasource.url`。
+3. 第 8 步找原因行的 grep 写错了:Boot 4.1 没有 `APPLICATION FAILED` 横幅、也没有「拒绝启动」字样(那是 `JdbcSessionStore` 读表失败才打的,
+   这里在更早的 Flyway 连接就失败了),原 grep 只命中 `[pg-connection]` 一行。改为匹配 `Application run failed` 与 `UnableToConnect`。

@@ -1,7 +1,7 @@
 # ADR-032 · 切库准备:文件存档与数据库之间的导入 / 回退导出、连接配置、启动语义与演练(不执行线上切换)
 
 - **日期**:2026-10-12
-- **状态**:**Accepted(安全网范围)**,2026-10-12 定稿(草案 `cb4f70e`)。刀 1 已合并(`main@e17a71c`,未部署);刀 2 已实现(分支 `claude/festive-galileo-cgdmbk`,待合并,未部署);刀 3 待实施。
+- **状态**:**Accepted(安全网范围)**,2026-10-12 定稿(草案 `cb4f70e`)。刀 1 已合并(`main@e17a71c`,未部署);刀 2 已合并(`main@e6d134b`,未部署);刀 3 runbook 与比对脚本已落([pg-cutover-drill.md](../pg-cutover-drill.md),CC 合成数据自跑第 1–8 步通过,待合并),**Felix 真实演练待做**。
 - **总基调**:**生产存储默认仍为文件存储;本 ADR 不启动线上切库。** 本 ADR 只交付五件事:
   文件 → DB 导入、DB → 文件导出(回退)、`pg` profile 连接配置、数据库不可用时的启动语义与测试、测试环境演练。
 - **决策者**:Felix
@@ -430,6 +430,9 @@ ADR-025 刀 4 待办原话)。刀 1 用测试把它**钉住为 D-1 = 拒启**:�
   `StoreMigrationToolContextTest` / `DefaultProfileHasNoMigrationToolTest`;退出码见「已决 · D-2」;入口见 §三。
 - **刀 3 · runbook 演练**:§六 步骤落进 runbook,含 D-1 的重启策略核对与「未回退文件存储」验证;**Felix 本地演练记录**
   (只贴报告,不贴存档);ROADMAP 记录。
+  ⤷ 2026-10-14:runbook = [`docs/pg-cutover-drill.md`](../pg-cutover-drill.md)(runbook §八 指针)+ `scripts/pg-drill-compare.sh`;
+  CC 用合成存档按文档跑了第 1–8 步并全部按判定通过(记录在该文件末尾;mock 降级回合;第 9 步无 fly 权限未做)。
+  ⚠️ **这不是「导入 / 回退演练通过」**:「对外口径」那句仍要等 Felix 真实演练按「已决 · D-2」通过;D-1 (a) 仍「未在 Fly 上验证」。
 - 每刀:`schemaVersion` 保 "0.4"、默认 profile 行为逐字节不变、不碰线上、不改 `fly.toml`。
 
 ## 已知代价
