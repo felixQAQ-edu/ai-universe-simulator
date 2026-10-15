@@ -4,7 +4,7 @@ import type { HistoryApi, HistoryEntry } from '../api';
 
 // 「回看上局」的全部状态(ADR-025 刀 3)。**独立于 gameStore** —— 回合流程(init/turn/resume/
 // 世代守卫)一行不改:历史是只读旁路,与回合流程不共享任何状态,只读 gameStore 的
-// `resumableSaveId` 作为「上局是哪一局」的真相源(由调用方传入,本 store 不订阅 gameStore)。
+// 存档列表最近一条(ADR-034;原为单槽 `resumableSaveId`)作为「上局是哪一局」的真相源(由调用方传入,本 store 不订阅 gameStore)。
 //
 // 两件事分开:
 //   1. **入口探测**(probe):选择屏据它决定「回看上局」显不显示。
@@ -104,7 +104,7 @@ export function createHistoryStore(api: HistoryApi) {
             }
           })
           .catch(() => {
-            // 501 / 404 / 503 / 网络失败:入口不出现,不报错,不影响「继续上局」。
+            // 501 / 404 / 503 / 网络失败:入口不出现,不报错,不影响「我的存档」条目。
           })
           .finally(() => probing.delete(saveId));
       },

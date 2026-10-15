@@ -1,11 +1,12 @@
-// 续局状态机(ADR-015 Slice 2):localStorage 记 saveId → 「继续上局」→ resumeGame 恢复;
-// 失败(404/损坏/网络)静默清 saveId 回到正常起局。mock api 注入,零网络(ADR-003 边界)。
+// 续局状态机(ADR-015 Slice 2 → ADR-034):localStorage 一局一键 → 「我的存档」→ resumeGame(saveId) 恢复;
+// 失败一律不删指针(404 标 unavailable,其余条目不变)。mock api 注入,零网络(ADR-003 边界)。
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { GameApi, InitResult, TurnStream } from '../api';
 import { GameApiError } from '../api';
 import { createGameStore } from './gameStore';
 
-const SAVE_ID_KEY = 'aiuniverse.saveId';
+const LEGACY_KEY = 'aiuniverse.saveId';
+const ptr = (id: string) => JSON.parse(localStorage.getItem(`aiuniverse.save.${id}`) ?? 'null');
 
 const RESUME_RESULT: InitResult = {
   saveId: 's-resume',
@@ -61,31 +62,34 @@ beforeEach(() => {
   localStorage.clear();
 });
 
-describe('resumableSaveId 初始化与写入', () => {
-  it('localStorage 无 saveId → 无续局入口', () => {
+describe('存档列表初始化与写入', () => {
+  it('localStorage 无存档 → 空列表', () => {
     const store = createGameStore(makeApi(RESUME_RESULT));
-    expect(store.getState().resumableSaveId).toBeNull();
+    expect(store.getState().saves).toEqual([]);
   });
 
-  it('localStorage 有 saveId → 初始即有续局入口', () => {
-    localStorage.setItem(SAVE_ID_KEY, 's-old');
+  it('只有旧单槽键 → 迁移成一条,初始即在列表里', () => {
+    localStorage.setItem(LEGACY_KEY, 's-old');
     const store = createGameStore(makeApi(RESUME_RESULT));
-    expect(store.getState().resumableSaveId).toBe('s-old');
+    expect(store.getState().saves.map((x) => x.saveId)).toEqual(['s-old']);
+    expect(localStorage.getItem(LEGACY_KEY)).toBeNull(); // 新键已写好,比对后清
   });
 
-  it('startGame 成功 → 写入 localStorage 并更新 resumableSaveId', async () => {
-    const store = createGameStore(makeApi(RESUME_RESULT));
+  it('startGame 成功 → 写下自己那一条摘要并进列表', async () => {
+    const store = createGameStore(makeApi(RESUME_RESULT), { now: () => 1234 });
     await store.getState().startGame('rules_creepy');
-    expect(localStorage.getItem(SAVE_ID_KEY)).toBe('s-new');
-    expect(store.getState().resumableSaveId).toBe('s-new');
+    expect(ptr('s-new')).toEqual({
+      saveId: 's-new', title: '雨夜便利店', archetypes: ['rules_creepy'], turn: 3,
+      ended: false, lastPlayedAt: 1234, availability: 'available',
+    });
+    expect(store.getState().saves.map((x) => x.saveId)).toEqual(['s-new']);
   });
 });
 
 describe('resumeGame', () => {
   it('成功(ongoing)→ awaiting;散文由 log 末条补位;数值/动作/规则高亮就位', async () => {
-    localStorage.setItem(SAVE_ID_KEY, 's-resume');
     const store = createGameStore(makeApi(RESUME_RESULT));
-    await store.getState().resumeGame();
+    await store.getState().resumeGame('s-resume');
 
     const s = store.getState();
     expect(s.status).toBe('awaiting');
@@ -100,7 +104,6 @@ describe('resumeGame', () => {
   });
 
   it('log 为空(起局即崩后的续局)→ 散文兜底世界背景', async () => {
-    localStorage.setItem(SAVE_ID_KEY, 's-resume');
     const fresh: InitResult = {
       ...RESUME_RESULT,
       world: {
@@ -109,12 +112,11 @@ describe('resumeGame', () => {
       },
     };
     const store = createGameStore(makeApi(fresh));
-    await store.getState().resumeGame();
+    await store.getState().resumeGame('s-resume');
     expect(store.getState().narrative).toBe('背景兜底文案');
   });
 
   it('ended 局照样可回看:status ended + 结局画面数据来自 reached 结局', async () => {
-    localStorage.setItem(SAVE_ID_KEY, 's-resume');
     const endedResult: InitResult = {
       ...RESUME_RESULT,
       world: {
@@ -132,7 +134,7 @@ describe('resumeGame', () => {
       },
     };
     const store = createGameStore(makeApi(endedResult));
-    await store.getState().resumeGame();
+    await store.getState().resumeGame('s-resume');
     const s = store.getState();
     expect(s.status).toBe('ended');
     expect(s.ending).toEqual({ id: 'survive_dawn', title: '撑到黎明', description: '你活了下来。' });
@@ -140,21 +142,21 @@ describe('resumeGame', () => {
     expect(s.notice).toBeNull();
   });
 
-  it('失败(404/损坏)→ 静默清 saveId 回到 idle,不留错误挡路', async () => {
-    localStorage.setItem(SAVE_ID_KEY, 's-gone');
+  it('失败(404)→ 回到 idle,不留错误挡路;该条**标 unavailable、不删**(ADR-034 已决 6)', async () => {
+    localStorage.setItem(LEGACY_KEY, 's-gone'); // 经迁移成为一条
     const store = createGameStore(makeApi('fail'));
-    await store.getState().resumeGame();
+    await store.getState().resumeGame('s-gone');
 
     const s = store.getState();
     expect(s.status).toBe('idle');
-    expect(s.resumableSaveId).toBeNull();
     expect(s.errorMessage).toBeNull();
-    expect(localStorage.getItem(SAVE_ID_KEY)).toBeNull();
+    expect(s.saves.map((x) => [x.saveId, x.availability])).toEqual([['s-gone', 'unavailable']]);
+    expect(ptr('s-gone').availability).toBe('unavailable');
   });
 
-  it('无 resumableSaveId → no-op', async () => {
+  it('空 saveId → no-op', async () => {
     const store = createGameStore(makeApi(RESUME_RESULT));
-    await store.getState().resumeGame();
+    await store.getState().resumeGame('');
     expect(store.getState().status).toBe('idle');
   });
 });

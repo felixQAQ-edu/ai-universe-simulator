@@ -24,7 +24,9 @@ function enterGame(status: 'awaiting' | 'generating') {
     status,
     world: WORLD,
     saveId: 's-1',
-    resumableSaveId: 's-1',
+    saves: [
+      { saveId: 's-1', title: '雨夜便利店', archetypes: ['rules_creepy'], turn: 2, ended: false, lastPlayedAt: 1, availability: 'available' },
+    ],
     turn: 2,
     narrative: '雨还在下。',
     availableActions: [{ id: 'A', text: '观察', hint: '' }],
@@ -35,7 +37,7 @@ function enterGame(status: 'awaiting' | 'generating') {
 
 afterEach(() => {
   useGameStore.getState().reset();
-  useGameStore.setState({ resumableSaveId: null });
+  useGameStore.setState({ saves: [] });
 });
 
 describe('等待期导航(world-gen 首局线上实测 ~120s)', () => {
@@ -50,7 +52,7 @@ describe('等待期导航(world-gen 首局线上实测 ~120s)', () => {
 });
 
 describe('游戏内返回(退出不弃局)', () => {
-  it('点返回 → 回选择屏,且存档指针留着(「继续上局」还在)', async () => {
+  it('点返回 → 回选择屏,且存档指针留着(「我的存档」里还在)', async () => {
     enterGame('awaiting');
     render(<GameScreen />);
 
@@ -59,7 +61,7 @@ describe('游戏内返回(退出不弃局)', () => {
     const s = useGameStore.getState();
     expect(s.status).toBe('idle');
     expect(s.world).toBeNull();
-    expect(s.resumableSaveId).toBe('s-1'); // 不弃局:回去就能续
+    expect(s.saves.map((x) => x.saveId)).toEqual(['s-1']); // 不弃局:回去就能续
   });
 
   it('**生成中照样可点**(不禁用):一回合 15s+,那恰是玩家最想退出的时刻', async () => {
@@ -71,7 +73,7 @@ describe('游戏内返回(退出不弃局)', () => {
     await userEvent.click(btn);
 
     expect(useGameStore.getState().status).toBe('idle');
-    expect(useGameStore.getState().resumableSaveId).toBe('s-1');
+    expect(useGameStore.getState().saves.map((x) => x.saveId)).toEqual(['s-1']);
   });
 
   it('不做二次确认:一次点击直接回选择屏(无损操作不制造摩擦)', async () => {

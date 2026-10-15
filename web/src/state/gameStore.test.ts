@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   ArchetypeSummary,
   FusionCombo,
@@ -296,59 +296,64 @@ describe('chooseAction', () => {
     expect(s.availableActions).toEqual(actionsBefore); // 决策圈原样保留
   });
 
-  // ── 确认死档即清指针(ADR-022 刀 1.5)────────────────────────────────
-  // 刀 1 的 404 文案让玩家「返回后点『继续上局』」,而那个按钮点下去必然 404 且静默消失。
-  // 根治不在文案:拿到 session_not_found 就把指针清掉,返回后压根不该再有那个按钮。
+  // ── 确认死档 → 标为暂时无法找回(ADR-022 刀 1.5 → ADR-034 已决 6)──────────
+  // 刀 1.5 时这里是「清指针」;ADR-034 改为**只标 unavailable、不删**:saveId 是找回这一局的唯一凭证。
   //
-  // ⚠️ 下面三条是**同一枚硬币的两面 + 一条承重件**,必须同时绿:
-  //   ① 确认死档 → 清(新行为);② reset() 仍不清(线 C「退出不弃局」,老行为不许被顺手改掉);
-  //   ③ 多页签下不许误清别人的指针 —— ③ 保护的是一个「代码看起来更对、行为却更坏」的方向。
-  describe('回合拿到 session_not_found(ADR-022 刀 1.5)', () => {
-    it('清掉 localStorage 的 saveId —— 返回后不该再有「继续上局」', async () => {
+  // ⚠️ 下面三条仍是**同一枚硬币的两面 + 一条承重件**,必须同时绿:
+  //   ① 确认死档 → 标 unavailable 且键还在;② reset() 不改任何条目(线 C「退出不弃局」);
+  //   ③ 多页签下别的局的键一个字不动(一局一键之后从结构上碰不到,但仍要钉住)。
+  describe('回合拿到 session_not_found(ADR-022 刀 1.5 → ADR-034)', () => {
+    const ptr = (id: string) => JSON.parse(globalThis.localStorage.getItem(`aiuniverse.save.${id}`) ?? 'null');
+    beforeEach(() => globalThis.localStorage.clear());
+
+    it('标为 unavailable、不删除 —— 选择屏照样列出,显示「暂时无法找回」', async () => {
       const { api, stream } = makeApi('ok');
       const store = createGameStore(api);
       await store.getState().startGame('rules_creepy'); // startGame 写下 's1'
-      expect(globalThis.localStorage.getItem('aiuniverse.saveId')).toBe('s1');
+      expect(ptr('s1').availability).toBe('available');
 
       store.getState().chooseAction('A');
       stream().fireError({ code: 'session_not_found', message: '这一局的存档已经找不到了,点『返回』重新开始' });
       stream().fireClose();
 
       const s = store.getState();
-      expect(globalThis.localStorage.getItem('aiuniverse.saveId')).toBeNull();
-      expect(s.resumableSaveId).toBeNull();
-      // 呈现形态不变:仍是 awaiting + 黄条(RECOVERABLE 成员本刀不动)。
+      expect(ptr('s1')).not.toBeNull(); // 键还在
+      expect(ptr('s1').availability).toBe('unavailable');
+      expect(s.saves.map((x) => [x.saveId, x.availability])).toEqual([['s1', 'unavailable']]);
+      // 呈现形态不变:仍是 awaiting + 黄条(刀 1.5 那句文案不改)。
       expect(s.status).toBe('awaiting');
       expect(s.notice).toBe('这一局的存档已经找不到了,点『返回』重新开始');
     });
 
-    it('⚠️ 承重件:localStorage 已是别的局 → 不许动它(多页签下那是活着的存档)', async () => {
+    it('⚠️ 承重件:别的页签开的局 → 它的键一个字不动', async () => {
       const { api, stream } = makeApi('ok');
       const store = createGameStore(api);
       await store.getState().startGame('rules_creepy'); // 本页签在玩 's1'
-      // 另一个页签开了新局 B,共享的 localStorage 已被改写:
-      globalThis.localStorage.setItem('aiuniverse.saveId', 's-other-tab');
+      // 另一个页签开了新局,写下它自己的键:
+      const other = JSON.stringify({
+        saveId: 's-other-tab', title: '别处', archetypes: ['apocalypse'], turn: 3,
+        ended: false, lastPlayedAt: 1, availability: 'available',
+      });
+      globalThis.localStorage.setItem('aiuniverse.save.s-other-tab', other);
 
       store.getState().chooseAction('A');
       stream().fireError({ code: 'session_not_found', message: '这一局的存档已经找不到了,点『返回』重新开始' });
       stream().fireClose();
 
-      // 跨页签共享的指针原封不动 —— 拿一次「我这个档死了」去删一个跟它无关的存档,
-      // 正是 resumeGame 那句注释已经写着的错误。
-      expect(globalThis.localStorage.getItem('aiuniverse.saveId')).toBe('s-other-tab');
-      // 本页签自己的内存视图仍清掉:s1 死了是确凿事实,这一屏不该再指向它。
-      expect(store.getState().resumableSaveId).toBeNull();
+      expect(globalThis.localStorage.getItem('aiuniverse.save.s-other-tab')).toBe(other);
+      expect(ptr('s1').availability).toBe('unavailable');
     });
 
-    it('对照:reset()(玩家主动返回)仍不清 —— 退出不弃局(线 C)', async () => {
+    it('对照:reset()(玩家主动返回)不改任何条目 —— 退出不弃局(线 C)', async () => {
       const { api } = makeApi('ok');
       const store = createGameStore(api);
       await store.getState().startGame('rules_creepy');
+      const before = globalThis.localStorage.getItem('aiuniverse.save.s1');
 
       store.getState().reset();
 
-      expect(globalThis.localStorage.getItem('aiuniverse.saveId')).toBe('s1');
-      expect(store.getState().resumableSaveId).toBe('s1');
+      expect(globalThis.localStorage.getItem('aiuniverse.save.s1')).toBe(before);
+      expect(store.getState().saves.map((x) => x.saveId)).toEqual(['s1']);
     });
   });
 

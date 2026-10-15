@@ -1411,3 +1411,59 @@
     animation: none;
   }
 }
+
+/* ── 我的存档(ADR-034;静态,不新增动效)──────────────────────────── */
+/* 条目复用 .resumeBtn 的形态(原「继续上局」按钮),区块放在它原来的位置。 */
+.saves {
+  margin: 0 0 1rem;
+}
+
+.savesTitle {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+  letter-spacing: 0.08em;
+}
+
+.savesNotice {
+  margin: 0 0 0.5rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.saveList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.saveList .resumeBtn {
+  margin: 0;
+}
+
+.saveUnavailable {
+  opacity: 0.7;
+}
+
+.saveStatus {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.savesMore {
+  display: block;
+  width: 100%;
+  margin: 0.5rem 0 0;
+  min-height: 44px;
+  background: transparent;
+  border: none;
+  font-size: 0.8rem;
+  color: var(--muted);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+}

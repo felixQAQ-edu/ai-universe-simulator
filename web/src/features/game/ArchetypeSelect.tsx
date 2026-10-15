@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { useGameStore } from '../../state/gameStore';
 import { useHistoryStore } from '../../state/historyStore';
+import { SAVE_LIST_VISIBLE, onSavePointersChanged, type SaveSummary } from '../../state/savePointers';
+import { describeSave } from './saveText';
 import type { ArchetypeSummary } from '../../api';
 import { fusionKey, isFusionAllowed, type Rect } from './fusion/drag';
 import { FusionMerge } from './fusion/FusionMerge';
@@ -37,8 +39,12 @@ export function ArchetypeSelect() {
   const error = useGameStore((s) => s.archetypesError);
   const loadArchetypes = useGameStore((s) => s.loadArchetypes);
   const startGame = useGameStore((s) => s.startGame);
-  const resumableSaveId = useGameStore((s) => s.resumableSaveId);
+  const saves = useGameStore((s) => s.saves);
+  const saveNotice = useGameStore((s) => s.saveNotice);
+  const refreshSaves = useGameStore((s) => s.refreshSaves);
   const resumeGame = useGameStore((s) => s.resumeGame);
+  /** 「回看上局」只跟随最近一条(ADR-034 已决 9)。 */
+  const latestSaveId = saves.length > 0 ? saves[0].saveId : null;
 
   /** 已揉出的融合组合键(纯组件 state、零持久化 —— 离开选择屏即遗忘,回来要重新拖)。 */
   const [fused, setFused] = useState<readonly string[]>([]);
@@ -53,18 +59,22 @@ export function ArchetypeSelect() {
     void loadArchetypes();
   }, [loadArchetypes]);
 
-  // 「回看上局」入口(ADR-025 刀 3):只在「继续上局」出现时才可能出现;显示与否靠探测(口径 B)。
+  // 跨页签:别的页签开局 / 落回合时刷新列表显示(ADR-034 已决 8;只刷新,不写)。
+  useEffect(() => onSavePointersChanged(refreshSaves), [refreshSaves]);
+
+  // 「回看上局」入口(ADR-025 刀 3):只在有存档时才可能出现,且只跟随最近一条(ADR-034 已决 9);
+  // 显示与否靠探测(口径 B)。
   // 去重与缓存在 historyStore 里:同一 saveId 在途不重发,已确认可见不再发,失败不记。
   // 只在后端声明有历史存储时才探测(capabilities.history;非 pg 环境那里恒为 501,不去撞它)。
   const historyCapable = useGameStore((s) => s.capabilities.history);
   const probeHistory = useHistoryStore((s) => s.probe);
   const openHistory = useHistoryStore((s) => s.open);
   const historyVisible = useHistoryStore((s) =>
-    resumableSaveId ? s.visible[resumableSaveId] === true : false,
+    latestSaveId ? s.visible[latestSaveId] === true : false,
   );
   useEffect(() => {
-    if (resumableSaveId && historyCapable) probeHistory(resumableSaveId);
-  }, [resumableSaveId, historyCapable, probeHistory]);
+    if (latestSaveId && historyCapable) probeHistory(latestSaveId);
+  }, [latestSaveId, historyCapable, probeHistory]);
 
   const canFuse = useCallback(
     (host: string, foreign: string) => isFusionAllowed(fusions, host, foreign),
@@ -129,19 +139,21 @@ export function ArchetypeSelect() {
         {rejectNote && <p className={styles.fusionNote}>{rejectNote}</p>}
       </header>
 
-      {/* 续局入口(ADR-015 Slice 2):localStorage 有上局 saveId 才显;失败由 store 静默清 saveId 回到本屏。 */}
-      {resumableSaveId && (
-        <button type="button" className={styles.resumeBtn} onClick={() => void resumeGame()}>
-          <span className={styles.resumeTitle}>继续上局</span>
-          <span className={styles.resumeHint}>世界线仍在,从上次落笔处接续</span>
-        </button>
+      {/* 我的存档(ADR-034):放在原「继续上局」的位置;没有任何条目时整个区块不渲染(DOM 与改动前相同)。 */}
+      {saves.length > 0 && (
+        <SaveList
+          saves={saves}
+          notice={saveNotice}
+          nameOf={(a) => archetypes.find((x) => x.archetype === a)?.displayName ?? a}
+          onResume={(id) => void resumeGame(id)}
+        />
       )}
-      {/* 回看上局:辅助入口,视觉权重低于「继续上局」;不预留空位,探测成功后淡入(无位移动画)。 */}
-      {resumableSaveId && historyVisible && (
+      {/* 回看上局:辅助入口,视觉权重低于存档条目;不预留空位,探测成功后淡入(无位移动画)。 */}
+      {latestSaveId && historyVisible && (
         <button
           type="button"
           className={styles.historyEntry}
-          onClick={() => openHistory(resumableSaveId)}
+          onClick={() => openHistory(latestSaveId)}
         >
           <span className={styles.historyEntryTitle}>回看上局</span>
           <span className={styles.historyEntryHint}>看看这一局已经发生过什么</span>
@@ -202,6 +214,57 @@ export function ArchetypeSelect() {
         />
       )}
     </main>
+  );
+}
+
+/**
+ * 「我的存档」区块(ADR-034 已决 9):静态呈现,不新增动效。默认只展示最近 8 条,
+ * 其余由「查看全部」展开 —— **只管展示,不管保存**,所有指针都留在存储里。第一版没有「移除」。
+ * 导出供组件测试。
+ */
+export function SaveList({
+  saves,
+  notice,
+  nameOf,
+  onResume,
+}: {
+  saves: SaveSummary[];
+  notice: string | null;
+  nameOf: (archetype: string) => string;
+  onResume: (saveId: string) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const shown = expanded ? saves : saves.slice(0, SAVE_LIST_VISIBLE);
+  const hidden = saves.length - shown.length;
+  return (
+    <section className={styles.saves} aria-label="我的存档">
+      <h2 className={styles.savesTitle}>我的存档</h2>
+      {notice && <p className={styles.savesNotice}>{notice}</p>}
+      <ul className={styles.saveList}>
+        {shown.map((s) => (
+          <li key={s.saveId}>
+            <button
+              type="button"
+              className={[styles.resumeBtn, s.availability === 'unavailable' ? styles.saveUnavailable : '']
+                .filter(Boolean)
+                .join(' ')}
+              onClick={() => onResume(s.saveId)}
+            >
+              <span className={styles.resumeTitle}>{s.title || '上一局(续上后显示世界名)'}</span>
+              <span className={styles.resumeHint}>{describeSave(s, nameOf)}</span>
+              {s.availability === 'unavailable' && (
+                <span className={styles.saveStatus}>暂时无法找回 · 点此重试</span>
+              )}
+            </button>
+          </li>
+        ))}
+      </ul>
+      {hidden > 0 && (
+        <button type="button" className={styles.savesMore} onClick={() => setExpanded(true)}>
+          查看全部({saves.length})
+        </button>
+      )}
+    </section>
   );
 }
 

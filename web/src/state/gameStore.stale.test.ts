@@ -168,18 +168,20 @@ describe('turn_stale 之后的重新同步', () => {
    *
    * <p>下面的 `session_not_found` 是**控制组**:没有它,「指针还在」可能只是因为清档逻辑压根没接上。
    */
-  it('拉取失败 → 原地不动,尤其不清存档指针(对照:session_not_found 会清)', async () => {
+  it('拉取失败 → 原地不动,尤其不动存档指针(对照:session_not_found 会标 unavailable)', async () => {
     const { api, stream } = makeApi({ resume: 'fail' });
     const store = await playUntilError(api, stream, 'turn_stale');
     await new Promise((r) => setTimeout(r, 0));
 
-    expect(globalThis.localStorage.getItem('aiuniverse.saveId')).toBe('s1');
-    expect(store.getState().resumableSaveId).toBe('s1');
+    const ptr = () => JSON.parse(globalThis.localStorage.getItem('aiuniverse.save.s1') ?? 'null');
+    expect(ptr().availability).toBe('available');
+    expect(store.getState().saves.map((x) => x.availability)).toEqual(['available']);
 
+    globalThis.localStorage.clear();
     const dead = makeApi({ resume: 'fail' });
     const store2 = await playUntilError(dead.api, dead.stream, 'session_not_found');
-    expect(globalThis.localStorage.getItem('aiuniverse.saveId')).toBeNull();
-    expect(store2.getState().resumableSaveId).toBeNull();
+    expect(ptr().availability).toBe('unavailable'); // 控制组:标记确实接上了,且键仍在
+    expect(store2.getState().saves.map((x) => x.availability)).toEqual(['unavailable']);
   });
 
   /**

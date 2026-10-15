@@ -19,6 +19,7 @@ import type {
 } from '../api';
 import { GameApiError, gameApi } from '../api';
 import type { Archetype, AvailableAction } from '../types/schema';
+import { createSavePointers, type SavePointers, type SaveSummary } from './savePointers';
 
 /**
  * 整局状态(对应设计稿/规格的相位投影到客户端):
@@ -85,52 +86,39 @@ export interface GameState {
   /** 可恢复的回合级提示(非法动作 / 忙态),展示后玩家可重选,状态留在 awaiting。 */
   notice: string | null;
 
-  /** localStorage 里可续的上局 saveId(ADR-015 Slice 2;无则选择屏不显「继续上局」入口)。 */
-  resumableSaveId: string | null;
+  /**
+   * 本设备上的全部存档指针(ADR-034;按本设备上次游玩时间降序)。替代 ADR-015 Slice 2 的单槽
+   * `resumableSaveId`:单槽语义改为「列表 + 当前局(`saveId`)」。空表 = 选择屏不渲染「我的存档」。
+   */
+  saves: SaveSummary[];
+  /** 最近一次枚举时解析失败、被跳过(不删除)的键数(ADR-034 已知代价 5)。 */
+  savesSkipped: number;
+  /** 选择屏「我的存档」区块的可重试提示(续局遇网络 / 5xx 时;条目本身不变)。 */
+  saveNotice: string | null;
 
   /** 拉取选择屏目录(选择屏 mount 时调用)。失败置 archetypesError,可重试。 */
   loadArchetypes: () => Promise<void>;
   /** 开局:单 archetype = 单体;有序数组(host 在前)= 融合世界(ADR-013)。 */
   startGame: (archetypes: Archetype | Archetype[]) => Promise<void>;
   /**
-   * 续上局(ADR-015 Slice 2):经 api.resumeGame 恢复会话状态。散文区由 world.state.log 末条补位
-   * (openingNarrative 不落盘);ended 局照样可回看结局。失败(404/损坏/网络)→ 静默清 saveId
-   * 回到选择屏,不弹错误挡路。
+   * 续某一局(ADR-015 Slice 2 + ADR-034):经 api.resumeGame 恢复会话状态。散文区由 world.state.log
+   * 末条补位(openingNarrative 不落盘);ended 局照样可回看结局。失败**一律不删指针**(ADR-034 已决 6):
+   * 确认 404 → 该条标 unavailable;网络 / 5xx → 条目不变、选择屏提示可重试;世代过期 → 什么都不写。
    */
-  resumeGame: () => Promise<void>;
+  resumeGame: (saveId: string) => Promise<void>;
+  /** 从存储重读列表(跨页签 storage 事件触发;只刷新显示,不写)。 */
+  refreshSaves: () => void;
   chooseAction: (actionId: string) => void;
   /** 离开/重开时清理在途回合流,回到选择屏(保留已拉取的目录)。 */
   reset: () => void;
 }
 
-// ── 续局 saveId 持久化(ADR-015 Slice 2)────────────────────────────────
-// 本刀是 web/src 首次引入 localStorage:纯展示层状态(记住上一局的 saveId),不新立抽象;
-// 全部读写走下面三个 helper 并 try/catch(隐私模式/无 storage 环境优雅降级为「无续局入口」)。
-const SAVE_ID_KEY = 'aiuniverse.saveId';
+// ── 存档指针持久化(ADR-034)──────────────────────────────────────────
+// 全部读写收在 ./savePointers(web/src 里唯一碰存档相关 localStorage 键的模块)。
+// ADR-015 Slice 2 的单槽 `aiuniverse.saveId` 已改为一局一键,旧键在 store 创建时迁移(比对后清)。
 
-function readSavedId(): string | null {
-  try {
-    return globalThis.localStorage?.getItem(SAVE_ID_KEY) ?? null;
-  } catch {
-    return null;
-  }
-}
-
-function writeSavedId(saveId: string): void {
-  try {
-    globalThis.localStorage?.setItem(SAVE_ID_KEY, saveId);
-  } catch {
-    /* 写不进就没有续局入口,不影响本局 */
-  }
-}
-
-function clearSavedId(): void {
-  try {
-    globalThis.localStorage?.removeItem(SAVE_ID_KEY);
-  } catch {
-    /* 同上 */
-  }
-}
+/** 选择屏「我的存档」续局遇网络 / 5xx 时的提示(条目不变,玩家再点一次即可)。 */
+export const SAVE_RETRY_NOTICE = '暂时连不上这一局,条目还在,稍后再点一次';
 
 const INITIAL = {
   status: 'idle' as GameStatus,
@@ -184,7 +172,20 @@ const RECOVERABLE_TURN_ERRORS = new Set([
 /**
  * 用注入的 GameApi 建一个 store。生产用默认 gameApi;测试传 mock api + 合成 TurnStream。
  */
-export function createGameStore(api: GameApi) {
+export interface GameStoreOptions {
+  /** 存档指针存储(测试注入;默认 = 全局 localStorage)。 */
+  pointers?: SavePointers;
+  /** 本设备时钟(写「本设备上次游玩」;测试注入)。 */
+  now?: () => number;
+}
+
+export function createGameStore(api: GameApi, opts: GameStoreOptions = {}) {
+  const now = opts.now ?? (() => Date.now());
+  const pointers = opts.pointers ?? createSavePointers(undefined, now);
+  // 旧单槽键迁移(ADR-034 已决 7):幂等,多页签同时执行也安全。
+  pointers.migrateLegacy();
+  const initialListing = pointers.list();
+
   return create<GameState>((set, get) => {
     // 当前在途回合流(用于 reset / 防止过期流写回)。
     let activeStream: TurnStream | null = null;
@@ -196,7 +197,7 @@ export function createGameStore(api: GameApi) {
     // 关不掉 `await api.initGame(...)`,fetch 也没带 AbortSignal。
     //
     // 后果不是「不完美」而是**背叛**:玩家取消/返回后,那次 world-gen(线上首局实测 ~120s)
-    // 照样落地,把他扔进他刚拒绝的世界,并 writeSavedId 冲掉他原来那局的存档指针。
+    // 照样落地,把他扔进他刚拒绝的世界,并写进指针、冲掉他原来那局的存档指针(ADR-034 前的单槽时代)。
     // 故每次进入 init/resume 领一个世代号,回来时不符即**整段丢弃**(不 set、不写 saveId)。
     //
     // 服务端那次调用**拦不住**(plain POST 阻塞跑完 + GameSessionManager.create 无条件写盘),
@@ -207,28 +208,35 @@ export function createGameStore(api: GameApi) {
 
     const discoveredIds = (rules: DiscoveredRule[]) => rules.map((r) => r.id);
 
-    // ── 确认死档即清指针(ADR-022 刀 1.5)──────────────────────────────
-    // 回合拿到 `session_not_found` = 服务端说这个档没了(`GameSessionManager` 启动即
-    // `reloadFromStore()` 把盘上全部档载进内存,故「内存里没有」≈「盘上也没有或载不动」)。
-    // 不清的话,玩家返回后选择屏**还在拿一个已经死掉的存档招手** —— 那个按钮本身就是个谎,
-    // 再好的文案也解释不了点了为什么没用(刀 1 的 404 文案正是栽在这里)。
+    const refreshSaves = () => {
+      const l = pointers.list();
+      set({ saves: l.entries, savesSkipped: l.skipped });
+    };
+
+    /** 用服务端返回的整局状态写 / 校正本局摘要(开局成功、续局成功、游标重同步成功)。 */
+    const recordFromWorld = (saveId: string, world: ClientWorld) => {
+      pointers.write({
+        saveId,
+        title: world.world?.title ?? '',
+        archetypes: [...(world.archetypes ?? [])],
+        turn: world.state?.turn ?? 0,
+        ended: world.state?.status === 'ended',
+        lastPlayedAt: now(),
+        availability: 'available',
+      });
+      refreshSaves();
+    };
+
+    // ── 确认死档 → 标为暂时无法找回(ADR-022 刀 1.5 → ADR-034 已决 6)──────────
+    // 回合拿到 `session_not_found` = 服务端说这个档现在找不到。刀 1.5 时这里是「清指针」,
+    // ADR-034 改为**只标 unavailable、不删**:saveId 是找回这一局的唯一凭证,删掉就关上了唯一的门。
+    // 刀 1.5 那句文案不改(它说的是「现在找不到」,仍然为真)。
     //
-    // ⚠️ 这不是新规矩:`resumeGame` 的 catch 今天就在做「404 → 清指针」,ADR-015 Slice 2 的
-    // 既有规则本就是「存档确认不可用即清」;本刀只是让**另一个同样确凿的死亡信号**走这条既有规则。
-    // 与线 C「退出不弃局」**不打架**:那条管玩家**主动返回**(触发者是人),`reset()` 照旧不清;
-    // 这条管**服务端说这个档没了**(触发者是事实)。
-    //
-    // ⚠️ **localStorage 必须比对后清,不能无条件清**。多页签:页签 1 在玩存档 A、页签 2 开了新局 B
-    // (localStorage 已是 B),页签 1 点选项拿到 404 → 无条件清会**抹掉活着的 B 的指针**。
-    // 这正是 `resumeGame` 那句注释已经写着的形状:「拿一次过期失败去删一个跟它无关的存档」。
-    //
-    // 两半刻意不同条件,因为它们的作用域不同:
-    //   · `resumableSaveId`(本页签的内存视图,恒等于本局 saveId)—— **无条件清**:
-    //     A 死了是确凿事实,本页签的「继续上局」不该再指向它;
-    //   · localStorage(**跨页签共享**)—— **仅当它还是这个死档时才清**:别的页签可能已写进新局。
+    // 刀 1.5 当时「localStorage 比对后清 / 内存无条件清」两半判据防的是多页签下误清别人的指针 ——
+    // 一局一键之后这件事从结构上消失:标记只写死档自己那个键,碰不到任何别的局。
     const forgetDeadSave = (deadId: string) => {
-      if (readSavedId() === deadId) clearSavedId();
-      set({ resumableSaveId: null });
+      pointers.patch(deadId, { availability: 'unavailable' });
+      refreshSaves();
     };
 
     // ── 游标不一致即重新同步(ADR-023 / ADR-027)──────────────────────────
@@ -260,6 +268,7 @@ export function createGameStore(api: GameApi) {
         return; // 见上:不清 saveId、不改 status,原地不动
       }
       if (isStale()) return;
+      recordFromWorld(saveId, res.world);
       const log = res.world.state?.log ?? [];
       const narrative =
         (log.length > 0 ? log[log.length - 1].narrative : '') || res.world.world?.background || '';
@@ -289,8 +298,12 @@ export function createGameStore(api: GameApi) {
       capabilities: { history: false },
       archetypesLoading: false,
       archetypesError: null,
-      // 同样在 INITIAL 之外:reset(换个世界)不该抹掉「继续上局」入口。
-      resumableSaveId: readSavedId(),
+      // 同样在 INITIAL 之外:reset(换个世界)不该抹掉「我的存档」列表。
+      saves: initialListing.entries,
+      savesSkipped: initialListing.skipped,
+      saveNotice: null,
+
+      refreshSaves,
 
       async loadArchetypes() {
         if (get().archetypesLoading || get().archetypes.length > 0) return;
@@ -318,10 +331,11 @@ export function createGameStore(api: GameApi) {
           const res = await api.initGame(archetypes);
           if (staleEpoch(mine)) return; // 玩家已取消/返回:丢弃这次世界,连 saveId 都不记
           const attrs = res.world.character?.attributes ?? {};
-          writeSavedId(res.saveId); // 起局成功即记住,起局即崩也能续(与后端 init 后写盘对齐)
+          // 起局成功即记住,起局即崩也能续(与后端 init 后写盘对齐)。只写自己这一条键。
+          recordFromWorld(res.saveId, res.world);
           set({
             status: 'awaiting',
-            resumableSaveId: res.saveId,
+            saveNotice: null,
             saveId: res.saveId,
             world: res.world,
             openingNarrative: res.openingNarrative,
@@ -343,8 +357,7 @@ export function createGameStore(api: GameApi) {
         }
       },
 
-      async resumeGame() {
-        const saveId = get().resumableSaveId;
+      async resumeGame(saveId) {
         if (!saveId || get().status === 'initializing') return;
         activeStream?.close();
         activeStream = null;
@@ -353,6 +366,9 @@ export function createGameStore(api: GameApi) {
         try {
           const res = await api.resumeGame(saveId);
           if (staleEpoch(mine)) return; // 同 startGame:续局在途时返回,不得被拽回去
+          // 成功续局 = 用服务端状态校正摘要(unavailable 的条目也就此恢复为 available)。
+          recordFromWorld(res.saveId, res.world);
+          set({ saveNotice: null });
           const attrs = res.world.character?.attributes ?? {};
           const log = res.world.state?.log ?? [];
           // 续局散文补位:log 末条叙事(openingNarrative 不落盘)→ 兜底世界背景。
@@ -378,13 +394,20 @@ export function createGameStore(api: GameApi) {
             // (chooseAction 清 notice),不加常驻 UI。
             notice: ended ? null : `已从上次落笔处接续(第 ${res.world.state?.turn ?? 0} 回合)`,
           });
-        } catch {
-          // 已取消:**尤其不能清 saveId** —— 玩家可能已经开了新局,
-          // 这时清的是那一局的指针(拿一次过期失败去删一个跟它无关的存档)。
+        } catch (e) {
+          // 已取消 / 已返回:什么都不写(线 C 世代守卫)。
           if (staleEpoch(mine)) return;
-          // 续局失败(404/损坏/网络):静默清 saveId 回到正常起局,不弹错误挡路。
-          clearSavedId();
-          set({ ...INITIAL, status: 'idle', resumableSaveId: null });
+          // ⚠️ ADR-034 已决 6:**任何失败都不删指针**。ADR-015 Slice 2 原本在这里无条件 clearSavedId() ——
+          // 一次网络抖动就删掉一个活着的存档,多页签下清掉的还可能是别的页签刚开的另一局。
+          if (e instanceof GameApiError && e.code === 'session_not_found') {
+            // 确认 404:标「暂时无法找回」,留着;之后仍可点击重试。
+            pointers.patch(saveId, { availability: 'unavailable' });
+            refreshSaves();
+            set({ ...INITIAL, status: 'idle', saveNotice: null });
+          } else {
+            // 网络 / 503 / 其他 5xx / 超时:条目一个字不动,只提示可重试。
+            set({ ...INITIAL, status: 'idle', saveNotice: SAVE_RETRY_NOTICE });
+          }
         }
       },
 
@@ -412,6 +435,9 @@ export function createGameStore(api: GameApi) {
 
         stream.onDelta((delta) => {
           if (stale()) return;
+          // 回合落地:更新本局摘要的回合号与本设备上次游玩时间(只碰自己这一条键)。
+          pointers.patch(saveId, { turn: delta.turn, lastPlayedAt: now() });
+          refreshSaves();
           set({
             turn: delta.turn,
             attributeValues: delta.attributes,
@@ -423,6 +449,8 @@ export function createGameStore(api: GameApi) {
         stream.onEnding((ending) => {
           if (stale()) return;
           ended = true;
+          pointers.patch(saveId, { ended: true, lastPlayedAt: now() });
+          refreshSaves();
           set({ ending, status: 'ended' });
         });
 
@@ -463,8 +491,8 @@ export function createGameStore(api: GameApi) {
         activeStream?.close();
         activeStream = null;
         // 世代 +1 = 作废在途的 init/resume(「取消」与「游戏中返回」都经这里)。
-        // `resumableSaveId` 与目录两表(`archetypes`/`fusions`)刻意在 INITIAL 之外 —— 返回不弃局:
-        // 存档指针与已拉取的目录都留着,回到选择屏即见「继续上局」(ADR-015 Slice 2 的机制原样复用)。
+        // `saves` 与目录两表(`archetypes`/`fusions`)刻意在 INITIAL 之外 —— 返回不弃局:
+        // 存档指针与已拉取的目录都留着,回到选择屏即见「我的存档」(ADR-015 Slice 2 的机制,ADR-034 扩为列表)。
         nextEpoch();
         set({ ...INITIAL });
       },

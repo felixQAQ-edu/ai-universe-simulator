@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useGameStore } from '../../state/gameStore';
 import { useHistoryStore } from '../../state/historyStore';
+import type { SaveSummary } from '../../state/savePointers';
 import { GameScreen } from './GameScreen';
 
 // ADR-025 刀 3 · 屏级接线:选择屏「回看上局」入口 + 只读历史页。直打生产 store,
@@ -68,10 +69,15 @@ afterEach(() => {
   vi.unstubAllGlobals();
   useHistoryStore.getState().close();
   useGameStore.getState().reset();
-  useGameStore.setState({ resumableSaveId: null });
+  useGameStore.setState({ saves: [] });
 });
 
 const entryName = /回看上局/;
+/** 「我的存档」里的一条(ADR-034;「回看上局」只跟随最近一条)。 */
+const saveOf = (saveId: string): SaveSummary => ({
+  saveId, title: '雨夜便利店', archetypes: ['rules_creepy'], turn: 2,
+  ended: false, lastPlayedAt: 1, availability: 'available',
+});
 
 async function settle() {
   // 探测是 fire-and-forget;给在途 promise 链走完的机会。
@@ -80,21 +86,21 @@ async function settle() {
 }
 
 describe('选择屏入口(口径 A/B/C/D)', () => {
-  it('无上局 saveId → 不探测、无入口', async () => {
+  it('无存档 → 不探测、无入口', async () => {
     render(<GameScreen />);
     await settle();
     expect(historyCalls).toEqual([]);
     expect(screen.queryByRole('button', { name: entryName })).not.toBeInTheDocument();
   });
 
-  it('探测成功 → 入口出现在「继续上局」下面,是真 button,文案逐字', async () => {
-    useGameStore.setState({ resumableSaveId: SID });
+  it('探测成功 → 入口出现在存档条目下面,是真 button,文案逐字', async () => {
+    useGameStore.setState({ saves: [saveOf(SID)] });
     historyReplies = [ok([ev(0, '开场叙事', null)])];
     render(<GameScreen />);
     const entry = await screen.findByRole('button', { name: entryName });
     expect(entry).toHaveTextContent('回看上局');
     expect(entry).toHaveTextContent('看看这一局已经发生过什么');
-    const resume = screen.getByRole('button', { name: /继续上局/ });
+    const resume = screen.getByRole('button', { name: /雨夜便利店/ });
     // 放在它下面:DOM 顺序 resume → entry。
     expect(resume.compareDocumentPosition(entry) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(historyCalls).toEqual([`/api/game/${SID}/history`]);
@@ -105,19 +111,19 @@ describe('选择屏入口(口径 A/B/C/D)', () => {
     ['404', { status: 404, body: { error: { code: 'session_not_found' } } } as Reply],
     ['503', { status: 503, body: { error: { code: 'history_read_failed' } } } as Reply],
     ['网络失败', 'network' as Reply],
-  ])('探测 %s → 无入口、不报错、「继续上局」仍在', async (_l, reply) => {
-    useGameStore.setState({ resumableSaveId: SID });
+  ])('探测 %s → 无入口、不报错、存档条目仍在', async (_l, reply) => {
+    useGameStore.setState({ saves: [saveOf(SID)] });
     historyReplies = [reply];
     render(<GameScreen />);
     await settle();
     expect(historyCalls).toHaveLength(1);
     expect(screen.queryByRole('button', { name: entryName })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /继续上局/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /雨夜便利店/ })).toBeInTheDocument();
     expect(screen.queryByText(/HTTP|501|404|503|history|请求失败|错误/)).not.toBeInTheDocument();
   });
 
   it('重渲染不重复发探测;重新进入选择屏命中缓存不再请求', async () => {
-    useGameStore.setState({ resumableSaveId: SID });
+    useGameStore.setState({ saves: [saveOf(SID)] });
     historyReplies = [ok([ev(0, '开场叙事', null)])];
     const { rerender, unmount } = render(<GameScreen />);
     rerender(<GameScreen />);
@@ -136,17 +142,17 @@ describe('能力位 capabilities.history(2026-10-09)', () => {
     ['缺失(老后端)', { archetypes: [], fusions: [] }],
   ])('目录里 history 为 %s → 有上局也不探测 /history、无入口', async (_l, body) => {
     catalogBody = body;
-    useGameStore.setState({ resumableSaveId: SID });
+    useGameStore.setState({ saves: [saveOf(SID)] });
     render(<GameScreen />);
     await settle();
     await settle();
     expect(historyCalls).toEqual([]);
     expect(screen.queryByRole('button', { name: entryName })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /继续上局/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /雨夜便利店/ })).toBeInTheDocument();
   });
 
   it('目录里 history 为 true → 照旧探测一次', async () => {
-    useGameStore.setState({ resumableSaveId: SID });
+    useGameStore.setState({ saves: [saveOf(SID)] });
     historyReplies = [ok([ev(0, '开场', null)])];
     render(<GameScreen />);
     await screen.findByRole('button', { name: entryName });
@@ -163,7 +169,7 @@ describe('历史页(口径 E/F/G/H/I)', () => {
   }
 
   it('点入口 → 进入历史页(接线)', async () => {
-    useGameStore.setState({ resumableSaveId: SID });
+    useGameStore.setState({ saves: [saveOf(SID)] });
     historyReplies = [ok([ev(0, '开场', null)]), ok([ev(0, '开场', null)])];
     render(<GameScreen />);
     await userEvent.click(await screen.findByRole('button', { name: entryName }));
