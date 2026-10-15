@@ -115,7 +115,7 @@ export interface GameState {
 
 // ── 存档指针持久化(ADR-034)──────────────────────────────────────────
 // 全部读写收在 ./savePointers(web/src 里唯一碰存档相关 localStorage 键的模块)。
-// ADR-015 Slice 2 的单槽 `aiuniverse.saveId` 已改为一局一键,旧键在 store 创建时迁移(比对后清)。
+// ADR-015 Slice 2 的单槽键已改为一局一键,旧键在 store 创建时迁移(比对后清)。
 
 /** 选择屏「我的存档」续局遇网络 / 5xx 时的提示(条目不变,玩家再点一次即可)。 */
 export const SAVE_RETRY_NOTICE = '暂时连不上这一局,条目还在,稍后再点一次';
