@@ -158,4 +158,10 @@ rm -rf ~/wanjie-stats
 
 ## 实现进度
 
-- 本 ADR 落档(纯 docs)。工具实现与测试见同分支后续提交。
+- 本 ADR 落档(纯 docs)。
+- 实现(2026-10-15,分支 `claude/clever-dijkstra-vd2eq2`,待校勘 / 未合并,未部署):
+  `quota.TokenPricing`(计价公式自 `QuotaService` 原样抽出,行为不变)+ 测试侧 `persistence.DataStats` / `DataStatsTool`
+  + `DataStatsTest`(19 条,合成存档 + 合成轨迹)。变异 7 条各自变红。
+  ⚠️ 叙事闸那条变异只打红闸门自身的单测:今天报告只由数字与枚举生成,端到端没有一条会把正文带进报告的路径 ——
+  叙事闸防的是将来有人这么写,不是今天的泄露。
+- **真实读数未取**:等 Felix 按「运行方式」在线上卷拷贝上跑一次。
