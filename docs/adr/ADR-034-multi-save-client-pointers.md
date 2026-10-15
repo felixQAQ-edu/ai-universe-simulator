@@ -130,4 +130,13 @@
 
 ## 实现进度
 
-- (待实现提交后回填)
+- **实现(2026-10-15,分支 `claude/serene-lamport-tgh8ba`,未合并、未部署)**:`web/src/state/savePointers.ts`(唯一碰存档相关
+  localStorage 键的模块)+ `gameStore` 接线 + 选择屏「我的存档」(`ArchetypeSelect.SaveList` / `saveText.ts`)。只改 `web/`。
+- 测试:web 433 → 459 绿(新增 `savePointers.test.ts` / `gameStore.multisave.test.ts` / `SaveList.test.tsx`;
+  既有测试中编码了单槽语义的断言随之改写,意图保留)。tsc -b / lint / build 过。
+- 变异(先提交再变异,读红用例名):改成数组存储 / 超 8 条移除最旧 / 404 删除条目 / 503 标 unavailable /
+  迁移无条件清旧键 / 解析失败删坏键 —— 各自变红。⚠️ 「改成数组存储」第一版写成**惰性读**的读改写时,
+  「两 store 交错开局」那条没有红:单线程里同步完成的读改写不会丢更新,丢更新要求读发生在别人写之前
+  (即创建时读一次、之后整体写回 —— 数组方案的自然写法);按这个形态变异后才变红。
+- ADR-018 §4.5.1 对拍(base `fb41ff0` vs head,视口 430,桩 API):四个游戏屏、「选择屏 · 无条目」逐字节全等;
+  「选择屏 · 有条目」作正对照不等。`game.module.css` 只新增规则(`+56 / -0`),无既有选择器被改。
