@@ -11,19 +11,20 @@ import java.util.regex.Pattern;
  * ADR-031 刀 5a · 夹具输出前的敏感形态扫描(启发式,不是证明)。扫的是<b>将要写出的夹具全文</b>,不是原始轨迹。
  *
  * <p>任一类命中 → 转换工具拒绝写出夹具(只写报告)。宁可误报让人看一眼,也不让一条真密钥进仓库。
+ * ADR-033 的 /data 统计报告写出前也过同一组形态(故本类 public)。
  * 扫描器报「零命中」只说明这几种形态不在里面,不说明文件里没有别的不该公开的东西 —— 人工核对仍然是必需的一步。
  */
-final class FixtureScanner {
+public final class FixtureScanner {
 
 	private FixtureScanner() {
 	}
 
 	/** 一次命中:类别 + 在扫描文本中的偏移 + 打码后的片段(报告里不原样回显疑似密钥)。 */
-	record Hit(String kind, int offset, String masked) {
+	public record Hit(String kind, int offset, String masked) {
 	}
 
 	/** 类别 → 形态。键即报告里的类别名。 */
-	static final Map<String, Pattern> PATTERNS = patterns();
+	public static final Map<String, Pattern> PATTERNS = patterns();
 
 	private static Map<String, Pattern> patterns() {
 		Map<String, Pattern> p = new LinkedHashMap<>();
@@ -40,7 +41,7 @@ final class FixtureScanner {
 	}
 
 	/** 扫常见敏感形态;另把 {@code literals}(如原 saveId)当字面量查残留,类别名为 {@code 残留:<label>}。 */
-	static List<Hit> scan(String text, Map<String, String> literals) {
+	public static List<Hit> scan(String text, Map<String, String> literals) {
 		List<Hit> hits = new ArrayList<>();
 		for (Map.Entry<String, Pattern> e : PATTERNS.entrySet()) {
 			Matcher m = e.getValue().matcher(text);

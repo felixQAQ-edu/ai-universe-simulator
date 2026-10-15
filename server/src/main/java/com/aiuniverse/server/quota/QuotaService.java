@@ -51,7 +51,6 @@ public class QuotaService implements QuotaGate {
 	private static final Logger log = LoggerFactory.getLogger(QuotaService.class);
 
 	static final ZoneId BEIJING = ZoneId.of("Asia/Shanghai");
-	private static final double PER_MILLION = 1_000_000.0;
 
 	private final QuotaProperties props;
 	private final LlmProperties llm;
@@ -148,19 +147,10 @@ public class QuotaService implements QuotaGate {
 	}
 
 	/**
-	 * 按 active provider 的 price 三段计价(CNY/1M tokens)。缺失字段(-1 口径)保守回退:
-	 * cacheMiss 缺失时用 prompt − hit 兜(方言差异),全缺记 0——记账是增值服务,绝不因缺字段抛错。
+	 * 按 active provider 的 price 三段计价(CNY/1M tokens);公式唯一一份在 {@link TokenPricing}(ADR-033 抽出,行为不变)。
 	 */
 	double costCny(LlmUsage usage) {
-		LlmProperties.Price price = activePrice();
-		if (price == null) {
-			return 0; // 无 price 配置的 provider(如 mock 条目缺失):不记账
-		}
-		long hit = Math.max(usage.cacheHitTokens(), 0);
-		long miss = usage.cacheMissTokens() >= 0 ? usage.cacheMissTokens()
-				: Math.max(Math.max(usage.promptTokens(), 0) - hit, 0);
-		long out = Math.max(usage.completionTokens(), 0);
-		return (hit * price.inputCacheHit() + miss * price.inputCacheMiss() + out * price.output()) / PER_MILLION;
+		return TokenPricing.costCny(usage, activePrice());
 	}
 
 	private LlmProperties.Price activePrice() {
