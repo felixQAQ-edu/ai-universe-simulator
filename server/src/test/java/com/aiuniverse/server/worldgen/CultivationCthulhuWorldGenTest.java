@@ -27,6 +27,10 @@ class CultivationCthulhuWorldGenTest {
 	/** 内核里每条守则的写法:「- 实录 · 正文「……」」/「- 旧说 · 正文「……」」。 */
 	private static final Pattern RULE = Pattern.compile("- (实录|旧说) · 正文「([^」]*)」");
 
+	/** 每条守则的 hiddenLogic 素材:从「hiddenLogic:」到下一条守则或空行为止。 */
+	private static final Pattern HIDDEN_LOGIC =
+			Pattern.compile("hiddenLogic:(.*?)(?=\\n\\s*- (?:实录|旧说) · |\\n\\s*\\n)", Pattern.DOTALL);
+
 	private final WorldGenPromptBuilder builder = new WorldGenPromptBuilder(new ArchetypeRegistry());
 	private final String kernel = WorldGenPromptBuilder.fusionMetaPrompt("cultivation", "cthulhu");
 
@@ -54,6 +58,21 @@ class CultivationCthulhuWorldGenTest {
 	void ruleBodiesUseOnlyLevelOneVocabulary() {
 		for (String[] rule : rules()) {
 			assertNoHigherLevelWords(rule[0] + " 正文", rule[1]);
+		}
+	}
+
+	@Test
+	void hiddenLogicUsesOnlyLevelOneVocabulary() {
+		// 回合侧每回合把完整 rules(含 hiddenLogic)回传模型:hiddenLogic 里的高级词会在「未觉」档绕过按档放行。
+		List<String> hidden = new ArrayList<>();
+		Matcher m = HIDDEN_LOGIC.matcher(kernel);
+		while (m.find()) {
+			hidden.add(m.group(1));
+		}
+		assertThat(hidden).hasSize(8);
+		for (String h : hidden) {
+			assertNoHigherLevelWords("hiddenLogic", h);
+			assertThat(h).as("hiddenLogic 不用「饲料」这类同义说法:%s", h).doesNotContain("饲料");
 		}
 	}
 
