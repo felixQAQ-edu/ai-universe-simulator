@@ -18,7 +18,7 @@ Felix 冒烟，见 ADR-017 §8）。
 
 ## 动任何模块前先读
 @docs/CONTEXT.md   # 术语 / 统一 JSON Schema / 命名与工程约定（约定的真理之源）
-@docs/ROADMAP.md   # 路线图、当前进度、待决 ADR
+ROADMAP 体量大,不自动载入;按需读取 —— 先读 §四 进度表里当前周的那一节和『下周计划』,其余按需 grep。
 
 **动手的规矩看本文件下半部分**：§ Workflow Discipline（怎么干活）+ § Motion Constraints（前端视觉/动效）。
 详细 ADR / FINDINGS 按需读，不必每次全载，以省上下文。

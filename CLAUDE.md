@@ -7,7 +7,7 @@
 
 ## 动任何模块前先读
 @docs/CONTEXT.md   # 术语 / 统一 JSON Schema / 命名与工程约定（约定的真理之源）
-@docs/ROADMAP.md   # 路线图、当前进度、待决 ADR
+ROADMAP 体量大,不自动载入;按需读取 —— 先读 §四 进度表里当前周的那一节和『下周计划』,其余按需 grep。
 
 ## 常驻约束的真理源在 `AGENTS.md` —— **动手前读它**
 
