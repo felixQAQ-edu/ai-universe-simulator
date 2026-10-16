@@ -85,7 +85,7 @@ class ArchetypeRegistryTest {
 	void listFusionCombosProjectsRegisteredCombosInStableOrder() {
 		List<FusionSummary> combos = registry.listFusionCombos();
 		assertThat(combos.stream().map(FusionSummary::key))
-				.containsExactly("cultivation×rules_creepy", "rules_creepy×apocalypse");
+				.containsExactly("cultivation×cthulhu", "cultivation×rules_creepy", "rules_creepy×apocalypse");
 		for (FusionSummary c : combos) {
 			assertThat(registry.isFusionSupported(c.host(), c.foreign()))
 					.as("投影的每一对都真的可融合:%s", c.key()).isTrue();

@@ -233,14 +233,43 @@ public class ArchetypeRegistry {
 							+ "倒计时;配给日领取 / 外出搜刮 / 以物易物才回升。由你在 stateUpdate 给出消耗或恢复后的新绝对值。"));
 
 	/**
-	 * 已登记的融合组合(ADR-013 融合协议 + ADR-014 第二组合;key = {@code host×foreign} 有序,host 在前)。
+	 * 修仙 × 克苏鲁(host=修仙)第三组合《验讫》(ADR-035 决策 1):克苏鲁 san 换皮为「清明」、knowledge 换皮为「窥天」;
+	 * hp 撞键取修仙气血,气血 / 灵力 / 境界修仙原样。两轴都给 <b>behaviorHint override</b>(整段替换):
+	 * <ul>
+	 *   <li>清明:取 draft-2 §1 原文,「误信饵文」改「误信旧说」——行为提示每回合都注入,「饵」属揭示阶梯第三级词汇;</li>
+	 *   <li>窥天:克苏鲁原 hint 里的 san 联动与「绝不给 0」取值约定随整段替换一起丢,在此写回,另加「只随调查动作上涨」。</li>
+	 * </ul>
+	 * 窥天三档 narrationHint 承载揭示阶梯(event-loop 每回合只注入当前档 = 按档放行词汇);未觉 / 见格两档只用
+	 * 正面写法表达放行范围,<b>不列举禁词</b>(列出来就等于在低窥天时把高一级词汇注入提示词)。清明各档同理不用「饵」。
+	 * perilAtHigh 随换皮保留 → 窥天仍是双刃轴(severity 同克苏鲁单体)。
+	 */
+	private static final Map<String, AxisSkin> CULTIVATION_CTHULHU_SKINS = Map.of(
+			"san", new AxisSkin("清明", List.of(
+					band(100, "澄澈", "看得清，也还信得过自己的眼睛。叙事冷静，细节准确，修仙常识在脑子里是稳的。"),
+					band(50, "起雾", "开始怀疑自己。常识和所见打架时会犹豫，旧说偶尔读着顺耳。"),
+					band(20, "将失", "开始觉得被挑中是福分。星位在叙事里变得好看，台心变得亲切。"
+							+ "这一档的危险在于它让人觉得舒服，而不是痛苦；不要把低清明写成玩家失去选择权。")),
+					"以下情形清明下降:直视真相;拓到不该拓的东西;误信旧说并照着去做;夜里站进不该站的位置。"
+							+ "窥天越高，同样的冲击掉得越多。调息、丹房的安神药能让清明回升。"),
+			"knowledge", new AxisSkin("窥天", List.of(
+					band(0, "未觉", "第一级：只写现象和印文原字，不解释，不替玩家联想。"),
+					band(31, "见格", "第二级：可以描写结构，比如「网」「格」「收」「挑拣」「成色」，但不说用途。"),
+					band(61, "知渔", "第三级：捕捞、出栏、育肥、排酸、饵，可以直说。")),
+					"累积型双刃:只在调查动作的回合上涨——拓印、对账、验丹、观星、识破旧说;其余回合只持平、不无故回落。"
+							+ "【关键联动】窥天越高,本回合清明流失就应越快、越凶;务必在 stateUpdate 让清明随窥天的高低体现这一加速流失。"
+							+ "【取值约定】初值给一个较低的正基线(如 5–15),绝不给 0;此后也绝不降到 0——窥天是累积轴,"
+							+ "0 只是起点意味、不是结局。失败由清明 / 气血触底承载,不由窥天触底。"));
+
+	/**
+	 * 已登记的融合组合(ADR-013 融合协议 + ADR-014 第二组合 + ADR-035 第三组合;key = {@code host×foreign} 有序,host 在前)。
 	 * <b>方向敏感</b>——换皮 override 是 per-combo per-direction 手写(道心换皮只在 host=修仙 时成立);
 	 * 未登记的有序组合(含反向 host)→ init 视为非法 400。加一组融合 = 本表项 + world-gen/event-loop 文案槽
 	 * + 融合 meta-prompt + 种子池(骨架零改,ADR-014)。
 	 */
 	private static final Map<String, Map<String, AxisSkin>> FUSION_COMBOS = Map.of(
 			fusionKey("cultivation", "rules_creepy"), CULTIVATION_RULES_CREEPY_SKINS,
-			fusionKey("rules_creepy", "apocalypse"), RULES_CREEPY_APOCALYPSE_SKINS);
+			fusionKey("rules_creepy", "apocalypse"), RULES_CREEPY_APOCALYPSE_SKINS,
+			fusionKey("cultivation", "cthulhu"), CULTIVATION_CTHULHU_SKINS);
 
 	private static String fusionKey(String host, String foreign) {
 		return host + "×" + foreign;

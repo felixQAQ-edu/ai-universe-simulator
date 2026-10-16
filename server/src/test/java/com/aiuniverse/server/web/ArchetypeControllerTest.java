@@ -39,7 +39,7 @@ class ArchetypeControllerTest {
 		ArchetypeCatalog body = controller.list();
 		assertThat(body.fusions()).isEqualTo(new ArchetypeRegistry().listFusionCombos());
 		assertThat(body.fusions().stream().map(FusionSummary::key))
-				.containsExactly("cultivation×rules_creepy", "rules_creepy×apocalypse");
+				.containsExactly("cultivation×cthulhu", "cultivation×rules_creepy", "rules_creepy×apocalypse");
 	}
 
 	/** 能力位直接来自历史读取器自己的 {@code available()},不在 controller 里另判 profile。 */
