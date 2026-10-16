@@ -79,7 +79,7 @@ class ContentSafetyPromptLockstepTest {
 	@Test
 	void fusionWorldGenSkeletonCarriesRule() {
 		for (String[] combo : new String[][] {
-				{ "cultivation", "rules_creepy" }, { "rules_creepy", "apocalypse" } }) {
+				{ "cultivation", "rules_creepy" }, { "rules_creepy", "apocalypse" }, { "cultivation", "cthulhu" } }) {
 			assertThat(worldBuilder.buildFusionPrompt(combo[0], combo[1]))
 					.as("WorldGenPromptBuilder.FUSION_SKELETON:%s × %s", combo[0], combo[1])
 					.contains(DESPERATION_RULE);
