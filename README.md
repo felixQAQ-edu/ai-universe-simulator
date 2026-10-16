@@ -173,7 +173,7 @@ API key 只进环境变量,**绝不写进 yaml / 代码 / 提交**。
 - [ADR-032](docs/adr/ADR-032-pg-cutover-readiness-import-export.md) — 切库准备:文件存档与数据库之间的导入 / 回退导出、连接配置、启动语义与演练(不执行线上切换)(已采纳)
 - [ADR-033](docs/adr/ADR-033-data-stats-definitions-and-readonly-tool.md) — /data 统计口径与只读统计工具(已采纳)
 - [ADR-034](docs/adr/ADR-034-multi-save-client-pointers.md) — 多存档:客户端按键存放的存档指针(已采纳)
-- [ADR-035](docs/adr/ADR-035-third-fusion-combo-yanqi.md) — 第三组合《验讫》(cultivation × cthulhu,host=cultivation)(提议)
+- [ADR-035](docs/adr/ADR-035-third-fusion-combo-yanqi.md) — 第三组合《验讫》(cultivation × cthulhu,host=cultivation)(已采纳)
 
 ## 文档
 
