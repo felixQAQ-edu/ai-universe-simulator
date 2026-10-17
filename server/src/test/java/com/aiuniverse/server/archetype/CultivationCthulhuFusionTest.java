@@ -128,6 +128,10 @@ class CultivationCthulhuFusionTest {
 		assertThat(weijue).contains("只写现象和印文原字");
 		assertThat(jiange).contains("网").contains("格").contains("收").contains("挑拣").contains("成色");
 		assertThat(zhiyu).contains("捕捞").contains("出栏").contains("育肥").contains("排酸").contains("饵");
+		// 真相随档放行(Slice C):见格另带结构说明、知渔另带真相说明;未觉不带。
+		assertThat(jiange).contains("给你的结构说明").contains("仍不说用途");
+		assertThat(zhiyu).contains("给你的真相说明").contains("飞升是被捞走");
+		assertThat(weijue).doesNotContain("说明：");
 
 		// 可能在低窥天时注入的文本:清明 behaviorHint / 清明三档 / 窥天 behaviorHint / 未觉 / 见格
 		// —— 用正面写法表达放行范围,不出现第三级词汇(列举禁词 = 把它注入提示词)。

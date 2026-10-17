@@ -729,8 +729,8 @@ public final class WorldGenPromptBuilder {
 					- 知渔(窥天 61–100):才可写 捕捞、出栏、育肥、排酸、饵。
 					【world-gen 产出的所有玩家可见字段只准用第一级词汇】:world.title、world.background、world.tone、
 					rules[].content、openingNarrative、availableActions 的 text 与 hint,以及 character 的 traits / inventory。
-					开局窥天一律落在未觉档。第三夜子时将要发生的事,在玩家可见字段里只能写成「第三夜子时」这样的时刻,
-					不得点破它是什么。hiddenLogic 每回合都会随守则回传给你,所以也只用第一级词汇、只写机制;
+					开局窥天一律落在未觉档。玩家可见字段可以称「封台终仪」,宗门以为它在封台期满(第七日)举行;
+					不得点破它是什么,也不得写出它真正在第三夜。hiddenLogic 每回合都会随守则回传给你,所以也只用第一级词汇、只写机制;
 					真相只在这段内核说明里给你,不写进任何 rules 字段。
 
 					【恢复即饲料 · 资源经济】这个世界里所有恢复手段都在喂玩家,共三种:
