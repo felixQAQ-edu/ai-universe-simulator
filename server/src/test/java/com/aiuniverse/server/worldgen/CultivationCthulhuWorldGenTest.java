@@ -23,6 +23,8 @@ class CultivationCthulhuWorldGenTest {
 	private static final String[] LEVEL_THREE = { "捕捞", "出栏", "育肥", "排酸", "饵" };
 	/** 揭示阶梯第二级里不易误报的词(「格」「收」是高频字,机械查会误报,ADR-035 已知代价 1)。 */
 	private static final String[] LEVEL_TWO = { "网", "挑拣", "成色" };
+	/** 揭示阶梯第二级整张表:只用于结局相关的短文本(人工可读完,不怕误报)。 */
+	private static final String[] LEVEL_TWO_ALL = { "网", "格", "收", "挑拣", "成色" };
 
 	/** 内核里每条守则的写法:「- 实录 · 正文「……」」/「- 旧说 · 正文「……」」。 */
 	private static final Pattern RULE = Pattern.compile("- (实录|旧说) · 正文「([^」]*)」");
@@ -101,11 +103,11 @@ class CultivationCthulhuWorldGenTest {
 				// 结局池 4 条(决策 7),neutral 那条的 id 由本刀定为 alone_through_night。
 				.contains("body_fails「身殒封台」outcome=failure")
 				.contains("clarity_lost「叩台」outcome=failure")
-				.contains("net_passed「网过」outcome=success")
+				.contains("rite_survived「守台人还」outcome=success")
 				.contains("alone_through_night「独过此夜」outcome=neutral")
 				.doesNotContain("stamped").doesNotContain("slept_through")
-				// 让运只在起网当场提出、当回合兑现(决策 4)。
-				.contains("让运只在起网当场当面提出、当回合兑现")
+				// 让运只在封台终仪当场提出、当回合兑现(决策 4,决策 7 修订)。
+				.contains("让运只在封台终仪当场当面提出、当回合兑现")
 				// 「留养」新落点(决策 5)。
 				.contains("除「验讫」外还有一枚小「留养」").contains("他在观星台值夜")
 				// 可见字段只准第一级(决策 3)。
@@ -114,6 +116,45 @@ class CultivationCthulhuWorldGenTest {
 				.contains("夜里不给「领药」一类选项");
 		// 旧说 2 的跨回合效果已删(只写当回合后果)。
 		assertThat(kernel).doesNotContain("起网时更易被选中");
+	}
+
+	@Test
+	void endingSlotsAndEndingPoolUseOnlyLevelOneVocabulary() {
+		// 决策 7 修订:结局池 id / title / condition / description 每回合都回传模型,只准第一级词汇。
+		// 这几处文本短,第二级整张表(含「格」「收」)都查,不会误报。
+		WorldGenPromptBuilder.FusionWorldCopy copy = WorldGenPromptBuilder.FUSION_WORLD_COPY.get("cultivation×cthulhu");
+		assertEndingTextClean("endingIdExamples", copy.endingIdExamples());
+		assertEndingTextClean("successConditionExample", copy.successConditionExample());
+		assertEndingTextClean("failureConditionExamples", copy.failureConditionExamples());
+		assertEndingTextClean("failureOutcomeExamples", copy.failureOutcomeExamples());
+		assertEndingTextClean("successOutcomeExamples", copy.successOutcomeExamples());
+		assertEndingTextClean("内核【结局池】段", endingPool());
+	}
+
+	@Test
+	void endingPoolUsesRiteSurvivedAndSealingRite() {
+		assertThat(endingPool())
+				.contains("rite_survived").contains("守台人还").contains("封台终仪已发生");
+		assertThat(kernel).doesNotContain("net_passed");
+	}
+
+	/** 内核【结局池】段:从段头到【初值】为止。 */
+	private String endingPool() {
+		int from = kernel.indexOf("【结局池 · 恰好 4 条】");
+		int to = kernel.indexOf("【初值】", from);
+		assertThat(from).isNotNegative();
+		assertThat(to).isGreaterThan(from);
+		return kernel.substring(from, to);
+	}
+
+	private static void assertEndingTextClean(String what, String text) {
+		for (String w : LEVEL_THREE) {
+			assertThat(text).as("%s 不得含第三级词「%s」:%s", what, w, text).doesNotContain(w);
+		}
+		for (String w : LEVEL_TWO_ALL) {
+			assertThat(text).as("%s 不得含第二级词「%s」:%s", what, w, text).doesNotContain(w);
+		}
+		assertThat(text).as("%s 不得含「起网」:%s", what, text).doesNotContain("起网");
 	}
 
 	private List<String[]> rules() {

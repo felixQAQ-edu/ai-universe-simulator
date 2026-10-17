@@ -461,9 +461,9 @@ public final class WorldGenPromptBuilder {
 
 	/**
 	 * per-combo 融合文案槽(key = {@code host×foreign})。round 1 识海遗蜕的槽值 = ADR-013 原文<b>逐字迁移</b>
-	 * (含原换行,ADR-014 parity 线:参数化前后 prompt 逐字节不变)。
+	 * (含原换行,ADR-014 parity 线:参数化前后 prompt 逐字节不变)。包内可见:测试单独核槽值(同 {@link #FUSION_SEED_POOLS})。
 	 */
-	private static final Map<String, FusionWorldCopy> FUSION_WORLD_COPY = Map.of(
+	static final Map<String, FusionWorldCopy> FUSION_WORLD_COPY = Map.of(
 			"cultivation×rules_creepy", new FusionWorldCopy(
 					"真传心法",
 					"心魔伪笔",
@@ -505,15 +505,15 @@ public final class WorldGenPromptBuilder {
 					"服余泽丹(随时可用)可回气血与灵力、调息行功(随时可用)可回灵力与少量清明、"
 							+ "丹房配药(仅白天,夜里封炉)回复气血与清明最多",
 					"境界被推着上涨 / 丹房配药推涨最重",
-					"body_fails、clarity_lost、net_passed、alone_through_night",
+					"body_fails、clarity_lost、rite_survived、alone_through_night",
 					"失败/死亡/身殒/叩台/被带走",
-					"网过/起网后未被带走",
+					"守台人还/封台终仪后未被带走",
 					"「气血归零,身殒封台」/「清明归零,心神不再属于自己」",
 					"「清明归零或气血归零」",
 					"hp/san/mana/realm/knowledge",
 					"「san归零」是错的,要写「清明归零」",
 					"气血死写气血枯竭、身殒封台,清明崩写清明尽失、走上台心叩拜,不得混写两轴",
-					"「角色存活,起网已发生,你未被带走,起网当场未选择让运,清明≥30」",
+					"「角色存活,封台终仪已发生,你未被带走,封台终仪当场未选择让运,清明≥30」",
 					"「看穿真相」「守住清明」「躲过一劫」",
 					"清明≥30 即可、不要再叠窥天门槛",
 					"「恐伤清明」「境界或被推高一截」"));
@@ -747,8 +747,8 @@ public final class WorldGenPromptBuilder {
 					- 第一日(开场就在这一日):发现印文与异常记档,得知承运,自己已被标记;
 					- 第二日:用独立物证与行动试验辨守则真假,按谱牒对出「留养」是谁;
 					- 第三日:抉择(让运、护人或自保);
-					- 第三夜子时:起网,必须发生,并在发生的当回合裁决。
-					让运只在起网当场当面提出、当回合兑现;不要让第一日做的选择留到第三夜才生效。
+					- 第三夜子时:封台终仪,必须发生,并在发生的当回合裁决。
+					让运只在封台终仪当场当面提出、当回合兑现;不要让第一日做的选择留到第三夜才生效。
 
 					【「留养」落点】本次大典的拓印里,除「验讫」外还有一枚小「留养」。第二日按谱牒对账即可对出:
 					是那位不愿飞升的同门,他在观星台值夜。三十年前那页飞升记档只留护法名单与一个被涂掉的名字——只作叙事,
@@ -768,7 +768,7 @@ public final class WorldGenPromptBuilder {
 					  hiddenLogic:白心丹里另加了东西。整颗服下当回合回复多、境界推涨最狠;掰开验看本身就是识破动作,
 					  窥天可涨;只服一半,当回合能回复,境界推涨也较轻。
 					- 实录 · 正文「承运只可让,不可推。让须当面,须在子时之前。」
-					  hiddenLogic:让运的唯一途径:第三夜子时那件事发生的当场、子时之前,当面让出,对方应下,当回合被带走的
+					  hiddenLogic:让运的唯一途径:封台终仪的当场、子时之前,当面让出,对方应下,当回合被带走的
 					  就换成对方,你不被带走——等于把对方送上去。对方不应而强推,当回合反噬:清明受损,承运不动。
 					- 实录 · 正文「记档上的生辰,以谱牒为准。两者不合时,信谱牒。」
 					  hiddenLogic:飞升记档被改写过,谱牒是宗门人手写的。按谱牒对账,当回合即可对出「留养」那位同门的
@@ -796,12 +796,13 @@ public final class WorldGenPromptBuilder {
 					【结局池 · 恰好 4 条】
 					- body_fails「身殒封台」outcome=failure:condition 只绑气血(「气血归零……」),description 写气血枯竭。
 					- clarity_lost「叩台」outcome=failure:condition 只绑清明(「清明归零……」);「自己走上台心、整衣叩拜」
-					  写进 description,不进 condition。起网当场既没有避开也没有让运=被带走,走的就是这一条(清明落到 0)。
-					- net_passed「网过」outcome=success:condition 写「角色存活,起网已发生,你未被带走,起网当场未选择让运,
-					  清明≥30」;description 写明网还在——这一网漏过去了,网没有破。
-					- alone_through_night「独过此夜」outcome=neutral:condition 写「起网已发生,你因起网当场让运而未被带走」;
+					  写进 description,不进 condition。封台终仪当场既没有避开也没有让运=被带走,走的就是这一条(清明落到 0)。
+					- rite_survived「守台人还」outcome=success:condition 写「角色存活,封台终仪已发生,你未被带走,封台终仪当场未选择让运,
+					  清明≥30」;description 写明这一次过去了,并没有结束。
+					- alone_through_night「独过此夜」outcome=neutral:condition 写「封台终仪已发生,你因封台终仪当场让运而未被带走」;
 					  只确认你活过这一夜,不写同门去留。
 					不设「你与同门都活下来」的结局。【禁止用"或"把气血/清明混进同一条 condition】——结局文本与触发轴必须对得上。
+					结局池的 id / title / condition / description 每回合都会随状态回传给你,四个字段一律只用第一级词汇;终局事件只称「封台终仪」。
 
 					【初值】气血、清明偏高;灵力中等;境界中段偏上(承运已把它推高了一截);窥天给较低的正基线,不落 0。
 
