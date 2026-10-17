@@ -2,6 +2,8 @@ package com.aiuniverse.server.eventloop;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -114,12 +116,82 @@ class CultivationCthulhuTurnTest {
 	}
 
 	@Test
-	void timeSlotsAdvanceAndDayThreeArrives() {
-		// (5) 时段节奏(Slice D 冒烟:第二夜一个时段拖了 15 回合,始终没到第三日)。
-		assertThat(TurnPromptBuilder.FUSION_TURN_COPY.get(COMBO).extraDirectives())
-				.contains("一个昼或一个夜通常容得下三到五件事")
-				.contains("做完就推进到下一时段(天亮或入夜),同一时段不得无限")
-				.contains("玩家选歇息即直接推进到下一时段;第三日与第三夜必须到来");
+	void timeSlotFollowsTurnNumber() {
+		// ADR-035 决策 4 修订段:时段按本回合序号 n(= state.turn + 1)推进,每 4 回合一段。
+		Map<Integer, String> expected = new LinkedHashMap<>();
+		expected.put(1, "第一日 · 昼");
+		expected.put(4, "第一日 · 昼");
+		expected.put(5, "第一日 · 夜");
+		expected.put(13, "第二日 · 夜");
+		expected.put(16, "第二日 · 夜");
+		expected.put(17, "第三日 · 昼");
+		expected.put(23, "第三日 · 夜");
+		expected.put(24, "第三日 · 夜");
+		expected.put(25, "第三日 · 夜");
+		for (Map.Entry<Integer, String> e : expected.entrySet()) {
+			int n = e.getKey();
+			String p = builder.buildTurnPrompt(engine(10, n - 1), "A", "退到台阶以下观星");
+			assertThat(p).as("第 %d 回合", n)
+					.contains("【本回合时段】" + e.getValue() + "(本局第 " + n + " 回合)。叙事与 timeline 都按这个时段写,不要提前或拖后。")
+					.endsWith("\n\n请推进第 " + n + " 回合。玩家本回合选择的行动:A · 退到台阶以下观星");
+		}
+		// 边界:4 与 5、16 与 17 分属不同时段。
+		assertThat(slotOf(4)).isNotEqualTo(slotOf(5));
+		assertThat(slotOf(16)).isNotEqualTo(slotOf(17));
+	}
+
+	@Test
+	void riteEveRiteAndAfterCarryTheirLines() {
+		String eve = "子时将至:本回合把场面推到封台终仪前一刻;本回合末的选项必须给出终仪当场的抉择——其中要有当面让运,也要有避开。";
+		String rite = "本回合即封台终仪:按玩家所选当回合裁决,并在本回合给出结局(裁决三路见附加指令 (7))。";
+		String after = "封台终仪已过:本回合必须给出结局。";
+
+		String p23 = builder.buildTurnPrompt(engine(10, 22), "A", "行动");
+		assertThat(p23).contains(eve).doesNotContain(rite).doesNotContain(after);
+		String p24 = builder.buildTurnPrompt(engine(10, 23), "A", "行动");
+		assertThat(p24).contains(rite).doesNotContain(eve).doesNotContain(after);
+		for (int n : new int[] { 25, 26, 40 }) {
+			assertThat(builder.buildTurnPrompt(engine(10, n - 1), "A", "行动")).as("第 %d 回合", n)
+					.contains(after).doesNotContain(eve).doesNotContain(rite);
+		}
+		// 第 1–22 回合只写日子与昼夜,不提封台终仪(第三夜不替玩家点破)。
+		for (int n = 1; n <= 22; n++) {
+			assertThat(TurnPromptBuilder.yanqiTurnClock(n)).as("第 %d 回合", n).doesNotContain("封台终仪").doesNotContain("子时");
+		}
+	}
+
+	@Test
+	void clockTextsAndRevisedDirectivesStayLevelOne() throws Exception {
+		for (int n = 1; n <= 30; n++) {
+			String clock = TurnPromptBuilder.yanqiTurnClock(n);
+			assertNone("第 " + n + " 回合时段注入", clock, LEVEL_THREE, "第三级");
+			assertNone("第 " + n + " 回合时段注入", clock, LEVEL_TWO_ALL, "第二级");
+			assertNone("第 " + n + " 回合时段注入", clock, new String[] { QI_WANG }, "旧称");
+		}
+		String extra = TurnPromptBuilder.FUSION_TURN_COPY.get(COMBO).extraDirectives();
+		assertThat(extra)
+				.contains("时段以每回合注入的【本回合时段】为准")
+				.contains("且必须与【本回合时段】一致")
+				.contains("封台终仪在【本回合时段】注入指定的那一回合发生,并在那一回合当场裁决")
+				.contains("让运只在封台终仪当场当面提出、当回合兑现,不得在此前的回合谈妥或约定")
+				.doesNotContain("日夜由叙事推进").doesNotContain("时段节奏").doesNotContain("歇息");
+		// lockstep:四种注入句在 prompts/event-loop.md 里原样在场。
+		String md = Files.readString(Path.of("..", "prompts", "event-loop.md"));
+		assertThat(md).contains("【本回合时段】{时段}(本局第 {n} 回合)。叙事与 timeline 都按这个时段写,不要提前或拖后。")
+				.contains(TurnPromptBuilder.yanqiTurnClock(23).lines().skip(3).findFirst().orElseThrow())
+				.contains(TurnPromptBuilder.yanqiTurnClock(24).lines().skip(3).findFirst().orElseThrow())
+				.contains(TurnPromptBuilder.yanqiTurnClock(25).lines().skip(3).findFirst().orElseThrow());
+	}
+
+	@Test
+	void otherCombosCarryNoTurnClock() {
+		assertThat(TurnPromptBuilder.FUSION_TURN_COPY.get("cultivation×rules_creepy").turnClock()).isNull();
+		assertThat(TurnPromptBuilder.FUSION_TURN_COPY.get("rules_creepy×apocalypse").turnClock()).isNull();
+	}
+
+	private static String slotOf(int n) {
+		String clock = TurnPromptBuilder.yanqiTurnClock(n);
+		return clock.substring(clock.indexOf("】") + 1, clock.indexOf("("));
 	}
 
 	@Test
@@ -174,6 +246,11 @@ class CultivationCthulhuTurnTest {
 	 * 决策 7 修订段,timeline 带「第 N 日」前缀,近几回合 log 只写第一级现象。窥天取给定值,其余轴取中位。
 	 */
 	private Engine engine(int kuitian) {
+		return engine(kuitian, 3);
+	}
+
+	/** 同上,state.turn 取给定值(本回合序号 = turn + 1)。 */
+	private Engine engine(int kuitian, int turn) {
 		ObjectNode world = mapper.createObjectNode();
 		world.put("schemaVersion", "0.4");
 		world.put("mode", "hybrid");
@@ -226,7 +303,7 @@ class CultivationCthulhuTurnTest {
 		persisted.put("schemaVersion", "0.4");
 		persisted.set("world", world);
 		ObjectNode state = persisted.putObject("state");
-		state.put("turn", 3).put("status", "ongoing").put("timeline", "第一日 · 夜:拓纸上除了「验讫」还有一枚小「留养」")
+		state.put("turn", turn).put("status", "ongoing").put("timeline", "第一日 · 夜:拓纸上除了「验讫」还有一枚小「留养」")
 				.put("logSummary", "[T1选A][T2选B]");
 		ArrayNode log = state.putArray("log");
 		log.addObject().put("turn", 3).put("playerAction", "A")

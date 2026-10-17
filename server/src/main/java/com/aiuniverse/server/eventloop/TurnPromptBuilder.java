@@ -2,6 +2,7 @@ package com.aiuniverse.server.eventloop;
 
 import java.util.List;
 import java.util.Map;
+import java.util.function.IntFunction;
 
 import org.springframework.stereotype.Component;
 
@@ -175,7 +176,14 @@ public final class TurnPromptBuilder {
 			String nearMissExample, // 通关判定「仅差一项」引导示例
 			String recoveryMeans,   // 世界内生恢复手段示例
 			String recoveryCosts,   // 恢复代价示例
-			String extraDirectives) { // per-combo 附加指令(接在 (4) 之后;空串=无附加)
+			String extraDirectives, // per-combo 附加指令(接在 (4) 之后;空串=无附加)
+			IntFunction<String> turnClock) { // 按本回合序号 n 给的一段文字(接在「请推进第 n 回合」之前;null=不注入)
+
+		/** 不带按回合文案(既有两组合):提示词与开槽前逐字节相同。 */
+		FusionTurnCopy(String penaltyClause, String rewardClause, String nearMissExample, String recoveryMeans,
+				String recoveryCosts, String extraDirectives) {
+			this(penaltyClause, rewardClause, nearMissExample, recoveryMeans, recoveryCosts, extraDirectives, null);
+		}
 	}
 
 	/**
@@ -479,6 +487,8 @@ public final class TurnPromptBuilder {
 			// 终局事件只称「封台终仪」。(5) 三日三夜、(6) 恢复即饲料同回合兑现、(7) 封台终仪当回合裁决
 			// (未避开未让运 → 清明落 0 借道触底走「叩台」,ADR-035 方案 C)、(8) 揭示节奏跟窥天当前档走。
 			// Slice D 首轮冒烟修复:(5) 补时段节奏、(9) 场景只在宗门四处与居所之间、(10) hint 不复述 hiddenLogic。
+			// 决策 4 修订段(时段按回合数推进):(5) 时段以注入的【本回合时段】为准、(7) 终仪在注入指定的那一回合,
+			// 让运不得提前谈妥;按回合文案见 yanqiTurnClock。
 			"cultivation×cthulhu", new FusionTurnCopy(
 					"误信旧说\n    (isTrue:false)应付出代价(首当其冲是清明,亦可波及气血)",
 					"识破旧说或印证实录,\n    给出叙事与数值的正向回报(稳清明 / 得线索 / 窥天上涨)",
@@ -488,18 +498,17 @@ public final class TurnPromptBuilder {
 					"""
 
 					(5)【三日三夜 · 故事结构】本局故事跨三日:第一日=印文与承运;第二日=辨真假,并按谱牒对出
-					    「留养」是谁;第三日=抉择;第三夜子时=封台终仪。日夜由叙事推进,不按回合数自动跳;每个白天
+					    「留养」是谁;第三日=抉择;第三夜子时=封台终仪。时段以每回合注入的【本回合时段】为准;每个白天
 					    和每个夜晚都给玩家几次行动。stateUpdate 的 timeline 每回合以「第 N 日 · 昼」或「第 N 日 · 夜」
-					    开头(如「第二日 · 夜:观星台上的星位又低了一截」);timeline 也只用第一级词汇——只写日子、
-					    昼夜、地点和看得见的现象。宗门对外的说法是封台终仪在封台期满(第七日)举行;叙事、选项与 timeline
-					    不得替玩家点破它在第三夜,只能借星位等看得见的现象让玩家自己推出来;到第三夜它当面发生时照实写。
-					    时段节奏:一个昼或一个夜通常容得下三到五件事;做完就推进到下一时段(天亮或入夜),同一时段不得无限
-					    延长;玩家选歇息即直接推进到下一时段;第三日与第三夜必须到来。
+					    开头(如「第二日 · 夜:观星台上的星位又低了一截」),且必须与【本回合时段】一致;timeline 也只用
+					    第一级词汇——只写日子、昼夜、地点和看得见的现象。宗门对外的说法是封台终仪在封台期满(第七日)举行;
+					    叙事、选项与 timeline 不得替玩家点破它在第三夜,只能借星位等看得见的现象让玩家自己推出来;
+					    到第三夜它当面发生时照实写。
 					(6)【恢复与代价 · 同回合兑现】玩家选择恢复时,stateUpdate【真的上调对应轴】,境界在同一回合
 					    随之上涨,叙事写出这份代价;调查动作(拓印 / 对账 / 验丹 / 观星)耗灵力。丹房夜里封炉:
 					    夜里的选项不出现「领药」一类,改给过渡行动(服随身的余泽丹、调息、观星、回记档室比对)。
-					(7)【封台终仪 · 当回合裁决】封台终仪在第三夜子时必须发生,并在发生的那一回合当场裁决。
-					    让运只在封台终仪当场当面提出、当回合兑现。裁决按当场的选择走:
+					(7)【封台终仪 · 当回合裁决】封台终仪在【本回合时段】注入指定的那一回合发生,并在那一回合当场裁决。
+					    让运只在封台终仪当场当面提出、当回合兑现,不得在此前的回合谈妥或约定。裁决按当场的选择走:
 					    - 当场既没有避开也没有让运 → stateUpdate 把清明落到 0(走「叩台」);
 					    - 当场让运且对方应下 → 你未被带走,提议「独过此夜」;
 					    - 避开且未让运、清明≥30 → 提议「守台人还」。
@@ -510,7 +519,35 @@ public final class TurnPromptBuilder {
 					    ——真相只借印文、星位、丹、记档这些宗门内的物件显出来。
 					(10)【选项提示】availableActions 的 hint 只写这一步行动本身的代价与风险,不复述 hiddenLogic 的说法,
 					    不点明哪条守则是真是假,也不用「识破」「推涨」这类说法(反例:「掰丹即识破」「这一拜等于把自己
-					    亮给天上看」)。"""));
+					    亮给天上看」)。""",
+					TurnPromptBuilder::yanqiTurnClock));
+
+	/** 《验讫》一个时段的回合数(ADR-035 决策 4 修订段:时段按回合数推进)。 */
+	static final int YANQI_SLOT_TURNS = 4;
+	/** 《验讫》六个时段,按序。 */
+	private static final String[] YANQI_SLOTS = { "第一日 · 昼", "第一日 · 夜", "第二日 · 昼", "第二日 · 夜",
+			"第三日 · 昼", "第三日 · 夜" };
+	/** 封台终仪那一回合 = 第三日 · 夜的最后一回合。 */
+	static final int YANQI_RITE_TURN = YANQI_SLOT_TURNS * YANQI_SLOTS.length;
+
+	/**
+	 * 《验讫》按本回合序号 n 注入的时段文字(ADR-035 决策 4 修订段)。只用第一级词汇;第 1–22 回合只写日子与昼夜,
+	 * 不提封台终仪(第三夜的事实不替玩家点破,沿用 (5) 末句)。终仪已过仍未结束的回合仍写第三日 · 夜。
+	 */
+	static String yanqiTurnClock(int n) {
+		String slot = YANQI_SLOTS[Math.min(Math.max(n, 1) - 1, YANQI_RITE_TURN - 1) / YANQI_SLOT_TURNS];
+		StringBuilder sb = new StringBuilder("\n\n【本回合时段】").append(slot).append("(本局第 ").append(n)
+				.append(" 回合)。叙事与 timeline 都按这个时段写,不要提前或拖后。");
+		if (n == YANQI_RITE_TURN - 1) {
+			sb.append("\n子时将至:本回合把场面推到封台终仪前一刻;本回合末的选项必须给出终仪当场的抉择——"
+					+ "其中要有当面让运,也要有避开。");
+		} else if (n == YANQI_RITE_TURN) {
+			sb.append("\n本回合即封台终仪:按玩家所选当回合裁决,并在本回合给出结局(裁决三路见附加指令 (7))。");
+		} else if (n > YANQI_RITE_TURN) {
+			sb.append("\n封台终仪已过:本回合必须给出结局。");
+		}
+		return sb.toString();
+	}
 
 	/** 融合回合指令(骨架 + per-combo 文案槽)。缺文案槽 = 组合登记不完整(程序性错误)。 */
 	private static String fusionTurnDirective(String comboKey) {
@@ -605,7 +642,17 @@ public final class TurnPromptBuilder {
 				+ engine.contextJson()
 				+ currentBandBlock(ctx.axes(), engine)
 				+ (sceneBlock == null ? "" : sceneBlock)
+				+ fusionTurnClock(ctx, engine.turn() + 1) // 融合局按回合文案(缺省空串,逐字不变)
 				+ "\n\n请推进第 " + (engine.turn() + 1) + " 回合。玩家本回合选择的行动:" + action;
+	}
+
+	/** per-combo 按回合文案(ADR-035 决策 4 修订段);单体局 / 未开槽的组合 → 空串。 */
+	private static String fusionTurnClock(TurnContext ctx, int nextTurn) {
+		if (!ctx.fused()) {
+			return "";
+		}
+		IntFunction<String> clock = FUSION_TURN_COPY.get(ctx.comboKey()).turnClock();
+		return clock == null ? "" : clock.apply(nextTurn);
 	}
 
 	/** 未给窗口时的就地判定:无编排、未结算、无处境(ADR-029)。不接局面层的世界 → 空串。 */
