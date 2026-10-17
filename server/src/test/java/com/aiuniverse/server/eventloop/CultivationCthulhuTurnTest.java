@@ -104,6 +104,16 @@ class CultivationCthulhuTurnTest {
 	}
 
 	@Test
+	void dayThreeIsLeftForThePlayerToInfer() {
+		// (5) 末句:宗门说法是第七日;不替玩家点破第三夜,借星位等现象让玩家自己推出来;当面发生时照实写。
+		assertThat(TurnPromptBuilder.FUSION_TURN_COPY.get(COMBO).extraDirectives())
+				.contains("宗门对外的说法是封台终仪在封台期满(第七日)举行")
+				.contains("不得替玩家点破它在第三夜")
+				.contains("只能借星位等看得见的现象让玩家自己推出来")
+				.contains("到第三夜它当面发生时照实写");
+	}
+
+	@Test
 	void revealLadderHoldsEndToEndAcrossKuitianLevels() {
 		// 窥天 10(未觉):整份提示词(含 rules / hiddenLogic / endings / timeline / log)不含第二、三级词与「起网」。
 		String p10 = builder.buildTurnPrompt(engine(10), "A", "退到台阶以下观星");
