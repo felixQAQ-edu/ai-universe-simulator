@@ -1,7 +1,7 @@
 # ADR-035 · 第三组合《验讫》(cultivation × cthulhu,host=cultivation)
 
 - **日期**:2026-10-16
-- **状态**:已采纳(Felix 2026-10-16 定;本 ADR 只落决策,不含实现)
+- **状态**:已采纳(Felix 2026-10-16 定;本 ADR 只落决策,不含实现);后端已实现并经真 key 冒烟验通(2026-10-17);前端 Slice E 未做,未部署
 - **决策者**:Felix
 
 ## 背景
@@ -362,8 +362,42 @@ neutral 结局在前两步**永远不会被选中**(只匹配 failure);结局极
 - **Slice D 第二轮冒烟(R2,79 回合)**:hint 泄露、清明螺旋、场景越界三项复验通过;时段节奏未通过(第二夜持续 31 回合,终仪拖 5 回合未当回合裁决,让运被提前谈好)→ 决策 4 修订段(时段按回合数推进)。
 - **Slice D 第三轮冒烟(R3,25 回合)**:时段节奏、第 23 回合抉择、让运时机通过;暴露终仪落点缺口(第 24 回合避开时清明 28,不满足「守台人还」的清明 ≥ 30 又不属另外两路,拖到第 25 回合;「让运但对方不应」也无落点)→ 决策 7「终仪落点补全」修订段。
 
-*Slice D 真 key 冒烟 + Felix 整局终验时回填:揭示阶梯在 world-gen 与「未觉」档叙事里的守住率、三日推进与起网时点、被带走 → 叩台
-是否稳定走通、四条结局的可达性、「加一组融合」实际 per-combo 改动清单(第三次复用的定量答卷)。*
+### Slice D 冒烟总账(Felix 2026-10-17,本地真 key)
+
+5 轮、10 次开局、6 整局。saveId 只记前 8 位。
+
+- **A 组 5 局**:只开局不玩,结构项(冒烟手册 4.1)全过。首轮发现 hint 复述隐藏判定。
+- **R1(`c1298eea`,28 回合)/ R2(`75970b83`,79 回合)/ R3(`3d6cdcff`,25 回合)**:发现并修复五项 ——
+  hint 泄露 / 清明被动衰减 / 场景越界 / 时段停滞 / 终仪落点缺口。修订段分别在决策 1(清明 / 窥天行为提示)、
+  决策 4(时段按回合数推进)、决策 7(终仪落点补全)下;hint 与场景两项的修复在回合 `extraDirectives` (9)(10)
+  与融合内核【守则】段。
+- **R4 / R4b 终仪三路各走通一次**:
+  - R4(`70d5befa`)当面让运 → 第 24 回合「独过此夜」;
+  - R4(`4d991589`)走上台阶 → 第 24 回合清明落 0、「叩台」;
+  - R4b(`fd18f04e`)避开、清明 74 → 第 24 回合「守台人还」。
+- **时段**:按回合注入后,73 回合中 72 回合的叙事与 timeline 与注入一致。唯一一次偏差是 `70d5befa` T7 跳日,
+  下一回合被注入拉回。
+- **残余小瑕疵,不修**:
+  - 第 23 回合的「避开」选项有时措辞不直白(`4d991589`);
+  - 偶尔提前一回合就写「子时前一刻」;
+  - 结局描述由 world-gen 预写,可能与实际裁决时的站位不符(`fd18f04e`「你还在台上站着」)。
+
+### 「加一组融合」的实际改动清单(第三次复用的定量答卷)
+
+Slice A–C 与三轮冒烟修复(`9a7b036` … `3f063b1`)动过的生产文件只有三个 `.java` 与两份提示词资产:
+
+| 文件 | 动了什么 |
+|---|---|
+| `archetype/ArchetypeRegistry.java` | `FUSION_COMBOS` 登记一条 + 清明 / 窥天两条 `AxisSkin`(含行为提示与 bands) |
+| `worldgen/WorldGenPromptBuilder.java` | `FUSION_WORLD_COPY` / `FUSION_META_PROMPTS`(融合内核)/ `FUSION_SEED_POOLS` 各加一条 |
+| `eventloop/TurnPromptBuilder.java` | `FUSION_TURN_COPY` / `FUSION_IMAGERY` 各加一条;新增通用可空槽 `FusionTurnCopy.turnClock`(按回合文案,缺省 null)与本组合的 `yanqiTurnClock` |
+| `prompts/world-gen.md`、`prompts/event-loop.md` | lockstep 同步 |
+
+- **零改**:融合骨架(`FUSION_SKELETON` / `FUSION_TURN_DIRECTIVE` 正文)、`Engine`、`validateWorld`、schema(`schemaVersion` 仍 "0.4")、前端。
+- **唯一的通用改动**是 `turnClock` 这个可空槽:既有两组合取 null,提示词逐字节不变(以 `28cf20d` 为基线比对为空)。
+  另有几个 per-combo 表由 `private` 改为包内可见,只为测试逐槽核词汇。
+- 测试:新增 `CultivationCthulhuFusionTest` / `CultivationCthulhuWorldGenTest` / `CultivationCthulhuTurnTest` 三个类,
+  既有 lockstep 与计数断言五个类小改。
 
 ## 跟其他文档的交叉引用
 

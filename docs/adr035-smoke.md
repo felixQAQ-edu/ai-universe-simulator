@@ -2,7 +2,7 @@
 
 > 对象:Felix 亲手跑(花钱的动作,agent 不代跑)。依据:[ADR-035](adr/ADR-035-third-fusion-combo-yanqi.md)
 > 实施步骤 5、决策 3 / 4 / 7(含修订段)、已知代价 1–4。
-> 本手册所有命令、键名、文件路径都对着分支 `claude/adoring-maxwell-30lpkm`(Slice C 之后)的源码核过;
+> 本手册所有命令、键名、文件路径都对着分支 `claude/adoring-maxwell-30lpkm`(`3f063b1` 之后:时段按回合注入、终仪落点补全)的源码核过;
 > 与源码不一致时以源码为准,并回改本手册。
 >
 > 不新增任何生产入口。前端没有改:选择屏上**还开不出**这个组合(见第三节),开局一律用 curl。
@@ -49,11 +49,10 @@ mkdir -p smoke-yanqi              # 本地取证目录(不提交)
 `POST /api/game/init`,融合局 body 用有序双值、host 在前(`GameController.InitRequest`):
 
 ```sh
-curl -sS --max-time 400 -X POST http://localhost:8080/api/game/init \
-  -H 'Content-Type: application/json' \
-  -d '{"archetypes":["cultivation","cthulhu"]}' \
-  -o smoke-yanqi/init-1.json -w 'HTTP %{http_code}\n'
+curl -sS --max-time 400 -X POST http://localhost:8080/api/game/init -H 'Content-Type: application/json' -d '{"archetypes":["cultivation","cthulhu"]}' -o smoke-yanqi/init-1.json -w 'HTTP %{http_code}\n'
 ```
+
+(命令写成一行:多行粘贴时反斜杠续行在部分终端里会断。)
 
 - 一次 world-gen 调用,可能要几十秒。服务端单段时限 180 s(`world-gen.segment-deadline-ms`),超时回 502 `world_gen_failed`。
 - 成功响应形状(`InitResponse`):`{saveId, world, openingNarrative, availableActions, attributes}`。
@@ -68,6 +67,10 @@ SAVE=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["saveId"])
 - 落盘全量(含 `isTrue` / `hiddenLogic`,视图 1)在 `$STORE/$SAVE.json`,开局成功即写入。
 
 A 组开 5 局:把上面 curl 的 `init-1.json` 依次换成 `init-2.json` … `init-5.json`。
+
+**复验省开局额度**:A 组开出来、还没推过回合的局(存档里 `state.turn` 为 0)可以直接拿来跑 B 组,不必另开。
+把 `SAVE` 设成那局的 saveId,从 `t 0 <选项>` 推起;开局选项在对应的 `smoke-yanqi/init-N.json` 里。
+后端重启过也能用:启动回载会把落盘目录里的存档载回内存。
 
 ## 三、接到浏览器(可选,看体感用)
 
@@ -111,13 +114,10 @@ A 组开 5 局:把上面 curl 的 `init-1.json` 依次换成 `init-2.json` … `
 响应是 SSE,事件依次为 `narrative`(`{text}`,逐段)→ `delta`(`{turn,status,<各轴>,discoveredRules,availableActions}`),
 结局回合另有 `ending`(`{id,title,description}`)(`SseTurnEventSink` / `EventLoopService.buildDelta`)。
 
+先把 SSE 解析脚本存成文件(只需一次):
+
 ```sh
-# 推一回合:turn <当前游标> <选项字母>;SSE 原样存进 smoke-yanqi/$SAVE.t<N>.sse
-turn() {
-  curl -sSN --max-time 200 -X POST "http://localhost:8080/api/game/$SAVE/turn" \
-    -H 'Content-Type: application/json' -H 'Accept: text/event-stream' \
-    -d "{\"turn\":$1,\"actionId\":\"$2\"}" > "smoke-yanqi/$SAVE.t$(( $1 + 1 )).sse"
-  python3 - "smoke-yanqi/$SAVE.t$(( $1 + 1 )).sse" <<'PY'
+cat > smoke-yanqi/sse.py <<'PY'
 import json, sys
 ev = None; text = []; delta = None; ending = None
 for line in open(sys.argv[1], encoding="utf-8"):
@@ -135,8 +135,13 @@ if delta:
     for a in delta["availableActions"]: print(" ", a["id"], a["text"], "|", a.get("hint",""))
 if ending: print("ENDING", ending)
 PY
-}
-turn 0 A     # 第 1 回合;下一次 turn 1 B,依此类推
+```
+
+推回合函数 `t <当前游标> <选项字母>`,单行定义(不用反斜杠续行);SSE 原样存进 `smoke-yanqi/$SAVE.t<N>.sse`:
+
+```sh
+t() { curl -sSN --max-time 200 -X POST "http://localhost:8080/api/game/$SAVE/turn" -H 'Content-Type: application/json' -H 'Accept: text/event-stream' -d "{\"turn\":$1,\"actionId\":\"$2\"}" > "smoke-yanqi/$SAVE.t$(( $1 + 1 )).sse" && python3 smoke-yanqi/sse.py "smoke-yanqi/$SAVE.t$(( $1 + 1 )).sse"; }
+t 0 A     # 第 1 回合;下一次 t 1 B,依此类推
 ```
 
 开局时的选项在 `smoke-yanqi/init-N.json` 的 `availableActions` 里。同一局不要浏览器和 curl 混着推:
@@ -226,7 +231,22 @@ PY
 
 检查项(每条附 saveId、回合号、原文摘录):
 
-- [ ] **timeline 每回合以「第 N 日 · 昼/夜」开头**,天数单调推进(第一日 → 第二日 → 第三日),**不跳过第二日**、不停在第一日。
+- [ ] **时段与注入一致**。服务端按本回合序号 n(= 回合前 `state.turn` + 1,即上表的 `T<n>`)每回合注入【本回合时段】
+      (ADR-035 决策 4 修订段;`TurnPromptBuilder.yanqiTurnClock`):
+
+      | n | 注入的时段 | 另加一行 |
+      |---|---|---|
+      | 1–4 | 第一日 · 昼 | — |
+      | 5–8 | 第一日 · 夜 | — |
+      | 9–12 | 第二日 · 昼 | — |
+      | 13–16 | 第二日 · 夜 | — |
+      | 17–20 | 第三日 · 昼 | — |
+      | 21–22 | 第三日 · 夜 | — |
+      | 23 | 第三日 · 夜 | 子时将至:把场面推到封台终仪前一刻,本回合末的选项给出终仪当场的抉择(含当面让运、避开) |
+      | 24 | 第三日 · 夜 | 本回合即封台终仪:当回合裁决并给出结局,必须落到 (7) 中的一个结局 |
+      | 25 起 | 第三日 · 夜 | 封台终仪已过:本回合必须给出结局 |
+
+      逐回合核 timeline 是否以注入的「第 N 日 · 昼/夜」开头、叙事是否写在这个时段里;记下不一致的回合与下一回合是否被拉回。
       timeline 本身也只用第一级词汇。
 - [ ] **第一、二日不点破「终仪在第三夜」**:叙事、选项、timeline 都没有直说;只能出现星位一类现象,让玩家自己推。
       宗门说法「第七日」可以出现。
@@ -238,12 +258,19 @@ PY
 - [ ] **丹房夜里不出领药类选项**:timeline 为「· 夜」的回合,选项里没有「领药 / 配药」,只给过渡行动
       (服随身丹、调息、观星、回记档室比对)。
 - [ ] **第二日能按谱牒对出「留养」是谁**(观星台值夜的那位同门):记下哪一回合、什么动作对出来的。
-- [ ] **封台终仪发生在第三夜**(timeline「第三日 · 夜」),**当回合裁决**:那一回合 `parsed.ending` 非空,
-      或清明当回合落到 0 由引擎兜底定局。记下走的是哪一路:
-      - 未避开也未让运 → `stateUpdate` 里清明 = 0 → 结局 `clarity_lost`「叩台」;
-      - 当场让运且对方应下 → `alone_through_night`「独过此夜」;
-      - 避开且未让运、清明 ≥ 30 → `rite_survived`「守台人还」。
-      条件允许就多开几局,三路各走一次;让运选项应**只在终仪那一回合出现**。
+- [ ] **第 23 回合末的选项给出终仪当场的抉择**:里面要有当面让运,也要有避开;让运**不得在第 23 回合之前谈妥或约定**。
+- [ ] **封台终仪在第 24 回合发生并当回合定局**:那一回合 `parsed.ending` 非空,或清明当回合落到 0 由引擎兜底定局。
+      对照五种落点(ADR-035 决策 7「终仪落点补全」修订段;回合附加指令 (7)),记下走的是哪一路:
+
+      | 终仪当场 | 当回合 | 结局 |
+      |---|---|---|
+      | 避开、未让运,清明 ≥ 21 | — | `rite_survived`「守台人还」 |
+      | 避开,但清明 ≤ 20(将失档) | 清明落到 0 | `clarity_lost`「叩台」 |
+      | 当面让运且对方应下 | — | `alone_through_night`「独过此夜」 |
+      | 当面让运但对方不应 | 当回合反噬,清明落到 0 | `clarity_lost`「叩台」 |
+      | 既未避开也未让运 | 清明落到 0 | `clarity_lost`「叩台」 |
+
+      `rite_survived` 的 condition 应写「清明≥21」(A 组辅助脚本的 ending 行可见)。第 24 回合没给结局的,看第 25 回合是否给出。
 - [ ] **失败结局标对了轴**:气血归零 → `body_fails`;清明归零 → `clarity_lost`。不得错配(ADR-035 已知代价 5)。
 
 ## 五、记录格式
