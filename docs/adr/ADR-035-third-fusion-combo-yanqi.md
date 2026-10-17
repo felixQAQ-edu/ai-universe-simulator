@@ -213,6 +213,22 @@ neutral 结局在前两步**永远不会被选中**(只匹配 failure);结局极
   `pickFailureEnding([san])` 按中文名「清明」命中 `clarity_lost`。**这条写进回合 `extraDirectives`**。
 - 结局极性 gate 自然生效:清明 ≤ 10 时模型若提议 `net_passed`,引擎拒绝并改判 `clarity_lost`。
 
+**修订(Felix 2026-10-16):结局池去「网」。** 上表保留作记录,以本段为准。
+
+起因:回合提示词每回合都带完整 endings(`id` / `title` / `condition` / `description`)。上表里的「网过」「`net_passed`」
+「起网已发生」,以及描述里的「网没有破」,会在窥天「未觉」档时每回合把第二级词「网」喂给模型,绕过揭示阶梯的按档放行
+(与 Slice B 补「hiddenLogic 只用第一级词汇」同一个漏洞形状)。
+
+- **终局事件改称「封台终仪」**(第一级称呼),本局唯一的终局事件只用这个名字。凡判定用事件本身:「封台终仪已发生」。
+  「第三夜子时」只留在故事节奏里(时间结构、叙事),**不进任何 condition**。
+- `net_passed` → **`rite_survived`**,标题「**守台人还**」(success)。condition:角色存活,封台终仪已发生,你未被带走,
+  封台终仪当场未选择让运,清明 ≥ 30。
+- `alone_through_night`「独过此夜」(neutral)的 condition:封台终仪已发生,你因封台终仪当场让运而未被带走。
+- `body_fails`、`clarity_lost` 的 id、标题、条件不变;`clarity_lost` 的「被带走」说明改称「封台终仪当场既没有避开也没有让运」。
+- **结局池的 `id`、`title`、`condition`、`description` 四个字段每回合都回传模型,一律只准第一级词汇。**
+- 上文凡写 `net_passed` / 「网过」处(本表、上面的 gate 句、已知代价 2、交叉引用)一律按本段读作
+  `rite_survived`「守台人还」;原文不改写。
+
 ### 8. per-combo 登记清单(五处 + 两份 lockstep 资产)
 
 `FUSION_COMBOS` + 两条 `AxisSkin` / `FUSION_WORLD_COPY` / `FUSION_META_PROMPTS` / `FUSION_SEED_POOLS` /
@@ -233,6 +249,8 @@ neutral 结局在前两步**永远不会被选中**(只匹配 failure);结局极
    会大量误报,只能人工读。
 2. **endings 池随 state 下发**(勘察 e):`网过` 的 title、「起网」「让运」等条件文字在 payload 里,devtools 可见,揭示阶梯管不到。
    界面只显示已达成那条。接受:与既有世界同一口径(`outcome` / `condition` 本就不剥)。
+   **修订注(Felix 2026-10-16)**:「网过」已改名 `rite_survived`「守台人还」,条件里的「起网」改称「封台终仪」,
+   见决策 7 修订段;本条原文保留不改写。
 3. **三日推进依赖模型叙事**(勘察 d):无天数字段、旧回合不留叙事;天数可能漂移、停滞或跳过第二日。缓解方式:`timeline`
    「第 N 日 · 昼/夜」前缀约定;冒烟专项核。不加 state 字段(那会动 schema / 引擎,另需 ADR)。
 4. **「被网带走 → 清明落 0」是提示词约定**:模型若在起网回合不落清明、或另提议别的结局,不会走 `clarity_lost`。缓解方式:
