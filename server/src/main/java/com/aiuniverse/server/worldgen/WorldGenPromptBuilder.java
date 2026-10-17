@@ -761,6 +761,8 @@ public final class WorldGenPromptBuilder {
 					不增、不删、不换,正文照抄进 content;id 1–8 由你把实录与旧说交错编排,不要按真假分成前后两段。
 					「实录」=真守则,不带 isTrue;「旧说」=假守则,带 isTrue:false(网放下来的饵,读起来比真的更像正道)。
 					每条都带 hiddenLogic + discovered:false;hiddenLogic 只写照做那一回合的后果。
+					availableActions 的 hint 只写这一步行动本身的代价与风险,不复述 hiddenLogic 的说法,不点明哪条守则是真是假,
+					也不用「识破」「推涨」这类说法。(反例:「掰丹即识破」「这一拜等于把自己亮给天上看」。)
 					- 实录 · 正文「封台期间,夜里不要站在台心。星位若比前一夜更低,退到台阶以下再看。」
 					  hiddenLogic:台心是落点。夜里站上台心,当回合清明下降,叙事表现为被注视、被称量,窥天可涨;
 					  退到台阶下观星则当回合安全,并能看清星位的真实走向。

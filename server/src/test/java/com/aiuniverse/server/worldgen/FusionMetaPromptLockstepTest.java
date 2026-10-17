@@ -101,6 +101,7 @@ class FusionMetaPromptLockstepTest {
 				"清明≥30 即可、不要再叠窥天门槛",      // E-1:门槛适度(文案槽)
 				"绝不写精确成功率数字",               // 承重接缝:守 ADR-011
 				"不要求任何跨回合追踪",               // 承重接缝
+				"availableActions 的 hint 只写这一步行动本身的代价与风险", // Slice D 冒烟修复:hint 不复述 hiddenLogic
 		});
 	}
 

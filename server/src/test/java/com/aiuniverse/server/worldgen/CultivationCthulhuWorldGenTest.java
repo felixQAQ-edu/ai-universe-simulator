@@ -98,6 +98,14 @@ class CultivationCthulhuWorldGenTest {
 	}
 
 	@Test
+	void kernelForbidsHintsRestatingHiddenLogic() {
+		// Slice D 冒烟:开局 hint「这一拜等于把自己亮给天上看」「掰丹即识破」复述了隐藏判定。
+		assertThat(kernel)
+				.contains("availableActions 的 hint 只写这一步行动本身的代价与风险,不复述 hiddenLogic 的说法,不点明哪条守则是真是假,")
+				.contains("也不用「识破」「推涨」这类说法。");
+	}
+
+	@Test
 	void kernelCarriesAdrDecisions() {
 		assertThat(kernel)
 				// 结局池 4 条(决策 7),neutral 那条的 id 由本刀定为 alone_through_night。

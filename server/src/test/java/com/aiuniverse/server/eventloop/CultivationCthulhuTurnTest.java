@@ -114,6 +114,35 @@ class CultivationCthulhuTurnTest {
 	}
 
 	@Test
+	void timeSlotsAdvanceAndDayThreeArrives() {
+		// (5) 时段节奏(Slice D 冒烟:第二夜一个时段拖了 15 回合,始终没到第三日)。
+		assertThat(TurnPromptBuilder.FUSION_TURN_COPY.get(COMBO).extraDirectives())
+				.contains("一个昼或一个夜通常容得下三到五件事")
+				.contains("做完就推进到下一时段(天亮或入夜),同一时段不得无限")
+				.contains("玩家选歇息即直接推进到下一时段;第三日与第三夜必须到来");
+	}
+
+	@Test
+	void scenesStayInsideTheSect() {
+		// (9) 场景范围(Slice D 冒烟:模型自开「崖下」,把真相写成玩家亲眼看见的实物)。
+		assertThat(TurnPromptBuilder.FUSION_TURN_COPY.get(COMBO).extraDirectives())
+				.contains("(9)【场景范围】场景只在宗门之内、飞升台 / 记档室 / 丹房 / 观星台四处与寻常居所之间往来")
+				.contains("无论窥天在哪一档,都不让玩家亲眼看见被带走之后的东西")
+				.contains("真相只借印文、星位、丹、记档这些宗门内的物件显出来");
+		// 知渔档真相说明只作理解局面之用。
+		assertThat(axis("knowledge").resolveBand(61).narrationHint())
+				.endsWith("这些只作为你理解局面的说明，不要写成玩家亲眼看见的实物或场所。");
+	}
+
+	@Test
+	void actionHintsDoNotRestateHiddenLogic() {
+		// (10) 选项提示(Slice D 冒烟:开局 hint 复述隐藏判定、泄露守则真假)。
+		assertThat(TurnPromptBuilder.FUSION_TURN_COPY.get(COMBO).extraDirectives())
+				.contains("(10)【选项提示】availableActions 的 hint 只写这一步行动本身的代价与风险,不复述 hiddenLogic 的说法")
+				.contains("不点明哪条守则是真是假,也不用「识破」「推涨」这类说法");
+	}
+
+	@Test
 	void revealLadderHoldsEndToEndAcrossKuitianLevels() {
 		// 窥天 10(未觉):整份提示词(含 rules / hiddenLogic / endings / timeline / log)不含第二、三级词与「起网」。
 		String p10 = builder.buildTurnPrompt(engine(10), "A", "退到台阶以下观星");

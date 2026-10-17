@@ -91,18 +91,23 @@ class CultivationCthulhuFusionTest {
 		AttributeAxis qingming = axis("san");
 		AttributeAxis kuitian = axis("knowledge");
 
-		// 清明:draft-2 §1 原文,只把「误信饵文」改为「误信旧说」(ADR-035 决策 1)。
+		// 清明:以 draft-2 §1 原句为前缀(只把「误信饵文」改为「误信旧说」,ADR-035 决策 1),
+		// 后接决策 1 修订(2026-10-17 冒烟驱动)的补句:未发生上列情形的回合清明持平。
 		String draftLine = readRepoFile("docs/fusion-yanqi-drafts/draft-2.md").lines()
 				.filter(l -> l.startsWith("**行为提示**:以下情形清明下降"))
 				.findFirst().orElseThrow();
 		String expected = draftLine.substring("**行为提示**:".length()).replace("误信饵文", "误信旧说");
-		assertThat(qingming.behaviorHint()).isEqualTo(expected);
+		assertThat(qingming.behaviorHint()).isEqualTo(expected
+				+ "没有发生上述情形的回合(歇息、调息、寻常行走)清明持平;调息能小幅回升清明,丹房的安神药回升明显。");
 		assertThat(qingming.behaviorHint()).isNotEqualTo(cthulhuAxis("san").behaviorHint());
 
 		// 窥天:override 整段替换克苏鲁原 hint,必须写回联动 + 取值约定,并加「只随调查动作上涨」。
+		// 联动按决策 1 修订:只放大清明行为提示列出的情形,不自成每回合衰减。
 		assertThat(kuitian.behaviorHint()).isNotEqualTo(cthulhuAxis("knowledge").behaviorHint());
 		assertThat(kuitian.behaviorHint())
-				.contains("窥天越高,本回合清明流失就应越快")
+				.contains("窥天越高,上述引发清明下降的情形造成的冲击就越重")
+				.contains("没有发生这些情形的回合,清明不因窥天而下降")
+				.doesNotContain("本回合清明流失就应越快")
 				.contains("较低的正基线").contains("绝不给 0").contains("绝不降到 0")
 				.contains("拓印、对账、验丹、观星、识破旧说").contains("其余回合只持平");
 
