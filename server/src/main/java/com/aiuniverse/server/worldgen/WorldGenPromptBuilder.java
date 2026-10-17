@@ -513,9 +513,9 @@ public final class WorldGenPromptBuilder {
 					"hp/san/mana/realm/knowledge",
 					"「san归零」是错的,要写「清明归零」",
 					"气血死写气血枯竭、身殒封台,清明崩写清明尽失、走上台心叩拜,不得混写两轴",
-					"「角色存活,封台终仪已发生,你未被带走,封台终仪当场未选择让运,清明≥30」",
+					"「角色存活,封台终仪已发生,你未被带走,封台终仪当场未选择让运,清明≥21」",
 					"「看穿真相」「守住清明」「躲过一劫」",
-					"清明≥30 即可、不要再叠窥天门槛",
+					"清明≥21 即可、不要再叠窥天门槛",
 					"「恐伤清明」「境界或被推高一截」"));
 
 	/** 派生槽:致命轴中文名清单(如「气血/道心」),从融合轴集算(depletion 且 lethal)。 */
@@ -798,9 +798,10 @@ public final class WorldGenPromptBuilder {
 					【结局池 · 恰好 4 条】
 					- body_fails「身殒封台」outcome=failure:condition 只绑气血(「气血归零……」),description 写气血枯竭。
 					- clarity_lost「叩台」outcome=failure:condition 只绑清明(「清明归零……」);「自己走上台心、整衣叩拜」
-					  写进 description,不进 condition。封台终仪当场既没有避开也没有让运=被带走,走的就是这一条(清明落到 0)。
+					  写进 description,不进 condition。封台终仪当场有三种落法走这一条(都在那一回合把清明落到 0):
+					  既没有避开也没有让运;避开了但清明≤20;当面让运而对方不应。
 					- rite_survived「守台人还」outcome=success:condition 写「角色存活,封台终仪已发生,你未被带走,封台终仪当场未选择让运,
-					  清明≥30」;description 写明这一次过去了,并没有结束。
+					  清明≥21」;description 写明这一次过去了,并没有结束。
 					- alone_through_night「独过此夜」outcome=neutral:condition 写「封台终仪已发生,你因封台终仪当场让运而未被带走」;
 					  只确认你活过这一夜,不写同门去留。
 					不设「你与同门都活下来」的结局。【禁止用"或"把气血/清明混进同一条 condition】——结局文本与触发轴必须对得上。

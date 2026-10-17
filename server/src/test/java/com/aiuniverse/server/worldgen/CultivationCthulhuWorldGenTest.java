@@ -140,6 +140,24 @@ class CultivationCthulhuWorldGenTest {
 	}
 
 	@Test
+	void ritePlacementsAreCompleteAndThresholdIs21() {
+		// 决策 7「终仪落点补全」:rite_survived 门槛 30 → 21;叩台补写三种落法;本组合 world-gen 文本不再有「清明≥30」。
+		WorldGenPromptBuilder.FusionWorldCopy copy = WorldGenPromptBuilder.FUSION_WORLD_COPY.get("cultivation×cthulhu");
+		assertThat(copy.successConditionExample())
+				.isEqualTo("「角色存活,封台终仪已发生,你未被带走,封台终仪当场未选择让运,清明≥21」");
+		assertThat(copy.thresholdModeration()).isEqualTo("清明≥21 即可、不要再叠窥天门槛");
+		assertThat(endingPool())
+				.contains("封台终仪当场未选择让运,\n")
+				.contains("清明≥21」;description 写明这一次过去了,并没有结束。")
+				.contains("封台终仪当场有三种落法走这一条(都在那一回合把清明落到 0):")
+				.contains("既没有避开也没有让运;避开了但清明≤20;当面让运而对方不应。");
+		String prompt = builder.buildFusionPrompt("cultivation", "cthulhu");
+		assertThat(prompt).doesNotContain("清明≥30");
+		assertThat(builder.buildRepairPrompt(java.util.List.of("cultivation", "cthulhu"), "{}", java.util.List.of("e")))
+				.doesNotContain("清明≥30");
+	}
+
+	@Test
 	void endingPoolUsesRiteSurvivedAndSealingRite() {
 		assertThat(endingPool())
 				.contains("rite_survived").contains("守台人还").contains("封台终仪已发生");

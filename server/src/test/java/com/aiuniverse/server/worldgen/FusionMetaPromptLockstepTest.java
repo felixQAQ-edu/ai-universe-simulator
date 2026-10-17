@@ -98,7 +98,9 @@ class FusionMetaPromptLockstepTest {
 				"alone_through_night",               // 结局池 neutral id(决策 7,本刀定)
 				"把气血/清明混进同一条 condition",     // D-3:禁混轴(per-combo 轴名)
 				"绝不用 hp/san/mana/realm/knowledge", // D-3:condition 用中文轴名(文案槽 axisKeysBan)
-				"清明≥30 即可、不要再叠窥天门槛",      // E-1:门槛适度(文案槽)
+				"清明≥21 即可、不要再叠窥天门槛",      // E-1:门槛适度(文案槽;决策 7「终仪落点补全」30 → 21)
+				"封台终仪当场有三种落法走这一条",      // 决策 7「终仪落点补全」:叩台三种落法
+				"既没有避开也没有让运;避开了但清明≤20;当面让运而对方不应。", // 同上
 				"绝不写精确成功率数字",               // 承重接缝:守 ADR-011
 				"不要求任何跨回合追踪",               // 承重接缝
 				"availableActions 的 hint 只写这一步行动本身的代价与风险", // Slice D 冒烟修复:hint 不复述 hiddenLogic

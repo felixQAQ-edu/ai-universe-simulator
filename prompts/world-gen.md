@@ -5,7 +5,10 @@
 > **多模式结构(ADR-008 决策 3)**:提示词 = **通用骨架(单点维护)+ per-archetype 注入块**。骨架(输出 schema / id 约定 F-001 / 消毒硬化 / json_object / openingNarrative)模式无关、固定;`worldview`/`数值轴`/`ruleForm` 从 `ArchetypeRegistry` 元数据注入。加模式 = 一条元数据 + 一个种子池条目,**不重抄骨架**(消毒/id 这种硬规矩重抄一次错一次)。
 > 运行时同义副本在 `WorldGenPromptBuilder`(便于单测钉格式);本文件为人类可读核心资产(CONTEXT §三.6)。**lockstep:改这里务必同步改 `WorldGenPromptBuilder`,只改 .md 运行时失效。**
 >
-> 版本:v0.9.4(2026-10-17,ADR-035 Slice D 首轮冒烟修复:《验讫》内核【守则】段补一句 —— availableActions 的 hint
+> 版本:v0.9.5(2026-10-17,ADR-035 决策 7 修订 · 终仪落点补全:《验讫》文案槽成功 condition 例与门槛适度改为「清明≥21」;
+> 融合内核【结局池】rite_survived 门槛 30 → 21,clarity_lost 补写叩台的三种落法(既没有避开也没有让运 / 避开了但清明≤20 /
+> 当面让运而对方不应)。其余一字未动。)
+> 上一版:v0.9.4(2026-10-17,ADR-035 Slice D 首轮冒烟修复:《验讫》内核【守则】段补一句 —— availableActions 的 hint
 > 只写这一步行动本身的代价与风险,不复述 hiddenLogic、不点明真假、不用「识破」「推涨」这类说法(冒烟里开局 hint
 > 「这一拜等于把自己亮给天上看」「掰丹即识破」复述了隐藏判定)。其余一字未动。)
 > 上一版:v0.9.3(2026-10-17,ADR-035 Slice C 配套:《验讫》内核【揭示阶梯】段「第三夜子时将要发生的事只能写成时刻」一句改为
@@ -271,7 +274,7 @@ condition 写英文 san)
 
 ### round 2 彩蛋:修仙 × 克苏鲁(host=修仙 · 验讫,ADR-035)
 
-融合轴集 = {`hp` 气血、`mana` 灵力、`realm` 境界、`san` 清明、`knowledge` 窥天}(克苏鲁 `san` 换皮为「清明」、`knowledge` 换皮为「窥天」,ADR-035 Slice A);致命轴={hp,san},累积轴={realm,knowledge},非致命资源轴={mana} → 结局条数槽=「3-4 个」、致命轴清单槽=「气血/清明」。文案槽(`FUSION_WORLD_COPY`):实录(真,不带 isTrue)/ 旧说(假,isTrue:false);恢复示例=服余泽丹(随时可用)可回气血与灵力、调息行功(随时可用)可回灵力与少量清明、丹房配药(仅白天,夜里封炉)回复气血与清明最多(代价:境界被推着上涨 / 丹房配药推涨最重);结局 id 例=body_fails、clarity_lost、rite_survived、alone_through_night;condition 正反例=「气血归零,身殒封台」/「清明归零,心神不再属于自己」、禁「清明归零或气血归零」混轴、绝不用 hp/san/mana/realm/knowledge 等英文字段名(「san归零」是错的,要写「清明归零」)、气血死写气血枯竭、身殒封台,清明崩写清明尽失、走上台心叩拜,不得混写两轴;成功 condition 例=「角色存活,封台终仪已发生,你未被带走,封台终仪当场未选择让运,清明≥30」(门槛适度:清明≥30 即可、不要再叠窥天门槛;模糊反例「看穿真相」「守住清明」「躲过一劫」);hint 例=「恐伤清明」「境界或被推高一截」。融合 meta-prompt(注入在「世界融合 · 要求」之后,与运行时逐字相同):
+融合轴集 = {`hp` 气血、`mana` 灵力、`realm` 境界、`san` 清明、`knowledge` 窥天}(克苏鲁 `san` 换皮为「清明」、`knowledge` 换皮为「窥天」,ADR-035 Slice A);致命轴={hp,san},累积轴={realm,knowledge},非致命资源轴={mana} → 结局条数槽=「3-4 个」、致命轴清单槽=「气血/清明」。文案槽(`FUSION_WORLD_COPY`):实录(真,不带 isTrue)/ 旧说(假,isTrue:false);恢复示例=服余泽丹(随时可用)可回气血与灵力、调息行功(随时可用)可回灵力与少量清明、丹房配药(仅白天,夜里封炉)回复气血与清明最多(代价:境界被推着上涨 / 丹房配药推涨最重);结局 id 例=body_fails、clarity_lost、rite_survived、alone_through_night;condition 正反例=「气血归零,身殒封台」/「清明归零,心神不再属于自己」、禁「清明归零或气血归零」混轴、绝不用 hp/san/mana/realm/knowledge 等英文字段名(「san归零」是错的,要写「清明归零」)、气血死写气血枯竭、身殒封台,清明崩写清明尽失、走上台心叩拜,不得混写两轴;成功 condition 例=「角色存活,封台终仪已发生,你未被带走,封台终仪当场未选择让运,清明≥21」(门槛适度:清明≥21 即可、不要再叠窥天门槛;模糊反例「看穿真相」「守住清明」「躲过一劫」);hint 例=「恐伤清明」「境界或被推高一截」。融合 meta-prompt(注入在「世界融合 · 要求」之后,与运行时逐字相同):
 
 ```
 【本局融合内核 · 验讫】(以宗门喜事未散的平静口吻开场,恐怖压在平静底下)
@@ -359,9 +362,10 @@ availableActions 的 hint 只写这一步行动本身的代价与风险,不复�
 【结局池 · 恰好 4 条】
 - body_fails「身殒封台」outcome=failure:condition 只绑气血(「气血归零……」),description 写气血枯竭。
 - clarity_lost「叩台」outcome=failure:condition 只绑清明(「清明归零……」);「自己走上台心、整衣叩拜」
-  写进 description,不进 condition。封台终仪当场既没有避开也没有让运=被带走,走的就是这一条(清明落到 0)。
+  写进 description,不进 condition。封台终仪当场有三种落法走这一条(都在那一回合把清明落到 0):
+  既没有避开也没有让运;避开了但清明≤20;当面让运而对方不应。
 - rite_survived「守台人还」outcome=success:condition 写「角色存活,封台终仪已发生,你未被带走,封台终仪当场未选择让运,
-  清明≥30」;description 写明这一次过去了,并没有结束。
+  清明≥21」;description 写明这一次过去了,并没有结束。
 - alone_through_night「独过此夜」outcome=neutral:condition 写「封台终仪已发生,你因封台终仪当场让运而未被带走」;
   只确认你活过这一夜,不写同门去留。
 不设「你与同门都活下来」的结局。【禁止用"或"把气血/清明混进同一条 condition】——结局文本与触发轴必须对得上。

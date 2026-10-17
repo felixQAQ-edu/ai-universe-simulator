@@ -143,7 +143,8 @@ class CultivationCthulhuTurnTest {
 	@Test
 	void riteEveRiteAndAfterCarryTheirLines() {
 		String eve = "子时将至:本回合把场面推到封台终仪前一刻;本回合末的选项必须给出终仪当场的抉择——其中要有当面让运,也要有避开。";
-		String rite = "本回合即封台终仪:按玩家所选当回合裁决,并在本回合给出结局(裁决三路见附加指令 (7))。";
+		String rite = "本回合即封台终仪:按玩家所选当回合裁决,并在本回合给出结局。"
+				+ "终仪当场的每一种选择都对应附加指令 (7) 中的一个结局,本回合必须落到其中之一。";
 		String after = "封台终仪已过:本回合必须给出结局。";
 
 		String p23 = builder.buildTurnPrompt(engine(10, 22), "A", "行动");
@@ -181,6 +182,23 @@ class CultivationCthulhuTurnTest {
 				.contains(TurnPromptBuilder.yanqiTurnClock(23).lines().skip(3).findFirst().orElseThrow())
 				.contains(TurnPromptBuilder.yanqiTurnClock(24).lines().skip(3).findFirst().orElseThrow())
 				.contains(TurnPromptBuilder.yanqiTurnClock(25).lines().skip(3).findFirst().orElseThrow());
+	}
+
+	@Test
+	void everyRiteChoiceHasAnEnding() {
+		// 决策 7「终仪落点补全」:(7) 五种落点一一对应结局;本组合回合文本不再有「清明≥30」。
+		String extra = TurnPromptBuilder.FUSION_TURN_COPY.get(COMBO).extraDirectives();
+		assertThat(extra)
+				.contains("终仪当场的每一种选择都对应\n    下面一个结局,本回合必须落到其中之一:")
+				.contains("- 避开、未让运,清明≥21 → 提议「守台人还」;")
+				.contains("- 避开,但清明≤20(将失档)→ stateUpdate 把清明落到 0(走「叩台」:这时的你觉得被挑中是福分,自己走上台);")
+				.contains("- 当面让运且对方应下 → 你未被带走,提议「独过此夜」;")
+				.contains("- 当面让运但对方不应 → 当回合反噬,等同未避开:stateUpdate 把清明落到 0(走「叩台」);")
+				.contains("- 既没有避开也没有让运 → stateUpdate 把清明落到 0(走「叩台」)。")
+				.doesNotContain("清明≥30");
+		for (int n = 1; n <= 30; n++) {
+			assertThat(builder.buildTurnPrompt(engine(10, n - 1), "A", "行动")).as("第 %d 回合", n).doesNotContain("清明≥30");
+		}
 	}
 
 	@Test
@@ -292,7 +310,7 @@ class CultivationCthulhuTurnTest {
 				.put("condition", "清明归零").put("outcome", "failure").put("reached", false);
 		endings.addObject().put("id", "rite_survived").put("title", "守台人还")
 				.put("description", "这一次过去了,并没有结束。")
-				.put("condition", "角色存活,封台终仪已发生,你未被带走,封台终仪当场未选择让运,清明≥30")
+				.put("condition", "角色存活,封台终仪已发生,你未被带走,封台终仪当场未选择让运,清明≥21")
 				.put("outcome", "success").put("reached", false);
 		endings.addObject().put("id", "alone_through_night").put("title", "独过此夜")
 				.put("description", "你活过了这一夜。")
