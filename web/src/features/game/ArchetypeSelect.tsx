@@ -4,13 +4,12 @@ import { useHistoryStore } from '../../state/historyStore';
 import { SAVE_LIST_VISIBLE, onSavePointersChanged, type SaveSummary } from '../../state/savePointers';
 import { describeSave } from './saveText';
 import type { ArchetypeSummary } from '../../api';
-import { fusionKey, isFusionAllowed, type Rect } from './fusion/drag';
+import { fusionKey, isFusionAllowed, pairOf, type Rect } from './fusion/drag';
 import { FusionMerge } from './fusion/FusionMerge';
 import { materialOf } from './fusion/shards';
 import { useFusionDrag, type CommitRects } from './fusion/useFusionDrag';
 import { cardTheme } from './theme/registry';
 import { reducedMotion } from './theme/motion';
-import type { Archetype } from '../../types/schema';
 import styles from './game.module.css';
 
 // 世界选择第一屏(产品门面,ADR-008 决策 4)。玩家进游戏 → 看见可玩世界 → 选一个 →
@@ -276,11 +275,6 @@ interface Merging {
   foreignRect: Rect;
 }
 
-/** 组合键 → 有序双值(host 在前,ADR-012/013)。 */
-function pairOf(key: string): Archetype[] {
-  return key.split('×') as Archetype[];
-}
-
 /** 卡片在拖拽中的角色(纯样式令牌;差异只在样式故不开组件槽,ADR-018 §4.17)。 */
 export type CardDragState = 'dragging' | 'valid' | 'invalid' | null;
 
@@ -373,6 +367,11 @@ const FUSION_CARDS: Record<
     titles: ['规则怪谈', '末日生存', '缺页的人防工程'],
     ariaLabel: '缺页的人防工程(融合世界)',
     tagline: '缺的那几页,和消失的人对得上号。',
+  },
+  'cultivation×cthulhu': {
+    titles: ['修仙', '克苏鲁', '验讫'],
+    ariaLabel: '验讫(融合世界)',
+    tagline: '满门道贺之后,飞升台上留下一方印。',
   },
 };
 

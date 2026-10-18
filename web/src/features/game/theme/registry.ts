@@ -83,6 +83,11 @@ const FUSIONS: Readonly<Record<string, { sceneUrl: string; cardClass: string }>>
     sceneUrl: '/scenes/fusion-renfang.webp',
     cardClass: styles.cardFusionRenfang, // 怪谈冷蓝 × 末日锈土互噬
   },
+  'cultivation×cthulhu': {
+    // 暂借 host 封面:《验讫》专属封面图待 Felix 提供后另换(ADR-035 勘察 h.4)。
+    sceneUrl: '/scenes/cultivation.webp',
+    cardClass: styles.cardFusionYanqi, // 修仙青白微金 × 克苏鲁幽绿深渊互噬
+  },
 };
 
 /** 融合组合键(与后端 FUSION_COMBOS / 前端 fusion.ts 同键)。 */

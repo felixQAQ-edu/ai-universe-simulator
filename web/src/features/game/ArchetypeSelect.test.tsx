@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { ArchetypeSummary } from '../../api';
 import { ArchetypeCard, FusionCard } from './ArchetypeSelect';
+import { pairOf } from './fusion/drag';
 
 // 选择屏卡片(ADR-008 决策 4):可玩卡渲染钩子/标签 + 点击触发 onChoose(→ startGame);
 // 未开放卡灰显「敬请期待」、不可点。store 接线(loadArchetypes/startGame/lastArchetype)
@@ -147,6 +148,21 @@ describe('FusionCard(融合卡 = 渗漏卡形态保留,ADR-014 参数化)', () =
 
     fireEvent.click(screen.getByRole('button', { name: '缺页的人防工程(融合世界)' }));
     expect(onChoose).toHaveBeenCalledTimes(1);
+  });
+
+  // 选择屏接线是 `onChoose={() => startGame(pairOf(key))}`,这里照搬同一接线钉有序双值。
+  it('验讫卡:渲染三层撕裂标题(修仙/克苏鲁/验讫),点击发出有序双值 [cultivation, cthulhu]', () => {
+    const combo = 'cultivation×cthulhu';
+    const startGame = vi.fn();
+    render(<FusionCard combo={combo} onChoose={() => startGame(pairOf(combo))} />);
+    expect(screen.getByText('修仙')).toBeInTheDocument();
+    expect(screen.getByText('克苏鲁')).toBeInTheDocument();
+    expect(screen.getByText('验讫')).toBeInTheDocument();
+    expect(screen.getByText('满门道贺之后,飞升台上留下一方印。')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '验讫(融合世界)' }));
+    expect(startGame).toHaveBeenCalledTimes(1);
+    expect(startGame).toHaveBeenCalledWith(['cultivation', 'cthulhu']); // host 在前
   });
 
   it('未配文案的组合不渲染(登记齐再上)', () => {

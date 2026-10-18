@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import styles from '../game.module.css';
 import { NEUTRAL_THEME, cardTheme, fusionKey, resolveWorldTheme } from './registry';
 
 // 单一主题注册表(ADR-018 §4.1):世界判定只发生一次。
@@ -36,6 +37,10 @@ describe('resolveWorldTheme · 封面(原 sceneImageUrl 用例,逐条保留)', (
     expect(resolveWorldTheme(['rules_creepy', 'apocalypse']).sceneUrl).toBe(
       '/scenes/fusion-renfang.webp',
     );
+  });
+
+  it('融合世界(修仙×克苏鲁,ADR-035)→ 暂借 host 修仙封面(专属封面待换)', () => {
+    expect(resolveWorldTheme(['cultivation', 'cthulhu']).sceneUrl).toBe('/scenes/cultivation.webp');
   });
 
   it('未登记融合组合 → 回落 host([0])的单体图,不盲取错图', () => {
@@ -84,6 +89,15 @@ describe('resolveWorldTheme · 皮肤登记(feature gate,ADR-018 §4.5)', () => 
     expect(shihai.sceneUrl).toBe('/scenes/fusion-shihai.webp');
   });
 
+  // ADR-035《验讫》:局内皮肤随 host 取修仙;卡皮肤是融合专属的,不是修仙单体卡。
+  it('验讫(host=修仙)随 host 用修仙皮肤,卡皮肤为融合专属 cardFusionYanqi', () => {
+    const yanqi = resolveWorldTheme(['cultivation', 'cthulhu']);
+    expect(yanqi.key).toBe(fusionKey('cultivation', 'cthulhu'));
+    expect(yanqi.skin).toBe('cultivation');
+    expect(yanqi.cardClass).toBe(styles.cardFusionYanqi);
+    expect(yanqi.cardClass).not.toBe(cardTheme('cultivation').cardClass);
+  });
+
   // 刀 4 之后**四个基础世界全部登记**,故「host 未登记 → 融合局走旧实现」这条降级路径
   // 在基础世界里已无样本可举 —— 改用未开放世界作 host 来守它(路径本身仍须成立:
   // 未来上新世界时,未登记的 host 必须整齐降级,而不是错拿别人的皮肤)。
@@ -115,6 +129,16 @@ describe('cardTheme · 选择屏卡片氛围(收编原私有 vibeClass)', () => 
     expect(renfang).toBeTruthy();
     expect(shihai).not.toBe(renfang);
     expect(shihai).not.toBe(cardTheme('cultivation').cardClass);
+  });
+
+  it('验讫(修仙×克苏鲁)有自己的渗漏卡氛围 cardFusionYanqi,与另两张融合卡及两个单体卡都不同', () => {
+    const yanqi = cardTheme('cultivation×cthulhu');
+    expect(yanqi.cardClass).toBe(styles.cardFusionYanqi);
+    expect(yanqi.cardClass).toBeTruthy();
+    expect(yanqi.skin).toBeNull(); // 卡片层不带局内皮肤(同另两张融合卡)
+    for (const other of ['cultivation×rules_creepy', 'rules_creepy×apocalypse', 'cultivation', 'cthulhu']) {
+      expect(yanqi.cardClass).not.toBe(cardTheme(other).cardClass);
+    }
   });
 
   it('未登记 key → 中性卡(原 vibeClass 无测试无显式降级,收编时补上)', () => {

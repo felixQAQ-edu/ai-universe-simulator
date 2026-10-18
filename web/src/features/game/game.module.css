@@ -912,6 +912,72 @@
   text-shadow: 0 0 12px rgba(196, 150, 92, 0.35);
 }
 
+/* ── 第三渗漏卡(验讫,ADR-035):修仙青白微金 × 克苏鲁幽绿深渊【互噬】——
+ * 左上是修仙的青白仙气与金辉(满门道贺),右下是克苏鲁的幽绿深渊(台下的东西),中缝一道撕裂接缝。
+ * 色值全部取自 .cardCultivation / .cardCthulhu,不另造色系。
+ * 复用 fusionSeep 渗出入场与 fusionTitle 三层撕裂标题机制,只换配色氛围。纯 CSS,不引动画库。 */
+.cardFusionYanqi {
+  color: #c2d6c8;
+  border-left-color: #c9a84a; /* 修仙的金;hover 时被深渊幽绿吞掉 */
+  background:
+    linear-gradient(135deg, rgba(236, 244, 240, 0.16) 0%, rgba(236, 244, 240, 0.08) 34%, transparent 52%),
+    linear-gradient(315deg, rgba(7, 18, 26, 0.9) 0%, rgba(12, 28, 34, 0.72) 40%, transparent 62%),
+    linear-gradient(160deg, #122a2a 0%, #0c1c22 55%, #07121a 100%);
+  transform-origin: 50% 50%;
+}
+
+/* 渗出入场:两类特异性(压过 .card:not(.cardLocked) 的 cardEnter),只跑一次。 */
+.card.cardFusionYanqi {
+  animation: fusionSeep 0.9s ease-out backwards;
+}
+
+/* 互噬氛围层:修仙云气与金点(左上)与克苏鲁幽光(右下)缓慢拉锯、彼此渗透。 */
+.cardFusionYanqi::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(55% 48% at 18% 22%, rgba(236, 244, 240, 0.3), transparent 68%),
+    radial-gradient(60% 52% at 84% 82%, rgba(90, 175, 140, 0.26), transparent 70%),
+    radial-gradient(2px 2px at 30% 78%, rgba(214, 178, 84, 0.55), transparent 60%),
+    radial-gradient(1.5px 1.5px at 72% 30%, rgba(90, 175, 140, 0.5), transparent 60%);
+  background-size: 180% 180%;
+  animation: fusionClash 9s ease-in-out infinite alternate;
+}
+
+/* 撕裂接缝:金辉与幽绿在裂隙处渗漏(飞升台的边界),偶发抽搐。 */
+.cardFusionYanqi::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    115deg,
+    transparent 46%,
+    rgba(214, 178, 84, 0.28) 49%,
+    rgba(90, 175, 140, 0.34) 51%,
+    transparent 54%
+  );
+  animation: fusionSeam 7s linear infinite;
+}
+
+.cardFusionYanqi:hover {
+  border-left-color: #5fbf9a;
+  box-shadow:
+    0 10px 30px -14px rgba(0, 0, 0, 0.7),
+    inset 0 0 30px -6px rgba(60, 150, 120, 0.32),
+    inset 0 0 18px -4px rgba(220, 190, 110, 0.28);
+}
+
+/* 第三卡的定稿名层:仙气青白 + 金辉(一方印的颜色,区别识海病态青 / 人防锈金)。 */
+.cardFusionYanqi .fusionTitleC {
+  color: #eef3ef;
+  text-shadow: 0 0 12px rgba(214, 178, 84, 0.35);
+}
+
 /* ── 未开放占位:灰显、不可点、零动效(死的,反衬解锁卡是活的)── */
 .cardLocked {
   opacity: 0.5;
@@ -1148,6 +1214,9 @@
   .cardFusionRenfang,
   .cardFusionRenfang::before,
   .cardFusionRenfang::after,
+  .cardFusionYanqi,
+  .cardFusionYanqi::before,
+  .cardFusionYanqi::after,
   .fusionTitleA,
   .fusionTitleB,
   .card:not(.cardLocked) {
@@ -1219,6 +1288,12 @@
 .cardFusionRenfang .cardTag {
   background: rgba(176, 149, 120, 0.16);
   color: #b09578;
+}
+
+/* 第三渗漏卡标签:修仙的金(验讫那一方印的颜色),深底上用亮金可读。 */
+.cardFusionYanqi .cardTag {
+  background: rgba(201, 168, 74, 0.2);
+  color: #e0bd5e;
 }
 
 .cardSoon {

@@ -7,6 +7,7 @@
 // 动作本身表达语义,提交时直接生成有序双值 `[host, foreign]`,不新增字段)。
 
 import type { FusionCombo } from '../../../api';
+import type { Archetype } from '../../../types/schema';
 
 /** 手势阈值。B1 真机实测值,本刀原样沿用(改动须回真机重验,桌面测不准)。 */
 export interface DragTunables {
@@ -128,6 +129,11 @@ export function autoScrollVelocity(clientY: number, viewportH: number, t: DragTu
 /** 组合键 `host×foreign`(方向敏感;与后端 registry / 封面 / 卡文案同键)。 */
 export function fusionKey(host: string, foreign: string): string {
   return `${host}×${foreign}`;
+}
+
+/** 组合键 → 有序双值(host 在前,ADR-012/013);{@link fusionKey} 的逆。 */
+export function pairOf(key: string): Archetype[] {
+  return key.split('×') as Archetype[];
 }
 
 /**
