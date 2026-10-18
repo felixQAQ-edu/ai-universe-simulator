@@ -1327,6 +1327,20 @@
   color: #5a6862;
 }
 
+/* 融合卡标语:深底卡,不能回落 var(--muted)(为浅底调的灰)。各取一个原世界的标语色调亮,
+ * 对比度按标语区域的实际合成底色测(两种卡宽 × 常态/hover × 动画全周期取最暗、最亮两处),两处均 ≥ 4.5:1。 */
+.cardFusion .cardTagline {
+  color: #e5e9ee; /* 怪谈 #93a4b9 调亮,偏修仙青白 */
+}
+
+.cardFusionRenfang .cardTagline {
+  color: #dad0bc; /* 末日 #bcaa86 调亮 */
+}
+
+.cardFusionYanqi .cardTagline {
+  color: #ccdcd4; /* 克苏鲁 #9ab8aa 调亮 */
+}
+
 /* 次级出口(等待期「取消」/ 错误屏「换个世界」)。两处都是**导航控件**,
  * 故与返回键同一条热区口径:≥44×44 CSS px,整块可点。 */
 .linkBtn {
