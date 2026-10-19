@@ -153,3 +153,23 @@ export function isFusionAllowed(
   if (host === foreign) return false;
   return fusions.some((f) => f.host === host && f.foreign === foreign);
 }
+
+/**
+ * 这一对在**方向上**属于哪一类(融合方向提示用,ADR-019 实施记录):
+ * - `ok`       (host, foreign) 本身合法 —— 松手即揉;
+ * - `reversed` 这个方向不合法,但**对调**后合法 —— 玩家拖反了,提示换个方向;
+ * - `none`     两个方向都不合法(或同一张)。
+ *
+ * 只是给提示分支用的;**合法性判定仍只认 {@link isFusionAllowed}**(手势层吸不吸、提不提交不看它)。
+ */
+export type PairClass = 'ok' | 'reversed' | 'none';
+
+export function classifyPair(
+  fusions: readonly FusionCombo[],
+  host: string,
+  foreign: string,
+): PairClass {
+  if (isFusionAllowed(fusions, host, foreign)) return 'ok';
+  if (isFusionAllowed(fusions, foreign, host)) return 'reversed';
+  return 'none';
+}

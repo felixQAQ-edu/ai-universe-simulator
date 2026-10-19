@@ -6,6 +6,7 @@ import {
   findTarget,
   fusionKey,
   isArmed,
+  classifyPair,
   isFusionAllowed,
   overlapRatio,
   type Rect,
@@ -137,6 +138,47 @@ describe('isFusionAllowed · 合法组合只认后端投影', () => {
 
   it('空组合表(老后端 / 加载失败)→ 一律非法,选择屏照常可用(安全降级)', () => {
     expect(isFusionAllowed([], 'cultivation', 'rules_creepy')).toBe(false);
+  });
+});
+
+// ── 方向分类(提示分支用;合法性仍只认 isFusionAllowed)────────────────────
+// 夹具 = 线上现役三条组合(含《验讫》cultivation×cthulhu —— 克苏鲁拖到修仙上是合法的)。
+
+const LIVE: FusionCombo[] = [
+  ...COMBOS,
+  { host: 'cultivation', foreign: 'cthulhu', key: 'cultivation×cthulhu' },
+];
+
+describe('classifyPair · ok / reversed / none 三态', () => {
+  it('ok:这个方向本身已登记(拖克苏鲁到修仙上 → host=修仙)', () => {
+    expect(classifyPair(LIVE, 'cultivation', 'cthulhu')).toBe('ok');
+    expect(classifyPair(LIVE, 'cultivation', 'rules_creepy')).toBe('ok');
+    expect(classifyPair(LIVE, 'rules_creepy', 'apocalypse')).toBe('ok');
+  });
+
+  it('reversed:这个方向未登记,对调后已登记(拖修仙到克苏鲁上)', () => {
+    expect(classifyPair(LIVE, 'cthulhu', 'cultivation')).toBe('reversed');
+    expect(classifyPair(LIVE, 'rules_creepy', 'cultivation')).toBe('reversed');
+    expect(classifyPair(LIVE, 'apocalypse', 'rules_creepy')).toBe('reversed');
+  });
+
+  it('none:两个方向都未登记(克苏鲁 ↔ 末日)', () => {
+    expect(classifyPair(LIVE, 'apocalypse', 'cthulhu')).toBe('none');
+    expect(classifyPair(LIVE, 'cthulhu', 'apocalypse')).toBe('none');
+  });
+
+  it('自己对自己 / 空组合表 → none(不会误报「反过来试试」)', () => {
+    expect(classifyPair(LIVE, 'cultivation', 'cultivation')).toBe('none');
+    expect(classifyPair([], 'cultivation', 'rules_creepy')).toBe('none');
+  });
+
+  it('与 isFusionAllowed 一致:ok ⇔ 合法(三态只细分「不合法」,不改合法性)', () => {
+    const ids = ['cultivation', 'rules_creepy', 'apocalypse', 'cthulhu'];
+    for (const h of ids) {
+      for (const f of ids) {
+        expect(classifyPair(LIVE, h, f) === 'ok').toBe(isFusionAllowed(LIVE, h, f));
+      }
+    }
   });
 });
 
