@@ -36,6 +36,8 @@ interface DragSession {
   candidates: Candidate[];
   targetId: string | null;
   dwellStart: number | null;
+  /** 当前目标的提示放在哪一侧(命中新目标那一刻定下,同一目标内不翻面)。 */
+  targetSide: HintSide | null;
   armed: boolean;
   valid: boolean;
   raf: number | null;
@@ -74,6 +76,13 @@ function clearTargetTransforms(cards: Map<string, HTMLElement>, except: HTMLElem
   }
 }
 
+/**
+ * 提示放在目标卡的哪一侧(ADR-019 实施记录):**与拖动卡来的方向相反**。
+ * 拖动卡中心在目标中心之上 → 它的标题可能伸出目标上沿 → 提示放下沿外;反之放上沿外。
+ * 两张卡的标题都在各自顶部,这样两边都不被提示压住。
+ */
+export type HintSide = 'above' | 'below';
+
 export interface FusionDragView {
   /** 正被拖起的卡 id(null = 无拖拽)。 */
   draggingId: string | null;
@@ -83,6 +92,8 @@ export interface FusionDragView {
   valid: boolean;
   /** 是否已进入可提交态(松手即提交)。 */
   armed: boolean;
+  /** 方向提示放在目标卡哪一侧(无目标 = null)。 */
+  targetSide: HintSide | null;
 }
 
 /** 提交那一刻两张卡的视口位置(揉合动画的作画依据)。 */
@@ -91,7 +102,13 @@ export interface CommitRects {
   foreign: Rect;
 }
 
-const IDLE_VIEW: FusionDragView = { draggingId: null, targetId: null, valid: false, armed: false };
+const IDLE_VIEW: FusionDragView = {
+  draggingId: null,
+  targetId: null,
+  valid: false,
+  armed: false,
+  targetSide: null,
+};
 
 export interface UseFusionDragOptions {
   /** 这一对能不能揉(host = 被拖到的那张,foreign = 被拖者)。 */
@@ -108,6 +125,8 @@ export interface UseFusionDragOptions {
    * 刻意在**松手**时报而不是悬停时报:悬停即报会让玩家路过一张卡就被念一句。
    */
   onReject?: (host: string, foreign: string) => void;
+  /** 抓起一张卡的那一刻回调(调用方借此清掉上一次手势留下的提示 / 播报去重状态)。 */
+  onPickUp?: (id: string) => void;
   /** false = 手势整体停摆(揉合动画进行中:同时只允许一组融合动画运行)。 */
   enabled?: boolean;
   /** reduced-motion:归位不做过渡。 */
@@ -123,12 +142,18 @@ export interface FusionDragApi {
   onPointerDown: (id: string, e: ReactPointerEvent<HTMLElement>) => void;
   /** 抓起后必须吞掉随后的 click(否则松手即进世界)。 */
   shouldSwallowClick: (id: string) => boolean;
+  /**
+   * 已登记卡片的 DOM 节点(提示定位用;**只许在事件 / ref 回调 / effect 里调**,不在渲染期读)。
+   * 卡片登记表只此一份 —— 调用方不另存 ref 表。
+   */
+  elementOf: (id: string) => HTMLElement | null;
 }
 
 export function useFusionDrag({
   canFuse,
   onCommit,
   onReject,
+  onPickUp,
   enabled = true,
   reduced = false,
   tunables = DEFAULT_TUNABLES,
@@ -143,6 +168,7 @@ export function useFusionDrag({
   const canFuseRef = useRef(canFuse);
   const onCommitRef = useRef(onCommit);
   const onRejectRef = useRef(onReject);
+  const onPickUpRef = useRef(onPickUp);
   const enabledRef = useRef(enabled);
   const reducedRef = useRef(reduced);
   const tunablesRef = useRef(tunables);
@@ -150,10 +176,11 @@ export function useFusionDrag({
     canFuseRef.current = canFuse;
     onCommitRef.current = onCommit;
     onRejectRef.current = onReject;
+    onPickUpRef.current = onPickUp;
     enabledRef.current = enabled;
     reducedRef.current = reduced;
     tunablesRef.current = tunables;
-  }, [canFuse, onCommit, onReject, enabled, reduced, tunables]);
+  }, [canFuse, onCommit, onReject, onPickUp, enabled, reduced, tunables]);
 
   const cardEls = useRef(new Map<string, HTMLElement>());
   const press = useRef<PressSession | null>(null);
@@ -207,6 +234,8 @@ export function useFusionDrag({
     if (tid !== d.targetId) {
       d.targetId = tid;
       d.dwellStart = tid ? now : null;
+      const tr = tid ? d.candidates.find((c) => c.id === tid)?.rect : undefined;
+      d.targetSide = tr ? (rectCenter(cur).y < rectCenter(tr).y ? 'below' : 'above') : null;
       resetTargetStyles();
     }
     const dwell = d.dwellStart == null ? 0 : now - d.dwellStart;
@@ -233,7 +262,8 @@ export function useFusionDrag({
 
     const v0 = viewRef.current;
     if (tid !== v0.targetId || armed !== v0.armed || valid !== v0.valid) {
-      setView((v) => ({ ...v, targetId: tid, valid, armed }));
+      const targetSide = d.targetSide;
+      setView((v) => ({ ...v, targetId: tid, valid, armed, targetSide }));
     }
     d.armed = armed;
     d.valid = valid;
@@ -304,6 +334,7 @@ export function useFusionDrag({
       candidates,
       targetId: null,
       dwellStart: null,
+      targetSide: null,
       armed: false,
       valid: false,
       raf: null,
@@ -319,7 +350,8 @@ export function useFusionDrag({
       /* 捕获失败不致命:move/up 本来就收在 window 上 */
     }
     navigator.vibrate?.(8);
-    setView({ draggingId: p.id, targetId: null, valid: false, armed: false });
+    setView({ ...IDLE_VIEW, draggingId: p.id });
+    onPickUpRef.current?.(p.id);
 
     // 边缘自动滚动:独立 rAF 循环(手指不动也要能持续滚)。
     const loop = () => {
@@ -439,5 +471,7 @@ export function useFusionDrag({
     [detachAll],
   );
 
-  return { view, registerCard, onPointerDown, shouldSwallowClick };
+  const elementOf = useCallback((id: string) => cardEls.current.get(id) ?? null, []);
+
+  return { view, registerCard, onPointerDown, shouldSwallowClick, elementOf };
 }

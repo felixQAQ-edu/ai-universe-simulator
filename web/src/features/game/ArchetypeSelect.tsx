@@ -4,10 +4,11 @@ import { useHistoryStore } from '../../state/historyStore';
 import { SAVE_LIST_VISIBLE, onSavePointersChanged, type SaveSummary } from '../../state/savePointers';
 import { describeSave } from './saveText';
 import type { ArchetypeSummary } from '../../api';
-import { fusionKey, isFusionAllowed, pairOf, type Rect } from './fusion/drag';
+import { classifyPair, fusionKey, isFusionAllowed, pairOf, type Rect } from './fusion/drag';
+import { magnetHintText, rejectHintText } from './fusion/hints';
 import { FusionMerge } from './fusion/FusionMerge';
 import { materialOf } from './fusion/shards';
-import { useFusionDrag, type CommitRects } from './fusion/useFusionDrag';
+import { useFusionDrag, type CommitRects, type HintSide } from './fusion/useFusionDrag';
 import { cardTheme } from './theme/registry';
 import { reducedMotion } from './theme/motion';
 import styles from './game.module.css';
@@ -51,8 +52,12 @@ export function ArchetypeSelect() {
   const [merging, setMerging] = useState<Merging | null>(null);
   /** 刚揉出来、待聚焦一次的那张卡(聚焦只做一次,之后归玩家)。 */
   const [focusKey, setFocusKey] = useState<string | null>(null);
-  /** 无效组合的一句提示(不弹 Toast;下一次成功手势即散)。 */
-  const [rejectNote, setRejectNote] = useState<string | null>(null);
+  /** 松手在非法目标上的那一句(不弹 Toast;下一次抓起或成功揉合即散)。 */
+  const [rejectNote, setRejectNote] = useState<FusionHint | null>(null);
+  /** 屏幕阅读器播报区(aria-live=polite)。直接写 DOM,只在文本变化时写 —— 见 {@link announce}。 */
+  const liveRef = useRef<HTMLParagraphElement>(null);
+  /** 本次手势里最后写进播报区的文本(去重依据;抓起新的一张时清空)。 */
+  const lastAnnounced = useRef<string | null>(null);
 
   useEffect(() => {
     void loadArchetypes();
@@ -79,6 +84,22 @@ export function ArchetypeSelect() {
     (host: string, foreign: string) => isFusionAllowed(fusions, host, foreign),
     [fusions],
   );
+  /** 世界名 = 卡片上显示的标题(提示里不出现 id)。 */
+  const nameOf = useCallback(
+    (id: string) => archetypes.find((a) => a.archetype === id)?.displayName ?? id,
+    [archetypes],
+  );
+
+  /**
+   * 播报去重(ADR-019 实施记录):**只在文本变化时写入**播报区。同一次手势里离开目标再回到同一目标,
+   * 文本没变 → 不写 → 不重播;换到另一个合法目标 → 文本变了 → 写。抓起新的一张时清空(见 onPickUp),
+   * 所以下一次手势回到同一目标会重新播报。离开目标时**不清空**播报区 —— 清空再写回同一句就是重播。
+   */
+  const announce = useCallback((text: string) => {
+    if (text === lastAnnounced.current) return;
+    lastAnnounced.current = text;
+    if (liveRef.current) liveRef.current.textContent = text;
+  }, []);
 
   const revealFusion = useCallback((key: string) => {
     setFused((f) => (f.includes(key) ? f : [...f, key]));
@@ -89,6 +110,7 @@ export function ArchetypeSelect() {
     (host: string, foreign: string, rects: CommitRects | null) => {
       const key = fusionKey(host, foreign);
       setRejectNote(null);
+      announce('');
       // 量不到位置(理论上不该发生)→ 不演动画,直接给卡:入口的视觉是加分项,
       // 「拖成了」这件事本身不能因为动画演不了就丢掉。
       if (!rects) {
@@ -97,17 +119,34 @@ export function ArchetypeSelect() {
       }
       setMerging({ key, host, foreign, hostRect: rects.host, foreignRect: rects.foreign });
     },
-    [revealFusion],
+    [revealFusion, announce],
   );
 
-  // 落在无效目标上松手 → 一句提示,不挡路(排斥回弹由手势层做,不弹 Toast)。
-  // 在**松手**时报而不是悬停时报:悬停即报 = 路过一张卡就被念一句。
-  const onReject = useCallback(() => setRejectNote('两个世界尚无法彼此容纳。'), []);
+  // 落在无效目标上松手 → 一句提示,放在目标卡旁(与磁吸提示同一位置体系),不挡路、不弹 Toast。
+  // 在**松手**时报而不是悬停时报:悬停即报 = 路过一张卡就被念一句(拖反的组合同样只在松手时说)。
+  // 拖反 / 不存在两种说法由 classifyPair 分;合法性本身仍只认 isFusionAllowed(手势层)。
+  const onReject = useCallback(
+    (host: string, foreign: string) => {
+      const text = rejectHintText(classifyPair(fusions, host, foreign), nameOf(host), nameOf(foreign));
+      if (!text) return;
+      // 侧位在落位时(ref 回调)按 DOM 定:被拖那张正往原位回弹,提示放在它不经过的那一侧。
+      setRejectNote({ id: `reject:${host}:${text}`, kind: 'reject', hostId: host, awayFrom: foreign, side: null, text, armed: false });
+      announce(text);
+    },
+    [fusions, nameOf, announce],
+  );
+
+  const onPickUp = useCallback(() => {
+    setRejectNote(null);
+    announce('');
+  }, [announce]);
 
   const drag = useFusionDrag({
     canFuse,
     onCommit,
     onReject,
+    // 抓起新的一张:上一次的拒绝提示散掉,播报去重从头算(下一次回到同一目标会重新播报)。
+    onPickUp,
     // 揉合期间手势整体停摆(护栏:同时只允许一组融合动画运行,动画未结束不可再拖)。
     enabled: merging === null,
     reduced: reducedMotion(),
@@ -119,6 +158,33 @@ export function ArchetypeSelect() {
       return null;
     });
   }, [revealFusion]);
+
+  // ── 方向提示(ADR-019 实施记录)────────────────────────────────────────────
+  // 磁吸提示只给 classify = ok 的目标(拖反 / 不存在在悬停时一律不说,松手才说)。
+  const { draggingId, targetId, targetSide, armed } = drag.view;
+  const magnet: FusionHint | null =
+    draggingId && targetId && classifyPair(fusions, targetId, draggingId) === 'ok'
+      ? {
+          id: `magnet:${targetId}:${draggingId}`,
+          kind: 'magnet',
+          hostId: targetId,
+          awayFrom: draggingId,
+          side: targetSide,
+          text: magnetHintText(nameOf(draggingId), nameOf(targetId)),
+          armed,
+        }
+      : null;
+  const currentHint = magnet ?? (draggingId ? null : rejectNote);
+  // 提示消失时要淡出,得记住最后一条显示过的(渲染期按变化调整 state,React 官方的派生写法)。
+  const [shownHint, setShownHint] = useState<FusionHint | null>(null);
+  if (currentHint && (currentHint.id !== shownHint?.id || currentHint.armed !== shownHint.armed)) {
+    setShownHint(currentHint);
+  }
+  const hint = currentHint ?? shownHint;
+  const magnetText = magnet?.text ?? null;
+  useEffect(() => {
+    if (magnetText) announce(magnetText);
+  }, [magnetText, announce]);
 
   const active = archetypes.filter((a) => a.active);
   const locked = archetypes.filter((a) => !a.active);
@@ -135,7 +201,9 @@ export function ArchetypeSelect() {
         <p className={styles.phase}>AI Universe Simulator</p>
         <h1 className={styles.title}>选择你的世界</h1>
         <p className={styles.muted}>每一个世界都由 AI 即时生成,真假难辨,不可回头。</p>
-        {rejectNote && <p className={styles.fusionNote}>{rejectNote}</p>}
+        {/* 三类方向提示的唯一播报区:始终在场(播报区须先于内容存在),只由 announce() 写。
+            放在 header 里而不是 <main> 下:<main> 的子元素结构有对拍(SaveList.test)。 */}
+        <p ref={liveRef} className={styles.srOnly} aria-live="polite" data-testid="fusion-live" />
       </header>
 
       {/* 我的存档(ADR-034):放在原「继续上局」的位置;没有任何条目时整个区块不渲染(DOM 与改动前相同)。 */}
@@ -199,6 +267,15 @@ export function ArchetypeSelect() {
           {locked.map((a) => (
             <ArchetypeCard key={a.archetype} summary={a} onChoose={() => startGame(a.archetype)} />
           ))}
+          {/* 放在列表末尾:不打乱卡片的 nth-child 入场错峰。换目标即换 key → 重新淡入。 */}
+          {hint && (
+            <FusionHintView
+              key={hint.id}
+              hint={hint}
+              leaving={currentHint === null}
+              elementOf={drag.elementOf}
+            />
+          )}
         </div>
       )}
       {merging && (
@@ -264,6 +341,71 @@ export function SaveList({
         </button>
       )}
     </section>
+  );
+}
+
+/** 一条方向提示(磁吸 = 悬停在合法目标上;reject = 松手在非法目标上)。 */
+interface FusionHint {
+  /** 换 id = 换一条提示(重新淡入);同 id 只改 armed 不重放。 */
+  id: string;
+  kind: 'magnet' | 'reject';
+  /** 提示挂在哪张卡旁(这次的被拖到的那张)。 */
+  hostId: string;
+  /** 被拖的那张;side 为 null 时按它的原位决定侧位。 */
+  awayFrom: string;
+  side: HintSide | null;
+  text: string;
+  /** 磁吸已进入可提交态 → 提示加强。 */
+  armed: boolean;
+}
+
+/**
+ * 方向提示的视觉层(aria-hidden:播报由页面上那一个 aria-live 区承担,不在这里重复)。
+ * 相对 `.cardList` 绝对定位在目标卡上沿 / 下沿之外的卡间缝里,不压任何一张卡的标题;
+ * 位置在挂上 DOM 那一刻(ref 回调)量一次 —— 卡片的磁吸位移是 transform,不影响 offsetTop。
+ */
+function FusionHintView({
+  hint,
+  leaving,
+  elementOf,
+}: {
+  hint: FusionHint;
+  leaving: boolean;
+  elementOf: (id: string) => HTMLElement | null;
+}) {
+  const place = useCallback(
+    (el: HTMLElement | null) => {
+      if (!el) return;
+      const host = elementOf(hint.hostId);
+      if (!host) return;
+      let s = hint.side;
+      if (!s) {
+        const away = elementOf(hint.awayFrom);
+        s = away && away.offsetTop < host.offsetTop ? 'below' : 'above';
+      }
+      // 侧位与位置一起在这里写(data-side 驱动 CSS 的半个卡间缝偏移),不经 state、不多渲染一次。
+      el.dataset.side = s;
+      el.style.top = `${s === 'above' ? host.offsetTop : host.offsetTop + host.offsetHeight}px`;
+    },
+    [elementOf, hint.hostId, hint.awayFrom, hint.side],
+  );
+  return (
+    <p
+      ref={place}
+      aria-hidden="true"
+      data-testid="fusion-hint"
+      data-kind={hint.kind}
+      className={[
+        styles.fusionNote,
+        hint.kind === 'magnet' ? styles.fusionNoteMagnet : '',
+        hint.armed ? styles.fusionNoteArmed : '',
+        leaving ? styles.fusionNoteLeaving : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+    >
+      {hint.text}
+    </p>
   );
 }
 

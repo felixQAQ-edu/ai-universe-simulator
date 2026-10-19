@@ -22,15 +22,17 @@ function stubRect(el: HTMLElement, id: string) {
 function Harness({
   onCommit,
   onReject,
+  onPickUp,
   canFuse = () => true,
   enabled = true,
 }: {
   onCommit: (...args: unknown[]) => void;
   onReject?: (host: string, foreign: string) => void;
+  onPickUp?: (id: string) => void;
   canFuse?: (host: string, foreign: string) => boolean;
   enabled?: boolean;
 }) {
-  const drag = useFusionDrag({ canFuse, onCommit, onReject, enabled });
+  const drag = useFusionDrag({ canFuse, onCommit, onReject, onPickUp, enabled });
   return (
     <div>
       {(['a', 'b'] as const).map((id) => (
@@ -47,6 +49,8 @@ function Harness({
         </button>
       ))}
       <p data-testid="view">{`${drag.view.draggingId ?? '-'}/${drag.view.targetId ?? '-'}/${drag.view.valid}/${drag.view.armed}`}</p>
+      <p data-testid="side">{drag.view.targetSide ?? '-'}</p>
+      <p data-testid="el">{String(drag.elementOf('b') === screen.queryByTestId('b'))}</p>
     </div>
   );
 }
@@ -164,5 +168,44 @@ describe('护栏与清理', () => {
     expect(removed).toBe(added);
     add.mockRestore();
     remove.mockRestore();
+  });
+});
+
+describe('方向提示的接线(ADR-019 实施记录)', () => {
+  it('抓起那一刻回调 onPickUp(id) 一次;只按下不抓起不回调', () => {
+    vi.useFakeTimers();
+    const onPickUp = vi.fn();
+    render(<Harness onCommit={vi.fn()} onPickUp={onPickUp} />);
+    const a = screen.getByTestId('a');
+    fireEvent.pointerDown(a, { pointerId: 1, clientX: 100, clientY: 40 });
+    fireEvent.pointerUp(window, { pointerId: 1 }); // 长按未到点 = 单击
+    expect(onPickUp).not.toHaveBeenCalled();
+    dragAOntoB();
+    expect(onPickUp).toHaveBeenCalledExactlyOnceWith('a');
+  });
+
+  it('targetSide:拖动卡中心在目标中心之上 → below;之下或齐平 → above;离开目标 → null', () => {
+    vi.useFakeTimers();
+    vi.spyOn(window, 'scrollBy').mockImplementation(() => {}); // 手指在上沿自动滚动带里;jsdom 无 scrollBy
+    render(<Harness onCommit={vi.fn()} canFuse={() => false} />);
+    const a = screen.getByTestId('a');
+    fireEvent.pointerDown(a, { pointerId: 1, clientX: 100, clientY: 40 });
+    act(() => void vi.advanceTimersByTime(200));
+    fireEvent.pointerMove(window, { pointerId: 1, clientX: 100, clientY: 100 }); // a 中心 106 < b 中心 146
+    expect(screen.getByTestId('side').textContent).toBe('below');
+    fireEvent.pointerMove(window, { pointerId: 1, clientX: 100, clientY: 160 }); // 同一目标内不翻面
+    expect(screen.getByTestId('side').textContent).toBe('below');
+    fireEvent.pointerMove(window, { pointerId: 1, clientX: 100, clientY: 40 }); // 回原位:中心 46,不在 b 上
+    expect(screen.getByTestId('side').textContent).toBe('-');
+    fireEvent.pointerMove(window, { pointerId: 1, clientX: 100, clientY: 160 }); // 重新命中:中心 166 > 146
+    expect(screen.getByTestId('side').textContent).toBe('above');
+    fireEvent.pointerUp(window, { pointerId: 1 });
+  });
+
+  it('elementOf 返回登记表里的那个节点(卡片登记表只此一份)', () => {
+    render(<Harness onCommit={vi.fn()} />);
+    fireEvent.pointerDown(screen.getByTestId('a'), { pointerId: 1, clientX: 0, clientY: 0 }); // 触发一次重渲染
+    fireEvent.pointerUp(window, { pointerId: 1 });
+    expect(screen.getByTestId('el').textContent).toBe('true');
   });
 });
