@@ -39,8 +39,8 @@ describe('resolveWorldTheme · 封面(原 sceneImageUrl 用例,逐条保留)', (
     );
   });
 
-  it('融合世界(修仙×克苏鲁,ADR-035)→ 暂借 host 修仙封面(专属封面待换)', () => {
-    expect(resolveWorldTheme(['cultivation', 'cthulhu']).sceneUrl).toBe('/scenes/cultivation.webp');
+  it('融合世界(修仙×克苏鲁,ADR-035)→ 融合专属封面 验讫', () => {
+    expect(resolveWorldTheme(['cultivation', 'cthulhu']).sceneUrl).toBe('/scenes/fusion-yanqi.webp');
   });
 
   it('未登记融合组合 → 回落 host([0])的单体图,不盲取错图', () => {
