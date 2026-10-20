@@ -1,0 +1,89 @@
+/* 《验讫》静态关键帧的**新增视觉**(刀 2a,dev-only;不进生产 build)。
+ *
+ * 只有两样东西是新的:③ 的石面 + 焦痕,④ 的退去态。其余全部是生产的卡片 CSS 原样。
+ * 纯 CSS,无图、无 filter(不模糊)、无伪元素粒子、无网格。
+ * 值全部挂在自定义属性上 —— 之后进运动设计时,GSAP 只需插值这几个变量 / opacity。 */
+
+/* 一个卡位:真卡(或隐藏的尺寸占位)+ 叠在上面的石面。 */
+.slot {
+  position: relative;
+}
+
+/* 让位:与生产 .cardYielding 同口径(visibility,保留占位,列表不跳)。 */
+.hidden {
+  visibility: hidden;
+}
+
+/* 其余卡淡下去(①–⑤ 全程)。 */
+.dim {
+  opacity: 0.22;
+}
+
+/* 被拖者(克苏鲁)的位移由页面量出卡距后写进 transform;这里只给层级。 */
+.lifted {
+  position: relative;
+  z-index: 30;
+}
+
+/* ═══ ③ 石面:两种材质收成的一面「台面」═══
+ * 形状完全继承卡(同尺寸、同 14px 圆角),只把皮换成石:
+ * 底 = 一道很缓的明暗线性渐变;质感 = 两团大尺度明 / 暗斑(不是颗粒,不是网格);
+ * 边 = 1px 暗缘 + 顶部一道浅高光(台面的倒角)。 */
+.stone {
+  --stone-hi: #b3b5a9;
+  --stone-lo: #979a8e;
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border-radius: 14px;
+  border: 1px solid rgba(40, 38, 32, 0.32);
+  background:
+    radial-gradient(70% 95% at 20% 28%, rgba(255, 255, 255, 0.12), transparent 70%),
+    radial-gradient(60% 85% at 82% 78%, rgba(30, 32, 28, 0.12), transparent 72%),
+    linear-gradient(168deg, var(--stone-hi) 0%, var(--stone-lo) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.24),
+    inset 0 -2px 0 rgba(30, 30, 26, 0.12),
+    0 8px 20px -12px rgba(0, 0, 0, 0.7);
+}
+
+/* B:冷一点、暗一点的苍青石。 */
+.stoneB {
+  --stone-hi: #8b948f;
+  --stone-lo: #6c7570;
+}
+
+/* ═══ ③ 焦痕:一方印的轮廓 ═══
+ * 印里不写字、不填色(里面就是石面本身)。轮廓 = 焦褐边框;
+ * 冷绿只在**内缘**:一圈 inset 阴影,不外溢、不铺开。 */
+.seal {
+  --seal-size: 58px;
+  --burn: rgba(52, 36, 26, 0.88);
+  --burn-w: 2px;
+  --singe: 0 0 0 1px rgba(52, 36, 26, 0.28); /* 外沿焦晕:A 几乎贴边 */
+  --green-edge: inset 0 0 0 1px rgba(95, 191, 154, 0.5), inset 0 0 3px 1px rgba(90, 175, 140, 0.32);
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--seal-size);
+  height: var(--seal-size);
+  transform: translate(-50%, -50%) rotate(-3deg);
+  border: var(--burn-w) solid var(--burn);
+  border-radius: 3px;
+  box-shadow: var(--singe), var(--green-edge);
+}
+
+/* B:更粗、更不清晰(焦晕外扩 + 内侧焦褐渗入,冷绿更弥散)。 */
+.sealB {
+  --burn: rgba(44, 30, 22, 0.82);
+  --burn-w: 4px;
+  --singe: 0 0 3px 1px rgba(44, 30, 22, 0.5);
+  --green-edge: inset 0 0 2px 1px rgba(44, 30, 22, 0.45), inset 0 0 6px 2px rgba(90, 175, 140, 0.3);
+}
+
+/* ═══ ④ 轮廓退去:焦痕淡回石面,冷绿先没 ═══
+ * 冷绿整条拿掉(--green-edge 置空),焦褐只剩一层几乎看不见的影。 */
+.sealFading {
+  --green-edge: 0 0 0 0 transparent;
+  opacity: 0.14;
+}
