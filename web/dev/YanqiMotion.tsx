@@ -31,7 +31,8 @@ const BEATS = {
   end: [4500, 5700], // ⑤ 静止 ≥ 1 秒
 } as const;
 
-const REDUCED = { fade: [0, 380], end: [380, 1600] } as const;
+/** reduced-motion:克苏鲁先退(0–160)→ 成品卡底色盖过修仙(120–380)→ 文字(320–460);两套文字从不同屏。 */
+const REDUCED = { out: [0, 160], fade: [120, 380], text: [320, 460], end: [460, 1700] } as const;
 
 /** 卡上 CSS 动画在挂载后统一拨到这个时刻再走(入场动画已走完,与静态帧的冻结点一致)。 */
 const CSS_BASE = 2000;
@@ -158,11 +159,16 @@ function Stage({ speed, streak, reduced, rec }: { speed: number; streak: boolean
         gsap.set(f, { x: POSE[1].dx, y: toHost + POSE[1].dyH * H, rotation: POSE[1].rot });
         gsap.set(surface, { opacity: 0 });
         gsap.set(fused, { opacity: 0 });
-        gsap.set(reveal, { '--kf-reveal-full': 1, '--kf-text': 1, '--kf-streak': streak ? 1 : 0 });
+        gsap.set(reveal, { '--kf-reveal-full': 1, '--kf-text': 0, '--kf-streak': streak ? 1 : 0 });
+        // 先让斜压着的克苏鲁卡退掉(否则它错开的边在淡化中途和卡位叠成两道),再交叉淡化成品卡底色,
+        // 最后才出文字 —— 中途不会有两套文字叠在一起。
+        const out = span(REDUCED.out);
         const fade = span(REDUCED.fade);
-        tl.to(f, { opacity: 0, duration: fade.dur * 0.6, ease: 'sine.out' }, fade.at)
+        const text = span(REDUCED.text);
+        tl.to(f, { opacity: 0, duration: out.dur, ease: 'sine.out' }, out.at)
           .to(fused, { opacity: 1, duration: fade.dur, ease: 'sine.inOut' }, fade.at)
           .set(hostCard, { opacity: 0 }, fade.at + fade.dur)
+          .to(reveal, { '--kf-text': 1, duration: text.dur, ease: 'sine.out' }, text.at)
           .to({}, { duration: s(REDUCED.end[1] - REDUCED.end[0]) }, s(REDUCED.end[0]));
       } else {
         // 起点 = ① 的姿态(松手那一刻)。

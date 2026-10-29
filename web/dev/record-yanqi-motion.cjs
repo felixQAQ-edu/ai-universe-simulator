@@ -134,7 +134,11 @@ function titleVerdict(log) {
   fs.mkdirSync(OUT, { recursive: true });
   const browser = await chromium.launch();
   const summary = [];
-  for (const seg of SEGMENTS) {
+  // KF_ONLY=reduced 之类:只重录指定的段(其余段与 summary 里的旧记录保留)。
+  const only = process.env.KF_ONLY?.split(',');
+  const prev = only && fs.existsSync(path.join(OUT, 'summary.json')) ? JSON.parse(fs.readFileSync(path.join(OUT, 'summary.json'))) : [];
+  summary.push(...prev.filter((p) => !only.includes(p.id)));
+  for (const seg of SEGMENTS.filter((x) => !only || only.includes(x.id))) {
     const r = await recordSegment(browser, seg);
     const verdict = titleVerdict(r.titleLog);
     summary.push({ id: r.id, label: r.label, animMs: r.animMs, videoMs: r.videoMs, frames: r.frames, title: verdict });
