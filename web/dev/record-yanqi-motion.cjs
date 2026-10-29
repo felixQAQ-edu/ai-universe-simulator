@@ -93,15 +93,17 @@ async function recordSegment(browser, seg) {
     const vt = Math.round((i * 1000) / FPS);
     const at = Math.round(Math.min(vt * seg.speed, animMs));
     const label = seg.speed === 1 ? `${vt} ms` : `${vt} ms (anim ${at})`;
-    return ['(', path.join(frames, `f${String(i).padStart(4, '0')}.png`), '-crop', `${REC.width * 2}x${cell.h * 2}+0+${cell.y * 2}`, '+repage',
+    // gravity 只在格子内部用(把标签放到底下),出括号前复位 —— 否则会漏到后面的拼接上,
+    // splice 的空隙就插进每格正中间(第一版的逐帧图每格中间都有一道竖缝,就是这个)。
+    return ['(', path.join(frames, `f${String(i).padStart(4, '0')}.png`), '+gravity', '-crop', `${REC.width * 2}x${cell.h * 2}+0+${cell.y * 2}`, '+repage',
       '-resize', '50%', '-gravity', 'south', '-background', '#0b0a0e', '-splice', '0x22', '-fill', '#cfc9d8',
-      '-pointsize', '15', '-annotate', '+0+3', label, ')'];
+      '-pointsize', '15', '-annotate', '+0+3', label, '+gravity', ')'];
   });
   // ImageMagick 一次拼不了几百张参数 → 先逐行拼,再纵向拼。
   const rows = [];
   for (let r = 0; r * cols < tiles.length; r++) {
     const rowFile = path.join(dir, `row${r}.png`);
-    execFileSync('convert', [...tiles.slice(r * cols, (r + 1) * cols).flat(), '-background', '#0b0a0e', '-splice', '6x6', '+append', rowFile]);
+    execFileSync('convert', [...tiles.slice(r * cols, (r + 1) * cols).flat(), '+gravity', '-background', '#0b0a0e', '-splice', '6x6', '+append', rowFile]);
     rows.push(rowFile);
   }
   execFileSync('convert', [...rows, '-background', '#0b0a0e', '-append', '-bordercolor', '#0b0a0e', '-border', '6', sheet]);

@@ -210,10 +210,11 @@ function Stage({ speed, streak, reduced, rec }: { speed: number; streak: boolean
         tl.to(f, { opacity: 0, duration: mg.dur, ease: 'sine.inOut' }, mg.at);
         tl.set(hostCard, { opacity: 0 }, mg.at + mg.dur);
 
-        // 焦印:重角先冒(闷烧,先慢后快),两臂随之伸出一小截。
+        // 焦印:重角先冒,两臂随之伸出一小截。缓动用先快后慢(sine.out):融合面一成形,重角就已经看得见 ——
+        // 第一版用先慢后快(sine.in),1200–1500ms 那段融合面上只有一个淡点,接近一块空石条。
         const co = span(BEATS.corner);
-        tl.to(fused, { '--kf-s-corner': 1, duration: co.dur, ease: 'sine.in' }, co.at);
-        tl.to(fused, { '--kf-s-top': 0.2, '--kf-s-left': 0.2, duration: co.dur, ease: 'power1.out' }, co.at + co.dur * 0.25);
+        tl.to(fused, { '--kf-s-corner': 1, duration: co.dur, ease: 'sine.out' }, co.at);
+        tl.to(fused, { '--kf-s-top': 0.2, '--kf-s-left': 0.2, duration: co.dur, ease: 'sine.out' }, co.at);
 
         // 细边顺着重角往外烧:上 / 左先,右 / 下接着(右边从上往下,经过中部时烧蚀那团洇开)。
         const ed = span(BEATS.edges);
