@@ -118,13 +118,15 @@ export function YanqiKeyframes() {
           <div className={fused ? kf.hidden : undefined}>{card}</div>
           {fused && (
             <div className={kf.fused} data-kf="fused">
-              {/* ④:成品卡(真 FusionCard)的底色从深青一侧漫上来;文字与光带不显。 */}
+              <div className={kf.surface}>
+                <Seal fading={frame === 4} />
+              </div>
+              {/* ④:⑤ 那张真成品卡在最终位置、最终尺寸,由不规则遮罩露出一部分;文字与光带不显。 */}
               {frame === 4 && (
                 <div className={kf.reveal} data-kf="reveal">
                   <FusionCard combo={`${HOST}×${FOREIGN}`} onChoose={noop} />
                 </div>
               )}
-              <Seal fading={frame === 4} />
             </div>
           )}
         </div>

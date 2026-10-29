@@ -6,7 +6,7 @@
 // 深色。三组图:
 //   zoom/    放大图:480 宽、dpr 2,①–⑤ 各一张卡片区裁切(裁切框与第一轮同一算法,同位置同尺寸);
 //   actual/  实际尺寸:480 宽、dpr 1,①–⑤ 各一张 1:1 裁切 + 一张 ①→⑤ 横排连看(同样 1:1,不缩放);
-//   narrow/  窄屏:375 宽、dpr 1,只截 ③。
+//   narrow/  窄屏:375 宽、dpr 1,只截 ③ ④。
 // 裁切框每组只量一次(取自 ① 的修仙卡位),并逐帧断言卡位没动(动了就报错,不出图)。
 const { chromium } = require('playwright');
 const fs = require('node:fs');
@@ -79,7 +79,7 @@ async function shootSet(browser, { name, width, dpr, frames }) {
   const sets = [
     await shootSet(browser, { name: 'zoom', width: 480, dpr: 2, frames: FRAMES }),
     await shootSet(browser, { name: 'actual', width: 480, dpr: 1, frames: FRAMES }),
-    await shootSet(browser, { name: 'narrow', width: 375, dpr: 1, frames: FRAMES.filter((f) => f.id === '3') }),
+    await shootSet(browser, { name: 'narrow', width: 375, dpr: 1, frames: FRAMES.filter((f) => f.id === '3' || f.id === '4') }),
   ];
 
   // ①→⑤ 横排连看:实际尺寸那组,dpr 1、图按原像素排,不缩放;帧名在图下,不压画面。
