@@ -13,7 +13,9 @@ import kf from './keyframes.module.css';
 // - 冷绿只有一小段,贴在上边内缘、靠重角,不绕圈。
 // 焦褐层与冷绿层分成两张 SVG:焦褐用 multiply 烙进下面的颜色,冷绿保持本色(否则会被压成墨绿)。
 //
-// 几何在 0–100 的 viewBox 里,印边大致落在 10–90;显示尺寸由 --kf-seal-size 决定。
+// 几何在 0–100 的坐标里,印边大致落在 10–90;显示尺寸由 --kf-seal-size 决定。
+// viewBox 四周各留 20(-20–120)、外层盒子同比放大到 1.4 倍:晕和越角的部分都在盒子里,
+// 这样盒子上的 CSS mask 不会把它们裁掉;渲染位置与比例与 0–100 / 1× 完全相同。
 
 /** 沿一条边的粗细节点:[位置 0–1, 宽度(viewBox 单位)];宽度 0 = 断口。相邻节点之间线性过渡,
  *  所以每段都是**收细到无**再断开 —— 没有齐头的短划(齐头短划一出现就像虚线框)。
@@ -93,67 +95,32 @@ const LAYERS = [
   { key: 'core', scale: 1, extra: 0, rough: true, alpha: 'var(--kf-burn-core)' },
 ];
 
-/** 按边分组(晕在前、芯在后):运动稿要一条边一条边地「烧」出来,每条边一个遮罩。 */
+/** 按边分组(晕在前、芯在后)。 */
 const SIDE_PATHS = SIDES.map((_, side) =>
   LAYERS.flatMap((l) => sidePaths(side, l.scale, l.extra, l.rough).map((d, i) => ({ key: `${l.key}${i}`, d, alpha: l.alpha }))),
 );
 
-/**
- * 每条边的「烧到哪了」遮罩(运动稿用;静态帧缺省 = 1 = 整条都在)。
- * 一块白色矩形沿边的方向从起点伸长(scaleX / scaleY 一个 CSS 变量),前端 12% 是白→黑的软边 ——
- * 焦痕的前沿是渐渐烧过去的,不是一刀切。起点:上 / 下边从左端,左 / 右边从上端(顺着重角往外烧)。
- * 矩形覆盖 -20–140,缺省 1 时软边落在 121–140,在所有几何(含晕)之外,静态帧不受影响。
- */
-const SIDE_MASKS = [
-  { id: 'kf-m-top', axis: 'x', v: '--kf-s-top' },
-  { id: 'kf-m-left', axis: 'y', v: '--kf-s-left' },
-  { id: 'kf-m-right', axis: 'y', v: '--kf-s-right' },
-  { id: 'kf-m-bottom', axis: 'x', v: '--kf-s-bottom' },
-] as const;
+// 每条边「烧到哪了」由 .sealBurn 上的 CSS mask 管(见 keyframes.module.css),不在 SVG 里:
+// 第一版用 SVG <mask> 里的矩形 transform 推进,每一帧都触发 SVG 布局(实测燃烧段每帧一次 Layout)。
 
 export function Seal({ fading = false }: { fading?: boolean }) {
   const cls = (layer: string) => [kf.seal, layer, fading ? kf.sealFading : ''].join(' ');
   return (
     <>
       <div className={cls(kf.sealBurn)} data-kf="seal" aria-hidden="true">
-        <svg viewBox="0 0 100 100" overflow="visible">
+        <svg viewBox="-20 -20 140 140" overflow="visible">
           <defs>
             <radialGradient id="kf-scorch">
               <stop offset="0" style={{ stopColor: 'var(--kf-scorch)', stopOpacity: 'var(--kf-scorch-core)' }} />
               <stop offset="0.55" style={{ stopColor: 'var(--kf-scorch)', stopOpacity: 'calc(var(--kf-scorch-core) * 0.4)' }} />
               <stop offset="1" style={{ stopColor: 'var(--kf-scorch)', stopOpacity: 0 }} />
             </radialGradient>
-            <linearGradient id="kf-mg-x" x1="0" x2="1">
-              <stop offset="0" stopColor="#fff" />
-              <stop offset="0.88" stopColor="#fff" />
-              <stop offset="1" stopColor="#000" />
-            </linearGradient>
-            <linearGradient id="kf-mg-y" x1="0" x2="0" y1="0" y2="1">
-              <stop offset="0" stopColor="#fff" />
-              <stop offset="0.88" stopColor="#fff" />
-              <stop offset="1" stopColor="#000" />
-            </linearGradient>
-            {SIDE_MASKS.map((m) => (
-              <mask key={m.id} id={m.id} maskUnits="userSpaceOnUse" x="-30" y="-30" width="180" height="180">
-                <rect
-                  x="-20"
-                  y="-20"
-                  width="160"
-                  height="160"
-                  fill={`url(#kf-mg-${m.axis})`}
-                  style={{
-                    transformOrigin: '-20px -20px',
-                    transform: m.axis === 'x' ? `scaleX(var(${m.v}, 1))` : `scaleY(var(${m.v}, 1))`,
-                  }}
-                />
-              </mask>
-            ))}
           </defs>
           {/* 焦褐洇开:重角一团(大)、右边烧蚀处一团(偏外);半径都够不到印心(50,50)。 */}
           <ellipse cx="11" cy="12" rx="28" ry="25" fill="url(#kf-scorch)" style={{ opacity: 'var(--kf-s-corner, 1)' }} />
           <ellipse cx="94" cy="51" rx="17" ry="22" fill="url(#kf-scorch)" style={{ opacity: 'var(--kf-s-breach, 1)' }} />
           {SIDE_PATHS.map((paths, side) => (
-            <g key={side} mask={`url(#${SIDE_MASKS[side].id})`}>
+            <g key={side}>
               {paths.map((p) => (
                 <path key={p.key} d={p.d} style={{ fill: 'var(--kf-burn)', fillOpacity: p.alpha }} />
               ))}
@@ -162,7 +129,7 @@ export function Seal({ fading = false }: { fading?: boolean }) {
         </svg>
       </div>
       <div className={cls(kf.sealGreen)} aria-hidden="true">
-        <svg viewBox="0 0 100 100" overflow="visible">
+        <svg viewBox="-20 -20 140 140" overflow="visible">
           <defs>
             <linearGradient id="kf-green" x1="0" x2="1">
               <stop offset="0" style={{ stopColor: 'var(--kf-green)', stopOpacity: 0 }} />

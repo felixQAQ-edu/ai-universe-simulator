@@ -133,16 +133,34 @@
   position: absolute;
   left: var(--kf-seal-x);
   top: var(--kf-seal-y);
-  width: var(--kf-seal-size);
-  height: var(--kf-seal-size);
+  /* SVG viewBox 是 -20–120(四周各留 20),盒子同比 1.4 倍 —— 印本身仍是 --kf-seal-size。 */
+  width: calc(var(--kf-seal-size) * 1.4);
+  height: calc(var(--kf-seal-size) * 1.4);
   transform: translate(-50%, -50%) rotate(var(--kf-seal-rot));
 }
 
 /* 焦褐层与冷绿层是两个并排的 .seal(同位同尺寸)。multiply 必须挂在 .seal 这一层:
  * 它有 transform,自成层叠上下文 —— 挂在里面的 SVG 上只会和透明底混合,等于没混。 */
 .sealBurn {
+  /* 运动稿「烧出来」:四条边各一条遮罩带(带宽 34% 盒宽,恰好罩住该边的芯与晕),
+   * 带里是一道沿边推进的软前沿(前 12% 渐隐),位置 = 该边进度 --kf-s-*(静态缺省 1 = 整条都在);
+   * 中间再铺一块常亮(重角焦褐洇进来的尾巴落在这里,由它自己的不透明度管)。
+   * 用 CSS mask 而不是 SVG <mask> 里的 transform:后者每帧触发 SVG 布局,这个只重绘。 */
+  --kf-front-top: calc(var(--kf-s-top, 1) * 112% - 12%);
+  --kf-front-left: calc(var(--kf-s-left, 1) * 112% - 12%);
+  --kf-front-right: calc(var(--kf-s-right, 1) * 112% - 12%);
+  --kf-front-bottom: calc(var(--kf-s-bottom, 1) * 112% - 12%);
   mix-blend-mode: multiply;
   opacity: var(--kf-burn-on, 1); /* 运动稿:揭晓时整体退去 */
+  mask-image:
+    linear-gradient(90deg, #000 var(--kf-front-top), transparent calc(var(--kf-front-top) + 12%)),
+    linear-gradient(180deg, #000 var(--kf-front-left), transparent calc(var(--kf-front-left) + 12%)),
+    linear-gradient(180deg, #000 var(--kf-front-right), transparent calc(var(--kf-front-right) + 12%)),
+    linear-gradient(90deg, #000 var(--kf-front-bottom), transparent calc(var(--kf-front-bottom) + 12%)),
+    linear-gradient(#000, #000);
+  mask-position: top, left, right, bottom, center;
+  mask-size: 100% 34%, 34% 100%, 34% 100%, 100% 34%, 34% 34%;
+  mask-repeat: no-repeat;
 }
 
 .sealGreen {
