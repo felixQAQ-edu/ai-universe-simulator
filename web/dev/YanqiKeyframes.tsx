@@ -3,6 +3,7 @@ import type { ArchetypeSummary } from '../src/api';
 import { ArchetypeCard, FusionCard, type CardDragBinding } from '../src/features/game/ArchetypeSelect';
 import styles from '../src/features/game/game.module.css';
 import kf from './keyframes.module.css';
+import { Seal } from './Seal';
 
 // 《验讫》五帧的画面本身(入口与说明见 yanqi-keyframes.tsx)。
 
@@ -44,13 +45,12 @@ function readParams() {
   const q = new URLSearchParams(location.search);
   const n = Number(q.get('frame'));
   const frame = ([1, 2, 3, 4, 5].includes(n) ? n : 1) as Frame;
-  const variant = q.get('v') === 'B' ? 'B' : 'A';
   const t = Number(q.get('t') ?? 2000);
-  return { frame, variant, t: Number.isFinite(t) ? t : 2000 } as const;
+  return { frame, t: Number.isFinite(t) ? t : 2000 } as const;
 }
 
 export function YanqiKeyframes() {
-  const { frame, variant, t } = readParams();
+  const { frame, t } = readParams();
   const foreignRef = useRef<HTMLDivElement>(null);
   const hostRef = useRef<HTMLDivElement>(null);
   const [pose, setPose] = useState<string | undefined>(undefined);
@@ -111,21 +111,20 @@ export function YanqiKeyframes() {
           </div>
         );
       }
-      const stone = frame === 3 || frame === 4;
+      const fused = frame === 3 || frame === 4;
       return (
         <div key={a.archetype} ref={hostRef} data-kf-slot="host" className={kf.slot}>
-          {/* ③④:真修仙卡只当尺寸占位(visibility 隐藏),石面叠在同一位置、同一尺寸。 */}
-          <div className={stone ? kf.hidden : undefined}>{card}</div>
-          {stone && (
-            <div className={[kf.stone, frame === 3 && variant === 'B' ? kf.stoneB : ''].join(' ')} data-kf="stone">
-              <div
-                className={[
-                  kf.seal,
-                  frame === 3 && variant === 'B' ? kf.sealB : '',
-                  frame === 4 ? kf.sealFading : '',
-                ].join(' ')}
-                data-kf="seal"
-              />
+          {/* ③④:真修仙卡只当尺寸占位(visibility 隐藏),融合面叠在同一位置、同一尺寸。 */}
+          <div className={fused ? kf.hidden : undefined}>{card}</div>
+          {fused && (
+            <div className={kf.fused} data-kf="fused">
+              {/* ④:成品卡(真 FusionCard)的底色从深青一侧漫上来;文字与光带不显。 */}
+              {frame === 4 && (
+                <div className={kf.reveal} data-kf="reveal">
+                  <FusionCard combo={`${HOST}×${FOREIGN}`} onChoose={noop} />
+                </div>
+              )}
+              <Seal fading={frame === 4} />
             </div>
           )}
         </div>

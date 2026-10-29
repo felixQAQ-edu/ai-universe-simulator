@@ -1,10 +1,10 @@
 /* 《验讫》静态关键帧的**新增视觉**(刀 2a,dev-only;不进生产 build)。
  *
- * 只有两样东西是新的:③ 的石面 + 焦痕,④ 的退去态。其余全部是生产的卡片 CSS 原样。
- * 纯 CSS,无图、无 filter(不模糊)、无伪元素粒子、无网格。
- * 值全部挂在自定义属性上 —— 之后进运动设计时,GSAP 只需插值这几个变量 / opacity。 */
+ * 新的只有 ③④:两张卡交界处石化的「融合面」、烙在上面的焦印、④ 正在显出的成品卡底色。
+ * 其余全部是生产的卡片 CSS 原样。不用 filter(不模糊)、不用贴图、没有网格 / 粒子 / 光带。
+ * 可调的尺寸、位置、颜色、强度集中在 .fused 上的 --kf-* 自定义属性里 —— 进运动时直接插值它们。 */
 
-/* 一个卡位:真卡(或隐藏的尺寸占位)+ 叠在上面的石面。 */
+/* 一个卡位:真卡(或隐藏的尺寸占位)+ 叠在上面的融合面。 */
 .slot {
   position: relative;
 }
@@ -25,65 +25,160 @@
   z-index: 30;
 }
 
-/* ═══ ③ 石面:两种材质收成的一面「台面」═══
- * 形状完全继承卡(同尺寸、同 14px 圆角),只把皮换成石:
- * 底 = 一道很缓的明暗线性渐变;质感 = 两团大尺度明 / 暗斑(不是颗粒,不是网格);
- * 边 = 1px 暗缘 + 顶部一道浅高光(台面的倒角)。 */
-.stone {
-  --stone-hi: #b3b5a9;
-  --stone-lo: #979a8e;
+/* ═══ ③ 融合面:两张卡还在,只有交界处石化 ═══
+ * 左上 = 修仙的浅色(取自 .cardCultivation 底色),右下 = 克苏鲁的深青(取自 .cardCthulhu 底色),
+ * 两者之间沿一条斜缝(同《验讫》卡接缝的 115°)渐变成石色。
+ * 形状完全继承卡:同尺寸、14px 圆角、1px 边 + 3px 金色左缘(修仙的金,也是《验讫》卡的金)。 */
+.fused {
+  /* 两张原卡的颜色 */
+  --kf-xian-hi: #f6f8f6;
+  --kf-xian-lo: #e6ede8;
+  --kf-abyss-hi: #122a2a;
+  --kf-abyss-lo: #07121a;
+  /* 交界处的石色 */
+  --kf-stone-hi: #b0ad9f;
+  --kf-stone-lo: #8a887d;
+  /* 斜缝:角度与石化带在渐变线上的位置(浅 → 石 → 深) */
+  --kf-seam-angle: 115deg;
+  --kf-xian-end: 27%;
+  --kf-stone-from: 41%;
+  --kf-stone-to: 59%;
+  --kf-abyss-from: 73%;
+  /* 焦印 */
+  --kf-seal-size: 62px;
+  --kf-seal-x: 50%;
+  --kf-seal-y: 50%;
+  --kf-seal-rot: -4deg;
+  --kf-burn: rgb(58, 34, 20);
+  --kf-burn-core: 0.92; /* 焦褐三层:芯 / 中 / 晕 */
+  --kf-burn-mid: 0.38;
+  --kf-burn-halo: 0.16;
+  --kf-scorch: rgb(104, 64, 32); /* 重角向外洇开的那一团 */
+  --kf-scorch-core: 0.5;
+  --kf-green: rgb(120, 214, 174);
+  --kf-green-w: 2.4; /* viewBox 单位;58px 印约合 1.4px */
+  --kf-green-alpha: 0.85;
+
   position: absolute;
   inset: 0;
   z-index: 2;
+  overflow: hidden;
   border-radius: 14px;
-  border: 1px solid rgba(40, 38, 32, 0.32);
-  background:
-    radial-gradient(70% 95% at 20% 28%, rgba(255, 255, 255, 0.12), transparent 70%),
-    radial-gradient(60% 85% at 82% 78%, rgba(30, 32, 28, 0.12), transparent 72%),
-    linear-gradient(168deg, var(--stone-hi) 0%, var(--stone-lo) 100%);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.24),
-    inset 0 -2px 0 rgba(30, 30, 26, 0.12),
-    0 8px 20px -12px rgba(0, 0, 0, 0.7);
+  border: 1px solid rgba(40, 46, 42, 0.5);
+  border-left: 3px solid #c9a84a;
+  background: linear-gradient(
+    var(--kf-seam-angle),
+    var(--kf-xian-hi) 0%,
+    var(--kf-xian-lo) var(--kf-xian-end),
+    var(--kf-stone-hi) var(--kf-stone-from),
+    var(--kf-stone-lo) var(--kf-stone-to),
+    var(--kf-abyss-hi) var(--kf-abyss-from),
+    var(--kf-abyss-lo) 100%
+  );
 }
 
-/* B:冷一点、暗一点的苍青石。 */
-.stoneB {
-  --stone-hi: #8b948f;
-  --stone-lo: #6c7570;
-}
-
-/* ═══ ③ 焦痕:一方印的轮廓 ═══
- * 印里不写字、不填色(里面就是石面本身)。轮廓 = 焦褐边框;
- * 冷绿只在**内缘**:一圈 inset 阴影,不外溢、不铺开。 */
-.seal {
-  --seal-size: 58px;
-  --burn: rgba(52, 36, 26, 0.88);
-  --burn-w: 2px;
-  --singe: 0 0 0 1px rgba(52, 36, 26, 0.28); /* 外沿焦晕:A 几乎贴边 */
-  --green-edge: inset 0 0 0 1px rgba(95, 191, 154, 0.5), inset 0 0 3px 1px rgba(90, 175, 140, 0.32);
+/* 石化带的质感:几团大尺度的明 / 暗斑,只在交界带里(mask 限位),两张原卡的区域不受影响。
+ * 尺度刻意大 —— 是石头的色斑,不是颗粒。 */
+.fused::before {
+  content: '';
   position: absolute;
-  left: 50%;
-  top: 50%;
-  width: var(--seal-size);
-  height: var(--seal-size);
-  transform: translate(-50%, -50%) rotate(-3deg);
-  border: var(--burn-w) solid var(--burn);
-  border-radius: 3px;
-  box-shadow: var(--singe), var(--green-edge);
+  inset: 0;
+  background:
+    radial-gradient(30% 70% at 44% 30%, rgba(255, 255, 250, 0.16), transparent 70%),
+    radial-gradient(26% 60% at 58% 78%, rgba(40, 40, 34, 0.16), transparent 70%),
+    radial-gradient(18% 50% at 36% 82%, rgba(60, 58, 50, 0.12), transparent 70%);
+  mask-image: linear-gradient(
+    var(--kf-seam-angle),
+    transparent var(--kf-xian-end),
+    #000 var(--kf-stone-from),
+    #000 var(--kf-stone-to),
+    transparent var(--kf-abyss-from)
+  );
 }
 
-/* B:更粗、更不清晰(焦晕外扩 + 内侧焦褐渗入,冷绿更弥散)。 */
-.sealB {
-  --burn: rgba(44, 30, 22, 0.82);
-  --burn-w: 4px;
-  --singe: 0 0 3px 1px rgba(44, 30, 22, 0.5);
-  --green-edge: inset 0 0 2px 1px rgba(44, 30, 22, 0.45), inset 0 0 6px 2px rgba(90, 175, 140, 0.3);
+/* 两张原卡各自留一点自己的质地(静态,取自生产卡的氛围层):
+ * 修仙那一侧几团白云气,克苏鲁那一侧一团幽绿暗光 + 深渊暗角;都被 mask 挡在各自的区域里,不进石化带。 */
+.fused::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(40% 70% at 14% 30%, rgba(255, 255, 255, 0.85), transparent 70%),
+    radial-gradient(30% 60% at 24% 78%, rgba(255, 255, 255, 0.55), transparent 72%),
+    radial-gradient(26% 80% at 84% 36%, rgba(90, 175, 140, 0.2), transparent 68%),
+    radial-gradient(60% 120% at 92% 100%, rgba(0, 8, 10, 0.5), transparent 70%);
+  mask-image: linear-gradient(
+    var(--kf-seam-angle),
+    #000 var(--kf-xian-end),
+    transparent var(--kf-stone-from),
+    transparent var(--kf-stone-to),
+    #000 var(--kf-abyss-from)
+  );
 }
 
-/* ═══ ④ 轮廓退去:焦痕淡回石面,冷绿先没 ═══
- * 冷绿整条拿掉(--green-edge 置空),焦褐只剩一层几乎看不见的影。 */
-.sealFading {
-  --green-edge: 0 0 0 0 transparent;
-  opacity: 0.14;
+/* ═══ 焦印 ═══ 平贴、烙进表面:无边框、无投影、无凸起;焦褐层 multiply 进下面的颜色。 */
+.seal {
+  position: absolute;
+  left: var(--kf-seal-x);
+  top: var(--kf-seal-y);
+  z-index: 2;
+  width: var(--kf-seal-size);
+  height: var(--kf-seal-size);
+  transform: translate(-50%, -50%) rotate(var(--kf-seal-rot));
+}
+
+/* 焦褐层与冷绿层是两个并排的 .seal(同位同尺寸)。multiply 必须挂在 .seal 这一层:
+ * 它有 transform,自成层叠上下文 —— 挂在里面的 SVG 上只会和透明底混合,等于没混。 */
+.sealBurn {
+  mix-blend-mode: multiply;
+}
+
+.sealGreen {
+  opacity: var(--kf-green-alpha);
+}
+
+.seal svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* ═══ ④ 揭晓中的过渡 ═══
+ * 焦印还没退尽(冷绿先没,焦褐降到一半);成品卡(真 .cardFusionYanqi)的底色已经铺满整张,
+ * 只是在印周围还薄 —— 石面和印隔着它透出来。
+ * 不留「没被盖住的一块」:剩下的石面比成品卡亮得多,留一块就读成光(圆的是光核、长的是光带)。 */
+.sealFading.sealGreen {
+  display: none;
+}
+
+.sealFading.sealBurn {
+  opacity: var(--kf-burn-left, 0.55);
+}
+
+.reveal {
+  --kf-reveal-thin: 0.62; /* 印周围成品卡的覆盖度 */
+  --kf-reveal-full: 0.97; /* 远处 */
+  --kf-reveal-rx: 34%;
+  --kf-reveal-ry: 120%;
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  mask-image: radial-gradient(
+    ellipse var(--kf-reveal-rx) var(--kf-reveal-ry) at var(--kf-seal-x) var(--kf-seal-y),
+    rgba(0, 0, 0, var(--kf-reveal-thin)) 30%,
+    rgba(0, 0, 0, var(--kf-reveal-full)) 100%
+  );
+}
+
+.reveal button {
+  height: 100%;
+}
+
+.reveal button * {
+  visibility: hidden;
+}
+
+.reveal button::after {
+  display: none;
 }

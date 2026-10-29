@@ -7,12 +7,12 @@ import { YanqiKeyframes } from './YanqiKeyframes';
 //
 // **不进生产 build**:本文件在 `web/dev/`,既不在 Vite 的构建入口(只有根 index.html),
 // 也不在 tsconfig.app 的 include(只有 src/)。只能经 `npm run dev` 打开:
-//   http://localhost:5173/dev/yanqi-keyframes.html?frame=1..5[&v=A|B][&t=2000]
+//   http://localhost:5173/dev/yanqi-keyframes.html?frame=1..5[&t=2000]
 //
 // **卡片全是真的**:直接渲染生产导出的 ArchetypeCard / FusionCard + game.module.css,
 // 选择屏骨架(.screen / .selectHeader / .cardList)照抄 ArchetypeSelect 的 JSX。
 // 不走 ArchetypeSelect 本身,是因为它挂载即拉目录(store → api),静态稿不该依赖后端。
-// 新增的只有 ③④ 的石面与焦痕(keyframes.module.css)。
+// 新增的只有 ③④ 的融合面与焦印(keyframes.module.css + Seal.tsx)。
 //
 // 卡上的 CSS 动画(云气、蠕动、标题轮换、渗出入场)在 t 毫秒处**统一暂停**,
 // 让每次打开、每次截图都是同一帧。缺省 t=2000:渗出入场(0.9s)已走完,
