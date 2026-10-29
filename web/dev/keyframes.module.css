@@ -142,10 +142,11 @@
  * 它有 transform,自成层叠上下文 —— 挂在里面的 SVG 上只会和透明底混合,等于没混。 */
 .sealBurn {
   mix-blend-mode: multiply;
+  opacity: var(--kf-burn-on, 1); /* 运动稿:揭晓时整体退去 */
 }
 
 .sealGreen {
-  opacity: var(--kf-green-alpha);
+  opacity: calc(var(--kf-green-alpha) * var(--kf-green-on, 1)); /* 运动稿:最后一点点透出来 */
 }
 
 .seal svg {
@@ -174,25 +175,47 @@
 }
 
 .reveal {
+  /* 运动稿用的旋钮(静态 ④ 取缺省):三团各自的放大倍数 k1–k3 与浓度 a1–a3、最后一层整片补满。
+   * 每团是「已经很大、很软地浓起来」再放大,不是从一个点长出来:从点长出来的深色团,
+   * 在浅色石面上就是一滴墨洇开(试过);尺寸接近 0 的径向渐变还会画出几个像素的黑点。 */
+  --kf-rk1: 1;
+  --kf-rk2: 1;
+  --kf-rk3: 1;
+  --kf-ra1: 1;
+  --kf-ra2: 1;
+  --kf-ra3: 1;
+  --kf-reveal-full: 0;
   position: absolute;
   inset: 0;
   z-index: 1;
   mask-image:
-    radial-gradient(ellipse 13% 62% at 55% 70%, #000 25%, transparent 100%),
-    radial-gradient(ellipse 24% 120% at 70% 80%, #000 30%, transparent 100%),
-    radial-gradient(ellipse 24% 150% at 88% 40%, #000 30%, transparent 100%);
+    radial-gradient(ellipse calc(13% * var(--kf-rk1)) calc(62% * var(--kf-rk1)) at 55% 70%, rgba(0, 0, 0, var(--kf-ra1)) 25%, transparent 100%),
+    radial-gradient(ellipse calc(24% * var(--kf-rk2)) calc(120% * var(--kf-rk2)) at 70% 80%, rgba(0, 0, 0, var(--kf-ra2)) 30%, transparent 100%),
+    radial-gradient(ellipse calc(24% * var(--kf-rk3)) calc(150% * var(--kf-rk3)) at 88% 40%, rgba(0, 0, 0, var(--kf-ra3)) 30%, transparent 100%),
+    linear-gradient(rgba(0, 0, 0, var(--kf-reveal-full)), rgba(0, 0, 0, var(--kf-reveal-full)));
 }
 
-/* 成品卡只取底:文字一律不显(visibility,不是半透明);斜接缝光带也不显 —— 光带何时出场归运动稿。
- * 卡本身的边、圆角、背景、氛围层原样,与 .surface 同一个盒子。 */
+/* 成品卡只取底:文字默认不显(opacity 0;运动稿在卡面基本成形后才推到 1);
+ * 斜接缝光带同样由一个变量门控(默认 0;运动稿在 ⑤ 按开关推到 1)。
+ * 门控用 mask 而不是 opacity:光带自己的 fusionSeam 动画在写 opacity,两者会打架。
+ * 卡本身的边、圆角、背景、氛围层原样,与 .surface 同一个盒子。
+ * 它的入场动画 fusionSeep(scaleY 0.05→1 + blur 6px)在这里关掉:成品卡从一开始就在最终位置与尺寸,
+ * 而且整卡模糊是本稿的禁项 —— 这是 dev 页面里的覆盖,生产卡片样式未改。 */
 .reveal button {
   height: 100%;
+  animation: none !important;
 }
 
-.reveal button * {
-  visibility: hidden;
+.reveal button > * {
+  opacity: var(--kf-text, 0);
 }
 
 .reveal button::after {
-  display: none;
+  mask-image: linear-gradient(rgba(0, 0, 0, var(--kf-streak, 0)), rgba(0, 0, 0, var(--kf-streak, 0)));
+}
+
+/* 标题轮换的起点(运动稿):负 animation-delay 由页面按「文字出现的那一刻」算好写进变量,
+ * 让那一刻轮换正好在「验讫」驻留段 —— 第一次清楚出现的标题就是验讫。只在 dev 页面设,卡片样式未改。 */
+.reveal h2 > span {
+  animation-delay: var(--kf-title-delay, 0s) !important;
 }

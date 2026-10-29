@@ -91,7 +91,25 @@ const LAYERS = [
     alpha: 'var(--kf-burn-halo)',
   })),
   { key: 'core', scale: 1, extra: 0, rough: true, alpha: 'var(--kf-burn-core)' },
-].map((l) => ({ ...l, paths: SIDES.flatMap((_, i) => sidePaths(i, l.scale, l.extra, l.rough)) }));
+];
+
+/** 按边分组(晕在前、芯在后):运动稿要一条边一条边地「烧」出来,每条边一个遮罩。 */
+const SIDE_PATHS = SIDES.map((_, side) =>
+  LAYERS.flatMap((l) => sidePaths(side, l.scale, l.extra, l.rough).map((d, i) => ({ key: `${l.key}${i}`, d, alpha: l.alpha }))),
+);
+
+/**
+ * 每条边的「烧到哪了」遮罩(运动稿用;静态帧缺省 = 1 = 整条都在)。
+ * 一块白色矩形沿边的方向从起点伸长(scaleX / scaleY 一个 CSS 变量),前端 12% 是白→黑的软边 ——
+ * 焦痕的前沿是渐渐烧过去的,不是一刀切。起点:上 / 下边从左端,左 / 右边从上端(顺着重角往外烧)。
+ * 矩形覆盖 -20–140,缺省 1 时软边落在 121–140,在所有几何(含晕)之外,静态帧不受影响。
+ */
+const SIDE_MASKS = [
+  { id: 'kf-m-top', axis: 'x', v: '--kf-s-top' },
+  { id: 'kf-m-left', axis: 'y', v: '--kf-s-left' },
+  { id: 'kf-m-right', axis: 'y', v: '--kf-s-right' },
+  { id: 'kf-m-bottom', axis: 'x', v: '--kf-s-bottom' },
+] as const;
 
 export function Seal({ fading = false }: { fading?: boolean }) {
   const cls = (layer: string) => [kf.seal, layer, fading ? kf.sealFading : ''].join(' ');
@@ -105,13 +123,42 @@ export function Seal({ fading = false }: { fading?: boolean }) {
               <stop offset="0.55" style={{ stopColor: 'var(--kf-scorch)', stopOpacity: 'calc(var(--kf-scorch-core) * 0.4)' }} />
               <stop offset="1" style={{ stopColor: 'var(--kf-scorch)', stopOpacity: 0 }} />
             </radialGradient>
+            <linearGradient id="kf-mg-x" x1="0" x2="1">
+              <stop offset="0" stopColor="#fff" />
+              <stop offset="0.88" stopColor="#fff" />
+              <stop offset="1" stopColor="#000" />
+            </linearGradient>
+            <linearGradient id="kf-mg-y" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0" stopColor="#fff" />
+              <stop offset="0.88" stopColor="#fff" />
+              <stop offset="1" stopColor="#000" />
+            </linearGradient>
+            {SIDE_MASKS.map((m) => (
+              <mask key={m.id} id={m.id} maskUnits="userSpaceOnUse" x="-30" y="-30" width="180" height="180">
+                <rect
+                  x="-20"
+                  y="-20"
+                  width="160"
+                  height="160"
+                  fill={`url(#kf-mg-${m.axis})`}
+                  style={{
+                    transformOrigin: '-20px -20px',
+                    transform: m.axis === 'x' ? `scaleX(var(${m.v}, 1))` : `scaleY(var(${m.v}, 1))`,
+                  }}
+                />
+              </mask>
+            ))}
           </defs>
           {/* 焦褐洇开:重角一团(大)、右边烧蚀处一团(偏外);半径都够不到印心(50,50)。 */}
-          <ellipse cx="11" cy="12" rx="28" ry="25" fill="url(#kf-scorch)" />
-          <ellipse cx="94" cy="51" rx="17" ry="22" fill="url(#kf-scorch)" />
-          {LAYERS.map((l) =>
-            l.paths.map((d, i) => <path key={`${l.key}${i}`} d={d} style={{ fill: 'var(--kf-burn)', fillOpacity: l.alpha }} />),
-          )}
+          <ellipse cx="11" cy="12" rx="28" ry="25" fill="url(#kf-scorch)" style={{ opacity: 'var(--kf-s-corner, 1)' }} />
+          <ellipse cx="94" cy="51" rx="17" ry="22" fill="url(#kf-scorch)" style={{ opacity: 'var(--kf-s-breach, 1)' }} />
+          {SIDE_PATHS.map((paths, side) => (
+            <g key={side} mask={`url(#${SIDE_MASKS[side].id})`}>
+              {paths.map((p) => (
+                <path key={p.key} d={p.d} style={{ fill: 'var(--kf-burn)', fillOpacity: p.alpha }} />
+              ))}
+            </g>
+          ))}
         </svg>
       </div>
       <div className={cls(kf.sealGreen)} aria-hidden="true">
