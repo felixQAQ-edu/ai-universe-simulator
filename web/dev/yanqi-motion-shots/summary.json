@@ -1,0 +1,55 @@
+[
+  {
+    "id": "full-streak-on",
+    "label": "原速 · 光带开",
+    "animMs": 5700,
+    "videoMs": 5700,
+    "frames": 172,
+    "title": {
+      "ok": true,
+      "firstVisibleMs": 3533,
+      "firstClearMs": 3667,
+      "firstClearLayer": "验讫",
+      "abBeforeClear": 0
+    }
+  },
+  {
+    "id": "full-streak-off",
+    "label": "原速 · 光带关",
+    "animMs": 5700,
+    "videoMs": 5700,
+    "frames": 172,
+    "title": {
+      "ok": true,
+      "firstVisibleMs": 3533,
+      "firstClearMs": 3667,
+      "firstClearLayer": "验讫",
+      "abBeforeClear": 0
+    }
+  },
+  {
+    "id": "quarter",
+    "label": "¼ 速 · 光带开",
+    "animMs": 5700,
+    "videoMs": 22800,
+    "frames": 685,
+    "title": {
+      "ok": true,
+      "firstVisibleMs": 3533,
+      "firstClearMs": 3642,
+      "firstClearLayer": "验讫",
+      "abBeforeClear": 0
+    }
+  },
+  {
+    "id": "reduced",
+    "label": "reduced-motion",
+    "animMs": 1700,
+    "videoMs": 1700,
+    "frames": 52,
+    "title": {
+      "ok": false,
+      "why": "整段都没有标题出现"
+    }
+  }
+]
