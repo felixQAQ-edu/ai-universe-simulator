@@ -2,29 +2,28 @@
   {
     "id": "full-streak-on",
     "label": "原速 · 光带开",
-    "animMs": 5700,
-    "videoMs": 5700,
-    "frames": 172,
+    "animMs": 11700,
+    "releaseMs": 8350,
+    "videoMs": 11700,
+    "frames": 352,
     "title": {
       "ok": true,
       "firstVisibleMs": 3167,
       "firstClearMs": 3300,
       "firstClearLayer": "验讫",
-      "abBeforeClear": 0
-    }
-  },
-  {
-    "id": "quarter",
-    "label": "¼ 速 · 光带开",
-    "animMs": 5700,
-    "videoMs": 22800,
-    "frames": 685,
-    "title": {
-      "ok": true,
-      "firstVisibleMs": 3167,
-      "firstClearMs": 3275,
-      "firstClearLayer": "验讫",
-      "abBeforeClear": 0
+      "abBeforeClear": 0,
+      "releaseMs": 8350,
+      "holdMs": 5183,
+      "holdOnlyZhenming": true,
+      "holdLeakFrames": 0,
+      "seamNoBlank": true,
+      "seamNoJump": true,
+      "nativeBlanks": [
+        {
+          "from": 10500,
+          "to": 10633
+        }
+      ]
     }
   }
 ]
