@@ -219,6 +219,29 @@
  * 卡本身的边、圆角、背景、氛围层原样,与 .surface 同一个盒子。
  * 它的入场动画 fusionSeep(scaleY 0.05→1 + blur 6px)在这里关掉:成品卡从一开始就在最终位置与尺寸,
  * 而且整卡模糊是本稿的禁项 —— 这是 dev 页面里的覆盖,生产卡片样式未改。 */
+/* 运动稿的显露形状(刀 2b 第二轮):一条清楚推进的边界,不是几团鼓胀 ——
+ * 两个半平面取并集:主边界平行于融合面的斜缝(348° = 168° 的反向,从下往上推),
+ * 第二条转 16° 且落后 9%,并集的边界就带一个折角(不规则,但始终是一条连续的线,没有分离的团块)。
+ * 边界软边 --kf-front-soft(约 18px)—— 清楚,但不是刀切。位置 --kf-front-p 从焦印下沿推过整张。
+ * 静态 ④ 仍用上面那三团(第三轮已过审的帧);这一类只在运动稿里挂上。 */
+.reveal.revealFront {
+  --kf-front-p: 0%;
+  --kf-front-soft: 10%;
+  --kf-front-angle: 348deg;
+  mask-image:
+    linear-gradient(
+      var(--kf-front-angle),
+      #000 calc(var(--kf-front-p) - var(--kf-front-soft)),
+      transparent var(--kf-front-p)
+    ),
+    linear-gradient(
+      calc(var(--kf-front-angle) - 16deg),
+      #000 calc(var(--kf-front-p) - 9% - var(--kf-front-soft)),
+      transparent calc(var(--kf-front-p) - 9%)
+    ),
+    linear-gradient(rgba(0, 0, 0, var(--kf-reveal-full)), rgba(0, 0, 0, var(--kf-reveal-full)));
+}
+
 .reveal button {
   height: 100%;
   animation: none !important;

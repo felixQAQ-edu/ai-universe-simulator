@@ -19,13 +19,13 @@ import { CATALOG, COMBO, FOREIGN, HOST, LIFTED, POSE, noop } from './keyframeDat
 const BEATS = {
   settle: [0, 420], // ①→②:摆正、靠拢(减速落定)
   hold: [420, 760], // ② 停一拍(极轻的下压,不是冻住)
-  align: [760, 940], // ② 收进修仙卡位
-  merge: [900, 1180], // 两张卡收成一面:融合面在同一个盒子里淡入(克苏鲁单独盖住卡位的时间压到最短)
-  corner: [1000, 1380], // 焦印:重角先冒出来(闷烧)—— 与收拢重叠,融合面一成形上面已经有焦痕
-  edges: [1360, 2100], // 细边顺着重角往外烧;右边中部烧蚀在前沿经过时出现
+  merge: [760, 1060], // 两张卡一起收成融合面:融合面盖在两张卡上面淡入,浅色接修仙、深青接克苏鲁
+  tuck: [760, 1180], // 同时克苏鲁在融合面底下慢慢收进卡位(露在卡位下面的那截缩回去)
+  corner: [880, 1160], // 焦印:重角在融合面成形的过程中就开始冒
+  edges: [1080, 2100], // 细边顺着重角往外烧;右边中部烧蚀在前沿经过时出现
   green: [1980, 2380], // 冷绿最后一点点透出来
-  reveal: [2560, 3600], // 成品卡从焦印右下方显露、向外推进;焦印同时退去
-  text: [3520, 3880], // 卡面基本成形后,文字才清楚出现(与显露的收尾重叠,不留一张没字的空卡)
+  reveal: [2560, 3600], // 成品卡从焦印下沿起,一条边界向上推过整张;焦印同时退去
+  text: [3150, 3510], // 边界推过约八成时文字就开始浮现,卡面铺满时字已在,不留没字的空卡
   streak: [3700, 4220], // 宽斜光带(开关)
   restore: [4100, 4500], // 其余卡恢复
   end: [4500, 5700], // ⑤ 静止 ≥ 1 秒
@@ -185,12 +185,7 @@ function Stage({ speed, streak, reduced, rec }: { speed: number; streak: boolean
           '--kf-burn-on': 1,
         });
         gsap.set(reveal, {
-          '--kf-rk1': 0.6,
-          '--kf-rk2': 0.6,
-          '--kf-rk3': 0.6,
-          '--kf-ra1': 0,
-          '--kf-ra2': 0,
-          '--kf-ra3': 0,
+          '--kf-front-p': '22%',
           '--kf-reveal-full': 0,
           '--kf-text': 0,
           '--kf-streak': 0,
@@ -205,27 +200,29 @@ function Stage({ speed, streak, reduced, rec }: { speed: number; streak: boolean
         const hd = span(BEATS.hold);
         tl.to(f, { scale: 0.994, duration: hd.dur, ease: 'sine.inOut' }, hd.at);
 
-        // 收进修仙卡位:完全对齐后,两张卡与融合面才在同一个盒子里 —— 交叉淡化时只有一道边。
-        const al = span(BEATS.align);
-        tl.to(f, { y: toHost, scale: 1, duration: al.dur, ease: 'power2.inOut' }, al.at);
-        // 收成一面:融合面先在克苏鲁卡**底下**整片就位(被拖者层级在上,这时看不见),
-        // 再让克苏鲁卡在上面溶掉 —— 真正的交叉溶解,中间不会透出页面底色。
-        // (第一版是融合面在底下淡入、卡在收尾时一下隐藏:看上去就是一帧硬切。)
+        // 两张卡一起收成融合面(第二轮):融合面盖在两张卡**上面**淡入(层级高于被拖者),
+        // 它的浅色在上、深青在下,正好接住 ② 里修仙露在上面、克苏鲁压在下半的样子;
+        // 克苏鲁同时在它底下慢慢上移收进卡位,露在卡位下面的那一截缩回去、随之淡掉。
+        // 收得比融合面成形慢(sine.in):融合面没成形之前,修仙那条浅色一直还露着 ——
+        // 第一版是克苏鲁先整张盖住卡位再溶掉,中间有约 200ms 只剩克苏鲁一张卡。
         const mg = span(BEATS.merge);
-        tl.set(fused, { opacity: 1 }, mg.at);
-        tl.to(f, { opacity: 0, duration: mg.dur, ease: 'sine.inOut' }, mg.at);
-        tl.set(hostCard, { opacity: 0 }, mg.at + mg.dur);
+        const tk = span(BEATS.tuck);
+        tl.to(fused, { opacity: 1, duration: mg.dur, ease: 'sine.inOut' }, mg.at);
+        tl.to(f, { y: toHost, scale: 1, duration: tk.dur, ease: 'sine.in' }, tk.at);
+        tl.to(f, { opacity: 0, duration: tk.dur * 0.45, ease: 'sine.in' }, tk.at + tk.dur * 0.55);
+        tl.set(hostCard, { opacity: 0 }, tk.at + tk.dur);
 
         // 焦印:重角先冒,两臂随之伸出一小截。缓动用先快后慢(sine.out):融合面一成形,重角就已经看得见 ——
         // 第一版用先慢后快(sine.in),1200–1500ms 那段融合面上只有一个淡点,接近一块空石条。
         const co = span(BEATS.corner);
         tl.to(fused, { '--kf-s-corner': 1, duration: co.dur, ease: 'sine.out' }, co.at);
-        tl.to(fused, { '--kf-s-top': 0.2, '--kf-s-left': 0.2, duration: co.dur, ease: 'sine.out' }, co.at);
+        tl.to(fused, { '--kf-s-top': 0.3, '--kf-s-left': 0.3, duration: co.dur, ease: 'sine.out' }, co.at);
 
         // 细边顺着重角往外烧:上 / 左先,右 / 下接着(右边从上往下,经过中部时烧蚀那团洇开)。
         const ed = span(BEATS.edges);
-        tl.to(fused, { '--kf-s-top': 1, duration: ed.dur * 0.62, ease: 'power1.inOut' }, ed.at);
-        tl.to(fused, { '--kf-s-left': 1, duration: ed.dur * 0.62, ease: 'power1.inOut' }, ed.at + ed.dur * 0.05);
+        // 上 / 左先快后慢(power1.out):融合面一成形,两条细边已经在往外走,不留「只有一个点」的空档。
+        tl.to(fused, { '--kf-s-top': 1, duration: ed.dur * 0.62, ease: 'power1.out' }, ed.at);
+        tl.to(fused, { '--kf-s-left': 1, duration: ed.dur * 0.62, ease: 'power1.out' }, ed.at + ed.dur * 0.05);
         tl.to(fused, { '--kf-s-right': 1, duration: ed.dur * 0.5, ease: 'power1.inOut' }, ed.at + ed.dur * 0.45);
         tl.to(fused, { '--kf-s-bottom': 1, duration: ed.dur * 0.5, ease: 'power1.inOut' }, ed.at + ed.dur * 0.5);
         tl.to(fused, { '--kf-s-breach': 1, duration: ed.dur * 0.3, ease: 'sine.out' }, ed.at + ed.dur * 0.62);
@@ -234,27 +231,16 @@ function Stage({ speed, streak, reduced, rec }: { speed: number; streak: boolean
         const gr = span(BEATS.green);
         tl.to(fused, { '--kf-green-on': 1, duration: gr.dur, ease: 'sine.inOut' }, gr.at);
 
-        // 揭晓:成品卡从焦印右下方显露、向外推进;冷绿先没,焦褐随后退去。
-        // 三团错开起步:焦印右下那团(k1)最先,往右下(k2)、再往右上(k3)接力 —— 一起放大的话,
-        // 最大、最远的那团会先冒出来,读成右上角一块墨渍(第一版就是这样)。
-        // 每团先慢后快:先走到 ④ 的静态状态(k=1),再推开到整张;最后一层整片补满,再无遗漏的角。
+        // 揭晓(第二轮):一条边界从焦印下沿起向上推过整张(见 .revealFront),焦印在边界经过时退去。
+        // 起点 22% 落在焦印下沿之下 —— 那里本就是克苏鲁的深青,显露起步时几乎看不出;
+        // 推到 118% 时两条半平面都已越过整张。先慢后快再收(power1.inOut):起步像是从印底下渗出来,
+        // 中段是清楚的推进,不是成团鼓胀(第一版三团各自放大,读成墨渍 / 烟雾)。
         const rv = span(BEATS.reveal);
         tl.to(fused, { '--kf-green-on': 0, duration: rv.dur * 0.15, ease: 'sine.out' }, rv.at);
-        (
-          [
-            [1, 0],
-            [2, 0.15],
-            [3, 0.3],
-          ] as const
-        ).forEach(([i, lag]) => {
-          const at = rv.at + rv.dur * lag;
-          const first = rv.dur * 0.4;
-          tl.to(reveal, { [`--kf-ra${i}`]: 1, duration: rv.dur * 0.25, ease: 'sine.inOut' }, at);
-          tl.to(reveal, { [`--kf-rk${i}`]: 1, duration: first, ease: 'sine.inOut' }, at);
-          tl.to(reveal, { [`--kf-rk${i}`]: 7, duration: rv.at + rv.dur - (at + first), ease: 'power1.in' }, at + first);
-        });
+        tl.to(reveal, { '--kf-front-p': '118%', duration: rv.dur, ease: 'power1.inOut' }, rv.at);
         tl.to(fused, { '--kf-burn-on': 0, duration: rv.dur * 0.65, ease: 'sine.inOut' }, rv.at + rv.dur * 0.15);
-        tl.to(reveal, { '--kf-reveal-full': 1, duration: rv.dur * 0.35, ease: 'sine.in' }, rv.at + rv.dur * 0.65);
+        // 边界到 118% 时两条半平面都已全实;整片补满只在收尾当一道保险(不提前淡,否则最后那个角是糊过去的,不是推过去的)。
+        tl.set(reveal, { '--kf-reveal-full': 1 }, rv.at + rv.dur);
         tl.set(surface, { opacity: 0 }, rv.at + rv.dur);
 
         // 文字:卡面基本成形后才出现;光带(开关)随后。
@@ -310,13 +296,14 @@ function Stage({ speed, streak, reduced, rec }: { speed: number; streak: boolean
           <div ref={hostCardRef}>
             <ArchetypeCard summary={a} onChoose={noop} />
           </div>
-          <div ref={fusedRef} className={kf.fused} data-kf="fused">
+          {/* 融合面层级高于被拖者(lifted 30):收拢时它盖在两张卡上面淡入。 */}
+          <div ref={fusedRef} className={kf.fused} data-kf="fused" style={{ zIndex: 31 }}>
             <div ref={surfaceRef} className={kf.surface}>
               {!reduced && <Seal />}
             </div>
             <div
               ref={revealRef}
-              className={kf.reveal}
+              className={reduced ? kf.reveal : `${kf.reveal} ${kf.revealFront}`}
               data-kf="reveal"
               style={{ '--kf-title-delay': `${titleDelay}ms` } as CSSProperties}
             >
