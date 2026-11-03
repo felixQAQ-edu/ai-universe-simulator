@@ -406,7 +406,7 @@ b 顺带解决的是同一个根 —— 方向语义(谁是 host)本来就只存
 - **视觉宪法与护栏**:ADR-017(四原则 + 白名单)/ ADR-018(单一主题注册表、
   severity 语义产出方原则、§4.12 搬关系、§5 Q2 融合视觉挂本 ADR)/ AGENTS.md Motion Constraints。
 - **相关源文件**:`server/.../archetype/ArchetypeRegistry.java`(`FUSION_COMBOS` 真相源)、
-  `web/src/features/game/fusionDrag.ts`(手势判据)、
+  `web/src/features/game/fusion/drag.ts`(手势判据)、
   `web/src/features/game/fusion/`(材质 / 物理 / 五拍)。
 
 ## 实施记录

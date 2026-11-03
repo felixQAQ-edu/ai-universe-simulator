@@ -74,7 +74,7 @@ ls web/dist/assets/index-*.js 2>/dev/null || (cd web && npm run build && ls dist
 ```sh
 curl -s https://wanjie-b2-entry.fly.dev/api/archetypes | python3 -m json.tool | tail -20
 ```
-- 必须看到 `fusions` 两条:`cultivation×rules_creepy` 与 `rules_creepy×apocalypse`。
+- 必须看到 `fusions` 三条:`cultivation×cthulhu`、`cultivation×rules_creepy` 与 `rules_creepy×apocalypse`。
   若为空数组 → 前端会一律判无效组合(安全降级),此时拖不出融合是**预期行为、不是 bug**,
   但说明镜像仍是旧的,回上一条。
 
