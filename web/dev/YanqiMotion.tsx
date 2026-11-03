@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import gsap from 'gsap';
 import { ArchetypeCard, FusionCard } from '../src/features/game/ArchetypeSelect';
 import styles from '../src/features/game/game.module.css';
@@ -19,6 +19,7 @@ import { CATALOG, COMBO, FOREIGN, HOST, LIFTED, POSE, noop } from './keyframeDat
 const BEATS = {
   settle: [0, 420], // ①→②:摆正、靠拢(减速落定)
   hold: [420, 760], // ② 停一拍(极轻的下压,不是冻住)
+  cardText: [760, 900], // 两张原卡的文字先退(赶在融合面变实之前),不从半透明的融合面底下透出来
   merge: [760, 1060], // 两张卡一起收成融合面:融合面盖在两张卡上面淡入,浅色接修仙、深青接克苏鲁
   tuck: [760, 1180], // 同时克苏鲁在融合面底下慢慢收进卡位(露在卡位下面的那截缩回去)
   corner: [880, 1160], // 焦印:重角在融合面成形的过程中就开始冒
@@ -28,7 +29,7 @@ const BEATS = {
   text: [3150, 3510], // 边界推过约八成时文字就开始浮现,卡面铺满时字已在,不留没字的空卡
   streak: [3700, 4220], // 宽斜光带(开关)
   restore: [4100, 4500], // 其余卡恢复
-  end: [4500, 5700], // ⑤ 静止 ≥ 1 秒
+  end: [4500, 11700], // ⑤ 之后再留 7.2 秒:看得到标题停满一个循环、在 RELEASE 处接进正常轮换
 } as const;
 
 /** reduced-motion:克苏鲁先退(0–160)→ 成品卡底色盖过修仙(120–380)→ 文字(320–460);两套文字从不同屏。 */
@@ -36,9 +37,16 @@ const REDUCED = { out: [0, 160], fade: [120, 380], text: [320, 460], end: [460, 
 
 /** 卡上 CSS 动画在挂载后统一拨到这个时刻再走(入场动画已走完,与静态帧的冻结点一致)。 */
 const CSS_BASE = 2000;
-/** 标题轮换一周 5.2s;「验讫」驻留在 16%–55%。文字出现那一刻要落在驻留段开头稍后一点。 */
+/** 标题轮换一周 5.2s;「验讫」驻留在 16%–55%(832–2860ms)。 */
 const TITLE_CYCLE = 5200;
-const TITLE_TARGET = 936; // 18%
+/**
+ * 新生融合卡「先停后转」(Felix 选定 A):文字出现起,标题停在「验讫」满一个循环(5.2s),
+ * 之后才启动卡片自己的轮换。轮换的起点用负的 animation-delay 设在验讫驻留段里(18% = 936ms):
+ * 停住时动画暂停在 currentTime 0(= 局部 936ms,验讫 1、另两层 0),到 RELEASE 原地开播 ——
+ * 停与转是同一个动画的同一帧,衔接点上不会空一帧,也不会跳。
+ */
+const TITLE_START = 936;
+const RELEASE = BEATS.text[0] + TITLE_CYCLE;
 
 const s = (ms: number) => ms / 1000;
 const span = ([a, b]: readonly [number, number]) => ({ at: s(a), dur: s(b - a) });
@@ -56,7 +64,7 @@ function readParams() {
 
 declare global {
   interface Window {
-    __kf?: { duration: number; seek: (ms: number) => void };
+    __kf?: { duration: number; release?: number; seek: (ms: number) => void };
   }
 }
 
@@ -122,14 +130,6 @@ function Stage({ speed, streak, reduced, rec }: { speed: number; streak: boolean
   const revealRef = useRef<HTMLDivElement>(null);
   const othersRef = useRef<HTMLDivElement[]>([]);
 
-  // 负的 animation-delay:让「文字出现那一刻」标题轮换正好落在「验讫」驻留段。
-  // 挂载后 CSS 动画被拨到 CSS_BASE,所以那一刻的局部时间 = -delay + CSS_BASE + text 起点。
-  const titleDelay = useMemo(() => {
-    const textAt = BEATS.text[0];
-    const local = (((TITLE_TARGET - CSS_BASE - textAt) % TITLE_CYCLE) + TITLE_CYCLE) % TITLE_CYCLE;
-    return -local;
-  }, []);
-
   useLayoutEffect(() => {
     const f = foreignRef.current;
     const hostCard = hostCardRef.current;
@@ -138,10 +138,20 @@ function Stage({ speed, streak, reduced, rec }: { speed: number; streak: boolean
     const reveal = revealRef.current;
     if (!f || !hostCard || !fused || !surface || !reveal) return;
 
-    // 卡上的 CSS 动画(云气、蠕动、标题轮换……)统一拨到 CSS_BASE,与时间线同速。
-    const cssAnims = document.getAnimations();
+    // 卡上的 CSS 动画(云气、蠕动……)统一拨到 CSS_BASE,与时间线同速。
+    // 成品卡的三层标题单独管:暂停在 currentTime 0(验讫),到 RELEASE 才开播(见 TITLE_START)。
+    const all = document.getAnimations();
+    const isTitle = (a: Animation) =>
+      ((a.effect as KeyframeEffect | null)?.target as Element | null)?.closest('[data-kf="reveal"] h2') != null;
+    const titleAnims = all.filter(isTitle);
+    const cssAnims = all.filter((a) => !isTitle(a));
     cssAnims.forEach((a) => {
       a.currentTime = CSS_BASE;
+      a.playbackRate = speed;
+    });
+    titleAnims.forEach((a) => {
+      a.pause();
+      a.currentTime = 0;
       a.playbackRate = speed;
     });
 
@@ -205,6 +215,12 @@ function Stage({ speed, streak, reduced, rec }: { speed: number; streak: boolean
         // 克苏鲁同时在它底下慢慢上移收进卡位,露在卡位下面的那一截缩回去、随之淡掉。
         // 收得比融合面成形慢(sine.in):融合面没成形之前,修仙那条浅色一直还露着 ——
         // 第一版是克苏鲁先整张盖住卡位再溶掉,中间有约 200ms 只剩克苏鲁一张卡。
+        // 两张原卡的文字先退:融合面半透明时,底下的「克苏鲁」「修仙」会透出来一下(第二轮约 1000ms)。
+        // 文字门控是 dev 样式里的 --kf-card-text(只作用于这两张卡的文字层),卡片样式未改。
+        // 起值要显式给 1:变量未设时 GSAP 把它读成 0,整段一开始两张卡就没了字(试过)。
+        const ct = span(BEATS.cardText);
+        gsap.set([f, hostCard], { '--kf-card-text': 1 });
+        tl.to([f, hostCard], { '--kf-card-text': 0, duration: ct.dur, ease: 'sine.in' }, ct.at);
         const mg = span(BEATS.merge);
         const tk = span(BEATS.tuck);
         tl.to(fused, { opacity: 1, duration: mg.dur, ease: 'sine.inOut' }, mg.at);
@@ -251,6 +267,9 @@ function Stage({ speed, streak, reduced, rec }: { speed: number; streak: boolean
           tl.to(reveal, { '--kf-streak': 1, duration: sk.dur, ease: 'sine.inOut' }, sk.at);
         }
 
+        // 标题停满一个循环后,原地接进卡片自己的轮换。
+        tl.call(() => titleAnims.forEach((a) => a.play()), [], s(RELEASE));
+
         // 其余卡恢复;⑤ 静止 ≥ 1 秒。
         const rs = span(BEATS.restore);
         tl.to(others, { opacity: 1, duration: rs.dur, ease: 'sine.inOut' }, rs.at);
@@ -259,12 +278,18 @@ function Stage({ speed, streak, reduced, rec }: { speed: number; streak: boolean
 
       if (rec) {
         cssAnims.forEach((a) => a.pause());
+        // 定格录制时 tl.call 不负责开播(seek 直接按 RELEASE 换算标题的 currentTime)。
         window.__kf = {
           duration: tl.duration() * 1000,
+          release: RELEASE,
           seek: (ms) => {
             tl.seek(ms / 1000, false);
             cssAnims.forEach((a) => {
               a.currentTime = CSS_BASE + ms;
+            });
+            titleAnims.forEach((a) => {
+              a.pause();
+              a.currentTime = Math.max(0, ms - RELEASE);
             });
           },
         };
@@ -285,7 +310,7 @@ function Stage({ speed, streak, reduced, rec }: { speed: number; streak: boolean
   const cards = CATALOG.map((a) => {
     if (a.archetype === FOREIGN) {
       return (
-        <div key={a.archetype} ref={foreignRef} data-kf-slot="foreign" className={kf.lifted}>
+        <div key={a.archetype} ref={foreignRef} data-kf-slot="foreign" className={`${kf.lifted} ${kf.cardText}`}>
           <ArchetypeCard summary={a} onChoose={noop} drag={reduced ? undefined : LIFTED} />
         </div>
       );
@@ -293,7 +318,7 @@ function Stage({ speed, streak, reduced, rec }: { speed: number; streak: boolean
     if (a.archetype === HOST) {
       return (
         <div key={a.archetype} data-kf-slot="host" className={kf.slot}>
-          <div ref={hostCardRef}>
+          <div ref={hostCardRef} className={kf.cardText}>
             <ArchetypeCard summary={a} onChoose={noop} />
           </div>
           {/* 融合面层级高于被拖者(lifted 30):收拢时它盖在两张卡上面淡入。 */}
@@ -305,7 +330,7 @@ function Stage({ speed, streak, reduced, rec }: { speed: number; streak: boolean
               ref={revealRef}
               className={reduced ? kf.reveal : `${kf.reveal} ${kf.revealFront}`}
               data-kf="reveal"
-              style={{ '--kf-title-delay': `${titleDelay}ms` } as CSSProperties}
+              style={{ '--kf-title-delay': `${-TITLE_START}ms` } as CSSProperties}
             >
               <FusionCard combo={COMBO} onChoose={noop} />
             </div>

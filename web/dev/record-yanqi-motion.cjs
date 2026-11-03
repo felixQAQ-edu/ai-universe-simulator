@@ -44,6 +44,7 @@ async function recordSegment(browser, seg) {
   await page.waitForSelector('html[data-kf-ready="1"]');
   await page.evaluate(() => document.fonts.ready);
   const animMs = await page.evaluate(() => window.__kf.duration);
+  const releaseMs = await page.evaluate(() => window.__kf.release ?? null);
   const videoMs = animMs / seg.speed;
   const n = Math.ceil((videoMs / 1000) * FPS) + 1;
 
@@ -111,23 +112,57 @@ async function recordSegment(browser, seg) {
 
   fs.writeFileSync(path.join(dir, 'title-log.json'), JSON.stringify(titleLog, null, 1));
   fs.rmSync(frames, { recursive: true, force: true });
-  return { id: seg.id, label: seg.label, animMs, videoMs: Math.round(videoMs), frames: n, titleLog };
+  return { id: seg.id, label: seg.label, animMs, releaseMs, videoMs: Math.round(videoMs), frames: n, titleLog };
 }
 
-/** 标题检查:文字可见度第一次 > 0.05 的那一帧起,A(修仙)/B(克苏鲁)出现之前,C(验讫)必须已经清楚(≥ 0.5)。 */
-function titleVerdict(log) {
+/**
+ * 标题检查(动画时间,ms):
+ * - firstClear:文字可见度第一次 > 0.05 起,第一层清楚(≥ 0.5)的必须是验讫,之前修仙 / 克苏鲁不得出现;
+ * - hold(「先停后转」,有 release 时):从第一次可见到 release,修仙 / 克苏鲁始终 ≤ 0.02,
+ *   文字门控全开之后验讫始终 ≥ 0.99(停在真名);
+ * - seam:release 前 500ms 到后 1500ms,每一帧至少有一层 ≥ 0.5(衔接点不空帧),且验讫在 release 前后连续 = 1(不跳);
+ * - nativeBlanks:release 之后,三层都 < 0.5 的时段 —— 卡片自己的轮换关键帧里本就有的空档,单列出来,不算衔接失败。
+ */
+function titleVerdict(log, releaseMs) {
   const firstVisible = log.find((r) => Math.max(r.A, r.B, r.C) > 0.05);
   if (!firstVisible) return { ok: false, why: '整段都没有标题出现' };
   const firstClear = log.find((r) => Math.max(r.A, r.B, r.C) >= 0.5);
-  const which = firstClear ? (['A', 'B', 'C'].find((k) => firstClear[k] >= 0.5)) : null;
+  const which = firstClear ? ['A', 'B', 'C'].find((k) => firstClear[k] >= 0.5) : null;
   const leakAB = log.filter((r) => r.ms <= (firstClear?.ms ?? Infinity) && (r.A > 0.05 || r.B > 0.05));
-  return {
-    ok: which === 'C' && leakAB.length === 0,
+  const out = {
     firstVisibleMs: firstVisible.ms,
     firstClearMs: firstClear?.ms,
     firstClearLayer: which === 'C' ? '验讫' : which === 'A' ? '修仙' : which === 'B' ? '克苏鲁' : null,
     abBeforeClear: leakAB.length,
   };
+  let ok = which === 'C' && leakAB.length === 0;
+  if (releaseMs != null) {
+    const hold = log.filter((r) => r.ms >= firstVisible.ms && r.ms < releaseMs);
+    const holdLeak = hold.filter((r) => r.A > 0.02 || r.B > 0.02);
+    const holdNotFull = hold.filter((r) => r.text >= 0.99 && r.C < 0.99);
+    const seam = log.filter((r) => r.ms >= releaseMs - 500 && r.ms <= releaseMs + 1500);
+    const seamBlank = seam.filter((r) => Math.max(r.A, r.B, r.C) < 0.5);
+    const seamJump = seam.filter((r) => r.C < 0.99);
+    const blanks = [];
+    for (const r of log.filter((x) => x.ms > releaseMs)) {
+      const blank = Math.max(r.A, r.B, r.C) < 0.5;
+      const last = blanks.at(-1);
+      if (blank && last && last.open) last.to = r.ms;
+      else if (blank) blanks.push({ from: r.ms, to: r.ms, open: true });
+      else if (last) last.open = false;
+    }
+    Object.assign(out, {
+      releaseMs,
+      holdMs: releaseMs - firstVisible.ms,
+      holdOnlyZhenming: holdLeak.length === 0 && holdNotFull.length === 0,
+      holdLeakFrames: holdLeak.length,
+      seamNoBlank: seamBlank.length === 0,
+      seamNoJump: seamJump.length === 0,
+      nativeBlanks: blanks.map(({ from, to }) => ({ from, to })),
+    });
+    ok = ok && out.holdOnlyZhenming && out.seamNoBlank && out.seamNoJump;
+  }
+  return { ok, ...out };
 }
 
 (async () => {
@@ -140,8 +175,8 @@ function titleVerdict(log) {
   summary.push(...prev.filter((p) => !only.includes(p.id)));
   for (const seg of SEGMENTS.filter((x) => !only || only.includes(x.id))) {
     const r = await recordSegment(browser, seg);
-    const verdict = titleVerdict(r.titleLog);
-    summary.push({ id: r.id, label: r.label, animMs: r.animMs, videoMs: r.videoMs, frames: r.frames, title: verdict });
+    const verdict = titleVerdict(r.titleLog, r.releaseMs);
+    summary.push({ id: r.id, label: r.label, animMs: r.animMs, releaseMs: r.releaseMs, videoMs: r.videoMs, frames: r.frames, title: verdict });
     console.log(r.id, JSON.stringify(verdict));
   }
   await browser.close();

@@ -255,8 +255,14 @@
   mask-image: linear-gradient(rgba(0, 0, 0, var(--kf-streak, 0)), rgba(0, 0, 0, var(--kf-streak, 0)));
 }
 
-/* 标题轮换的起点(运动稿):负 animation-delay 由页面按「文字出现的那一刻」算好写进变量,
- * 让那一刻轮换正好在「验讫」驻留段 —— 第一次清楚出现的标题就是验讫。只在 dev 页面设,卡片样式未改。 */
+/* 标题轮换的起点(运动稿):负 animation-delay(-936ms = 验讫驻留段 18%)由页面写进变量;
+ * 页面把三层标题动画暂停在 currentTime 0 停满一个循环,再原地开播 —— 「先停在真名、再转」。
+ * 只在 dev 页面设,卡片样式未改。 */
 .reveal h2 > span {
   animation-delay: var(--kf-title-delay, 0s) !important;
+}
+
+/* 运动稿:两张原卡文字层的门控(收拢前先退,不从半透明的融合面底下透出来)。只作用于 dev 页面里这两张卡。 */
+.cardText button > * {
+  opacity: var(--kf-card-text, 1);
 }
