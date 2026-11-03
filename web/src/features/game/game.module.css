@@ -1298,8 +1298,11 @@
     animation: none;
   }
 
-  /* 融合卡标题静态收在真名「识海遗蜕」(A/B 关闭动画后保持初始 opacity:0,C 静态可见)。 */
-  .fusionTitleC {
+  /* 融合卡标题静态收在真名「识海遗蜕」(A/B 关闭动画后保持初始 opacity:0,C 静态可见)。
+     选择器必须写成 `.fusionTitle > .fusionTitleC`(0,2,0):单写 `.fusionTitleC`(0,1,0)压不过
+     基础规则 `.fusionTitle > span { opacity: 0 }`(0,1,1),真名层会一直透明 —— 三张融合卡在
+     减弱动效下都没有标题(媒体查询不加权重,只看选择器本身)。 */
+  .fusionTitle > .fusionTitleC {
     animation: none;
     opacity: 1;
   }
