@@ -19,11 +19,28 @@ export function totalMs(reduced: boolean): number {
   return CROSSFADE.text[1] + (reduced ? SETTLE_REDUCED_MS : SETTLE_MS);
 }
 
-/** 卡列里每个子元素在插入成品卡**之前**的 offsetTop(FLIP 的 First)。 */
+/**
+ * 元素的**布局**外框(页面坐标,亚像素):量的时候临时撤掉内联 transform,所以不含磁吸 / 松手姿态 / 悬停微浮。
+ * 不用 offsetTop / offsetHeight:它们取整,而卡列是小数布局(卡间缝 0.85rem = 13.6px),
+ * 取整后成品卡与宿主卡错开约 0.4px,外边界就不是逐像素重合了(375 宽实测抓到的)。
+ * 撤 / 还 transform 期间把 transition 也关掉并先刷一次样式,免得还原时起一段 .12s 过渡。
+ */
+export function layoutBox(el: HTMLElement): { top: number; height: number } {
+  const { transform, transition } = el.style;
+  el.style.transition = 'none';
+  el.style.transform = 'none';
+  const r = el.getBoundingClientRect();
+  el.style.transform = transform;
+  void getComputedStyle(el).transform;
+  el.style.transition = transition;
+  return { top: r.top + window.scrollY, height: r.height };
+}
+
+/** 卡列里每个子元素在插入成品卡**之前**的布局 top(FLIP 的 First)。 */
 export type ListSnapshot = ReadonlyMap<Element, number>;
 
 export function snapshotList(list: HTMLElement): ListSnapshot {
   const m = new Map<Element, number>();
-  for (const el of Array.from(list.children)) m.set(el, (el as HTMLElement).offsetTop);
+  for (const el of Array.from(list.children)) m.set(el, layoutBox(el as HTMLElement).top);
   return m;
 }

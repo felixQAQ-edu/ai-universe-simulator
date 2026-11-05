@@ -14,6 +14,16 @@ const GAP = 100; // 卡位间距(卡高 + 缝)
 
 function stubTop(el: HTMLElement, top: () => number) {
   Object.defineProperty(el, 'offsetTop', { configurable: true, get: top });
+  stubRect(el);
+}
+
+/** layoutBox 读 getBoundingClientRect(jsdom 恒 0):按替死的 offsetTop / offsetHeight 给。 */
+function stubRect(el: HTMLElement) {
+  el.getBoundingClientRect = () => {
+    const top = el.offsetTop;
+    const height = el.offsetHeight;
+    return { top, height, bottom: top + height, left: 0, right: 343, width: 343, x: 0, y: top, toJSON: () => ({}) } as DOMRect;
+  };
 }
 
 function card(name: string): HTMLElement {
@@ -220,5 +230,119 @@ describe('FusionMerge', () => {
     expect(onDone).toHaveBeenCalled();
     expect(foreign.style.transform).toBe('');
     expect(foreign.style.zIndex).toBe('');
+  });
+});
+
+// ── 宿主比成品卡高(375 宽:规则怪谈钩子折两行 115px,人防 93px;Felix 选定方案 A)─────────────
+describe('宿主比成品卡高:揉合期间钉成宿主高度,落位时用 clip-path 连续收回', () => {
+  const GAP_PX = 13;
+  const H: Record<string, number> = { f: 93, h: 115, below: 93, fused: 93 };
+  /** 布局随高度走:offsetTop = 前面各卡高度之和 + 缝;成品卡的高度 = max(自然高度, min-height)。 */
+  function setupTall(order: string[]) {
+    const list = document.createElement('div');
+    document.body.appendChild(list);
+    const els: Record<string, HTMLElement> = {};
+    const heightOf = (el: HTMLElement) => Math.max(H[el.dataset.name!], parseFloat(el.style.minHeight) || 0);
+    const topOf = (el: HTMLElement) => {
+      let t = 0;
+      for (const c of Array.from(list.children) as HTMLElement[]) {
+        if (c === el) return t;
+        t += heightOf(c) + GAP_PX;
+      }
+      return t;
+    };
+    const mk = (n: string) => {
+      const el = card(n);
+      Object.defineProperty(el, 'offsetTop', { configurable: true, get: () => topOf(el) });
+      Object.defineProperty(el, 'offsetHeight', { configurable: true, get: () => heightOf(el) });
+      stubRect(el);
+      return el;
+    };
+    for (const n of order) list.appendChild((els[n] = mk(n)));
+    els.f.style.transform = 'translate3d(6px, 40px, 0) scale(1.03)';
+    const before = snapshotList(list);
+    const fused = mk('fused');
+    fused.dataset.fusionKey = 'h×f';
+    els.h.after(fused);
+    return { list, els, host: els.h, foreign: els.f, fused, before };
+  }
+  /** 屏上位置 = 布局位置 + transform y(jsdom 没有渲染,按这个算「看起来在哪」)。 */
+  const screenTop = (el: HTMLElement) => el.offsetTop + yOf(el);
+  const extra = H.h - H.fused;
+
+  it('在宿主卡位里:成品卡钉成宿主高度,与宿主卡同顶同高(外边界重合),下面的卡原地不动', () => {
+    const { list, els, host, foreign, fused, before } = setupTall(['h', 'below', 'f']);
+    const belowBefore = before.get(els.below)!;
+    render(<FusionMerge list={list} fusedKey="h×f" host={host} foreign={foreign} before={before} reduced={false} onDone={vi.fn()} />);
+    const tl = lastTimeline();
+    expect(fused.style.minHeight).toBe(`${H.h}px`);
+    expect(fused.offsetHeight).toBe(host.offsetHeight);
+    expect(screenTop(fused)).toBe(host.offsetTop);
+    expect(screenTop(els.below)).toBe(belowBefore);
+    tl.seek(0.4);
+    expect(screenTop(fused)).toBe(host.offsetTop);
+    expect(fused.style.minHeight).toBe(`${H.h}px`);
+  });
+
+  it('落位:可见底边由 clip-path 从宿主高度连续收到自然高度;下面的卡同步多走这段差', () => {
+    const { list, host, foreign, before } = setupTall(['h', 'below', 'f']);
+    render(<FusionMerge list={list} fusedKey="h×f" host={host} foreign={foreign} before={before} reduced={false} onDone={vi.fn()} />);
+    const tl = lastTimeline();
+    const clip = (tl.getChildren(true, true, false) as gsap.core.Tween[]).find((t) => 'clipPath' in t.vars);
+    expect(clip).toBeDefined();
+    expect(clip!.startTime()).toBeCloseTo(CROSSFADE.text[1] / 1000, 6);
+    expect(clip!.duration()).toBeCloseTo(SETTLE_MS / 1000, 6);
+    expect(String(clip!.vars.clipPath)).toContain(`${extra}px`); // 收掉的正好是高度差
+    expect(String((clip!.vars as { startAt?: { clipPath?: string } }).startAt?.clipPath)).toMatch(/^inset\(0px 0px 0px 0px/);
+  });
+
+  it('撤钉那一帧不跳:撤之前与撤之后,每张卡的屏上位置逐像素相同,成品卡回到自然高度', () => {
+    const { list, els, host, foreign, fused, before } = setupTall(['h', 'below', 'f']);
+    render(<FusionMerge list={list} fusedKey="h×f" host={host} foreign={foreign} before={before} reduced={false} onDone={vi.fn()} />);
+    const tl = lastTimeline();
+    const end = totalMs(false) / 1000;
+    tl.seek(end - 0.0001);
+    const pre = [fused, els.below, foreign].map(screenTop);
+    expect(fused.style.minHeight).toBe(`${H.h}px`);
+    expect(yOf(els.below)).toBeCloseTo(-extra, 0);
+    tl.seek(end, false); // 回调要触发
+    expect(fused.style.minHeight).toBe('');
+    expect(fused.offsetHeight).toBe(H.fused);
+    const post = [fused, els.below, foreign].map(screenTop);
+    post.forEach((v, i) => expect(v).toBeCloseTo(pre[i], 0));
+    expect(yOf(els.below)).toBe(0);
+  });
+
+  it('只多动了一个 clip-path(布局属性仍一个没动)', () => {
+    const { list, host, foreign, before } = setupTall(['h', 'below', 'f']);
+    render(<FusionMerge list={list} fusedKey="h×f" host={host} foreign={foreign} before={before} reduced={false} onDone={vi.fn()} />);
+    const tl = lastTimeline();
+    const config = new Set(['parent', 'duration', 'ease', 'immediateRender', 'data', 'overwrite', 'delay', 'lazy', 'repeat', 'startAt', 'runBackwards', 'callbackScope', 'onComplete', 'onReverseComplete', 'onCompleteParams', 'onReverseCompleteParams']);
+    const animated = new Set<string>();
+    for (const tw of tl.getChildren(true, true, false) as gsap.core.Tween[]) {
+      for (const k of Object.keys(tw.vars)) if (!config.has(k)) animated.add(k);
+    }
+    expect([...animated].sort()).toEqual(['clearProps', 'clipPath', 'opacity', 'y']);
+  });
+
+  it('reduced-motion:文字到齐那一刻连同高度差一起直接就位(不移动、不裁切)', () => {
+    const { list, els, host, foreign, fused, before } = setupTall(['h', 'below', 'f']);
+    render(<FusionMerge list={list} fusedKey="h×f" host={host} foreign={foreign} before={before} reduced onDone={vi.fn()} />);
+    const tl = lastTimeline();
+    expect((tl.getChildren(true, true, false) as gsap.core.Tween[]).some((t) => 'clipPath' in t.vars)).toBe(false);
+    tl.seek(0.3);
+    expect(fused.style.minHeight).toBe(`${H.h}px`);
+    tl.seek(0.461, false);
+    expect(fused.style.minHeight).toBe('');
+    expect(screenTop(fused)).toBe(fused.offsetTop);
+    expect(yOf(els.below)).toBe(0);
+  });
+
+  it('卸载后不留钉高与裁切', () => {
+    const { list, host, foreign, fused, before } = setupTall(['h', 'below', 'f']);
+    const r = render(<FusionMerge list={list} fusedKey="h×f" host={host} foreign={foreign} before={before} reduced={false} onDone={vi.fn()} />);
+    lastTimeline().seek(0.6);
+    r.unmount();
+    expect(fused.getAttribute('style') ?? '').toBe('');
   });
 });
