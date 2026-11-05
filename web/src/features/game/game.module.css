@@ -925,6 +925,31 @@
   animation: fusionFlickerC 5.2s steps(1, end) infinite;
 }
 
+/* 「刚揉出」(ADR-019 订正 §4):新生融合卡的标题先**停在真名满一个标题循环**,再接进正常轮换。纯 CSS。
+ *
+ * 每层两条动画,**列表里靠后的那条优先**(CSS Animations 的合成顺序):
+ *   - 停驻(fusionTitleHoldOn / Off):挂载起 5.52s,真名 1、另两层 0;只跑一次、不留填充;
+ *   - 轮换(fusionFlicker*):延迟 4.584s 起播,于是停驻结束那一刻(5.52s)轮换正走到局部 0.936s = 18%,
+ *     落在真名驻留段(16%–55%)里 —— 真名 1、另两层 0,与停驻的最后一帧相同:停与转同一帧,衔接点不空帧、不跳。
+ * 5.52s = 一个循环 5.2s + 0.32s:揉合里文字从 320ms 起才浮现(CROSSFADE.text),停满一个循环从文字出现算。
+ * 衔接算式(4.584 + 0.936 = 5.52)由 ArchetypeSelect.fresh.test 钉住;原有撕裂空档(8–9%、59–62%)不动。
+ * reduced-motion 下这一层整个关掉(标题本就静态停在真名,见文件末减弱动效块)。 */
+.cardFresh .fusionTitleA {
+  animation:
+    fusionFlickerA 5.2s steps(1, end) 4.584s infinite,
+    fusionTitleHoldOff 5.52s linear;
+}
+.cardFresh .fusionTitleB {
+  animation:
+    fusionFlickerB 5.2s steps(1, end) 4.584s infinite,
+    fusionTitleHoldOff 5.52s linear;
+}
+.cardFresh .fusionTitleC {
+  animation:
+    fusionFlickerC 5.2s steps(1, end) 4.584s infinite,
+    fusionTitleHoldOn 5.52s linear;
+}
+
 /* ── 第二渗漏卡(守则即补给,ADR-014):规则怪谈冷蓝 × 末日锈土【互噬】——
  * 左上是怪谈的冷蓝灯光(灯将灭的走廊),右下是废土的锈尘(烂在锈里的世界),中缝一道撕裂接缝。
  * 复用 fusionTitle 三层撕裂标题机制,只换配色氛围。纯 CSS,不引动画库。 */
@@ -1153,6 +1178,21 @@
   }
 }
 
+/* 「刚揉出」的标题停驻(见 .cardFresh):整段恒值,只跑一次。 */
+@keyframes fusionTitleHoldOn {
+  from,
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fusionTitleHoldOff {
+  from,
+  to {
+    opacity: 0;
+  }
+}
+
 /* 互噬拉锯:两团氛围缓慢彼此挤压渗透(alternate 往复,黏着、不安)。 */
 @keyframes fusionClash {
   from {
@@ -1277,6 +1317,14 @@
   .fusionTitle > .fusionTitleC {
     animation: none;
     opacity: 1;
+  }
+
+  /* 「刚揉出」那一层不需要(标题本就静态停在真名)。.cardFresh 的规则是 (0,2,0),
+     上面 (0,1,0) 的 .fusionTitleA / .fusionTitleB 关不掉它们,这里按同一权重再关一次。 */
+  .cardFresh .fusionTitleA,
+  .cardFresh .fusionTitleB,
+  .cardFresh .fusionTitleC {
+    animation: none;
   }
 }
 

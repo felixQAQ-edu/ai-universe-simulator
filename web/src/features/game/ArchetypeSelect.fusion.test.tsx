@@ -8,7 +8,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import gsap from 'gsap';
 import { useGameStore } from '../../state/gameStore';
 import { ArchetypeSelect } from './ArchetypeSelect';
-import { totalMs } from './fusion/crossfade';
+import { CROSSFADE, totalMs } from './fusion/crossfade';
+import styles from './game.module.css';
 import css from './game.module.css?raw';
 
 const ORDER = ['rules_creepy', 'cthulhu', 'cultivation'] as const;
@@ -100,6 +101,13 @@ describe('成品卡落位(选 A)', () => {
 });
 
 describe('新生卡', () => {
+  it('带「刚揉出」修饰类', () => {
+    setup();
+    fuse('cthulhu', 'cultivation');
+    const card = screen.getByRole('button', { name: '验讫(融合世界)' });
+    expect(card.className).toContain(styles.cardFresh);
+  });
+
   it('聚焦在落位之后,不在插入那一刻(中途聚焦会按最终位置滚动,而画面上它还叠在宿主卡位上)', () => {
     setup();
     fuse('cthulhu', 'cultivation');
@@ -141,7 +149,59 @@ describe('reduced-motion 分支', () => {
   });
 });
 
-describe('入场', () => {
+// ── 「刚揉出」的纯 CSS 衔接算式(ADR-019 订正 §4)──────────────────────────────
+// 停驻结束那一刻,轮换必须正落在真名驻留段里,且三层取值与停驻最后一帧相同(衔接点不空帧、不跳)。
+describe('刚揉出:停驻 → 轮换的衔接', () => {
+  const CYCLE = 5.2;
+  /** `.cardFresh .fusionTitleX { animation: <flicker> 5.2s steps(1, end) <delay> infinite, <hold> <dur> linear; }` */
+  function freshRule(layer: 'A' | 'B' | 'C') {
+    const m = css.match(new RegExp(`\\.cardFresh \\.fusionTitle${layer} \\{\\s*animation:([^;]+);`));
+    expect(m, layer).not.toBeNull();
+    // 按动画分段(steps(1, end) 里也有逗号,不能直接按逗号切)。
+    const [flicker, hold] = m![1].split(/,\s*(?=fusion)/).map((x) => x.trim().replace('steps(1, end)', 'steps').split(/\s+/));
+    return {
+      flicker: flicker[0],
+      delay: parseFloat(flicker[3]),
+      hold: hold[0],
+      holdDur: parseFloat(hold[1]),
+    };
+  }
+  /** 关键帧在 pct 处的 opacity(steps(1,end) = 区间取左端值)。 */
+  function opacityAt(name: string, pct: number): number {
+    const body = css.match(new RegExp(`@keyframes ${name} \\{([\\s\\S]*?)\\n\\}`))![1];
+    let val = NaN;
+    let at = -1;
+    for (const block of body.matchAll(/(from,\s*to|[\d%,\s]+)\s*\{\s*opacity:\s*([\d.]+);/g)) {
+      const stops = block[1].includes('from') ? [0] : [...block[1].matchAll(/(\d+(?:\.\d+)?)%/g)].map((x) => +x[1]);
+      for (const st of stops) if (st <= pct && st >= at) [at, val] = [st, +block[2]];
+    }
+    return val;
+  }
+
+  it('停驻时长 = 一个循环 5.2s + 文字浮现的起点(停满一个循环从文字出现算)', () => {
+    for (const l of ['A', 'B', 'C'] as const) {
+      expect(freshRule(l).holdDur).toBeCloseTo(CYCLE + CROSSFADE.text[0] / 1000, 6);
+    }
+  });
+
+  it('停驻结束那一刻轮换走到局部 18%(真名驻留段 16%–55% 内);三层取值与停驻相同', () => {
+    const expected = { A: 0, B: 0, C: 1 };
+    for (const l of ['A', 'B', 'C'] as const) {
+      const r = freshRule(l);
+      const local = r.holdDur - r.delay;
+      expect(local / CYCLE).toBeCloseTo(0.18, 6);
+      expect(r.flicker).toBe(`fusionFlicker${l}`);
+      expect(r.hold).toBe(l === 'C' ? 'fusionTitleHoldOn' : 'fusionTitleHoldOff');
+      expect(opacityAt(r.flicker, 18)).toBe(expected[l]); // 轮换接手的第一帧
+      expect(opacityAt(r.hold, 100)).toBe(expected[l]); // 停驻的最后一帧
+    }
+  });
+
+  it('reduced-motion 下这一层整个关掉(按同一权重 .cardFresh .fusionTitleX 再关一次)', () => {
+    const reduced = css.slice(css.lastIndexOf('.fusionTitle > .fusionTitleC {'));
+    expect(reduced).toMatch(/\.cardFresh \.fusionTitleA,\s*\.cardFresh \.fusionTitleB,\s*\.cardFresh \.fusionTitleC \{\s*animation: none;/);
+  });
+
   it('fusionSeep 已删(ADR-019 订正 §8):不再有融合卡的入场动画', () => {
     expect(css).not.toMatch(/@keyframes fusionSeep/);
     expect(css).toMatch(/\.card\.cardFusion,\s*\.card\.cardFusionRenfang,\s*\.card\.cardFusionYanqi \{\s*animation: none;/);

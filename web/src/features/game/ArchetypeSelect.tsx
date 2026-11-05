@@ -259,6 +259,7 @@ export function ArchetypeSelect() {
                   combo={slot.key}
                   onChoose={() => startGame(pairOf(slot.key))}
                   focusOnMount={focusKey === slot.key}
+                  fresh
                 />
               );
             }
@@ -543,11 +544,17 @@ export function FusionCard({
   combo,
   onChoose,
   focusOnMount = false,
+  fresh = false,
 }: {
   combo: string;
   onChoose: () => void;
   /** 刚被揉出来 → 获得一次聚焦(只此一次,之后归玩家)。 */
   focusOnMount?: boolean;
+  /**
+   * 「刚揉出」:标题先停在真名满一个标题循环,再接进正常轮换(ADR-019 订正 §4,纯 CSS,见 `.cardFresh`)。
+   * 只影响挂载后的第一个循环;reduced-motion 下这一层不生效(标题本就静态停在真名)。
+   */
+  fresh?: boolean;
 }) {
   const ref = useRef<HTMLButtonElement>(null);
   useEffect(() => {
@@ -560,7 +567,7 @@ export function FusionCard({
     <button
       type="button"
       ref={ref}
-      className={`${styles.card} ${cardTheme(combo).cardClass}`}
+      className={[styles.card, cardTheme(combo).cardClass, fresh ? styles.cardFresh : ''].filter(Boolean).join(' ')}
       onClick={onChoose}
       aria-label={card.ariaLabel}
       data-fusion-key={combo}
