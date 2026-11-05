@@ -25,7 +25,7 @@ export function totalMs(reduced: boolean): number {
  * 取整后成品卡与宿主卡错开约 0.4px,外边界就不是逐像素重合了(375 宽实测抓到的)。
  * 撤 / 还 transform 期间把 transition 也关掉并先刷一次样式,免得还原时起一段 .12s 过渡。
  */
-export function layoutBox(el: HTMLElement): { top: number; height: number } {
+export function layoutBox(el: HTMLElement): { top: number; left: number; height: number; width: number } {
   const { transform, transition } = el.style;
   el.style.transition = 'none';
   el.style.transform = 'none';
@@ -33,7 +33,7 @@ export function layoutBox(el: HTMLElement): { top: number; height: number } {
   el.style.transform = transform;
   void getComputedStyle(el).transform;
   el.style.transition = transition;
-  return { top: r.top + window.scrollY, height: r.height };
+  return { top: r.top + window.scrollY, left: r.left + window.scrollX, height: r.height, width: r.width };
 }
 
 /** 卡列里每个子元素在插入成品卡**之前**的布局 top(FLIP 的 First)。 */

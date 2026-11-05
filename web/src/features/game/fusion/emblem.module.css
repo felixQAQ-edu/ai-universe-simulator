@@ -1,0 +1,93 @@
+/* 融合面 + 标志的画面层(ADR-019 订正 §2 / §3;刀 2c-2;见 EmblemOverlay.tsx)。
+ * 不用 filter(不模糊)、不用贴图、没有网格 / 粒子 / 光核 / 光丝。
+ * 所有可变量都是根节点上的 CSS 自定义属性(数据给初值,时间线推运动)。 */
+
+/* 宿主卡位那一个盒子(位置 / 尺寸 / 圆角 / 层级由 FusionMerge 写)。容器自己不画边:
+ * 融合面与成品卡各带同一套卡边,落在同一个盒子里 —— 任何时刻只有一道外边界。 */
+.overlay {
+  position: absolute;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.surface {
+  position: absolute;
+  inset: 0;
+  box-sizing: border-box;
+}
+
+/* 交界带的质地:只在交界带里(mask 限位),两张原卡的区域不受影响。 */
+.surface::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--em-seam-tex);
+  -webkit-mask-image: linear-gradient(
+    var(--em-angle),
+    transparent var(--em-host-end),
+    #000 var(--em-seam-from),
+    #000 var(--em-seam-to),
+    transparent var(--em-foreign-from)
+  );
+  mask-image: linear-gradient(
+    var(--em-angle),
+    transparent var(--em-host-end),
+    #000 var(--em-seam-from),
+    #000 var(--em-seam-to),
+    transparent var(--em-foreign-from)
+  );
+}
+
+/* 两张原卡各自留一点自己的质地:挡在各自的区域里,不进交界带。 */
+.surface::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--em-side-tex);
+  -webkit-mask-image: linear-gradient(
+    var(--em-angle),
+    #000 var(--em-host-end),
+    transparent var(--em-seam-from),
+    transparent var(--em-seam-to),
+    #000 var(--em-foreign-from)
+  );
+  mask-image: linear-gradient(
+    var(--em-angle),
+    #000 var(--em-host-end),
+    transparent var(--em-seam-from),
+    transparent var(--em-seam-to),
+    #000 var(--em-foreign-from)
+  );
+}
+
+/* 标志:平贴、烙进表面,无边框、无投影、无凸起,落在融合面中心。
+ * SVG viewBox 四周各留 20,盒子同比放大(--em-mark-box)—— 标志本身仍是登记尺寸。 */
+.mark {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--em-mark-box);
+  height: var(--em-mark-box);
+  transform: translate(-50%, -50%) rotate(var(--em-mark-rot));
+}
+
+.mark svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* 焦褐层:multiply 必须挂在这一层(它有 transform,自成层叠上下文)。
+ * 烧到哪了由这层盒子上的 CSS mask 管(遮罩串由数据生成,内联写):只重绘、不布局。 */
+.burn {
+  mix-blend-mode: multiply;
+  opacity: var(--em-ink, 1);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+}
+
+.accent {
+  opacity: calc(var(--em-accent-alpha) * var(--em-accent, 1));
+}

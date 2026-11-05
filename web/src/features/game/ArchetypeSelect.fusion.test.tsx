@@ -9,7 +9,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import gsap from 'gsap';
 import { useGameStore } from '../../state/gameStore';
 import { ArchetypeSelect } from './ArchetypeSelect';
-import { CROSSFADE, totalMs } from './fusion/crossfade';
+import { totalMs } from './fusion/crossfade';
+import { EMBLEM_BEATS, EMBLEM_TOTAL_MS } from './fusion/plan';
 import styles from './game.module.css';
 import css from './game.module.css?raw';
 
@@ -64,8 +65,8 @@ function fuse(from: (typeof ORDER)[number], to: (typeof ORDER)[number]) {
   fireEvent.pointerUp(window, { pointerId: 1 });
 }
 
-/** 让揉合放行(jsdom 里 rAF 不推时间线,走的是兜底计时 —— 与后台标签页同一条路)。 */
-const finish = () => act(() => void vi.advanceTimersByTime(totalMs(false) + 700));
+/** 让揉合放行(jsdom 里 rAF 不推时间线,走的是兜底计时 —— 与后台标签页同一条路)。按最长的标志路径等。 */
+const finish = () => act(() => void vi.advanceTimersByTime(EMBLEM_TOTAL_MS + 700));
 
 /** 卡列里的卡名序列(融合卡用 aria-label 里的真名)。 */
 function listOrder(): string[] {
@@ -128,13 +129,17 @@ describe('新生卡', () => {
     expect(document.activeElement).toBe(card);
   });
 
-  it('演完之后真卡上不留内联样式(宿主、被拖卡、成品卡)', () => {
+  it('演完之后真卡上不留揉合写的内联样式(宿主、被拖卡、其余卡;成品卡只留停驻起算变量)', () => {
     setup();
     fuse('cthulhu', 'cultivation');
     finish();
-    for (const el of [worldCard('cultivation'), worldCard('cthulhu'), screen.getByRole('button', { name: '验讫(融合世界)' })]) {
+    for (const el of [worldCard('cultivation'), worldCard('cthulhu'), worldCard('rules_creepy')]) {
       expect(el.getAttribute('style') ?? '').toBe('');
     }
+    const card = screen.getByRole('button', { name: '验讫(融合世界)' });
+    expect(card.getAttribute('style')).toBe(`--fresh-text-at: ${EMBLEM_BEATS.text[0]}ms;`);
+    expect(card.hasAttribute('data-emblem-reveal')).toBe(false);
+    expect(document.querySelector('[data-fusion-emblem]')).toBeNull();
   });
 });
 
@@ -153,29 +158,63 @@ describe('reduced-motion 分支', () => {
     expect(lastTimeline().duration()).toBeCloseTo(totalMs(true) / 1000, 3);
   });
 
-  it('原速分支:时间线时长 = 460 + 280', () => {
+  it('reduced-motion 下有登记的组合也不出标志', () => {
+    vi.spyOn(window, 'matchMedia').mockImplementation(
+      (q: string) => ({ matches: q.includes('reduce'), media: q, addEventListener() {}, removeEventListener() {} }) as unknown as MediaQueryList,
+    );
     setup();
     fuse('cthulhu', 'cultivation');
+    expect(document.querySelector('[data-fusion-emblem]')).toBeNull();
+  });
+});
+
+describe('有登记 / 没登记两条分支(ADR-019 订正 §2)', () => {
+  function lastTimeline(): gsap.core.Timeline {
+    const all = gsap.globalTimeline.getChildren(false, false, true);
+    return all[all.length - 1] as gsap.core.Timeline;
+  }
+
+  it('有登记(《验讫》):走标志路径 —— 融合面挂进卡列,时间线 4.5 秒(落位在 4500 收住)', () => {
+    setup();
+    fuse('cthulhu', 'cultivation');
+    const overlay = document.querySelector('[data-fusion-emblem]');
+    expect(overlay).not.toBeNull();
+    expect(overlay!.parentElement).toBe(worldCard('cultivation').parentElement);
+    expect(lastTimeline().duration()).toBeCloseTo(EMBLEM_TOTAL_MS / 1000, 3);
+  });
+
+  it('没登记(《识海遗蜕》):三段交叉淡化 —— 不出融合面,时间线 = 460 + 280', () => {
+    setup();
+    fuse('rules_creepy', 'cultivation');
+    expect(document.querySelector('[data-fusion-emblem]')).toBeNull();
     expect(lastTimeline().duration()).toBeCloseTo(totalMs(false) / 1000, 3);
   });
 });
 
-// ── 「刚揉出」的纯 CSS 衔接算式(ADR-019 订正 §4)──────────────────────────────
+// ── 「刚揉出」的纯 CSS 衔接算式(ADR-019 订正 §4;刀 2c-2 改为从文字出现起算)──────────
 // 停驻结束那一刻,轮换必须正落在真名驻留段里,且三层取值与停驻最后一帧相同(衔接点不空帧、不跳)。
+// 起算点 T = 卡上的 --fresh-text-at(揉合路径给出的「文字开始浮现」时刻);两条路径都要成立。
 describe('刚揉出:停驻 → 轮换的衔接', () => {
   const CYCLE = 5.2;
+  /** 把 `calc(var(--fresh-text-at) + 5.2s - 0.936s)` 这类时长在 T(秒)下求值。 */
+  function evalTime(expr: string, T: number): number {
+    const body = expr.replace(/^calc\((.*)\)$/, '$1').replace('var(--fresh-text-at)', `${T}s`);
+    let sum = 0;
+    for (const m of body.matchAll(/([+-]?)\s*(\d+(?:\.\d+)?)(ms|s)/g)) {
+      const v = Number(m[2]) / (m[3] === 'ms' ? 1000 : 1);
+      sum += m[1] === '-' ? -v : v;
+    }
+    return sum;
+  }
   /** `.cardFresh .fusionTitleX { animation: <flicker> 5.2s steps(1, end) <delay> infinite, <hold> <dur> linear; }` */
-  function freshRule(layer: 'A' | 'B' | 'C') {
+  function freshRule(layer: 'A' | 'B' | 'C', T: number) {
     const m = css.match(new RegExp(`\\.cardFresh \\.fusionTitle${layer} \\{\\s*animation:([^;]+);`));
     expect(m, layer).not.toBeNull();
-    // 按动画分段(steps(1, end) 里也有逗号,不能直接按逗号切)。
-    const [flicker, hold] = m![1].split(/,\s*(?=fusion)/).map((x) => x.trim().replace('steps(1, end)', 'steps').split(/\s+/));
-    return {
-      flicker: flicker[0],
-      delay: parseFloat(flicker[3]),
-      hold: hold[0],
-      holdDur: parseFloat(hold[1]),
-    };
+    const flicker = m![1].match(/(fusionFlicker\w)\s+5\.2s\s+steps\(1, end\)\s+(calc\([^)]*\)[^)]*\))\s+infinite/);
+    const hold = m![1].match(/(fusionTitleHold\w+)\s+(calc\([^)]*\)[^)]*\))\s+linear/);
+    expect(flicker, `${layer} flicker`).not.toBeNull();
+    expect(hold, `${layer} hold`).not.toBeNull();
+    return { flicker: flicker![1], delay: evalTime(flicker![2], T), hold: hold![1], holdDur: evalTime(hold![2], T) };
   }
   /** 关键帧在 pct 处的 opacity(steps(1,end) = 区间取左端值)。 */
   function opacityAt(name: string, pct: number): number {
@@ -188,24 +227,58 @@ describe('刚揉出:停驻 → 轮换的衔接', () => {
     }
     return val;
   }
+  /** 两条揉合路径的文字起点(秒)+ 不演(0)。 */
+  const STARTS = { 标志: EMBLEM_BEATS.text[0] / 1000, 交叉淡化: 0.32, 不演: 0 };
 
-  it('停驻时长 = 一个循环 5.2s + 文字浮现的起点(停满一个循环从文字出现算)', () => {
-    for (const l of ['A', 'B', 'C'] as const) {
-      expect(freshRule(l).holdDur).toBeCloseTo(CYCLE + CROSSFADE.text[0] / 1000, 6);
+  it('停驻时长 = 文字浮现的起点 + 一个循环 5.2s(停满一个循环从文字出现算),两条路径都成立', () => {
+    for (const T of Object.values(STARTS)) {
+      for (const l of ['A', 'B', 'C'] as const) expect(freshRule(l, T).holdDur).toBeCloseTo(T + CYCLE, 6);
     }
   });
 
-  it('停驻结束那一刻轮换走到局部 18%(真名驻留段 16%–55% 内);三层取值与停驻相同', () => {
+  it('停驻结束那一刻轮换走到局部 18%(真名驻留段 16%–55% 内);三层取值与停驻相同 —— 与起点无关', () => {
     const expected = { A: 0, B: 0, C: 1 };
-    for (const l of ['A', 'B', 'C'] as const) {
-      const r = freshRule(l);
-      const local = r.holdDur - r.delay;
-      expect(local / CYCLE).toBeCloseTo(0.18, 6);
-      expect(r.flicker).toBe(`fusionFlicker${l}`);
-      expect(r.hold).toBe(l === 'C' ? 'fusionTitleHoldOn' : 'fusionTitleHoldOff');
-      expect(opacityAt(r.flicker, 18)).toBe(expected[l]); // 轮换接手的第一帧
-      expect(opacityAt(r.hold, 100)).toBe(expected[l]); // 停驻的最后一帧
+    for (const T of Object.values(STARTS)) {
+      for (const l of ['A', 'B', 'C'] as const) {
+        const r = freshRule(l, T);
+        const local = r.holdDur - r.delay;
+        expect(local / CYCLE).toBeCloseTo(0.18, 6);
+        expect(r.flicker).toBe(`fusionFlicker${l}`);
+        expect(r.hold).toBe(l === 'C' ? 'fusionTitleHoldOn' : 'fusionTitleHoldOff');
+        expect(opacityAt(r.flicker, 18)).toBe(expected[l]); // 轮换接手的第一帧
+        expect(opacityAt(r.hold, 100)).toBe(expected[l]); // 停驻的最后一帧
+      }
     }
+  });
+
+  it('起算点由揉合路径写在卡上:标志路径 3150ms / 交叉淡化 320ms', () => {
+    setup();
+    fuse('cthulhu', 'cultivation');
+    finish();
+    fuse('rules_creepy', 'cultivation');
+    const yanqi = screen.getByRole('button', { name: '验讫(融合世界)' });
+    const shihai = screen.getByRole('button', { name: '识海遗蜕(融合世界)' });
+    expect(yanqi.style.getPropertyValue('--fresh-text-at')).toBe(`${EMBLEM_BEATS.text[0]}ms`);
+    expect(shihai.style.getPropertyValue('--fresh-text-at')).toBe('320ms');
+  });
+
+  it('reduced-motion 下《验讫》走交叉淡化,起算点也随之是 320ms', () => {
+    vi.spyOn(window, 'matchMedia').mockImplementation(
+      (q: string) => ({ matches: q.includes('reduce'), media: q, addEventListener() {}, removeEventListener() {} }) as unknown as MediaQueryList,
+    );
+    setup();
+    fuse('cthulhu', 'cultivation');
+    expect(screen.getByRole('button', { name: '验讫(融合世界)' }).style.getPropertyValue('--fresh-text-at')).toBe('320ms');
+  });
+
+  it('同一组合再揉一次:卡不重新挂载,起算点不改(停驻早已走完,改了会把它重新唤醒)', () => {
+    setup();
+    fuse('cthulhu', 'cultivation');
+    finish();
+    const card = screen.getByRole('button', { name: '验讫(融合世界)' });
+    fuse('cthulhu', 'cultivation');
+    expect(screen.getByRole('button', { name: '验讫(融合世界)' })).toBe(card);
+    expect(card.style.getPropertyValue('--fresh-text-at')).toBe(`${EMBLEM_BEATS.text[0]}ms`);
   });
 
   it('reduced-motion 下这一层整个关掉(按同一权重 .cardFresh .fusionTitleX 再关一次)', () => {

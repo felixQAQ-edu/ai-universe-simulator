@@ -10,6 +10,8 @@
 // 该世界即刻回到旧实现,不必回滚任何基建。
 
 import styles from '../game.module.css';
+import type { FusionEmblem } from '../fusion/emblem';
+import { YANQI_EMBLEM } from './emblems/yanqi';
 
 /**
  * 已登记新皮肤的世界 id。刀 1 规则怪谈(试验田)证明基建可用,刀 2 加修仙;刀 3/4 各自再加一条。
@@ -69,12 +71,24 @@ const WORLDS: Readonly<Record<string, WorldEntry>> = {
   },
 };
 
+/** 一对融合组合的登记。 */
+interface FusionEntry {
+  sceneUrl: string;
+  cardClass: string;
+  /**
+   * 融合入口的**标志**(可选,纯数据;ADR-019 订正 §2 / §5)。登记了 → 揉合走标志路径
+   * (交接 → 停顿 → 标志 → 揭晓 → 落位);没登记 → 三段交叉淡化。怎么演由唯一一套时间线决定,
+   * 这里只放资产(轮廓、配色、方向),不放函数。
+   */
+  emblem?: FusionEmblem;
+}
+
 /**
- * 融合组合登记表(ADR-013/014),键 = `host×foreign`(有序)。只登记**封面与卡皮肤**——
+ * 融合组合登记表(ADR-013/014),键 = `host×foreign`(有序)。只登记**封面、卡皮肤与可选的入口标志**——
  * **游戏内皮肤刻意不登记**:融合局的 `skin` 一律取 host 的(ADR-018 §5 Q2「签名未实现前纯 host 呈现」,
  * 同 scene.ts 未配图即降级的先例);融合专属视觉签名挂 ADR-019,不阻塞基础移植。
  */
-const FUSIONS: Readonly<Record<string, { sceneUrl: string; cardClass: string }>> = {
+const FUSIONS: Readonly<Record<string, FusionEntry>> = {
   'cultivation×rules_creepy': {
     sceneUrl: '/scenes/fusion-shihai.webp',
     cardClass: styles.cardFusion, // 修仙青白仙气 × 怪谈冷蓝互噬
@@ -86,6 +100,7 @@ const FUSIONS: Readonly<Record<string, { sceneUrl: string; cardClass: string }>>
   'cultivation×cthulhu': {
     sceneUrl: '/scenes/fusion-yanqi.webp',
     cardClass: styles.cardFusionYanqi, // 修仙青白微金 × 克苏鲁幽绿深渊互噬
+    emblem: YANQI_EMBLEM, // 第一份标志登记:石化交界上烧出来的焦印(刀 2c-2)
   },
 };
 
@@ -133,4 +148,12 @@ export function cardTheme(key: string): WorldTheme {
   const world = WORLDS[key];
   if (!world) return NEUTRAL_THEME;
   return { key, sceneUrl: world.sceneUrl, cardClass: world.cardClass, skin: world.skin };
+}
+
+/**
+ * 融合入口的标志登记(ADR-019 订正 §2);未登记 → null(揉合走三段交叉淡化)。
+ * 选择屏用它决定揉合走哪条路径 —— 通用代码只拿到数据,不按组合 key 分支。
+ */
+export function fusionEmblem(key: string): FusionEmblem | null {
+  return FUSIONS[key]?.emblem ?? null;
 }

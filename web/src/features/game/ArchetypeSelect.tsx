@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
 import { useGameStore } from '../../state/gameStore';
 import { useHistoryStore } from '../../state/historyStore';
 import { SAVE_LIST_VISIBLE, onSavePointersChanged, type SaveSummary } from '../../state/savePointers';
@@ -9,8 +9,9 @@ import { magnetHintText, rejectHintText } from './fusion/hints';
 import { FusionMerge } from './fusion/FusionMerge';
 import { snapshotList, type ListSnapshot } from './fusion/crossfade';
 import { cardOrder, placeFused } from './fusion/placement';
+import { TEXT_AT_IMMEDIATE, mergePlan } from './fusion/plan';
 import { useFusionDrag, type CommitCards, type HintSide } from './fusion/useFusionDrag';
-import { cardTheme } from './theme/registry';
+import { cardTheme, fusionEmblem } from './theme/registry';
 import { reducedMotion } from './theme/motion';
 import styles from './game.module.css';
 
@@ -54,6 +55,11 @@ export function ArchetypeSelect() {
   const [fused, setFused] = useState<readonly string[]>([]);
   /** 正在演的那一组揉合(null = 没有)。**同时只允许一组**:它在场时手势整体停摆。 */
   const [merging, setMerging] = useState<Merging | null>(null);
+  /**
+   * 每张新生融合卡的文字从挂载起多久浮现(ms):「刚揉出」的标题停驻从这一刻起算(ADR-019 订正 §4)。
+   * 只在卡**第一次**插入时记(同一组合再揉一次,卡不重新挂载,停驻早已走完,不改它)。
+   */
+  const [freshAt, setFreshAt] = useState<Readonly<Record<string, number>>>({});
   /** 刚揉出来、待聚焦一次的那张卡(聚焦只做一次,之后归玩家)。 */
   const [focusKey, setFocusKey] = useState<string | null>(null);
   /** 松手在非法目标上的那一句(不弹 Toast;下一次抓起或成功揉合即散)。 */
@@ -115,6 +121,9 @@ export function ArchetypeSelect() {
       // 成品卡**现在就**插进卡列(宿主紧下方);揉合在插入后的首帧绘制之前用 transform 把它叠回宿主卡位。
       setFused((f) => placeFused(f, key));
       const list = listRef.current;
+      // 走哪条路径只看该组合有没有登记标志(数据),不按组合 key 分支;量不到卡片 → 不演,文字立刻就在。
+      const textAt = cards && list ? mergePlan(fusionEmblem(key), reducedMotion()).textAt : TEXT_AT_IMMEDIATE;
+      setFreshAt((m) => (key in m ? m : { ...m, [key]: textAt }));
       // 量不到(理论上不该发生)→ 不演动画,卡直接出现在最终位置(ADR-019 订正 §8:兜底路径也不再有入场动画)。
       // 入口的视觉是加分项,「拖成了」这件事本身不能因为动画演不了就丢掉。
       if (!cards || !list) {
@@ -260,6 +269,7 @@ export function ArchetypeSelect() {
                   onChoose={() => startGame(pairOf(slot.key))}
                   focusOnMount={focusKey === slot.key}
                   fresh
+                  freshTextAt={freshAt[slot.key]}
                 />
               );
             }
@@ -298,6 +308,7 @@ export function ArchetypeSelect() {
         <FusionMerge
           list={merging.list}
           fusedKey={merging.key}
+          emblem={fusionEmblem(merging.key)}
           host={merging.host}
           foreign={merging.foreign}
           pose={merging.pose}
@@ -548,6 +559,7 @@ export function FusionCard({
   onChoose,
   focusOnMount = false,
   fresh = false,
+  freshTextAt = TEXT_AT_IMMEDIATE,
 }: {
   combo: string;
   onChoose: () => void;
@@ -558,6 +570,11 @@ export function FusionCard({
    * 只影响挂载后的第一个循环;reduced-motion 下这一层不生效(标题本就静态停在真名)。
    */
   fresh?: boolean;
+  /**
+   * 「刚揉出」的停驻从挂载后多少毫秒起算 = 这条揉合路径上文字开始浮现的时刻
+   * (标志路径 3150ms / 交叉淡化 320ms / 不演 0;见 fusion/plan.ts)。写成 `--fresh-text-at`,CSS 据它排停驻与轮换。
+   */
+  freshTextAt?: number;
 }) {
   const ref = useRef<HTMLButtonElement>(null);
   useEffect(() => {
@@ -574,6 +591,7 @@ export function FusionCard({
       onClick={onChoose}
       aria-label={card.ariaLabel}
       data-fusion-key={combo}
+      style={fresh ? ({ '--fresh-text-at': `${freshTextAt}ms` } as CSSProperties) : undefined}
     >
       <div className={styles.cardTop}>
         <h2 className={`${styles.cardTitle} ${styles.fusionTitle}`} aria-hidden="true">
