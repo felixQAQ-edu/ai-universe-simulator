@@ -5,6 +5,7 @@
 // 「卡插在哪、带什么类、什么时候聚焦、reduced 下走没走不移动的那条路」。
 import { StrictMode } from 'react';
 import { act, fireEvent, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import gsap from 'gsap';
 import { useGameStore } from '../../state/gameStore';
@@ -188,6 +189,71 @@ describe('有登记 / 没登记两条分支(ADR-019 订正 §2)', () => {
     fuse('rules_creepy', 'cultivation');
     expect(document.querySelector('[data-fusion-emblem]')).toBeNull();
     expect(lastTimeline().duration()).toBeCloseTo(totalMs(false) / 1000, 3);
+  });
+});
+
+describe('揉合期间屏蔽单击(Felix 2026-11-05 裁定)', () => {
+  function stubStart() {
+    const startGame = vi.fn(async () => {});
+    useGameStore.setState({ startGame } as never);
+    return startGame;
+  }
+
+  it('揉合进行中:单击其他卡、单击参与的两张卡,都不进入世界;卡列标 aria-busy', () => {
+    const startGame = stubStart();
+    setup();
+    fuse('cthulhu', 'cultivation');
+    const list = worldCard('cultivation').parentElement!;
+    expect(list.getAttribute('aria-busy')).toBe('true');
+    fireEvent.click(worldCard('rules_creepy'));
+    fireEvent.click(worldCard('cultivation'));
+    fireEvent.click(worldCard('cthulhu'));
+    expect(startGame).not.toHaveBeenCalled();
+  });
+
+  it('揉合进行中:已有的融合卡(含刚揉出的那张)单击也不进入世界', () => {
+    const startGame = stubStart();
+    setup();
+    fuse('rules_creepy', 'cultivation');
+    finish();
+    fuse('cthulhu', 'cultivation');
+    fireEvent.click(screen.getByRole('button', { name: '识海遗蜕(融合世界)' }));
+    fireEvent.click(screen.getByRole('button', { name: '验讫(融合世界)' }));
+    expect(startGame).not.toHaveBeenCalled();
+  });
+
+  // user-event 与假时钟同用会挂住(它内部靠真 setTimeout 排键序):拖拽 / 揉合在假时钟下起好之后切回真时钟再按键。
+  it('键盘回车也不进入世界(按钮上回车 = 一次 click,同一道闸)', async () => {
+    const startGame = stubStart();
+    setup();
+    fuse('cthulhu', 'cultivation');
+    vi.useRealTimers();
+    const user = userEvent.setup();
+    worldCard('rules_creepy').focus();
+    await user.keyboard('{Enter}');
+    expect(startGame).not.toHaveBeenCalled();
+  });
+
+  it('对照:没有揉合时,同一个回车照常进入世界(证明回车确实走到了这道闸)', async () => {
+    const startGame = stubStart();
+    render(<ArchetypeSelect />);
+    const user = userEvent.setup();
+    worldCard('rules_creepy').focus();
+    await user.keyboard('{Enter}');
+    expect(startGame).toHaveBeenCalledWith('rules_creepy');
+  });
+
+  it('演完(兜底放行)立即恢复:aria-busy 撤掉,单击照常进入世界;外观不变(class 与揉合前相同)', () => {
+    const startGame = stubStart();
+    setup();
+    const before = worldCard('rules_creepy').className;
+    fuse('cthulhu', 'cultivation');
+    expect(worldCard('rules_creepy').className).toBe(before);
+    finish();
+    const list = worldCard('cultivation').parentElement!;
+    expect(list.hasAttribute('aria-busy')).toBe(false);
+    fireEvent.click(worldCard('rules_creepy'));
+    expect(startGame).toHaveBeenCalledWith('rules_creepy');
   });
 });
 

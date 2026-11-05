@@ -202,6 +202,15 @@ export function ArchetypeSelect() {
     if (magnetText) announce(magnetText);
   }, [magnetText, announce]);
 
+  /**
+   * 揉合进行中:单击 / 键盘回车都不让任何卡进入世界(Felix 2026-11-05 裁定,ADR-019 订正 §9 第 1 条收口);
+   * 演完(含兜底放行)即恢复。不改卡片外观、不弹提示,卡列标 aria-busy。
+   */
+  const busy = merging !== null;
+  const enter = (go: () => void) => () => {
+    if (!busy) go();
+  };
+
   const active = archetypes.filter((a) => a.active);
   const locked = archetypes.filter((a) => !a.active);
 
@@ -256,7 +265,7 @@ export function ArchetypeSelect() {
           </button>
         </div>
       ) : (
-        <div className={styles.cardList} ref={listRef}>
+        <div className={styles.cardList} ref={listRef} aria-busy={busy || undefined}>
           {cardOrder(
             active.map((a) => a.archetype),
             fused,
@@ -266,7 +275,7 @@ export function ArchetypeSelect() {
                 <FusionCard
                   key={slot.key}
                   combo={slot.key}
-                  onChoose={() => startGame(pairOf(slot.key))}
+                  onChoose={enter(() => startGame(pairOf(slot.key)))}
                   focusOnMount={focusKey === slot.key}
                   fresh
                   freshTextAt={freshAt[slot.key]}
@@ -278,7 +287,7 @@ export function ArchetypeSelect() {
               <ArchetypeCard
                 key={a.archetype}
                 summary={a}
-                onChoose={() => startGame(a.archetype)}
+                onChoose={enter(() => startGame(a.archetype))}
                 drag={{
                   ref: drag.registerCard(a.archetype),
                   onPointerDown: (e) => drag.onPointerDown(a.archetype, e),
