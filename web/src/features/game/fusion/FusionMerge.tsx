@@ -38,6 +38,8 @@ export interface FusionMergeProps {
   host: HTMLElement;
   /** 被拖卡:仍停在松手姿态(见 useFusionDrag 的 CommitCards)。 */
   foreign: HTMLElement;
+  /** 被拖卡松手那一刻的屏上姿态;每次 effect 开始都按它重摆(StrictMode 下 effect 会清理后重跑)。 */
+  pose: { transform: string; zIndex: string };
   /** 插入成品卡之前量的卡列位置。 */
   before: ListSnapshot;
   reduced: boolean;
@@ -54,13 +56,19 @@ const span = ([a, b]: readonly [number, number]) => ({ at: s(a), dur: s(b - a) }
 /** 动画期间写过的内联样式;结束时一律清掉,卡回到纯布局位置。 */
 const CLEAR = 'transform,opacity,zIndex,pointerEvents,transition,minHeight,clipPath';
 
-export function FusionMerge({ list, fusedKey, host, foreign, before, reduced, onDone }: FusionMergeProps) {
+export function FusionMerge({ list, fusedKey, host, foreign, pose, before, reduced, onDone }: FusionMergeProps) {
   const doneRef = useRef(onDone);
   useEffect(() => {
     doneRef.current = onDone;
   }, [onDone]);
 
   useLayoutEffect(() => {
+    // 先按松手姿态重摆被拖卡:第一次运行时它本来就在这儿(写一遍同值,无变化);
+    // 若这是清理之后的重跑(React StrictMode 的 mount → unmount → mount),清理已把它清回原位,这里摆回来。
+    foreign.style.setProperty('transition', 'none');
+    foreign.style.setProperty('transform', pose.transform);
+    foreign.style.setProperty('z-index', pose.zIndex);
+
     const card = Array.from(list.children).find(
       (el): el is HTMLElement => el instanceof HTMLElement && el.dataset.fusionKey === fusedKey,
     );
@@ -164,7 +172,7 @@ export function FusionMerge({ list, fusedKey, host, foreign, before, reduced, on
       gsap.set(touched, { clearProps: CLEAR });
       gsap.set(texts, { clearProps: 'opacity' });
     };
-  }, [list, fusedKey, host, foreign, before, reduced]);
+  }, [list, fusedKey, host, foreign, pose, before, reduced]);
 
   return null;
 }

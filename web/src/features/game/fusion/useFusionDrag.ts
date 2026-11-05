@@ -96,6 +96,12 @@ export interface FusionDragView {
 export interface CommitCards {
   host: HTMLElement;
   foreign: HTMLElement;
+  /**
+   * 被拖卡松手那一刻**屏上**的姿态(computed transform,冻结成内联值)与层级。
+   * 揉合每次(重新)开始都按它重摆被拖卡 —— 不能只靠「内联样式恰好还在」:React StrictMode 下 effect 会
+   * 先清理再重跑,清理会把内联样式清掉(刀 2c-1 返工:dev 环境里松手即跳回原位)。
+   */
+  pose: { transform: string; zIndex: string };
 }
 
 const IDLE_VIEW: FusionDragView = {
@@ -279,7 +285,16 @@ export function useFusionDrag({
 
       // 可提交 → 被拖卡**不归位**,停在松手姿态交给揉合(见 CommitCards);其余情形照常归位。
       const host = commit && d.targetId && d.armed && d.valid ? cardEls.current.get(d.targetId) : undefined;
-      if (!host) {
+      let pose: CommitCards['pose'] | null = null;
+      if (host) {
+        // 冻结的是**屏上**位置,不是内联目标值:拖动时卡片自带 transition: transform .12s,
+        // 快速松手时屏上位置还落后内联值一截;之后任何一次取消过渡(量布局、GSAP 关 transition)
+        // 都会让它往前跳到内联值(真时钟实测 480 宽向前跳约 60px)。
+        const onScreen = getComputedStyle(el).transform;
+        el.style.transition = 'none';
+        if (onScreen && onScreen !== 'none') el.style.transform = onScreen;
+        pose = { transform: el.style.transform, zIndex: el.style.zIndex };
+      } else {
         const dur = reducedRef.current ? 0 : RETURN_MS;
         el.style.transition = dur ? `transform ${dur}ms cubic-bezier(.2,.7,.3,1)` : '';
         el.style.transform = 'translate3d(0,0,0) scale(1)';
@@ -292,7 +307,7 @@ export function useFusionDrag({
 
       if (commit && d.targetId) {
         if (d.armed && d.valid) {
-          onCommitRef.current(d.targetId, d.id, host ? { host, foreign: el } : null);
+          onCommitRef.current(d.targetId, d.id, host && pose ? { host, foreign: el, pose } : null);
         } else if (!d.valid) {
           onRejectRef.current?.(d.targetId, d.id);
         }

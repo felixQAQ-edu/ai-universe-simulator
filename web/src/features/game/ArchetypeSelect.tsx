@@ -121,7 +121,7 @@ export function ArchetypeSelect() {
         setFocusKey(key);
         return;
       }
-      setMerging({ key, host: cards.host, foreign: cards.foreign, list, before: snapshotList(list) });
+      setMerging({ key, host: cards.host, foreign: cards.foreign, pose: cards.pose, list, before: snapshotList(list) });
     },
     [announce],
   );
@@ -300,6 +300,7 @@ export function ArchetypeSelect() {
           fusedKey={merging.key}
           host={merging.host}
           foreign={merging.foreign}
+          pose={merging.pose}
           before={merging.before}
           reduced={reducedMotion()}
           onDone={onMergeDone}
@@ -429,6 +430,8 @@ interface Merging {
   key: string;
   host: HTMLElement;
   foreign: HTMLElement;
+  /** 被拖卡松手那一刻的屏上姿态(见 CommitCards.pose)。 */
+  pose: CommitCards['pose'];
   list: HTMLElement;
   /** 插入成品卡之前量的卡列位置(FLIP 的 First)。 */
   before: ListSnapshot;

@@ -1,3 +1,4 @@
+import { StrictMode } from 'react';
 import { render } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import gsap from 'gsap';
@@ -11,6 +12,8 @@ import { FusionMerge } from './FusionMerge';
 // 取证边界:jsdom 没有布局,offsetTop 逐个替死;时间线由测试直接 seek(不靠 rAF)。
 
 const GAP = 100; // 卡位间距(卡高 + 缝)
+/** 手势层交过来的松手姿态(与 setup 里摆在被拖卡上的内联值一致)。 */
+const POSE = { transform: 'translate3d(6px, 40px, 0) scale(1.03)', zIndex: '30' };
 
 function stubTop(el: HTMLElement, top: () => number) {
   Object.defineProperty(el, 'offsetTop', { configurable: true, get: top });
@@ -91,7 +94,7 @@ describe('时长', () => {
 describe('FusionMerge', () => {
   it('首帧之前:成品卡叠在宿主卡位上、透明、文字为 0;插入挤下去的卡原地抵消', () => {
     const { list, els, host, foreign, fused, before } = setup(['f', 'h', 'below'], 'h', 'f');
-    render(<FusionMerge list={list} fusedKey="h×f" host={host} foreign={foreign} before={before} reduced={false} onDone={vi.fn()} />);
+    render(<FusionMerge list={list} fusedKey="h×f" host={host} foreign={foreign} pose={POSE} before={before} reduced={false} onDone={vi.fn()} />);
     lastTimeline();
     expect(yOf(fused)).toBe(host.offsetTop - fused.offsetTop); // -100:正好在宿主卡位
     expect(fused.style.opacity).toBe('0');
@@ -103,7 +106,7 @@ describe('FusionMerge', () => {
 
   it('三段先后:被拖卡先退净 → 成品卡底色盖实、宿主才隐去 → 文字最后到', () => {
     const { list, host, foreign, fused, before } = setup(['f', 'h', 'below'], 'h', 'f');
-    render(<FusionMerge list={list} fusedKey="h×f" host={host} foreign={foreign} before={before} reduced={false} onDone={vi.fn()} />);
+    render(<FusionMerge list={list} fusedKey="h×f" host={host} foreign={foreign} pose={POSE} before={before} reduced={false} onDone={vi.fn()} />);
     const tl = lastTimeline();
     const text = fused.children[0] as HTMLElement;
 
@@ -132,7 +135,7 @@ describe('FusionMerge', () => {
 
   it('落位(原速):成品卡下移一格到最终位置,挤下去的卡一起归 0;宿主与被拖卡各在原位淡回', () => {
     const { list, els, host, foreign, fused, before } = setup(['f', 'h', 'below'], 'h', 'f');
-    render(<FusionMerge list={list} fusedKey="h×f" host={host} foreign={foreign} before={before} reduced={false} onDone={vi.fn()} />);
+    render(<FusionMerge list={list} fusedKey="h×f" host={host} foreign={foreign} pose={POSE} before={before} reduced={false} onDone={vi.fn()} />);
     const tl = lastTimeline();
     tl.seek(0.46 + 0.1);
     expect(yOf(fused)).toBeGreaterThan(-GAP);
@@ -149,7 +152,7 @@ describe('FusionMerge', () => {
 
   it('被拖卡在宿主下面:它也被挤下去一格,在自己(新)的卡位上淡回', () => {
     const { list, host, foreign, before } = setup(['h', 'f'], 'h', 'f');
-    render(<FusionMerge list={list} fusedKey="h×f" host={host} foreign={foreign} before={before} reduced={false} onDone={vi.fn()} />);
+    render(<FusionMerge list={list} fusedKey="h×f" host={host} foreign={foreign} pose={POSE} before={before} reduced={false} onDone={vi.fn()} />);
     const tl = lastTimeline();
     // 插入把它的布局位置挤下去一格:松手姿态也要抵消这一格,t=0 不许往下跳。
     expect(foreign.style.transform).toBe(`translateY(${-GAP}px) translate3d(6px, 40px, 0) scale(1.03)`);
@@ -162,7 +165,7 @@ describe('FusionMerge', () => {
 
   it('reduced-motion:同一套三段,落位**不移动** —— 文字到齐那一刻直接就位', () => {
     const { list, els, host, foreign, fused, before } = setup(['f', 'h', 'below'], 'h', 'f');
-    render(<FusionMerge list={list} fusedKey="h×f" host={host} foreign={foreign} before={before} reduced onDone={vi.fn()} />);
+    render(<FusionMerge list={list} fusedKey="h×f" host={host} foreign={foreign} pose={POSE} before={before} reduced onDone={vi.fn()} />);
     const tl = lastTimeline();
     tl.seek(0.3);
     expect(yOf(fused)).toBe(-GAP);
@@ -175,7 +178,7 @@ describe('FusionMerge', () => {
 
   it('只动 transform / opacity:时间线上没有任何布局属性', () => {
     const { list, host, foreign, before } = setup(['h', 'f', 'below'], 'h', 'f');
-    render(<FusionMerge list={list} fusedKey="h×f" host={host} foreign={foreign} before={before} reduced={false} onDone={vi.fn()} />);
+    render(<FusionMerge list={list} fusedKey="h×f" host={host} foreign={foreign} pose={POSE} before={before} reduced={false} onDone={vi.fn()} />);
     const tl = lastTimeline();
     // GSAP 自己的配置键(不是被插值的样式),其余一律只许 opacity / y(transform)/ clearProps。
     const config = new Set(['parent', 'duration', 'ease', 'immediateRender', 'data', 'overwrite', 'delay', 'lazy', 'repeat']);
@@ -189,7 +192,7 @@ describe('FusionMerge', () => {
   it('演完放行;卸载后真卡上不留任何内联样式(不 revert 回松手姿态)', () => {
     const onDone = vi.fn();
     const { list, els, host, foreign, fused, before } = setup(['f', 'h', 'below'], 'h', 'f');
-    const r = render(<FusionMerge list={list} fusedKey="h×f" host={host} foreign={foreign} before={before} reduced={false} onDone={onDone} />);
+    const r = render(<FusionMerge list={list} fusedKey="h×f" host={host} foreign={foreign} pose={POSE} before={before} reduced={false} onDone={onDone} />);
     const tl = lastTimeline();
     tl.seek(tl.duration(), false);
     expect(onDone).toHaveBeenCalled();
@@ -204,7 +207,7 @@ describe('FusionMerge', () => {
     vi.useFakeTimers();
     const onDone = vi.fn();
     const { list, host, foreign, before } = setup(['f', 'h'], 'h', 'f');
-    render(<FusionMerge list={list} fusedKey="h×f" host={host} foreign={foreign} before={before} reduced={false} onDone={onDone} />);
+    render(<FusionMerge list={list} fusedKey="h×f" host={host} foreign={foreign} pose={POSE} before={before} reduced={false} onDone={onDone} />);
     lastTimeline();
     vi.advanceTimersByTime(totalMs(false) + 700);
     expect(onDone).toHaveBeenCalled();
@@ -214,7 +217,7 @@ describe('FusionMerge', () => {
     vi.useFakeTimers();
     const onDone = vi.fn();
     const { list, host, foreign, fused, before } = setup(['f', 'h'], 'h', 'f');
-    const r = render(<FusionMerge list={list} fusedKey="h×f" host={host} foreign={foreign} before={before} reduced={false} onDone={onDone} />);
+    const r = render(<FusionMerge list={list} fusedKey="h×f" host={host} foreign={foreign} pose={POSE} before={before} reduced={false} onDone={onDone} />);
     lastTimeline().seek(0.2);
     r.unmount();
     vi.advanceTimersByTime(totalMs(false) + 2000);
@@ -226,7 +229,7 @@ describe('FusionMerge', () => {
   it('找不到成品卡(理论上不会):不演、直接放行,被拖卡的松手姿态照样清掉', () => {
     const onDone = vi.fn();
     const { list, host, foreign, before } = setup(['f', 'h'], 'h', 'f');
-    render(<FusionMerge list={list} fusedKey="nope" host={host} foreign={foreign} before={before} reduced={false} onDone={onDone} />);
+    render(<FusionMerge list={list} fusedKey="nope" host={host} foreign={foreign} pose={POSE} before={before} reduced={false} onDone={onDone} />);
     expect(onDone).toHaveBeenCalled();
     expect(foreign.style.transform).toBe('');
     expect(foreign.style.zIndex).toBe('');
@@ -273,7 +276,7 @@ describe('宿主比成品卡高:揉合期间钉成宿主高度,落位时用 clip
   it('在宿主卡位里:成品卡钉成宿主高度,与宿主卡同顶同高(外边界重合),下面的卡原地不动', () => {
     const { list, els, host, foreign, fused, before } = setupTall(['h', 'below', 'f']);
     const belowBefore = before.get(els.below)!;
-    render(<FusionMerge list={list} fusedKey="h×f" host={host} foreign={foreign} before={before} reduced={false} onDone={vi.fn()} />);
+    render(<FusionMerge list={list} fusedKey="h×f" host={host} foreign={foreign} pose={POSE} before={before} reduced={false} onDone={vi.fn()} />);
     const tl = lastTimeline();
     expect(fused.style.minHeight).toBe(`${H.h}px`);
     expect(fused.offsetHeight).toBe(host.offsetHeight);
@@ -286,7 +289,7 @@ describe('宿主比成品卡高:揉合期间钉成宿主高度,落位时用 clip
 
   it('落位:可见底边由 clip-path 从宿主高度连续收到自然高度;下面的卡同步多走这段差', () => {
     const { list, host, foreign, before } = setupTall(['h', 'below', 'f']);
-    render(<FusionMerge list={list} fusedKey="h×f" host={host} foreign={foreign} before={before} reduced={false} onDone={vi.fn()} />);
+    render(<FusionMerge list={list} fusedKey="h×f" host={host} foreign={foreign} pose={POSE} before={before} reduced={false} onDone={vi.fn()} />);
     const tl = lastTimeline();
     const clip = (tl.getChildren(true, true, false) as gsap.core.Tween[]).find((t) => 'clipPath' in t.vars);
     expect(clip).toBeDefined();
@@ -298,7 +301,7 @@ describe('宿主比成品卡高:揉合期间钉成宿主高度,落位时用 clip
 
   it('撤钉那一帧不跳:撤之前与撤之后,每张卡的屏上位置逐像素相同,成品卡回到自然高度', () => {
     const { list, els, host, foreign, fused, before } = setupTall(['h', 'below', 'f']);
-    render(<FusionMerge list={list} fusedKey="h×f" host={host} foreign={foreign} before={before} reduced={false} onDone={vi.fn()} />);
+    render(<FusionMerge list={list} fusedKey="h×f" host={host} foreign={foreign} pose={POSE} before={before} reduced={false} onDone={vi.fn()} />);
     const tl = lastTimeline();
     const end = totalMs(false) / 1000;
     tl.seek(end - 0.0001);
@@ -315,7 +318,7 @@ describe('宿主比成品卡高:揉合期间钉成宿主高度,落位时用 clip
 
   it('只多动了一个 clip-path(布局属性仍一个没动)', () => {
     const { list, host, foreign, before } = setupTall(['h', 'below', 'f']);
-    render(<FusionMerge list={list} fusedKey="h×f" host={host} foreign={foreign} before={before} reduced={false} onDone={vi.fn()} />);
+    render(<FusionMerge list={list} fusedKey="h×f" host={host} foreign={foreign} pose={POSE} before={before} reduced={false} onDone={vi.fn()} />);
     const tl = lastTimeline();
     const config = new Set(['parent', 'duration', 'ease', 'immediateRender', 'data', 'overwrite', 'delay', 'lazy', 'repeat', 'startAt', 'runBackwards', 'callbackScope', 'onComplete', 'onReverseComplete', 'onCompleteParams', 'onReverseCompleteParams']);
     const animated = new Set<string>();
@@ -327,7 +330,7 @@ describe('宿主比成品卡高:揉合期间钉成宿主高度,落位时用 clip
 
   it('reduced-motion:文字到齐那一刻连同高度差一起直接就位(不移动、不裁切)', () => {
     const { list, els, host, foreign, fused, before } = setupTall(['h', 'below', 'f']);
-    render(<FusionMerge list={list} fusedKey="h×f" host={host} foreign={foreign} before={before} reduced onDone={vi.fn()} />);
+    render(<FusionMerge list={list} fusedKey="h×f" host={host} foreign={foreign} pose={POSE} before={before} reduced onDone={vi.fn()} />);
     const tl = lastTimeline();
     expect((tl.getChildren(true, true, false) as gsap.core.Tween[]).some((t) => 'clipPath' in t.vars)).toBe(false);
     tl.seek(0.3);
@@ -340,9 +343,54 @@ describe('宿主比成品卡高:揉合期间钉成宿主高度,落位时用 clip
 
   it('卸载后不留钉高与裁切', () => {
     const { list, host, foreign, fused, before } = setupTall(['h', 'below', 'f']);
-    const r = render(<FusionMerge list={list} fusedKey="h×f" host={host} foreign={foreign} before={before} reduced={false} onDone={vi.fn()} />);
+    const r = render(<FusionMerge list={list} fusedKey="h×f" host={host} foreign={foreign} pose={POSE} before={before} reduced={false} onDone={vi.fn()} />);
     lastTimeline().seek(0.6);
     r.unmount();
     expect(fused.getAttribute('style') ?? '').toBe('');
   });
 });
+
+// ── React StrictMode:effect 会 mount → cleanup → mount(刀 2c-1 返工)──────────────────────────
+// 第一版的松手姿态只活在内联样式里;cleanup 清掉它,重跑时被拖卡已回到自己的卡位,于是「在原位淡出」。
+// 真浏览器(dev 服务器)里松手后 15ms 内跳回原位,就是这一条。
+describe('StrictMode 下 effect 清理后重跑', () => {
+  it('被拖卡仍按松手姿态退场(不跳回自己的卡位)', () => {
+    const { list, host, foreign, before } = setup(['f', 'h', 'below'], 'h', 'f');
+    render(
+      <StrictMode>
+        <FusionMerge list={list} fusedKey="h×f" host={host} foreign={foreign} pose={POSE} before={before} reduced={false} onDone={vi.fn()} />
+      </StrictMode>,
+    );
+    const tl = lastTimeline();
+    expect(foreign.style.transform).toBe(POSE.transform);
+    expect(foreign.style.zIndex).toBe('30');
+    tl.seek(0.1);
+    expect(foreign.style.transform).toBe(POSE.transform);
+    expect(Number(foreign.style.opacity)).toBeGreaterThan(0);
+    expect(Number(foreign.style.opacity)).toBeLessThan(1);
+  });
+
+  it('被拖卡在宿主下面:重跑后松手姿态仍只抵消一格(不叠两次)', () => {
+    const { list, host, foreign, before } = setup(['h', 'f'], 'h', 'f');
+    render(
+      <StrictMode>
+        <FusionMerge list={list} fusedKey="h×f" host={host} foreign={foreign} pose={POSE} before={before} reduced={false} onDone={vi.fn()} />
+      </StrictMode>,
+    );
+    lastTimeline();
+    expect(foreign.style.transform).toBe(`translateY(${-GAP}px) ${POSE.transform}`);
+  });
+
+  it('成品卡仍叠在宿主卡位上、透明(重跑没有把 FLIP 抵消弄丢)', () => {
+    const { list, host, foreign, fused, before } = setup(['f', 'h', 'below'], 'h', 'f');
+    render(
+      <StrictMode>
+        <FusionMerge list={list} fusedKey="h×f" host={host} foreign={foreign} pose={POSE} before={before} reduced={false} onDone={vi.fn()} />
+      </StrictMode>,
+    );
+    lastTimeline();
+    expect(yOf(fused)).toBe(host.offsetTop - fused.offsetTop);
+    expect(fused.style.opacity).toBe('0');
+  });
+});
+

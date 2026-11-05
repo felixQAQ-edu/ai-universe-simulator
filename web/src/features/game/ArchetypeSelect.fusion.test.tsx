@@ -3,6 +3,7 @@
 //
 // 取证边界(同 hints.test):jsdom 没有布局,卡片位置逐张替死;动画观感看录屏,这里只钉
 // 「卡插在哪、带什么类、什么时候聚焦、reduced 下走没走不移动的那条路」。
+import { StrictMode } from 'react';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import gsap from 'gsap';
@@ -41,10 +42,10 @@ afterEach(() => {
 
 const worldCard = (id: (typeof ORDER)[number]) => screen.getByRole('button', { name: new RegExp(`^${NAMES[id]}`) });
 
-function setup() {
+function setup(strict = false) {
   vi.useFakeTimers();
   vi.spyOn(window, 'scrollBy').mockImplementation(() => {});
-  render(<ArchetypeSelect />);
+  render(strict ? <StrictMode><ArchetypeSelect /></StrictMode> : <ArchetypeSelect />);
   for (const id of ORDER) {
     const top = topOf(id);
     worldCard(id).getBoundingClientRect = () =>
@@ -97,6 +98,16 @@ describe('成品卡落位(选 A)', () => {
     fuse('cthulhu', 'cultivation');
     fuse('rules_creepy', 'cultivation'); // 揉合还没演完
     expect(listOrder()).toEqual(['规则怪谈', '克苏鲁', '修仙', '验讫']);
+  });
+});
+
+describe('StrictMode(dev 构建的真实挂载方式)', () => {
+  it('松手后被拖卡仍停在松手姿态上退场,不跳回自己的卡位', () => {
+    setup(true);
+    fuse('cthulhu', 'cultivation');
+    const f = worldCard('cthulhu');
+    expect(f.style.transform).not.toBe('');
+    expect(f.style.zIndex).toBe('30');
   });
 });
 

@@ -81,9 +81,13 @@ describe('抓起与提交', () => {
     expect(onCommit).toHaveBeenCalledTimes(1);
     expect(onCommit.mock.calls[0].slice(0, 2)).toEqual(['b', 'a']);
     // 第三参 = 两张卡的 DOM 节点(揉合直接在真卡上作画;卡片登记表只手势层有一份)。
-    expect(onCommit.mock.calls[0][2]).toEqual({
-      host: screen.getByTestId('b'),
-      foreign: screen.getByTestId('a'),
+    // 比身份不比结构:对 DOM 节点做深比较很慢(全量跑时超时过一次)。
+    expect(onCommit.mock.calls[0][2].host).toBe(screen.getByTestId('b'));
+    expect(onCommit.mock.calls[0][2].foreign).toBe(screen.getByTestId('a'));
+    // 松手姿态随提交一起交出去(揉合每次重跑都按它重摆)。
+    expect(onCommit.mock.calls[0][2].pose).toEqual({
+      transform: screen.getByTestId('a').style.transform,
+      zIndex: '30',
     });
   });
 
@@ -100,7 +104,7 @@ describe('抓起与提交', () => {
     act(() => void vi.advanceTimersByTime(400)); // 超过归位过渡 + 清理的时长
     expect(a.style.transform).toBe(releasePose);
     expect(a.style.zIndex).toBe('30'); // 抓起时抬的层级还在 —— 归调用方清
-    expect(a.style.transition).toBe(''); // 没有起归位过渡
+    expect(a.style.transition).toBe('none'); // 没有起归位过渡;拖动时的 .12s 平滑也关掉,屏上位置就此冻结
   });
 
   it('非法组合:落在目标上松手也不提交(玩家拖不出一个后端 400 的组合)', () => {
