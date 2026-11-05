@@ -4,11 +4,12 @@ import { useHistoryStore } from '../../state/historyStore';
 import { SAVE_LIST_VISIBLE, onSavePointersChanged, type SaveSummary } from '../../state/savePointers';
 import { describeSave } from './saveText';
 import type { ArchetypeSummary } from '../../api';
-import { classifyPair, fusionKey, isFusionAllowed, pairOf, type Rect } from './fusion/drag';
+import { classifyPair, fusionKey, isFusionAllowed, pairOf } from './fusion/drag';
 import { magnetHintText, rejectHintText } from './fusion/hints';
 import { FusionMerge } from './fusion/FusionMerge';
-import { materialOf } from './fusion/shards';
-import { useFusionDrag, type CommitRects, type HintSide } from './fusion/useFusionDrag';
+import { snapshotList, type ListSnapshot } from './fusion/crossfade';
+import { cardOrder, placeFused } from './fusion/placement';
+import { useFusionDrag, type CommitCards, type HintSide } from './fusion/useFusionDrag';
 import { cardTheme } from './theme/registry';
 import { reducedMotion } from './theme/motion';
 import styles from './game.module.css';
@@ -46,7 +47,10 @@ export function ArchetypeSelect() {
   /** 「回看上局」只跟随最近一条(ADR-034 已决 9)。 */
   const latestSaveId = saves.length > 0 ? saves[0].saveId : null;
 
-  /** 已揉出的融合组合键(纯组件 state、零持久化 —— 离开选择屏即遗忘,回来要重新拖)。 */
+  /**
+   * 已揉出的融合组合键,**新的在前**(纯组件 state、零持久化 —— 离开选择屏即遗忘,回来要重新拖)。
+   * 卡列里每张成品卡紧贴在它的宿主下方,同一宿主下新的在上(见 fusion/placement.ts)。
+   */
   const [fused, setFused] = useState<readonly string[]>([]);
   /** 正在演的那一组揉合(null = 没有)。**同时只允许一组**:它在场时手势整体停摆。 */
   const [merging, setMerging] = useState<Merging | null>(null);
@@ -54,6 +58,8 @@ export function ArchetypeSelect() {
   const [focusKey, setFocusKey] = useState<string | null>(null);
   /** 松手在非法目标上的那一句(不弹 Toast;下一次抓起或成功揉合即散)。 */
   const [rejectNote, setRejectNote] = useState<FusionHint | null>(null);
+  /** 卡列(成品卡插入与 FLIP 落位的量取范围)。 */
+  const listRef = useRef<HTMLDivElement>(null);
   /** 屏幕阅读器播报区(aria-live=polite)。直接写 DOM,只在文本变化时写 —— 见 {@link announce}。 */
   const liveRef = useRef<HTMLParagraphElement>(null);
   /** 本次手势里最后写进播报区的文本(去重依据;抓起新的一张时清空)。 */
@@ -101,25 +107,23 @@ export function ArchetypeSelect() {
     if (liveRef.current) liveRef.current.textContent = text;
   }, []);
 
-  const revealFusion = useCallback((key: string) => {
-    setFused((f) => (f.includes(key) ? f : [...f, key]));
-    setFocusKey(key);
-  }, []);
-
   const onCommit = useCallback(
-    (host: string, foreign: string, rects: CommitRects | null) => {
+    (host: string, foreign: string, cards: CommitCards | null) => {
       const key = fusionKey(host, foreign);
       setRejectNote(null);
       announce('');
-      // 量不到位置(理论上不该发生)→ 不演动画,直接给卡:入口的视觉是加分项,
-      // 「拖成了」这件事本身不能因为动画演不了就丢掉。
-      if (!rects) {
-        revealFusion(key);
+      // 成品卡**现在就**插进卡列(宿主紧下方);揉合在插入后的首帧绘制之前用 transform 把它叠回宿主卡位。
+      setFused((f) => placeFused(f, key));
+      const list = listRef.current;
+      // 量不到(理论上不该发生)→ 不演动画,卡直接出现在最终位置(ADR-019 订正 §8:兜底路径也不再有入场动画)。
+      // 入口的视觉是加分项,「拖成了」这件事本身不能因为动画演不了就丢掉。
+      if (!cards || !list) {
+        setFocusKey(key);
         return;
       }
-      setMerging({ key, host, foreign, hostRect: rects.host, foreignRect: rects.foreign });
+      setMerging({ key, host: cards.host, foreign: cards.foreign, list, before: snapshotList(list) });
     },
-    [revealFusion, announce],
+    [announce],
   );
 
   // 落在无效目标上松手 → 一句提示,放在目标卡旁(与磁吸提示同一位置体系),不挡路、不弹 Toast。
@@ -151,13 +155,16 @@ export function ArchetypeSelect() {
     enabled: merging === null,
     reduced: reducedMotion(),
   });
-  /** 揉合演完:原卡归位(被揉碎的是投影不是世界本体),融合卡落位并获得一次聚焦。 */
+  /**
+   * 揉合演完(或兜底放行):归还手势,成品卡获得一次聚焦。聚焦放在落位之后 ——
+   * 揉合中途聚焦,浏览器会按成品卡的最终布局位置滚动,而画面上它还叠在宿主卡位上。
+   */
   const onMergeDone = useCallback(() => {
     setMerging((m) => {
-      if (m) revealFusion(m.key);
+      if (m) setFocusKey(m.key);
       return null;
     });
-  }, [revealFusion]);
+  }, []);
 
   // ── 方向提示(ADR-019 实施记录)────────────────────────────────────────────
   // 磁吸提示只给 classify = ok 的目标(拖反 / 不存在在悬停时一律不说,松手才说)。
@@ -240,30 +247,38 @@ export function ArchetypeSelect() {
           </button>
         </div>
       ) : (
-        <div className={styles.cardList}>
-          {active.map((a) => (
-            <ArchetypeCard
-              key={a.archetype}
-              summary={a}
-              onChoose={() => startGame(a.archetype)}
-              drag={{
-                ref: drag.registerCard(a.archetype),
-                onPointerDown: (e) => drag.onPointerDown(a.archetype, e),
-                shouldSwallowClick: () => drag.shouldSwallowClick(a.archetype),
-                state: dragStateOf(a.archetype),
-                // 揉合期间原卡让位给覆盖层上的投影;演完即归位(不消耗)。
-                yielding: merging !== null && (merging.host === a.archetype || merging.foreign === a.archetype),
-              }}
-            />
-          ))}
-          {fused.map((key) => (
-            <FusionCard
-              key={key}
-              combo={key}
-              onChoose={() => startGame(pairOf(key))}
-              focusOnMount={focusKey === key}
-            />
-          ))}
+        <div className={styles.cardList} ref={listRef}>
+          {cardOrder(
+            active.map((a) => a.archetype),
+            fused,
+          ).map((slot) => {
+            if (slot.kind === 'fusion') {
+              return (
+                <FusionCard
+                  key={slot.key}
+                  combo={slot.key}
+                  onChoose={() => startGame(pairOf(slot.key))}
+                  focusOnMount={focusKey === slot.key}
+                />
+              );
+            }
+            const a = active.find((x) => x.archetype === slot.id)!;
+            return (
+              <ArchetypeCard
+                key={a.archetype}
+                summary={a}
+                onChoose={() => startGame(a.archetype)}
+                drag={{
+                  ref: drag.registerCard(a.archetype),
+                  onPointerDown: (e) => drag.onPointerDown(a.archetype, e),
+                  shouldSwallowClick: () => drag.shouldSwallowClick(a.archetype),
+                  state: dragStateOf(a.archetype),
+                  // 揉合期间两张原卡让位(不吃点击);演完即在原位淡回(不消耗)。
+                  yielding: merging !== null && pairOf(merging.key).includes(a.archetype),
+                }}
+              />
+            );
+          })}
           {locked.map((a) => (
             <ArchetypeCard key={a.archetype} summary={a} onChoose={() => startGame(a.archetype)} />
           ))}
@@ -280,12 +295,12 @@ export function ArchetypeSelect() {
       )}
       {merging && (
         <FusionMerge
+          list={merging.list}
+          fusedKey={merging.key}
           host={merging.host}
           foreign={merging.foreign}
-          hostRect={merging.hostRect}
-          foreignRect={merging.foreignRect}
-          // 减弱动效,或任一侧没有登记材质 → 降级(重叠 + 停顿 + 淡入,不碎裂不旋转)。
-          degraded={reducedMotion() || !materialOf(merging.host) || !materialOf(merging.foreign)}
+          before={merging.before}
+          reduced={reducedMotion()}
           onDone={onMergeDone}
         />
       )}
@@ -411,10 +426,11 @@ function FusionHintView({
 
 interface Merging {
   key: string;
-  host: string;
-  foreign: string;
-  hostRect: Rect;
-  foreignRect: Rect;
+  host: HTMLElement;
+  foreign: HTMLElement;
+  list: HTMLElement;
+  /** 插入成品卡之前量的卡列位置(FLIP 的 First)。 */
+  before: ListSnapshot;
 }
 
 /** 卡片在拖拽中的角色(纯样式令牌;差异只在样式故不开组件槽,ADR-018 §4.17)。 */
@@ -426,7 +442,7 @@ export interface CardDragBinding {
   /** 抓起后那一次 click 必须吞掉(否则松手即进世界)。 */
   shouldSwallowClick: () => boolean;
   state: CardDragState;
-  /** 揉合期间让位给覆盖层上的投影(演完归位,原卡不消耗)。 */
+  /** 揉合期间让位:不吃点击(淡出 / 淡回由揉合动画在真卡上做;演完归位,原卡不消耗)。 */
   yielding?: boolean;
 }
 
@@ -547,6 +563,7 @@ export function FusionCard({
       className={`${styles.card} ${cardTheme(combo).cardClass}`}
       onClick={onChoose}
       aria-label={card.ariaLabel}
+      data-fusion-key={combo}
     >
       <div className={styles.cardTop}>
         <h2 className={`${styles.cardTitle} ${styles.fusionTitle}`} aria-hidden="true">

@@ -544,10 +544,10 @@
   opacity: 0.72;
 }
 
-/* 揉合期间原卡让位:覆盖层在同一位置画它的投影,演完即归位 —— 原卡不消耗。
- * 用 visibility 而不是 display:留着占位,列表不会在动画中途跳一下。 */
+/* 揉合期间两张原卡让位:不吃点击(淡出 / 淡回由揉合在真卡上用 opacity 做,演完原位淡回 —— 原卡不消耗)。
+ * 原先是 visibility: hidden(那时由覆盖层画投影);现在宿主卡要被成品卡底色**盖过**,不能先藏起来。 */
 .cardYielding {
-  visibility: hidden;
+  pointer-events: none;
 }
 
 /* ── 融合方向提示(ADR-019 实施记录):磁吸「将…揉入…」/ 拖反「反过来试试…」/ 不存在,同一位置体系 ──
@@ -842,7 +842,7 @@
 
 /* ── 渗漏卡(融合入口,ADR-013):修仙青白仙气 × 规则怪谈冷蓝诡异【互噬】——
  * 两种氛围在同一张卡上抢地盘:左上是修仙的近白青光,右下是怪谈的冷蓝暗渊,中间一道撕裂接缝。
- * 初始不显,误入手势后从卡列「渗」出(fusionSeep:自中缝裂开渗现)。纯 CSS,不引动画库。 */
+ * 由拖拽揉合产出(ADR-019),入场由揉合的交叉淡化承担(见下方 .card.cardFusion 一组)。纯 CSS,不引动画库。 */
 .cardFusion {
   color: #cdd6d2;
   border-left-color: #7ea9a0; /* 青金与冷蓝之间的病态青 */
@@ -850,12 +850,15 @@
     linear-gradient(135deg, rgba(238, 244, 240, 0.16) 0%, rgba(180, 210, 196, 0.08) 34%, transparent 52%),
     linear-gradient(315deg, rgba(26, 34, 48, 0.9) 0%, rgba(20, 26, 38, 0.72) 40%, transparent 62%),
     linear-gradient(160deg, #22302c 0%, #16202a 55%, #131a26 100%);
-  transform-origin: 50% 50%;
 }
 
-/* 渗出入场:两类特异性(压过 .card:not(.cardLocked) 的 cardEnter),只跑一次。 */
-.card.cardFusion {
-  animation: fusionSeep 0.9s ease-out backwards;
+/* 融合卡**没有自己的入场动画**(ADR-019 订正 §8):揉合结束时成品卡已经在最终位置和尺寸,
+ * 再展开一次就是重复入场;兜底路径(量不到位置)卡直接出现。原 fusionSeep(竖向展开 + 整卡模糊)已删。
+ * 两类特异性:压过 .card:not(.cardLocked) 的 cardEnter —— 它的 transform 关键帧会盖住揉合落位写的 transform。 */
+.card.cardFusion,
+.card.cardFusionRenfang,
+.card.cardFusionYanqi {
+  animation: none;
 }
 
 /* 互噬氛围层:修仙云气(左上)与怪谈冷光(右下)缓慢拉锯、彼此渗透。 */
@@ -924,7 +927,7 @@
 
 /* ── 第二渗漏卡(守则即补给,ADR-014):规则怪谈冷蓝 × 末日锈土【互噬】——
  * 左上是怪谈的冷蓝灯光(灯将灭的走廊),右下是废土的锈尘(烂在锈里的世界),中缝一道撕裂接缝。
- * 复用 fusionSeep 渗出入场与 fusionTitle 三层撕裂标题机制,只换配色氛围。纯 CSS,不引动画库。 */
+ * 复用 fusionTitle 三层撕裂标题机制,只换配色氛围。纯 CSS,不引动画库。 */
 .cardFusionRenfang {
   color: #d3cec6;
   border-left-color: #8a7a68; /* 冷蓝与锈土之间的灰褐 */
@@ -932,12 +935,6 @@
     linear-gradient(135deg, rgba(140, 178, 224, 0.15) 0%, rgba(96, 130, 172, 0.08) 34%, transparent 52%),
     linear-gradient(315deg, rgba(58, 42, 28, 0.9) 0%, rgba(46, 34, 24, 0.72) 40%, transparent 62%),
     linear-gradient(160deg, #222a36 0%, #29221c 55%, #241d17 100%);
-  transform-origin: 50% 50%;
-}
-
-/* 渗出入场:两类特异性(压过 .card:not(.cardLocked) 的 cardEnter),只跑一次。 */
-.card.cardFusionRenfang {
-  animation: fusionSeep 0.9s ease-out backwards;
 }
 
 /* 互噬氛围层:怪谈冷光(左上)与末日锈尘(右下)缓慢拉锯、彼此渗透。 */
@@ -990,7 +987,7 @@
 /* ── 第三渗漏卡(验讫,ADR-035):修仙青白微金 × 克苏鲁幽绿深渊【互噬】——
  * 左上是修仙的青白仙气与金辉(满门道贺),右下是克苏鲁的幽绿深渊(台下的东西),中缝一道撕裂接缝。
  * 色值全部取自 .cardCultivation / .cardCthulhu,不另造色系。
- * 复用 fusionSeep 渗出入场与 fusionTitle 三层撕裂标题机制,只换配色氛围。纯 CSS,不引动画库。 */
+ * 复用 fusionTitle 三层撕裂标题机制,只换配色氛围。纯 CSS,不引动画库。 */
 .cardFusionYanqi {
   color: #c2d6c8;
   border-left-color: #c9a84a; /* 修仙的金;hover 时被深渊幽绿吞掉 */
@@ -998,12 +995,6 @@
     linear-gradient(135deg, rgba(236, 244, 240, 0.16) 0%, rgba(236, 244, 240, 0.08) 34%, transparent 52%),
     linear-gradient(315deg, rgba(7, 18, 26, 0.9) 0%, rgba(12, 28, 34, 0.72) 40%, transparent 62%),
     linear-gradient(160deg, #122a2a 0%, #0c1c22 55%, #07121a 100%);
-  transform-origin: 50% 50%;
-}
-
-/* 渗出入场:两类特异性(压过 .card:not(.cardLocked) 的 cardEnter),只跑一次。 */
-.card.cardFusionYanqi {
-  animation: fusionSeep 0.9s ease-out backwards;
 }
 
 /* 互噬氛围层:修仙云气与金点(左上)与克苏鲁幽光(右下)缓慢拉锯、彼此渗透。 */
@@ -1159,25 +1150,6 @@
   100% {
     transform: translateY(-42%);
     opacity: 0.8;
-  }
-}
-
-/* 渗出:自中缝裂开渗现(误入手势触发时的入场;backwards 起始态,只跑一次)。 */
-@keyframes fusionSeep {
-  0% {
-    opacity: 0;
-    transform: scaleY(0.05);
-    filter: blur(6px);
-  }
-  55% {
-    opacity: 1;
-    transform: scaleY(1.02);
-    filter: blur(1.5px);
-  }
-  100% {
-    opacity: 1;
-    transform: scaleY(1);
-    filter: blur(0);
   }
 }
 

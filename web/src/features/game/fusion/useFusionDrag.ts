@@ -16,7 +16,7 @@ import {
 // 线 B1 原型的实现整体搬入,去掉原型专有的读数条 / 调参面板 / 加长列表。
 //
 // 三个移动端要点(ADR-018 §4.20,B1 真机验过,别重踩):
-//  ① `touch-action: pan-y`(见 fusion.module.css):纵向滚动仍走浏览器原生(带惯性),
+//  ① `touch-action: pan-y`(见 game.module.css 的 .cardDraggable):纵向滚动仍走浏览器原生(带惯性),
 //     横向留给我们判定 —— 写 `none` 等于没收玩家的默认手势。
 //  ② 抓起之后靠 **非 passive 的 touchmove + preventDefault** 挡住页面滚动:
 //     `touch-action` 在触摸序列开始时就定死了,中途改它无效。监听器 pointerdown 挂上、
@@ -60,14 +60,6 @@ interface PressSession {
 /** 归位过渡时长(ms);reduced-motion 下为 0(瞬时归位)。 */
 const RETURN_MS = 260;
 
-/** 量一张卡此刻在视口里的位置(未登记 → null)。 */
-function measure(cards: Map<string, HTMLElement>, id: string): Rect | null {
-  const el = cards.get(id);
-  if (!el) return null;
-  const r = el.getBoundingClientRect();
-  return { left: r.left, top: r.top, width: r.width, height: r.height };
-}
-
 /** 清掉磁吸/排斥留下的位移(拖动卡自己除外 —— 它的 transform 由逐帧写)。 */
 function clearTargetTransforms(cards: Map<string, HTMLElement>, except: HTMLElement | null): void {
   for (const [, el] of cards) {
@@ -96,10 +88,14 @@ export interface FusionDragView {
   targetSide: HintSide | null;
 }
 
-/** 提交那一刻两张卡的视口位置(揉合动画的作画依据)。 */
-export interface CommitRects {
-  host: Rect;
-  foreign: Rect;
+/**
+ * 提交那一刻的两张卡(揉合动画直接在真卡上作画,ADR-019 订正 §6)。
+ * **被拖卡留在松手姿态**(transform / zIndex 不归位):揉合要在宿主卡位那一个盒子里接着演,
+ * 先归位再演就是先飞回原位再退场。从这一刻起它的内联样式归调用方,调用方负责清掉。
+ */
+export interface CommitCards {
+  host: HTMLElement;
+  foreign: HTMLElement;
 }
 
 const IDLE_VIEW: FusionDragView = {
@@ -115,11 +111,10 @@ export interface UseFusionDragOptions {
   canFuse: (host: string, foreign: string) => boolean;
   /**
    * 松手且可提交时回调(host 在前 —— 有序双值直接喂 init)。
-   * 第三参是两张卡此刻在视口里的位置:揉合动画要在**真卡原位**上作画,
-   * 而量位置的能力只有手势层有(卡片 DOM 登记在这里)——
-   * 调用方不必再自备一份 ref 表(那会是同一件事的第二份拷贝)。
+   * 第三参是两张卡的 DOM 节点(见 {@link CommitCards}:被拖卡此时仍在松手姿态,由调用方接管);
+   * 卡片登记表只在手势层有一份,调用方不自备第二份。任一张没登记 → null,被拖卡照常归位。
    */
-  onCommit: (host: string, foreign: string, rects: CommitRects | null) => void;
+  onCommit: (host: string, foreign: string, cards: CommitCards | null) => void;
   /**
    * 松手在**非法目标**上时回调(排斥回弹由手势层做,这里只是给一句提示的机会)。
    * 刻意在**松手**时报而不是悬停时报:悬停即报会让玩家路过一张卡就被念一句。
@@ -277,30 +272,33 @@ export function useFusionDrag({
       drag.current = null;
 
       const el = d.el;
-      const dur = reducedRef.current ? 0 : RETURN_MS;
-      el.style.transition = dur ? `transform ${dur}ms cubic-bezier(.2,.7,.3,1)` : '';
-      el.style.transform = 'translate3d(0,0,0) scale(1)';
-      window.setTimeout(() => {
-        el.style.transition = '';
-        el.style.transform = '';
-        el.style.zIndex = '';
-      }, dur + 20);
-
-      resetTargetStyles();
+      // 显式排除被拖卡:drag.current 已置空,resetTargetStyles 的「除它之外」此时认不出它,
+      // 会把松手姿态一并清掉 —— 提交路径要的正是这个姿态(见 CommitCards)。
+      clearTargetTransforms(cardEls.current, el);
       setView(IDLE_VIEW);
 
-      // 提交放在归位之后:揉合动画会自己接管两张卡的呈现。
+      // 可提交 → 被拖卡**不归位**,停在松手姿态交给揉合(见 CommitCards);其余情形照常归位。
+      const host = commit && d.targetId && d.armed && d.valid ? cardEls.current.get(d.targetId) : undefined;
+      if (!host) {
+        const dur = reducedRef.current ? 0 : RETURN_MS;
+        el.style.transition = dur ? `transform ${dur}ms cubic-bezier(.2,.7,.3,1)` : '';
+        el.style.transform = 'translate3d(0,0,0) scale(1)';
+        window.setTimeout(() => {
+          el.style.transition = '';
+          el.style.transform = '';
+          el.style.zIndex = '';
+        }, dur + 20);
+      }
+
       if (commit && d.targetId) {
         if (d.armed && d.valid) {
-          const host = measure(cardEls.current, d.targetId);
-          const foreign = measure(cardEls.current, d.id);
-          onCommitRef.current(d.targetId, d.id, host && foreign ? { host, foreign } : null);
+          onCommitRef.current(d.targetId, d.id, host ? { host, foreign: el } : null);
         } else if (!d.valid) {
           onRejectRef.current?.(d.targetId, d.id);
         }
       }
     },
-    [resetTargetStyles],
+    [],
   );
 
   const beginDrag = useCallback(() => {
