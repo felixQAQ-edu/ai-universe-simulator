@@ -114,9 +114,10 @@ export function ArchetypeSelect() {
       setRejectNote(null);
       setFused((f) => (f.includes(key) ? f : [...f, key]));
       setFocusReq((r) => ({ key, n: (r?.n ?? 0) + 1 }));
-      // 读屏播报(沿用同一个 aria-live 区与去重)。⚠️ 占位文案,待 Felix 定稿。
+      // 读屏播报(沿用同一个 aria-live 区与去重)。文案 Felix 2026-11-09 定稿;刻意不说「列表末尾」,
+      // 以后调整插入位置时,播报不会指错路(ADR-019 订正 2026-11-09 §2)。
       const name = FUSION_CARDS[key]?.titles[2];
-      if (name) announce(`已生成《${name}》`);
+      if (name) announce(`融合成功。《${name}》已加入世界列表。`);
     },
     [announce],
   );

@@ -126,10 +126,10 @@ describe('焦点与播报', () => {
     expect(document.activeElement).toBe(yanqi());
   });
 
-  it('播报区念一句「已生成《真名》」(占位文案)', () => {
+  it('播报区念一句「融合成功。《真名》已加入世界列表。」', () => {
     setup();
     fuse('cthulhu', 'cultivation');
-    expect(screen.getByTestId('fusion-live').textContent).toBe('已生成《验讫》');
+    expect(screen.getByTestId('fusion-live').textContent).toBe('融合成功。《验讫》已加入世界列表。');
   });
 
   it('StrictMode(dev 构建的挂载方式)下同样只挂一张、获得焦点', () => {
