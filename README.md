@@ -174,6 +174,7 @@ API key 只进环境变量,**绝不写进 yaml / 代码 / 提交**。
 - [ADR-033](docs/adr/ADR-033-data-stats-definitions-and-readonly-tool.md) — /data 统计口径与只读统计工具(已采纳)
 - [ADR-034](docs/adr/ADR-034-multi-save-client-pointers.md) — 多存档:客户端按键存放的存档指针(已采纳)
 - [ADR-035](docs/adr/ADR-035-third-fusion-combo-yanqi.md) — 第三组合《验讫》(cultivation × cthulhu,host=cultivation)(已采纳)
+- [ADR-036](docs/adr/ADR-036-cyberpunk-world-paidan.md) — 新世界《派单》(cyberpunk 占位 id 激活,单体,深界)(草案)
 
 ## 文档
 
