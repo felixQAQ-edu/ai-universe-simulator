@@ -913,4 +913,4 @@ reduced-motion 下融合卡标题修复(`49d7e0e`)、新生卡先停在真名、
 
 ### 9. 部署
 
-刀 2d 于 `64dc859` 部署;校勘 2026-11-09 **已用 `/actuator/info` 核对**:`build.commit = 64dc859`,`build.time = 2026-11-09T07:38:32Z`。这是当前线上版本。
+刀 2d 于 `64dc859` 由 Felix 亲手部署;校勘 2026-11-09 **已用 `/actuator/info` 核对**:`build.commit = 64dc859`,`build.time = 2026-11-09T07:38:32Z`。这是当前线上版本。
