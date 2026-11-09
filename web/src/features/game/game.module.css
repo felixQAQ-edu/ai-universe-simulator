@@ -834,6 +834,17 @@
   animation-duration: 16s; /* 云气流动更盛 */
 }
 
+/* ── 《寻常》人生模拟(ADR-020,浮世):灰蓝旧布底 + 旧靛青左缘,静态 ──
+ * 浮世视觉语言(world-catalog 第二节 (3)):不要纯白、克制、有高级感,不做糖果 UI。
+ * **只有色值**:不挂 ::before/::after、不加任何动画 / 光带 / 渐变装饰,也不写 :hover 专属效果
+ * (卡片入场渐显与 hover 微浮来自通用 .card,所有解锁卡共有,本块不新增也不覆盖)。
+ * 亮底 → 文字用深色,不随 app 明暗主题漂移(同修仙卡)。 */
+.cardLifeSim {
+  color: #2f3a40; /* 标题 */
+  border-left-color: #8a9ba3; /* 灰蓝色条 */
+  background: #eef1f2;
+}
+
 /* ── 渗漏卡(融合入口,ADR-013):修仙青白仙气 × 规则怪谈冷蓝诡异【互噬】——
  * 两种氛围在同一张卡上抢地盘:左上是修仙的近白青光,右下是怪谈的冷蓝暗渊,中间一道撕裂接缝。
  * 由拖拽揉合产出(ADR-019),松手后直接出现、没有入场动画(见下方 .card.cardFusion 一组)。纯 CSS,不引动画库。 */
@@ -1374,6 +1385,12 @@
   color: #8a6c1f;
 }
 
+/* 《寻常》亮底卡:标签字对标签底 #e2e7e9 对比度 5.04:1(WCAG AA ≥ 4.5)。 */
+.cardLifeSim .cardTag {
+  background: #e2e7e9;
+  color: #55626a;
+}
+
 /* 渗漏卡标签:病态青(两世界之间的颜色)。 */
 .cardFusion .cardTag {
   background: rgba(126, 169, 160, 0.16);
@@ -1421,6 +1438,11 @@
 
 .cardCultivation .cardTagline {
   color: #5a6862;
+}
+
+/* 《寻常》标语对卡底 #eef1f2 对比度 4.91:1(WCAG AA ≥ 4.5)。 */
+.cardLifeSim .cardTagline {
+  color: #5e6a70;
 }
 
 /* 融合卡标语:深底卡,不能回落 var(--muted)(为浅底调的灰)。各取一个原世界的标语色调亮,

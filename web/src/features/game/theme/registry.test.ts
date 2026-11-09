@@ -12,10 +12,10 @@ describe('resolveWorldTheme · 封面(原 sceneImageUrl 用例,逐条保留)', (
     expect(resolveWorldTheme('apocalypse').sceneUrl).toBe('/scenes/apocalypse.webp');
     expect(resolveWorldTheme('cthulhu').sceneUrl).toBe('/scenes/cthulhu.webp');
     expect(resolveWorldTheme('cultivation').sceneUrl).toBe('/scenes/cultivation.webp');
+    expect(resolveWorldTheme('life_sim').sceneUrl).toBe('/scenes/life_sim.webp'); // 《寻常》静态视觉刀
   });
 
   it('未配图 / 未知 / undefined → null(优雅降级,不显图)', () => {
-    expect(resolveWorldTheme('life_sim').sceneUrl).toBeNull(); // 已知未开放,暂无图
     expect(resolveWorldTheme('cyberpunk').sceneUrl).toBeNull();
     expect(resolveWorldTheme('totally_unknown').sceneUrl).toBeNull();
     expect(resolveWorldTheme(undefined).sceneUrl).toBeNull();
@@ -47,7 +47,9 @@ describe('resolveWorldTheme · 封面(原 sceneImageUrl 用例,逐条保留)', (
     expect(resolveWorldTheme(['rules_creepy', 'cultivation']).sceneUrl).toBe(
       '/scenes/rules_creepy.webp',
     );
-    expect(resolveWorldTheme(['life_sim', 'cyberpunk']).sceneUrl).toBeNull();
+    // host 已配图、组合未登记 → host 的单体图(《寻常》配图后,本例从「双无图」改成守这条)
+    expect(resolveWorldTheme(['life_sim', 'cyberpunk']).sceneUrl).toBe('/scenes/life_sim.webp');
+    expect(resolveWorldTheme(['cyberpunk', 'life_sim']).sceneUrl).toBeNull();
   });
 });
 
@@ -70,7 +72,15 @@ describe('resolveWorldTheme · 皮肤登记(feature gate,ADR-018 §4.5)', () => 
 
   it('未知 / 未开放世界 → 中性主题(不显图、中性卡、旧实现)', () => {
     expect(resolveWorldTheme('totally_unknown')).toEqual(NEUTRAL_THEME);
-    expect(resolveWorldTheme('life_sim').skin).toBeNull();
+    expect(resolveWorldTheme('cyberpunk')).toEqual(NEUTRAL_THEME);
+  });
+
+  // 《寻常》只补静态视觉(顶图 + 卡面),皮肤刻意不登记 → 局内仍走旧实现。
+  it('《寻常》life_sim 有图有卡、但不登记皮肤', () => {
+    const t = resolveWorldTheme('life_sim');
+    expect(t.sceneUrl).toBe('/scenes/life_sim.webp');
+    expect(t.cardClass).toBe(styles.cardLifeSim);
+    expect(t.skin).toBeNull();
   });
 
   // 放行标准 2:规则怪谈作 host 的融合局,在没有融合视觉签名时**纯 host 呈现**。
@@ -141,8 +151,17 @@ describe('cardTheme · 选择屏卡片氛围(收编原私有 vibeClass)', () => 
     }
   });
 
+  it('《寻常》life_sim → 自己的浮世卡 cardLifeSim,与四个基础世界的卡都不同', () => {
+    const c = cardTheme('life_sim').cardClass;
+    expect(c).toBe(styles.cardLifeSim);
+    expect(c).toBeTruthy();
+    for (const other of ['rules_creepy', 'apocalypse', 'cthulhu', 'cultivation']) {
+      expect(c).not.toBe(cardTheme(other).cardClass);
+    }
+  });
+
   it('未登记 key → 中性卡(原 vibeClass 无测试无显式降级,收编时补上)', () => {
-    expect(cardTheme('life_sim').cardClass).toBe('');
+    expect(cardTheme('cyberpunk').cardClass).toBe('');
     expect(cardTheme('totally_unknown').cardClass).toBe('');
   });
 });

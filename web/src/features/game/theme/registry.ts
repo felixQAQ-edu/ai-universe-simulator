@@ -67,6 +67,13 @@ const WORLDS: Readonly<Record<string, WorldEntry>> = {
     cardClass: styles.cardCultivation,
     skin: 'cultivation', // 刀 2:一级记忆点「一声钟鸣」挂 realm 向上跨档
   },
+  // 《寻常》(ADR-020):只补静态视觉 —— 顶图 + 浮世卡面。**皮肤不登记**(`skin: null` = 局内走旧实现),
+  // 同 ADR-020 裁定一的顺序:先验玩法再投视觉,这一刀只补到静态为止,不带记忆点与动效。
+  life_sim: {
+    sceneUrl: '/scenes/life_sim.webp',
+    cardClass: styles.cardLifeSim,
+    skin: null,
+  },
 };
 
 /**
