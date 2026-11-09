@@ -845,6 +845,15 @@
   background: #eef1f2;
 }
 
+/* ── 《动物人生》(ADR-021,浮世):淡苔绿底 + 苔绿左缘,静态 ──
+ * 与《寻常》同一种写法:**只有色值**,不挂 ::before/::after、不加任何动画 / 光带 / 渐变装饰,
+ * 也不写 :hover 专属效果(入场渐显与 hover 微浮来自通用 .card)。亮底 → 文字用深色,不随明暗主题漂移。 */
+.cardAnimalLife {
+  color: #2e3a2c; /* 标题 */
+  border-left-color: #8a9a7b; /* 苔绿色条 */
+  background: #eef2ea;
+}
+
 /* ── 渗漏卡(融合入口,ADR-013):修仙青白仙气 × 规则怪谈冷蓝诡异【互噬】——
  * 两种氛围在同一张卡上抢地盘:左上是修仙的近白青光,右下是怪谈的冷蓝暗渊,中间一道撕裂接缝。
  * 由拖拽揉合产出(ADR-019),松手后直接出现、没有入场动画(见下方 .card.cardFusion 一组)。纯 CSS,不引动画库。 */
@@ -1391,6 +1400,12 @@
   color: #55626a;
 }
 
+/* 《动物人生》亮底卡:标签字对标签底 #e2e8dc 对比度 5.18:1(WCAG AA ≥ 4.5)。 */
+.cardAnimalLife .cardTag {
+  background: #e2e8dc;
+  color: #55624f;
+}
+
 /* 渗漏卡标签:病态青(两世界之间的颜色)。 */
 .cardFusion .cardTag {
   background: rgba(126, 169, 160, 0.16);
@@ -1443,6 +1458,11 @@
 /* 《寻常》标语对卡底 #eef1f2 对比度 4.91:1(WCAG AA ≥ 4.5)。 */
 .cardLifeSim .cardTagline {
   color: #5e6a70;
+}
+
+/* 《动物人生》标语对卡底 #eef2ea 对比度 5.20:1(WCAG AA ≥ 4.5)。 */
+.cardAnimalLife .cardTagline {
+  color: #5b6857;
 }
 
 /* 融合卡标语:深底卡,不能回落 var(--muted)(为浅底调的灰)。各取一个原世界的标语色调亮,

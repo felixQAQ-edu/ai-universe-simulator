@@ -97,6 +97,24 @@ describe('SceneBanner', () => {
     expect(img!.style.backgroundPosition).toBe('100% 50%');
   });
 
+  it('有取景值:《动物人生》底图层带自己的图和取景点(78% 50%)', () => {
+    const theme = resolveWorldTheme(['animal_life']);
+    const { container } = render(
+      <SceneBanner
+        sceneUrl={theme.sceneUrl}
+        scenePosition={theme.scenePosition}
+        turn={0}
+        dangerLevel="low"
+        title="动物人生"
+        tone="贴地"
+      />,
+    );
+    const img = container.querySelector('[aria-hidden="true"][style]') as HTMLElement | null;
+    expect(img).not.toBeNull();
+    expect(img!.style.backgroundImage).toContain('/scenes/animal_life.webp');
+    expect(img!.style.backgroundPosition).toBe('78% 50%');
+  });
+
   it('无取景值:内联 style 只有 background-image,与加 prop 之前逐字节一致', () => {
     for (const archetypes of [['rules_creepy'], ['apocalypse'], ['cthulhu'], ['cultivation'], ['cultivation', 'rules_creepy']]) {
       const theme = resolveWorldTheme(archetypes);

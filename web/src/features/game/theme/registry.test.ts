@@ -13,6 +13,7 @@ describe('resolveWorldTheme · 封面(原 sceneImageUrl 用例,逐条保留)', (
     expect(resolveWorldTheme('cthulhu').sceneUrl).toBe('/scenes/cthulhu.webp');
     expect(resolveWorldTheme('cultivation').sceneUrl).toBe('/scenes/cultivation.webp');
     expect(resolveWorldTheme('life_sim').sceneUrl).toBe('/scenes/life_sim.webp'); // 《寻常》静态视觉刀
+    expect(resolveWorldTheme('animal_life').sceneUrl).toBe('/scenes/animal_life.webp'); // 《动物人生》静态视觉刀
   });
 
   it('未配图 / 未知 / undefined → null(优雅降级,不显图)', () => {
@@ -83,6 +84,16 @@ describe('resolveWorldTheme · 皮肤登记(feature gate,ADR-018 §4.5)', () => 
     expect(t.skin).toBeNull();
   });
 
+  // 《动物人生》同《寻常》那一刀:只补静态视觉,皮肤刻意不登记 → 局内仍走旧实现。
+  it('《动物人生》animal_life 有图有卡、但不登记皮肤', () => {
+    const t = resolveWorldTheme('animal_life');
+    expect(t.key).toBe('animal_life');
+    expect(t.sceneUrl).toBe('/scenes/animal_life.webp');
+    expect(t.cardClass).toBe(styles.cardAnimalLife);
+    expect(t.cardClass).toBeTruthy();
+    expect(t.skin).toBeNull();
+  });
+
   // 放行标准 2:规则怪谈作 host 的融合局,在没有融合视觉签名时**纯 host 呈现**。
   it('融合局的游戏内皮肤 = host 的皮肤(签名未实现前纯 host 呈现,ADR-018 §5 Q2)', () => {
     const renfang = resolveWorldTheme(['rules_creepy', 'apocalypse']);
@@ -130,6 +141,12 @@ describe('resolveWorldTheme · 顶图取景点 scenePosition', () => {
     expect(t.scenePosition).toBe('100% 50%');
   });
 
+  it('《动物人生》登记了取景点,随 sceneUrl 一起解析', () => {
+    const t = resolveWorldTheme('animal_life');
+    expect(t.sceneUrl).toBe('/scenes/animal_life.webp');
+    expect(t.scenePosition).toBe('78% 50%');
+  });
+
   it('未登记取景的世界不带这个键(解析结果与加字段之前逐字节一致)', () => {
     const cases: (string | string[] | undefined)[] = [
       'rules_creepy', 'apocalypse', 'cthulhu', 'cultivation',
@@ -145,6 +162,46 @@ describe('resolveWorldTheme · 顶图取景点 scenePosition', () => {
     const t = resolveWorldTheme(['life_sim', 'cyberpunk']);
     expect(t.sceneUrl).toBe('/scenes/life_sim.webp');
     expect(t.scenePosition).toBe('100% 50%');
+    // 《动物人生》作 host 同理:图和取景点一起回落,不会出现「别人的图 + 自己的取景」。
+    const a = resolveWorldTheme(['animal_life', 'cyberpunk']);
+    expect(a.sceneUrl).toBe('/scenes/animal_life.webp');
+    expect(a.scenePosition).toBe('78% 50%');
+    // 反向:foreign 是《动物人生》、host 未配图 → 不带图也不带取景点。
+    const b = resolveWorldTheme(['cyberpunk', 'animal_life']);
+    expect(b.sceneUrl).toBeNull();
+    expect(Object.prototype.hasOwnProperty.call(b, 'scenePosition')).toBe(false);
+  });
+});
+
+// 《动物人生》这一刀只加了一条登记:其余每个世界的解析结果逐字段钉死,与加登记之前完全相同。
+describe('resolveWorldTheme · 加《动物人生》后其余世界零回归', () => {
+  it('其余世界的解析结果逐字段不变', () => {
+    expect(resolveWorldTheme('rules_creepy')).toStrictEqual({
+      key: 'rules_creepy', sceneUrl: '/scenes/rules_creepy.webp', cardClass: styles.cardCreepy, skin: 'rules_creepy',
+    });
+    expect(resolveWorldTheme('apocalypse')).toStrictEqual({
+      key: 'apocalypse', sceneUrl: '/scenes/apocalypse.webp', cardClass: styles.cardApocalypse, skin: 'apocalypse',
+    });
+    expect(resolveWorldTheme('cthulhu')).toStrictEqual({
+      key: 'cthulhu', sceneUrl: '/scenes/cthulhu.webp', cardClass: styles.cardCthulhu, skin: 'cthulhu',
+    });
+    expect(resolveWorldTheme('cultivation')).toStrictEqual({
+      key: 'cultivation', sceneUrl: '/scenes/cultivation.webp', cardClass: styles.cardCultivation, skin: 'cultivation',
+    });
+    expect(resolveWorldTheme('life_sim')).toStrictEqual({
+      key: 'life_sim', sceneUrl: '/scenes/life_sim.webp', scenePosition: '100% 50%', cardClass: styles.cardLifeSim, skin: null,
+    });
+    expect(resolveWorldTheme(['cultivation', 'rules_creepy'])).toStrictEqual({
+      key: 'cultivation×rules_creepy', sceneUrl: '/scenes/fusion-shihai.webp', cardClass: styles.cardFusion, skin: 'cultivation',
+    });
+    expect(resolveWorldTheme(['rules_creepy', 'apocalypse'])).toStrictEqual({
+      key: 'rules_creepy×apocalypse', sceneUrl: '/scenes/fusion-renfang.webp', cardClass: styles.cardFusionRenfang, skin: 'rules_creepy',
+    });
+    expect(resolveWorldTheme(['cultivation', 'cthulhu'])).toStrictEqual({
+      key: 'cultivation×cthulhu', sceneUrl: '/scenes/fusion-yanqi.webp', cardClass: styles.cardFusionYanqi, skin: 'cultivation',
+    });
+    expect(resolveWorldTheme('cyberpunk')).toEqual(NEUTRAL_THEME);
+    expect(resolveWorldTheme('totally_unknown')).toEqual(NEUTRAL_THEME);
   });
 });
 
@@ -181,6 +238,15 @@ describe('cardTheme · 选择屏卡片氛围(收编原私有 vibeClass)', () => 
     expect(c).toBe(styles.cardLifeSim);
     expect(c).toBeTruthy();
     for (const other of ['rules_creepy', 'apocalypse', 'cthulhu', 'cultivation']) {
+      expect(c).not.toBe(cardTheme(other).cardClass);
+    }
+  });
+
+  it('《动物人生》animal_life → 自己的浮世卡 cardAnimalLife,与四个基础世界及《寻常》的卡都不同', () => {
+    const c = cardTheme('animal_life').cardClass;
+    expect(c).toBe(styles.cardAnimalLife);
+    expect(c).toBeTruthy();
+    for (const other of ['rules_creepy', 'apocalypse', 'cthulhu', 'cultivation', 'life_sim']) {
       expect(c).not.toBe(cardTheme(other).cardClass);
     }
   });
