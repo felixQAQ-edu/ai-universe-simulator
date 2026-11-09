@@ -14,6 +14,11 @@
 //      +「烧边段(1080–2100ms)里布局次数 ≤ MAX_LAYOUTS」(Chrome Performance.getMetrics 的 LayoutCount,
 //      守「动画期间不逐帧触发布局」;dev 稿 SVG 遮罩那一版这里是每帧一次)。
 //
+//   ④ 标志路径另判「收进卡位」段(刀 2c-2 返工):760–1300ms(从融合面挂上、即时间线 0 点起算)逐帧(CDP screencast,真实帧时间戳)取
+//      宿主卡位**之外**、被拖卡曾经占过的那条带子(卡位上 / 下沿外,左右各让 6px),与 1300ms 那一帧(被拖卡早已退净)
+//      逐行比像素均差;任何一帧任何一行超过 TUCK_DIFF 即判失败 —— 没字的深色块、灰条、第二道边框都会让这条带子变色。
+//      判据只看像素,不读实现(不认遮罩 / 变量),所以修法换了也照样能判。
+//
 // 另有一组「揉合期间单击」用例(Felix 2026-11-05 裁定):揉合进行中用真鼠标单击另一张卡、对它按回车,
 // 都不许进入世界(不许发出 /api/game/init);卡列标 aria-busy;演完之后同样的单击照常进入世界(对照)。
 //
@@ -37,6 +42,9 @@ const MAX_STEP = 30; // 标志路径交接段的单帧位移上限(px):靠拢 �
 // 实测(生产构建,480 宽):这一窗口里 3 次,全是一次性的 —— 1186 / 1204ms 收进卡位那一刻
 // (被拖卡清掉 transform / 层级、宿主隐去)与 2058ms 一次;1204–2058 之间零次。
 const MAX_LAYOUTS = 6;
+/** 收进卡位段:卡位外带子与参照帧的逐行像素均差上限(0–255)。暗卡残块对浅色底约差上百。 */
+const TUCK_WINDOW = [760, 1300];
+const TUCK_DIFF = 6;
 
 const CASES = [];
 for (const g of ['dwell', 'fast']) {
@@ -72,12 +80,16 @@ async function run(browser, c) {
     const el = [...document.querySelectorAll('button')].find((b) => b.querySelector('h2')?.textContent === name);
     window.__frames = [];
     window.__emblem = false;
+    window.__emblemAt = null; // 融合面挂上那一刻(= 揉合时间线的 0 点;页面时钟)
     new MutationObserver(() => {
-      if (document.querySelector('[data-fusion-emblem]')) window.__emblem = true;
+      if (!window.__emblem && document.querySelector('[data-fusion-emblem]')) {
+        window.__emblem = true;
+        window.__emblemAt = performance.now();
+      }
     }).observe(document.body, { childList: true, subtree: true });
     const loop = () => {
       const r = el.getBoundingClientRect();
-      window.__frames.push({ t: performance.now(), top: r.top, left: r.left, op: +getComputedStyle(el).opacity });
+      window.__frames.push({ t: performance.now(), top: r.top, bottom: r.bottom, left: r.left, op: +getComputedStyle(el).opacity });
       requestAnimationFrame(loop);
     };
     requestAnimationFrame(loop);
@@ -105,7 +117,16 @@ async function run(browser, c) {
       await page.waitForTimeout(16);
     }
   }
+  const shots = [];
+  if (emblem) {
+    cdp.on('Page.screencastFrame', (f) => {
+      shots.push({ wall: f.metadata.timestamp * 1000, data: f.data });
+      cdp.send('Page.screencastFrameAck', { sessionId: f.sessionId }).catch(() => {});
+    });
+    await cdp.send('Page.startScreencast', { format: 'png', everyNthFrame: 1 });
+  }
   const tUp = await page.evaluate(() => performance.now());
+  const wallUp = Date.now();
   await page.mouse.up();
   let burnLayouts = null;
   if (emblem) {
@@ -113,14 +134,25 @@ async function run(browser, c) {
     const l0 = await layouts();
     await page.waitForTimeout(1020);
     burnLayouts = (await layouts()) - l0;
+    await cdp.send('Page.stopScreencast');
   } else {
     await page.waitForTimeout(450);
   }
-  const { frames, merged, sawEmblem } = await page.evaluate(() => ({
-    frames: window.__frames,
-    merged: !!document.querySelector('[data-fusion-key]'),
-    sawEmblem: window.__emblem,
-  }));
+  const { frames, merged, sawEmblem, slot, t0, origin } = await page.evaluate((hostName) => {
+    const h = [...document.querySelectorAll('button')].find((b) => b.querySelector('h2')?.textContent === hostName);
+    const r = h.getBoundingClientRect();
+    return {
+      frames: window.__frames,
+      merged: !!document.querySelector('[data-fusion-key]'),
+      sawEmblem: window.__emblem,
+      t0: window.__emblemAt,
+      origin: performance.timeOrigin,
+      slot: { top: r.top, bottom: r.bottom, left: r.left, right: r.right },
+    };
+  }, NAMES[c.to]);
+  // 时间窗按揉合时间线的 0 点(融合面挂上那一刻)对齐,不按松手:松手到时间线起步之间隔着 React 提交与一次 tick,
+  // 实测约 40–50ms;按松手对齐会把停顿段末尾当成收进卡位段。
+  const tuck = emblem ? await tuckResidue(browser, shots, frames, slot, t0 ?? tUp, origin + (t0 ?? tUp)) : null;
   await ctx.close();
 
   const i0 = frames.findIndex((f) => f.t > tUp);
@@ -136,17 +168,81 @@ async function run(browser, c) {
     merged &&
     fading.length > 0 &&
     firstJump <= maxPreStep + 1 &&
-    (emblem ? sawEmblem && maxStep <= MAX_STEP && burnLayouts <= MAX_LAYOUTS : !sawEmblem && drift <= 0.5);
+    (emblem ? sawEmblem && maxStep <= MAX_STEP && burnLayouts <= MAX_LAYOUTS && tuck.ok : !sawEmblem && drift <= 0.5);
   const fmt = (f) => `${(f.t - tUp).toFixed(0).padStart(5)}ms top=${f.top.toFixed(1)} left=${f.left.toFixed(1)} op=${f.op.toFixed(2)}`;
   console.log(
     `${ok ? 'PASS' : 'FAIL'}  ${c.vw} ${NAMES[c.from]}→${NAMES[c.to]}${c.reduced ? ' reduced' : ''} [${c.g}]` +
       `  [${emblem ? '标志' : '交叉淡化'}] merged=${merged} 融合面=${sawEmblem} 松手跳=${firstJump.toFixed(1)}px(松手前单帧最大 ${maxPreStep.toFixed(1)})` +
       (emblem
-        ? ` 淡净前单帧最大=${maxStep.toFixed(1)}px 烧边段布局=${burnLayouts}`
+        ? ` 淡净前单帧最大=${maxStep.toFixed(1)}px 烧边段布局=${burnLayouts} 卡位外残块=${tuck.summary}`
         : ` 淡出期漂移=${drift.toFixed(2)}px`),
   );
   for (const f of [...pre.slice(-3), ...fading.slice(0, 3)]) console.log('      ' + fmt(f));
   return ok;
+}
+
+/**
+ * 收进卡位段的卡位外残块(判据 ④)。带子 = 被拖卡在 TUCK_WINDOW 里伸出卡位上 / 下沿的范围(按 rAF 量的屏上矩形取并集),
+ * 只算它还看得见(opacity > 0.02)的帧;内缩 2px 避开卡位自己的边线;参照 = 时间 ≥ TUCK_WINDOW[1] 的第一帧。在一个空白页的 canvas 里解码比对(不依赖外部工具)。
+ */
+async function tuckResidue(browser, shots, frames, slot, tUp, wallUp) {
+  // tUp / wallUp:时间线 0 点(页面时钟 / 墙钟 ms);screencast 时间戳是墙钟秒。
+  const [w0, w1] = TUCK_WINDOW;
+  const inWin = frames.filter((f) => f.t - tUp >= w0 && f.t - tUp <= w1 && f.op > 0.02); // 淡净后它回到自己卡位(看不见),不算
+  const below = Math.max(slot.bottom, ...inWin.map((f) => f.bottom));
+  const above = Math.min(slot.top, ...inWin.map((f) => f.top));
+  const bands = [];
+  if (below - slot.bottom > 6) bands.push([Math.ceil(slot.bottom) + 2, Math.floor(below) - 2]);
+  if (slot.top - above > 6) bands.push([Math.ceil(above) + 2, Math.floor(slot.top) - 2]);
+  const rel = shots.map((s) => ({ t: s.wall - wallUp, data: s.data }));
+  const ref = rel.find((s) => s.t >= w1);
+  const test = rel.filter((s) => s.t >= w0 && s.t < w1);
+  if (!bands.length) return { ok: true, summary: '被拖卡未伸出卡位' };
+  if (!ref || !test.length) return { ok: false, summary: `帧不足(参照=${!!ref} 窗内=${test.length})` };
+  const page = await browser.newPage();
+  const worst = await page.evaluate(
+    async ({ ref, test, bands, x0, x1 }) => {
+      const load = (d) => new Promise((ok) => { const i = new Image(); i.onload = () => ok(i); i.src = 'data:image/png;base64,' + d; });
+      const pixels = async (d) => {
+        const img = await load(d);
+        const cv = document.createElement('canvas');
+        cv.width = img.width; cv.height = img.height;
+        const g = cv.getContext('2d');
+        g.drawImage(img, 0, 0);
+        return g.getImageData(0, 0, img.width, img.height);
+      };
+      const R = await pixels(ref.data);
+      let out = { diff: 0, t: null, y: null, series: {} };
+      for (const s of test) {
+        const P = await pixels(s.data);
+        for (const [y0, y1] of bands) {
+          for (let y = y0; y <= y1; y++) {
+            let sum = 0, n = 0;
+            for (let x = x0; x <= x1; x++) {
+              const k = (y * P.width + x) * 4;
+              sum += Math.abs(P.data[k] - R.data[k]) + Math.abs(P.data[k + 1] - R.data[k + 1]) + Math.abs(P.data[k + 2] - R.data[k + 2]);
+              n += 3;
+            }
+            const d = sum / n;
+            if (d > out.diff) out = { ...out, diff: d, t: s.t, y };
+            if (d > (out.series[s.t]?.d ?? -1)) out.series[s.t] = { d: +d.toFixed(1), y };
+          }
+        }
+      }
+      return out;
+    },
+    { ref, test, bands, x0: Math.ceil(slot.left) + 6, x1: Math.floor(slot.right) - 6 },
+  );
+  await page.close();
+  if (process.env.DEBUG_TUCK) console.log('      逐帧最大行均差:', Object.entries(worst.series).map(([t, v]) => `${Math.round(t)}:${v.d}@${v.y}`).join(' '));
+  const ok = worst.diff <= TUCK_DIFF;
+  return {
+    ok,
+    summary:
+      `${worst.diff.toFixed(1)}/${TUCK_DIFF}(` +
+      (worst.t != null ? `${Math.round(worst.t)}ms, y=${worst.y}, ` : '') +
+      `带子 ${bands.map((b) => b.join('–')).join(' + ')}, ${test.length} 帧)`,
+  };
 }
 
 /** 揉合期间单击 / 回车不许进入世界;演完照常(对照)。 */
