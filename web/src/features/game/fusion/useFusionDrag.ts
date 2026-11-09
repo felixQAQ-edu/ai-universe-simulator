@@ -57,7 +57,10 @@ interface PressSession {
   abandoned: boolean;
 }
 
-/** 归位过渡时长(ms);reduced-motion 下为 0(瞬时归位)。 */
+/**
+ * 归位过渡时长(ms);reduced-motion 下为 0 = 不起这段过渡。注意不是「瞬时」:清掉内联 transition 后
+ * 卡片自带的 `transition: transform .12s`(game.module.css `.card`)仍生效,实测约 120ms 到位。
+ */
 const RETURN_MS = 260;
 
 /** 清掉磁吸/排斥留下的位移(拖动卡自己除外 —— 它的 transform 由逐帧写)。 */

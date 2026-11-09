@@ -161,7 +161,7 @@ describe('不演动画', () => {
     expect(yanqi().getAttribute('style')).toBeNull();
   });
 
-  it('reduced-motion:被拖卡瞬时回位(不起过渡),成品卡照样挂上并获得焦点', () => {
+  it('reduced-motion:被拖卡不起 260ms 回位过渡(只剩卡片自带的 .12s),成品卡照样挂上并获得焦点', () => {
     vi.spyOn(window, 'matchMedia').mockImplementation(
       (q: string) => ({ matches: q.includes('reduce'), media: q, addEventListener() {}, removeEventListener() {} }) as unknown as MediaQueryList,
     );
