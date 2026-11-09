@@ -51,12 +51,12 @@ const TEST_EMBLEM: FusionEmblem = {
   reveal: { angle: 330, kink: 10, lag: 5, soft: 8, from: 20, to: 120 },
 };
 
-function stub(el: HTMLElement, list: HTMLElement) {
+function stub(el: HTMLElement, list: HTMLElement, h = H) {
   Object.defineProperty(el, 'offsetTop', { configurable: true, get: () => Array.from(list.children).indexOf(el) * GAP });
-  Object.defineProperty(el, 'offsetHeight', { configurable: true, get: () => H });
+  Object.defineProperty(el, 'offsetHeight', { configurable: true, get: () => h });
   el.getBoundingClientRect = () => {
     const top = el.offsetTop;
-    return { top, height: H, bottom: top + H, left: 0, right: 343, width: 343, x: 0, y: top, toJSON: () => ({}) } as DOMRect;
+    return { top, height: h, bottom: top + h, left: 0, right: 343, width: 343, x: 0, y: top, toJSON: () => ({}) } as DOMRect;
   };
 }
 
@@ -68,14 +68,14 @@ function card(name: string): HTMLElement {
 }
 
 /** 卡列 [f, h, other] + 成品卡插在宿主紧下方;另挂一条 aria-hidden 的提示(不该被压暗)。 */
-function setup() {
+function setup(foreignH = H) {
   const list = document.createElement('div');
   list.getBoundingClientRect = () => ({ top: 0, left: 0, width: 343, height: 400, right: 343, bottom: 400, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect;
   document.body.appendChild(list);
   const els = Object.fromEntries(['f', 'h', 'other'].map((n) => [n, card(n)]));
   for (const n of ['f', 'h', 'other']) {
     list.appendChild(els[n]);
-    stub(els[n], list);
+    stub(els[n], list, n === 'f' ? foreignH : H);
   }
   const hint = document.createElement('p');
   hint.setAttribute('aria-hidden', 'true');
@@ -92,8 +92,8 @@ function setup() {
   return { list, host, foreign, fused, other: els.other, hint, before };
 }
 
-function mount(emblem: FusionEmblem | null, reduced = false, strict = false) {
-  const ctx = setup();
+function mount(emblem: FusionEmblem | null, reduced = false, strict = false, foreignH = H) {
+  const ctx = setup(foreignH);
   const onDone = vi.fn();
   const ui = (
     <FusionMerge list={ctx.list} fusedKey="x×y" host={ctx.host} foreign={ctx.foreign} pose={POSE} before={ctx.before} emblem={emblem} reduced={reduced} onDone={onDone} />
@@ -259,6 +259,68 @@ describe('标志路径各拍', () => {
     expect(props.has('--em-front')).toBe(true);
     expect(props.has('opacity')).toBe(true);
     expect(props.has('y')).toBe(true);
+  });
+});
+
+// 收进卡位时露出的深色块(刀 2c-2 返工,校勘 375 宽实测:被拖卡 115 高、宿主 93 高)。
+// 被拖卡露在宿主卡位外的那一截在停顿里连同字退净;遮罩两条硬边钉在卡位上 / 下沿(换算到被拖卡自身坐标)。
+describe('卡位外修剪', () => {
+  // 遮罩由时间线的 onUpdate 逐帧写:seek 第二参给 false,否则 GSAP 默认不触发回调。
+  /** 解析被拖卡上的修剪遮罩:卡位上 / 下沿在被拖卡自身坐标里的位置,与卡位外那两段的不透明度。 */
+  function trimOf(el: HTMLElement) {
+    const m = el.style.getPropertyValue('mask-image');
+    // jsdom 会把 `to bottom` 省掉、把 #000 规范成 rgb(0, 0, 0):两种写法都认。
+    const K = '(?:#000|rgb\\(0, 0, 0\\))';
+    const r = m.match(new RegExp(`rgba\\(0, 0, 0, ([\\d.]+)\\) (-?[\\d.]+)px, ${K} (-?[\\d.]+)px, ${K} (-?[\\d.]+)px, rgba\\(0, 0, 0, ([\\d.]+)\\) (-?[\\d.]+)px`));
+    if (!r) return null;
+    return { out: Number(r[1]), a: Number(r[2]), b: Number(r[4]) };
+  }
+  /** 卡位下沿在被拖卡屏上坐标里应在的位置(按 y / scale 换算,transform-origin 在中心)。 */
+  function expectedB(foreign: HTMLElement, host: HTMLElement, fH: number) {
+    const y = Number(gsap.getProperty(foreign, 'y'));
+    const k = Number(gsap.getProperty(foreign, 'scale')) || 1;
+    const top = foreign.offsetTop + y + (fH * (1 - k)) / 2;
+    return (host.offsetTop + H - top) / k;
+  }
+
+  it.each([
+    ['比宿主高(115 vs 93)', 115],
+    ['与宿主等高', H],
+    ['比宿主矮(80 vs 93)', 80],
+  ])('%s:停顿结束时卡位外那一截已退净,卡位内不动;收进卡位全程卡位外为 0', (_, fH) => {
+    const { tl, foreign, host } = mount(TEST_EMBLEM, false, false, fH);
+    tl.seek(ms(EMBLEM_BEATS.trim[0]) + 0.01, false);
+    const start = trimOf(foreign)!;
+    expect(start.out).toBeGreaterThan(0.9); // 刚开始退
+    tl.seek(ms(EMBLEM_BEATS.trim[1]), false);
+    const end = trimOf(foreign)!;
+    expect(end.out).toBe(0);
+    // 硬边正落在卡位上 / 下沿:下沿在被拖卡之内(它伸出了卡位),上沿在它上方(它的顶在卡位里)
+    expect(end.b).toBeCloseTo(expectedB(foreign, host, fH), 1);
+    expect(end.b).toBeLessThan(fH);
+    expect(end.b - end.a).toBeCloseTo(H / Number(gsap.getProperty(foreign, 'scale')), 1);
+    // 收进卡位段:被拖卡往上收,卡位下沿在它坐标里随之下移;卡位外始终是 0
+    for (const t of [EMBLEM_BEATS.tuck[0], 900, 1050, EMBLEM_BEATS.tuck[1] - 5]) {
+      tl.seek(ms(t), false);
+      const m = trimOf(foreign)!;
+      expect(m.out, `${t}ms`).toBe(0);
+      expect(m.b, `${t}ms`).toBeCloseTo(expectedB(foreign, host, fH), 1);
+    }
+  });
+
+  it('收进卡位那一刻(被拖卡已淡净)撤掉遮罩;交接段(摆正之前)不挂遮罩', () => {
+    const { tl, foreign } = mount(TEST_EMBLEM, false, false, 115);
+    tl.seek(ms(EMBLEM_BEATS.settle[1]) - 0.05, false);
+    expect(foreign.style.getPropertyValue('mask-image')).toBe('');
+    tl.seek(ms(EMBLEM_BEATS.tuck[1]) + 0.01, false);
+    expect(foreign.style.getPropertyValue('mask-image')).toBe('');
+  });
+
+  it('修剪在收进卡位、文字退、融合面盖上来之前收完', () => {
+    expect(EMBLEM_BEATS.trim[1]).toBeLessThan(EMBLEM_BEATS.tuck[0]);
+    expect(EMBLEM_BEATS.trim[1]).toBeLessThan(EMBLEM_BEATS.cardText[0]);
+    expect(EMBLEM_BEATS.trim[1]).toBeLessThan(EMBLEM_BEATS.merge[0]);
+    expect(EMBLEM_BEATS.trim[0]).toBeGreaterThanOrEqual(EMBLEM_BEATS.settle[1]); // 摆正之后才开始(不在旋转中裁)
   });
 });
 

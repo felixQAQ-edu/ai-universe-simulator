@@ -68,6 +68,8 @@ const span = ([a, b]: readonly [number, number]) => ({ at: s(a), dur: s(b - a) }
 const CLEAR = 'transform,opacity,zIndex,pointerEvents,transition,minHeight,clipPath';
 /** 标志路径额外写在成品卡上的(揭晓遮罩、光带门控)。 */
 const CARD_EMBLEM_PROPS = ['mask-image', '-webkit-mask-image', '--em-front', '--em-full', '--em-streak'];
+/** 被拖卡上的卡位外修剪遮罩(标志路径的停顿 → 收进卡位)。 */
+const TRIM_PROPS = ['mask-image', '-webkit-mask-image'];
 
 export function FusionMerge({ list, fusedKey, host, foreign, pose, before, emblem, reduced, onDone }: FusionMergeProps) {
   const doneRef = useRef(onDone);
@@ -142,7 +144,8 @@ export function FusionMerge({ list, fusedKey, host, foreign, pose, before, emble
       const z = Number.parseInt(pose.zIndex, 10) || 30;
       const H = hostBox.height;
       // 被拖卡到宿主卡位的距离(按它插入后的布局位置量,松手姿态已含插入造成的那一格)。
-      const toHost = hostBox.top - layoutBox(foreign).top;
+      const foreignBox = layoutBox(foreign);
+      const toHost = hostBox.top - foreignBox.top;
       pairTexts = [...Array.from(host.children), ...Array.from(foreign.children)];
 
       // 融合面:叠在宿主卡位那一个盒子上,带成品卡同一套卡边(外轮廓逐像素重合)。层级高于被拖卡,成品卡再高一层。
@@ -196,6 +199,34 @@ export function FusionMerge({ list, fusedKey, host, foreign, pose, before, emble
       const hd = span(B.hold);
       tl.to(foreign, { scale: HOLD_SCALE, duration: hd.dur, ease: 'sine.inOut' }, hd.at);
 
+      // 卡位外修剪(刀 2c-2 返工):被拖卡露在宿主卡位**之外**的那一截,在停顿里连同它自己的字一起退净;
+      // 卡位之内的部分不动。这样到 760 文字开始退、融合面开始盖、被拖卡开始往卡位里收时,卡位外已经什么都没有 ——
+      // 不会留下没字的深色块、淡出中的灰条,也不会在融合面下沿外再多一道卡边(校勘 375 宽实测:被拖卡 115 高、
+      // 宿主 93 高,收净那一刻仍伸出 22px)。被拖卡比宿主高 / 矮都一样:只按「卡位上下沿」裁,不看它多高。
+      // 做法:被拖卡上一道硬边 CSS mask,两条边正好落在卡位上 / 下沿(按它当前的 y / scale 换算到卡片自身坐标),
+      // 卡位外的那两段透明度由 trim.out 从 1 推到 0;每帧只写这一条样式(只重绘、不布局)。
+      const trim = { out: 1 };
+      const tr = span(B.trim);
+      const tuckStart = span(B.tuck).at;
+      const tuckEndAt = tuckStart + span(B.tuck).dur;
+      const fH = foreignBox.height;
+      const writeTrim = () => {
+        const y = Number(gsap.getProperty(foreign, 'y'));
+        const k = Number(gsap.getProperty(foreign, 'scale')) || 1;
+        const top = foreignBox.top + y + (fH * (1 - k)) / 2; // 屏上(页面坐标)上沿;transform-origin 在中心
+        const a = ((hostBox.top - top) / k).toFixed(2);
+        const b = ((hostBox.top + hostBox.height - top) / k).toFixed(2);
+        const o = `rgba(0, 0, 0, ${trim.out.toFixed(3)})`;
+        const m = `linear-gradient(to bottom, ${o} ${a}px, #000 ${a}px, #000 ${b}px, ${o} ${b}px)`;
+        foreign.style.setProperty('mask-image', m);
+        foreign.style.setProperty('-webkit-mask-image', m);
+      };
+      tl.to(trim, { out: 0, duration: tr.dur, ease: 'sine.inOut' }, tr.at);
+      tl.eventCallback('onUpdate', () => {
+        const t = tl.time();
+        if (t >= tr.at && t < tuckEndAt) writeTrim();
+      });
+
       // 标志:两张原卡文字先退 → 融合面(连同压在上面的成品卡底部那一窄条)淡入 → 被拖卡收进卡位、后段淡出。
       const ct = span(B.cardText);
       tl.to(pairTexts, { opacity: 0, duration: ct.dur, ease: 'sine.in' }, ct.at);
@@ -208,6 +239,7 @@ export function FusionMerge({ list, fusedKey, host, foreign, pose, before, emble
       const tuckEnd = tk.at + tk.dur;
       tl.set(host, { opacity: 0 }, tuckEnd);
       tl.set(foreign, { clearProps: 'transform,zIndex' }, tuckEnd);
+      tl.call(() => TRIM_PROPS.forEach((p) => foreign.style.removeProperty(p)), [], tuckEnd);
       if (foreignShift) tl.set(foreign, { y: foreignShift }, tuckEnd);
       tl.set(pairTexts, { opacity: 1 }, tuckEnd);
 
@@ -319,6 +351,7 @@ export function FusionMerge({ list, fusedKey, host, foreign, pose, before, emble
       if (dimmed.length) gsap.set(dimmed, { clearProps: 'opacity' });
       if (pairTexts.length) gsap.set(pairTexts, { clearProps: 'opacity' });
       for (const p of CARD_EMBLEM_PROPS) card.style.removeProperty(p);
+      for (const p of TRIM_PROPS) foreign.style.removeProperty(p);
       delete card.dataset.emblemReveal;
     };
   }, [list, fusedKey, host, foreign, pose, before, emblem, reduced]);
