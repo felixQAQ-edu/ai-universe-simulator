@@ -23,6 +23,11 @@ export interface WorldTheme {
   key: string;
   /** 顶部氛围图路径;未配图 → null(优雅降级:不显图、布局不塌)。 */
   sceneUrl: string | null;
+  /**
+   * 顶图取景点(CSS `background-position` 值,如 `'78% 60%'`),随 `sceneUrl` 一起解析。
+   * **可选、缺省即不带这个键** —— 未登记取景的世界解析结果与加字段之前逐字节一致,横幅照旧居中取景。
+   */
+  scenePosition?: string;
   /** 选择屏卡片氛围 class;未登记 → ''(中性卡)。 */
   cardClass: string;
   /** 新视觉皮肤 id;null = 未登记 → 旧实现(feature gate)。 */
@@ -34,6 +39,8 @@ export const NEUTRAL_THEME: WorldTheme = { key: '', sceneUrl: null, cardClass: '
 
 interface WorldEntry {
   sceneUrl: string | null;
+  /** 顶图取景点,见 {@link WorldTheme.scenePosition}。只给主体不在图中央的图登记。 */
+  scenePosition?: string;
   cardClass: string;
   skin: SkinId | null;
 }
@@ -71,6 +78,9 @@ const WORLDS: Readonly<Record<string, WorldEntry>> = {
   // 同 ADR-020 裁定一的顺序:先验玩法再投视觉,这一刀只补到静态为止,不带记忆点与动效。
   life_sim: {
     sceneUrl: '/scenes/life_sim.webp',
+    // 碗和窗在原图右侧约 74%–100% 的位置,居中取景时窄屏两样都看不到 → 靠右取景。
+    // 纵向值目前不起作用:横幅永远比图窄(图 2.67:1,横幅 ≤ 2.13:1),cover 按高度铺满,纵向没有余量可移。
+    scenePosition: '100% 50%',
     cardClass: styles.cardLifeSim,
     skin: null,
   },
@@ -130,7 +140,14 @@ export function resolveWorldTheme(
   }
 
   if (!hostEntry) return NEUTRAL_THEME;
-  return { key: host, sceneUrl: hostEntry.sceneUrl, cardClass: hostEntry.cardClass, skin: hostSkin };
+  return {
+    key: host,
+    sceneUrl: hostEntry.sceneUrl,
+    // 取景点跟着图走:只有登记了的世界才带这个键,其余世界的解析结果不多出任何字段。
+    ...(hostEntry.scenePosition ? { scenePosition: hostEntry.scenePosition } : {}),
+    cardClass: hostEntry.cardClass,
+    skin: hostSkin,
+  };
 }
 
 /** 选择屏一张卡的氛围登记(单体传 archetype id,融合卡传组合键)。未登记 → 中性。 */

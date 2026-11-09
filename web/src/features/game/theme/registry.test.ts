@@ -123,6 +123,31 @@ describe('resolveWorldTheme · 皮肤登记(feature gate,ADR-018 §4.5)', () => 
   });
 });
 
+describe('resolveWorldTheme · 顶图取景点 scenePosition', () => {
+  it('《寻常》登记了取景点,随 sceneUrl 一起解析', () => {
+    const t = resolveWorldTheme('life_sim');
+    expect(t.sceneUrl).toBe('/scenes/life_sim.webp');
+    expect(t.scenePosition).toBe('100% 50%');
+  });
+
+  it('未登记取景的世界不带这个键(解析结果与加字段之前逐字节一致)', () => {
+    const cases: (string | string[] | undefined)[] = [
+      'rules_creepy', 'apocalypse', 'cthulhu', 'cultivation',
+      ['cultivation', 'rules_creepy'], ['rules_creepy', 'apocalypse'], ['cultivation', 'cthulhu'],
+      'cyberpunk', 'totally_unknown', undefined,
+    ];
+    for (const a of cases) {
+      expect(Object.prototype.hasOwnProperty.call(resolveWorldTheme(a), 'scenePosition')).toBe(false);
+    }
+  });
+
+  it('host 有取景的未登记融合组合 → 回落 host 的图,取景点跟着图走', () => {
+    const t = resolveWorldTheme(['life_sim', 'cyberpunk']);
+    expect(t.sceneUrl).toBe('/scenes/life_sim.webp');
+    expect(t.scenePosition).toBe('100% 50%');
+  });
+});
+
 describe('cardTheme · 选择屏卡片氛围(收编原私有 vibeClass)', () => {
   it('四个已激活世界各有一套且互不相同', () => {
     const classes = ['rules_creepy', 'apocalypse', 'cthulhu', 'cultivation'].map(

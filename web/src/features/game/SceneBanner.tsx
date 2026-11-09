@@ -16,6 +16,7 @@ import styles from './game.module.css';
 
 export function SceneBanner({
   sceneUrl,
+  scenePosition,
   turn,
   dangerLevel,
   title,
@@ -24,6 +25,8 @@ export function SceneBanner({
 }: {
   /** 顶部底图路径;null = 未配图,不渲染图层(降级不塌)。 */
   sceneUrl: string | null;
+  /** 顶图取景点(CSS `background-position` 值);缺省不写进 style,沿用 `.bannerImg` 的居中取景。 */
+  scenePosition?: string;
   turn: number;
   dangerLevel: DangerLevel;
   title: string;
@@ -39,7 +42,11 @@ export function SceneBanner({
         <div
           // 空段滤掉:未登记世界的 class 属性与刀 1 之前逐字节一致。
           className={[styles.bannerImg, skin?.bannerImgClass].filter(Boolean).join(' ')}
-          style={{ backgroundImage: `url(${sceneUrl})` }}
+          // 取景点只在登记了的世界才写:没有它时内联 style 与加 prop 之前逐字节一致。
+          style={{
+            backgroundImage: `url(${sceneUrl})`,
+            ...(scenePosition ? { backgroundPosition: scenePosition } : {}),
+          }}
           aria-hidden="true"
         />
       )}

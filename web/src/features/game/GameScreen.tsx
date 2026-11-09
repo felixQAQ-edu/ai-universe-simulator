@@ -194,6 +194,7 @@ function PlayingScreen() {
 
         <SceneBanner
           sceneUrl={theme.sceneUrl}
+          scenePosition={theme.scenePosition}
           turn={turn}
           dangerLevel={world.world.dangerLevel}
           title={world.world.title}

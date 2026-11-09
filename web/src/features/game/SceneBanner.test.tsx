@@ -77,4 +77,43 @@ describe('SceneBanner', () => {
     expect(img!.style.backgroundImage).toContain('/scenes/fusion-shihai.webp');
     expect(img!.style.backgroundImage).not.toContain('/scenes/cultivation.webp');
   });
+
+  // 取景点(scenePosition):有值才写进内联 style,没有就一个字都不多写。
+  it('有取景值:底图层内联 style 带上 backgroundPosition(《寻常》靠右取景)', () => {
+    const theme = resolveWorldTheme(['life_sim']);
+    const { container } = render(
+      <SceneBanner
+        sceneUrl={theme.sceneUrl}
+        scenePosition={theme.scenePosition}
+        turn={0}
+        dangerLevel="medium"
+        title="寻常"
+        tone="克制"
+      />,
+    );
+    const img = container.querySelector('[aria-hidden="true"][style]') as HTMLElement | null;
+    expect(img).not.toBeNull();
+    expect(img!.style.backgroundImage).toContain('/scenes/life_sim.webp');
+    expect(img!.style.backgroundPosition).toBe('100% 50%');
+  });
+
+  it('无取景值:内联 style 只有 background-image,与加 prop 之前逐字节一致', () => {
+    for (const archetypes of [['rules_creepy'], ['apocalypse'], ['cthulhu'], ['cultivation'], ['cultivation', 'rules_creepy']]) {
+      const theme = resolveWorldTheme(archetypes);
+      const { container, unmount } = render(
+        <SceneBanner
+          sceneUrl={theme.sceneUrl}
+          scenePosition={theme.scenePosition}
+          turn={0}
+          dangerLevel="low"
+          title="t"
+          tone="x"
+        />,
+      );
+      const img = container.querySelector('[aria-hidden="true"][style]') as HTMLElement;
+      expect(img.getAttribute('style')).toBe(`background-image: url("${theme.sceneUrl}");`);
+      expect(img.style.backgroundPosition).toBe('');
+      unmount();
+    }
+  });
 });
