@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import styles from '../game.module.css';
-import { NEUTRAL_THEME, cardTheme, fusionEmblem, fusionKey, resolveWorldTheme } from './registry';
+import { NEUTRAL_THEME, cardTheme, fusionKey, resolveWorldTheme } from './registry';
 
 // 单一主题注册表(ADR-018 §4.1):世界判定只发生一次。
 // 封面用例整体自 scene.test.ts 迁来(原 `sceneImageUrl`,覆盖零损失);
@@ -144,41 +144,5 @@ describe('cardTheme · 选择屏卡片氛围(收编原私有 vibeClass)', () => 
   it('未登记 key → 中性卡(原 vibeClass 无测试无显式降级,收编时补上)', () => {
     expect(cardTheme('life_sim').cardClass).toBe('');
     expect(cardTheme('totally_unknown').cardClass).toBe('');
-  });
-});
-
-describe('fusionEmblem · 融合入口标志登记(ADR-019 订正 §2;刀 2c-2)', () => {
-  it('《验讫》是第一份登记', () => {
-    expect(fusionEmblem(fusionKey('cultivation', 'cthulhu'))).not.toBeNull();
-  });
-
-  it('另两对未登记 → null(揉合降级为交叉淡化);未知组合 / 单体 key → null', () => {
-    expect(fusionEmblem(fusionKey('cultivation', 'rules_creepy'))).toBeNull();
-    expect(fusionEmblem(fusionKey('rules_creepy', 'apocalypse'))).toBeNull();
-    expect(fusionEmblem(fusionKey('cthulhu', 'cultivation'))).toBeNull(); // 方向敏感
-    expect(fusionEmblem('cultivation')).toBeNull();
-    expect(fusionEmblem('')).toBeNull();
-  });
-
-  it('登记是纯数据:深拷贝(JSON 往返)后与原值相等 —— 里面没有函数', () => {
-    const e = fusionEmblem(fusionKey('cultivation', 'cthulhu'));
-    expect(JSON.parse(JSON.stringify(e))).toEqual(e);
-  });
-
-  it('《验讫》数据与 ADR-019 订正 §3 一致:168° 斜缝、62px −4°、四段笔画、冷绿一段、揭晓 348° / +16°', () => {
-    const e = fusionEmblem(fusionKey('cultivation', 'cthulhu'))!;
-    expect(e.surface.angle).toBe(168);
-    expect(e.mark.size).toBe(62);
-    expect(e.mark.rotate).toBe(-4);
-    expect(e.mark.strokes.map((s) => s.band.side)).toEqual(['top', 'left', 'right', 'bottom']);
-    // 只有重角那两条(上 / 左)在重角段先烧出一截
-    expect(e.mark.strokes.map((s) => s.lead)).toEqual([0.3, 0.3, 0, 0]);
-    expect(e.reveal).toEqual({ angle: 348, kink: 16, lag: 9, soft: 10, from: 22, to: 118 });
-    // 笔画时间窗都在烧边段之内
-    for (const s of e.mark.strokes) {
-      expect(s.burn[0]).toBeGreaterThanOrEqual(0);
-      expect(s.burn[1]).toBeLessThanOrEqual(1);
-      expect(s.burn[0]).toBeLessThan(s.burn[1]);
-    }
   });
 });

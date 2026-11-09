@@ -544,12 +544,6 @@
   opacity: 0.72;
 }
 
-/* 揉合期间两张原卡让位:不吃点击(淡出 / 淡回由揉合在真卡上用 opacity 做,演完原位淡回 —— 原卡不消耗)。
- * 原先是 visibility: hidden(那时由覆盖层画投影);现在宿主卡要被成品卡底色**盖过**,不能先藏起来。 */
-.cardYielding {
-  pointer-events: none;
-}
-
 /* ── 融合方向提示(ADR-019 实施记录):磁吸「将…揉入…」/ 拖反「反过来试试…」/ 不存在,同一位置体系 ──
  * 相对 .cardList 绝对定位,竖直居中在目标卡上沿或下沿外的卡间缝里(top 由 JS 写成卡沿,
  * 再用 ±半缝 0.425rem 推进缝中;data-side 选哪一侧)。缝 + 邻卡上下内边距 > 提示高度,
@@ -842,7 +836,7 @@
 
 /* ── 渗漏卡(融合入口,ADR-013):修仙青白仙气 × 规则怪谈冷蓝诡异【互噬】——
  * 两种氛围在同一张卡上抢地盘:左上是修仙的近白青光,右下是怪谈的冷蓝暗渊,中间一道撕裂接缝。
- * 由拖拽揉合产出(ADR-019),入场由揉合的交叉淡化承担(见下方 .card.cardFusion 一组)。纯 CSS,不引动画库。 */
+ * 由拖拽揉合产出(ADR-019),松手后直接出现、没有入场动画(见下方 .card.cardFusion 一组)。纯 CSS,不引动画库。 */
 .cardFusion {
   color: #cdd6d2;
   border-left-color: #7ea9a0; /* 青金与冷蓝之间的病态青 */
@@ -852,9 +846,9 @@
     linear-gradient(160deg, #22302c 0%, #16202a 55%, #131a26 100%);
 }
 
-/* 融合卡**没有自己的入场动画**(ADR-019 订正 §8):揉合结束时成品卡已经在最终位置和尺寸,
- * 再展开一次就是重复入场;兜底路径(量不到位置)卡直接出现。原 fusionSeep(竖向展开 + 整卡模糊)已删。
- * 两类特异性:压过 .card:not(.cardLocked) 的 cardEnter —— 它的 transform 关键帧会盖住揉合落位写的 transform。 */
+/* 融合卡**没有入场动画**(ADR-019 订正 §8;订正 2026-11-09:入口不演动画,松手后卡直接出现在已开放卡之后)。
+ * 原 fusionSeep(竖向展开 + 整卡模糊)已删。两类特异性:压过 .card:not(.cardLocked) 的 cardEnter
+ * (否则新挂上的融合卡会补播一次列表的入场错峰)。 */
 .card.cardFusion,
 .card.cardFusionRenfang,
 .card.cardFusionYanqi {
@@ -902,14 +896,6 @@
     inset 0 0 18px -4px rgba(96, 138, 190, 0.3);
 }
 
-/* 标志路径的揭晓期间(ADR-019 订正 §3;刀 2c-2):成品卡自带的斜接缝光带(::after)由 --em-streak 门控,
- * 揭晓之后才淡入。门控用 mask 而不是 opacity:光带自己的 fusionSeam 动画在写 opacity,两者会打架。
- * data-emblem-reveal 只在揉合期间由 FusionMerge 挂上,演完即撤。 */
-.card[data-emblem-reveal]::after {
-  -webkit-mask-image: linear-gradient(rgba(0, 0, 0, var(--em-streak, 1)), rgba(0, 0, 0, var(--em-streak, 1)));
-  mask-image: linear-gradient(rgba(0, 0, 0, var(--em-streak, 1)), rgba(0, 0, 0, var(--em-streak, 1)));
-}
-
 /* 融合卡标题:三层(修仙/规则怪谈/识海遗蜕)叠放同一格,CSS 轮换撕裂浮现。 */
 .fusionTitle {
   display: inline-grid;
@@ -933,11 +919,10 @@
   animation: fusionFlickerC 5.2s steps(1, end) infinite;
 }
 
-/* 「刚揉出」(ADR-019 订正 §4;刀 2c-2 改为从文字出现起算):新生融合卡的标题先**停在真名满一个标题循环**,
- * 再接进正常轮换。纯 CSS。
+/* 「刚揉出」(ADR-019 订正 §4):新生融合卡的标题先**停在真名满一个标题循环**,再接进正常轮换。纯 CSS。
  *
- * 起算点 = 成品卡文字开始浮现的时刻,由揉合路径给出、写在卡上的 --fresh-text-at(自挂载起;
- * 标志路径 3150ms / 交叉淡化 320ms / 不演 0,见 fusion/plan.ts)。T = --fresh-text-at:
+ * 起算点 T = --fresh-text-at = 0:挂载那一刻(订正 2026-11-09:入口不演动画,卡一挂上字就在;
+ * 原先由揉合路径写成 3150 / 320ms,那条路径已删)。变量保留,算式不必随起点改写:
  *   - 停驻(fusionTitleHoldOn / Off):挂载起 T + 5.2s,真名 1、另两层 0;只跑一次、不留填充;
  *   - 轮换(fusionFlicker*):延迟 T + 5.2s − 0.936s 起播,于是停驻结束那一刻轮换正走到局部 0.936s = 18%,
  *     落在真名驻留段(16%–55%)里 —— 真名 1、另两层 0,与停驻的最后一帧相同:停与转同一帧,衔接点不空帧、不跳。

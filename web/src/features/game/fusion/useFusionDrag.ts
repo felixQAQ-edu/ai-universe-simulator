@@ -88,22 +88,6 @@ export interface FusionDragView {
   targetSide: HintSide | null;
 }
 
-/**
- * 提交那一刻的两张卡(揉合动画直接在真卡上作画,ADR-019 订正 §6)。
- * **被拖卡留在松手姿态**(transform / zIndex 不归位):揉合要在宿主卡位那一个盒子里接着演,
- * 先归位再演就是先飞回原位再退场。从这一刻起它的内联样式归调用方,调用方负责清掉。
- */
-export interface CommitCards {
-  host: HTMLElement;
-  foreign: HTMLElement;
-  /**
-   * 被拖卡松手那一刻**屏上**的姿态(computed transform,冻结成内联值)与层级。
-   * 揉合每次(重新)开始都按它重摆被拖卡 —— 不能只靠「内联样式恰好还在」:React StrictMode 下 effect 会
-   * 先清理再重跑,清理会把内联样式清掉(刀 2c-1 返工:dev 环境里松手即跳回原位)。
-   */
-  pose: { transform: string; zIndex: string };
-}
-
 const IDLE_VIEW: FusionDragView = {
   draggingId: null,
   targetId: null,
@@ -117,10 +101,9 @@ export interface UseFusionDragOptions {
   canFuse: (host: string, foreign: string) => boolean;
   /**
    * 松手且可提交时回调(host 在前 —— 有序双值直接喂 init)。
-   * 第三参是两张卡的 DOM 节点(见 {@link CommitCards}:被拖卡此时仍在松手姿态,由调用方接管);
-   * 卡片登记表只在手势层有一份,调用方不自备第二份。任一张没登记 → null,被拖卡照常归位。
+   * 被拖卡与没提交的松手一样归位;入口不演动画,成品卡由调用方直接挂载(ADR-019 订正 2026-11-09)。
    */
-  onCommit: (host: string, foreign: string, cards: CommitCards | null) => void;
+  onCommit: (host: string, foreign: string) => void;
   /**
    * 松手在**非法目标**上时回调(排斥回弹由手势层做,这里只是给一句提示的机会)。
    * 刻意在**松手**时报而不是悬停时报:悬停即报会让玩家路过一张卡就被念一句。
@@ -278,42 +261,28 @@ export function useFusionDrag({
       drag.current = null;
 
       const el = d.el;
-      // 显式排除被拖卡:drag.current 已置空,resetTargetStyles 的「除它之外」此时认不出它,
-      // 会把松手姿态一并清掉 —— 提交路径要的正是这个姿态(见 CommitCards)。
-      clearTargetTransforms(cardEls.current, el);
+      const dur = reducedRef.current ? 0 : RETURN_MS;
+      el.style.transition = dur ? `transform ${dur}ms cubic-bezier(.2,.7,.3,1)` : '';
+      el.style.transform = 'translate3d(0,0,0) scale(1)';
+      window.setTimeout(() => {
+        el.style.transition = '';
+        el.style.transform = '';
+        el.style.zIndex = '';
+      }, dur + 20);
+
+      resetTargetStyles();
       setView(IDLE_VIEW);
 
-      // 可提交 → 被拖卡**不归位**,停在松手姿态交给揉合(见 CommitCards);其余情形照常归位。
-      const host = commit && d.targetId && d.armed && d.valid ? cardEls.current.get(d.targetId) : undefined;
-      let pose: CommitCards['pose'] | null = null;
-      if (host) {
-        // 冻结的是**屏上**位置,不是内联目标值:拖动时卡片自带 transition: transform .12s,
-        // 快速松手时屏上位置还落后内联值一截;之后任何一次取消过渡(量布局、GSAP 关 transition)
-        // 都会让它往前跳到内联值(真时钟实测 480 宽向前跳约 60px)。
-        const onScreen = getComputedStyle(el).transform;
-        el.style.transition = 'none';
-        if (onScreen && onScreen !== 'none') el.style.transform = onScreen;
-        pose = { transform: el.style.transform, zIndex: el.style.zIndex };
-      } else {
-        const dur = reducedRef.current ? 0 : RETURN_MS;
-        el.style.transition = dur ? `transform ${dur}ms cubic-bezier(.2,.7,.3,1)` : '';
-        el.style.transform = 'translate3d(0,0,0) scale(1)';
-        window.setTimeout(() => {
-          el.style.transition = '';
-          el.style.transform = '';
-          el.style.zIndex = '';
-        }, dur + 20);
-      }
-
+      // 提交放在归位之后。
       if (commit && d.targetId) {
         if (d.armed && d.valid) {
-          onCommitRef.current(d.targetId, d.id, host && pose ? { host, foreign: el, pose } : null);
+          onCommitRef.current(d.targetId, d.id);
         } else if (!d.valid) {
           onRejectRef.current?.(d.targetId, d.id);
         }
       }
     },
-    [],
+    [resetTargetStyles],
   );
 
   const beginDrag = useCallback(() => {

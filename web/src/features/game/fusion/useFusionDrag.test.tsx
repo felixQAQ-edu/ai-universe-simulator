@@ -56,14 +56,13 @@ function Harness({
 }
 
 /** 抓起 a(长按到点)→ 拖到 b 上(中心落进 b)→ 松手。 */
-function dragAOntoB(beforeRelease?: () => void) {
+function dragAOntoB() {
   const a = screen.getByTestId('a');
   fireEvent.pointerDown(a, { pointerId: 1, clientX: 100, clientY: 40 });
   act(() => void vi.advanceTimersByTime(200)); // 过长按 180ms → 抓起
   fireEvent.pointerMove(window, { pointerId: 1, clientX: 100, clientY: 150 }); // 位移 +110 → 中心落进 b
   act(() => void vi.advanceTimersByTime(400)); // 停留过 dwell 300ms
   fireEvent.pointerMove(window, { pointerId: 1, clientX: 100, clientY: 150 });
-  beforeRelease?.();
   fireEvent.pointerUp(window, { pointerId: 1 });
 }
 
@@ -79,32 +78,8 @@ describe('抓起与提交', () => {
     dragAOntoB();
     // 拖的是 a、落在 b 上 → host=b、foreign=a(有序双值 host 在前,ADR-013)
     expect(onCommit).toHaveBeenCalledTimes(1);
-    expect(onCommit.mock.calls[0].slice(0, 2)).toEqual(['b', 'a']);
-    // 第三参 = 两张卡的 DOM 节点(揉合直接在真卡上作画;卡片登记表只手势层有一份)。
-    // 比身份不比结构:对 DOM 节点做深比较很慢(全量跑时超时过一次)。
-    expect(onCommit.mock.calls[0][2].host).toBe(screen.getByTestId('b'));
-    expect(onCommit.mock.calls[0][2].foreign).toBe(screen.getByTestId('a'));
-    // 松手姿态随提交一起交出去(揉合每次重跑都按它重摆)。
-    expect(onCommit.mock.calls[0][2].pose).toEqual({
-      transform: screen.getByTestId('a').style.transform,
-      zIndex: '30',
-    });
-  });
-
-  it('提交时被拖卡**不归位**:停在松手姿态交给揉合(揉合在宿主卡位里接着演,ADR-019 订正 §6)', () => {
-    vi.useFakeTimers();
-    render(<Harness onCommit={vi.fn()} />);
-    const a = screen.getByTestId('a');
-    // 松手姿态(jsdom 里逐帧 rAF 不一定跑到,这里直接摆好):提交后它必须原样留着 ——
-    // 第一版清目标位移时没认出被拖卡(drag.current 已置空),把它也清了,录屏里 t=0 被拖卡就回了原位。
-    const releasePose = 'translate3d(4px, 110px, 0) scale(1.03)';
-    dragAOntoB(() => {
-      a.style.transform = releasePose;
-    });
-    act(() => void vi.advanceTimersByTime(400)); // 超过归位过渡 + 清理的时长
-    expect(a.style.transform).toBe(releasePose);
-    expect(a.style.zIndex).toBe('30'); // 抓起时抬的层级还在 —— 归调用方清
-    expect(a.style.transition).toBe('none'); // 没有起归位过渡;拖动时的 .12s 平滑也关掉,屏上位置就此冻结
+    // 只交出有序双值;入口不演动画,不再交两张卡的位置 / 节点(ADR-019 订正 2026-11-09)。
+    expect(onCommit).toHaveBeenCalledWith('b', 'a');
   });
 
   it('非法组合:落在目标上松手也不提交(玩家拖不出一个后端 400 的组合)', () => {
@@ -124,12 +99,17 @@ describe('抓起与提交', () => {
     expect(onReject).toHaveBeenCalledExactlyOnceWith('b', 'a');
   });
 
-  it('没提交的松手归位:卡片不残留 transform / zIndex(否则下一次拖拽从歪的位置起手)', () => {
+  it('提交后被拖卡沿原有回位过渡归位,不残留 transform / zIndex(否则下一次拖拽从歪的位置起手)', () => {
     vi.useFakeTimers();
-    render(<Harness onCommit={vi.fn()} canFuse={() => false} />);
+    const onCommit = vi.fn();
+    render(<Harness onCommit={onCommit} />);
     dragAOntoB();
-    act(() => void vi.advanceTimersByTime(400)); // 归位过渡 + 清理
+    expect(onCommit).toHaveBeenCalledTimes(1); // 走的是提交路径
     const a = screen.getByTestId('a');
+    // 松手那一刻:起了 260ms 的回位过渡(与没提交的松手同一段),没有停在松手姿态
+    expect(a.style.transition).toContain('260ms');
+    expect(a.style.transform).not.toContain('scale(1.03)'); // 拖动姿态没被冻结
+    act(() => void vi.advanceTimersByTime(400)); // 归位过渡 + 清理
     expect(a.style.transform).toBe('');
     expect(a.style.zIndex).toBe('');
   });
