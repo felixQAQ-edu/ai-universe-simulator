@@ -68,7 +68,10 @@ class StoreMigrationToolGateTest {
 
 	@Test
 	void repoPathIsRefusedEvenWhenItIsWrittenRelativeAndUnnormalized() throws IOException {
-		Path sneaky = tmp.resolve("../" + tmp.getFileName() + "/../../" ).resolve(repoRoot().toString().substring(1));
+		// 先下到临时目录自身(../<自己>),再向上爬到根:层数按 tmp 的深度算,不假设「往上两级即根」
+		// (Linux 的 /tmp/junit… 深 2 级,macOS 的 /var/folders/…/T/junit… 更深)。路径保持相对写法且不规范化。
+		String upToRoot = "../".repeat(tmp.getNameCount());
+		Path sneaky = tmp.resolve("../" + tmp.getFileName() + "/" + upToRoot).resolve(repoRoot().toString().substring(1));
 		String[] r = run(args("import", sneaky), MigrationPathGate.strict());
 		assertThat(r[0]).isEqualTo("1");
 		assertThat(r[1]).contains("在仓库目录之内");
