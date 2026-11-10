@@ -504,6 +504,31 @@ state 里加一个班次字段,由模型提议「本班结束」、引擎落账,
 - 「不写政治隐喻、不写真实品牌和地名」提升为全局约束(进 world-gen / 回合骨架,对所有世界生效)。
 - 《寻常》《动物人生》要不要也登记 `fixedWorldTitle`(它们目前世界名由模型自由起,《动物人生》冒烟出过「屋里的灯」)。
 
+## 实施记录
+
+### Slice A · 单体按回合注入接缝(2026-11-10,基于 `4178284`,实现 commit `bbdb37c`,分支 `phase4/adr-036-slice-a` 待合并)
+
+**纯机制,不含本世界内容**。勘察与本 ADR 勘察 1 一致(`fusionTurnClock` 首行「非融合 → 空串」,形状可照抄),未发现冲突。
+
+- **表**:`TurnPromptBuilder.SINGLE_TURN_CLOCK : Map<String, IntFunction<String>>`,archetype → 按本回合序号 n(= `state.turn` + 1)给的一段文字。
+  **本刀为空表,不登记任何世界**(《派单》的时钟函数在 Slice D 登记)。收什么的判据(方案 D 缺点 / 已知代价 6)写进了表的类注释。
+- **注入点**:`singleTurnClock`,与 `fusionTurnClock` 同位(状态档 / 局面段之后、「请推进第 n 回合」之前)。
+  **互斥**:单体局只查单体表、融合局只查融合表;融合局的 host / foreign 即使登在单体表里也拿不到。
+- **测试口**:新增包内构造器 `TurnPromptBuilder(registry, table)` 换表,只供测试;公开构造器加 `@Autowired`(两个构造器并存时 Spring 不再自动挑)。
+- **不动**:schema(仍 `"0.4"`)、引擎、`ArchetypeRegistry`、提示词资产(`prompts/` 无对应段,本刀无文字可 lockstep)。
+
+**单测** `SingleTurnClockSeamTest`(6 例):① 生产表为空;只登一个世界时其余五个单体世界 × 8 个回合号逐字节不变;登在不存在的 id 上的时钟永不被查到(未激活 id 回落 `rules_creepy`);
+② 所有激活世界都登假时钟时,三个融合组合 × 8 个回合号仍与生产逐字节相同;修仙 / 克苏鲁单体局不出《验讫》融合时钟(反向对照:融合局确实有);
+③ 假时钟在指定回合号出现,且「与未登记时的唯一差别 = 在『请推进第 n 回合』之前插入该段」。
+反向验证:临时拿掉互斥守卫,② 当场变红(已还原)。
+
+**「假世界」的口径**:registry 没有测试注入口(加一个超出本刀),故假时钟登在**已激活的 id** 上(测试构造器换表),没有往 registry 塞假 archetype。
+
+**零回归**:改动前后各导出一次六个单体世界 + 三个融合组合 × 回合号 {1, 4, 7, 11, 26, 27, 28, 31} 共 72 份回合提示词,`diff -r` 全等。
+后端 `mvn test` 877 例:876 绿 / 1 红 —— 红的是 `StoreMigrationToolGateTest.repoPathIsRefusedEvenWhenItIsWrittenRelativeAndUnnormalized`,
+**在 `main`(`4178284`)上同样失败**,与本刀无关(测试按「临时目录往上两级即根」拼路径,macOS 的 `/var/folders/…/T/` 层级更深,拼出的路径不存在)。
+golden parity(`EngineGoldenTest` / `TransformParityTest` / `ValidatorParityTest` / `AnimalLifeLegacyGoldenTest`)全绿。
+
 ## 实际效果(事后补充)
 
 *Slice E 冒烟时回填:三夜时钟与注入的一致率;第 27 回合出结局的比例;停派是否由引擎按「评分」命中、标杆是否被模型如期提议;`world.title` 是否为「派单」;记忆点「跨档 ↔ 播报」一致率;来源前缀格式稳定性。*
