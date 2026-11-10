@@ -119,8 +119,9 @@ class PaidanRegistryTest {
 		assertThat(axis("profile").behaviorHint()).contains("开启腿的超频").contains("刷机").doesNotContain("联网义体")
 				.doesNotContain("改装头盔");
 		assertThat(axis("rating").behaviorHint()).contains("刷机被查到时下降").doesNotContain("改装头盔");
-		assertThat(axis("cash").behaviorHint()).contains("出租神经接口的算力").contains("交月供").contains("远程降速")
-				.doesNotContain("租义体");
+		assertThat(axis("cash").behaviorHint()).contains("出租神经接口的算力").contains("远程降速")
+				.contains("月供在第三夜收工时和房租一起结算,夜班途中不单独扣。")
+				.doesNotContain("租义体").doesNotContain("交月供");
 		assertThat(axis("hp").behaviorHint()).contains("腿被降速时下降得更快").contains("回不满");
 		assertThat(m.ruleForm()).contains("刷机").doesNotContain("改装头盔");
 	}

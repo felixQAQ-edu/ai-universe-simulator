@@ -127,7 +127,11 @@ class PaidanTurnTest {
 	void directiveCarriesCyberBackdropCorrection() {
 		String d = TurnPromptBuilder.PAIDAN_TURN_DIRECTIVE;
 		assertThat(d).contains("【底色 · 每回合硬要求】叙事里至少出现一样今天还不存在的物件或现象,而且必须和这一单有关")
-				.contains("不能只是背景")
+				.contains("不能只是背景。一样就够,最多两样;不要把下面的取材挨个写进去。"
+						+ "你自己的机械腿和义眼不算,要的是这一单的路上、门口或顾客那里的东西。")
+				.doesNotContain("以及你自己的机械腿和义眼")
+				.contains("余钱随完单、打赏上涨,随吃饭、换电、修车、找黑诊所下降。").doesNotContain("交月供")
+				.contains("月供在第三夜收工时和房租一起结算,夜班途中不单独扣。")
 				.contains("一双机械腿是平台入职方案装的义体,按月分期;腿记录每一步,画像就长在腿上")
 				.contains("派单音直接响在脑子里")
 				.contains("余钱 80 是房租加这期义体月供").contains("腿被远程降速:体力掉得更快,爬楼要靠手撑栏杆")

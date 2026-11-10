@@ -785,6 +785,11 @@ world-gen 指令槽与回合指令槽两处同步改。**勘察 6 / 决策 9 原
 **零回归**:九份既有 world-gen 提示词(截到种子行前)与 90 份既有回合提示词快照逐字节相同(`PaidanWorldGenTest` ① / `PaidanTurnTest` ① 守护,快照未改);
 后端 `mvn test` **906 例全绿**(904 + 2);golden parity 四件(`EngineGoldenTest` / `TransformParityTest` / `ValidatorParityTest` / `AnimalLifeLegacyGoldenTest`)全绿。前端未改,未跑。
 
+**补一刀(同分支追加 commit,Felix 2026-11-10)**:① 余钱中途下降项删「交月供」(余钱行为提示与回合槽「送达裁决」),两处补「月供在第三夜收工时和房租一起结算,夜班途中不单独扣。」——
+避免月供在途中与收工各扣一次、把余钱打进空档误触降速;降速线保持 20(空档)不变,已经 Felix 确认。② 回合槽「底色 · 每回合硬要求」限定「一样就够,最多两样;不要把取材挨个写进去;
+机械腿和义眼不算,要这一单的路上、门口或顾客那里的东西」,取材清单删去「你自己的机械腿和义眼」。`prompts/event-loop.md` v1.8.2 同步;`PaidanRegistryTest` / `PaidanTurnTest` 断言随文字更新
+(cash 提示与回合槽加 `doesNotContain("交月供")`)。`mvn test` 906 全绿,既有世界快照与 golden parity 四件不变。
+
 **仍不得部署**:合并后 Felix 再玩一局对比(看味道是否出来、tone 是否成了介绍句、每回合是否有一样「今天没有」且与这一单有关的物件、降速与出租算力是否兑现到数值)。
 
 ## 实际效果(事后补充)
