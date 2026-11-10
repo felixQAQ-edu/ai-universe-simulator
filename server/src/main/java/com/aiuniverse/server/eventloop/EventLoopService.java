@@ -418,6 +418,7 @@ public class EventLoopService implements TurnExecutor {
 			Consumer<List<String>> afterLanding) {
 		Engine engine = session.engine();
 		clampClosingVigorFloor(session, parsed);
+		checkPaidanEnding(session, parsed);
 		List<String> leak = engine.apply(parsed, actionId);
 		// ADR-028 §已决 A 第 7 条:局面 / 处境写入与落地同一时刻 —— 紧跟 apply,排在任何 sink 写之前
 		// (已落地未送达 → ADR-027 补写盘带走的快照里已是新状态;未落地 → 这里根本没跑到,什么都没写)。
@@ -730,6 +731,35 @@ public class EventLoopService implements TurnExecutor {
 				+ "->" + fmtVigor(CLOSING_VIGOR_FLOOR));
 		log.warn("[event-loop] save={} T{} 收束阶段气力 {} 低于下限 {},已钳制(§8 兜底)",
 				session.saveId(), nextTurn, fmtVigor(proposed), fmtVigor(CLOSING_VIGOR_FLOOR));
+	}
+
+	/**
+	 * 《派单》结局核对(ADR-036「订正(2026-11-10 二)」订正 1):落账前按本回合 stateUpdate 落账后的数值改写
+	 * {@code parsed.ending},判定表见 {@link PaidanEndingCheck}。只对单体《派单》生效,其余世界原路径、一行不碰。
+	 * 与 {@link #clampClosingVigorFloor} 同一落点与形状:改写 {@code parsed} 而不动 Engine;改判记 INFO + 引擎 issue
+	 * (随存档落盘,冒烟后可直接读)。
+	 */
+	private void checkPaidanEnding(GameSession session, ObjectNode parsed) {
+		Engine engine = session.engine();
+		if (engine.world().path("archetypes").size() != 1 || !PaidanEndingCheck.ARCHETYPE.equals(archetypeOf(engine))) {
+			return;
+		}
+		PaidanEndingCheck.Result r = PaidanEndingCheck.check(engine, parsed);
+		if (r == null) {
+			return;
+		}
+		int nextTurn = engine.turn() + 1;
+		if (r.skipped()) {
+			log.warn("[event-loop] save={} T{} 《派单》结局核对:判定 {} 不在本局结局池里,不改写(原提议 {})",
+					session.saveId(), nextTurn, r.verdict(), r.proposed());
+			return;
+		}
+		if (r.changed()) {
+			String from = r.proposed() == null ? "无" : r.proposed();
+			String to = r.verdict() == null ? "无(本回合继续或交触底兜底)" : r.verdict();
+			log.info("[event-loop] save={} T{} 《派单》结局核对改判:{} → {}", session.saveId(), nextTurn, from, to);
+			engine.recordIssue("T" + nextTurn + " 结局核对改判 " + from + " → " + to);
+		}
 	}
 
 	private static String fmtVigor(double v) {

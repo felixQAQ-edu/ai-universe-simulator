@@ -88,6 +88,7 @@ class PaidanTurnTest {
 		slot.forEach((n, s) -> {
 			String head = "\n\n【本回合时段】" + s + "(本局第 " + n + " 回合)。叙事与 timeline 都按这个时段写,不要提前或拖后。";
 			String tail = n == 27 ? "\n本回合必须给出结局。好结局重叠时按这个先后取:把话传下去 > 卡点的人 > 交上了 > 差一点。"
+					+ TurnPromptBuilder.PAIDAN_FINAL_TABLE
 					: n == 28 ? "\n本回合必须给出结局。" : "";
 			assertThat(TurnPromptBuilder.paidanTurnClock(n)).as("T" + n).isEqualTo(head + tail);
 		});
@@ -97,13 +98,22 @@ class PaidanTurnTest {
 	void clockNeverLeaksEndingConditionsAndOnlyTurn26IsLastOrder() {
 		for (int n = 1; n <= 40; n++) {
 			String c = TurnPromptBuilder.paidanTurnClock(n);
-			assertThat(c).as("T" + n).doesNotContain("画像").doesNotContain("评分").doesNotContain("余钱")
-					.doesNotContain("体力").doesNotContain("became_benchmark");
+			if (n != 27) { // 订正二:只有第 27 回合带结局判定表
+				assertThat(c).as("T" + n).doesNotContain("画像").doesNotContain("评分").doesNotContain("余钱")
+						.doesNotContain("体力").doesNotContain("判定");
+			}
+			assertThat(c).as("T" + n).doesNotContain("became_benchmark").doesNotContain("isTrue");
 			assertThat(c.contains("本班最后一单")).as("T" + n).isEqualTo(n == 26);
 			assertThat(c.contains("本回合必须给出结局")).as("T" + n).isEqualTo(n >= 27);
 			assertThat(c.contains("好结局重叠")).as("T" + n).isEqualTo(n == 27);
 		}
 		assertThat(TurnPromptBuilder.PAIDAN_FINAL_TURN).isEqualTo(27);
+		// 订正二:第 27 回合的判定表 —— 简报要求的原句 + 与服务端核对同一张表。
+		assertThat(TurnPromptBuilder.paidanTurnClock(27))
+				.contains("先落本回合 stateUpdate,再按表判定;余钱不到 80 不得写成交上了,叙事要和结局一致。")
+				.contains("· 体力或评分归零:倒在楼道里 / 停派;").contains("· 画像 ≥ 95:成了标杆;")
+				.contains("· 把话传下去:体力大于 0,余钱 ≥ 50,已识破至少 2 条以「【群里说】」开头的假规则,且已在叙事中当面告诉了另一个跑腿员;")
+				.contains("· 卡点的人:余钱 ≥ 60 且画像 ≤ 40;").contains("· 交上了:余钱 ≥ 80;").contains("· 差一点:以上都不成立。");
 	}
 
 	// ③ 回合指令槽 ─────────────────────────────────────────────────────
@@ -111,7 +121,7 @@ class PaidanTurnTest {
 	@Test
 	void directiveCarriesVerdictsMemoryLineOffShiftRuleAndBenchmark() {
 		String d = TurnPromptBuilder.PAIDAN_TURN_DIRECTIVE;
-		assertThat(d).contains("提前送达:画像上涨").contains("卡点送达:画像不变").contains("超时送达:评分下降,余钱被扣")
+		assertThat(d).contains("提前送达:画像上涨").contains("卡点送达:画像不变").contains("超时送达:评分下降,余钱只 +1")
 				.contains("开启腿的超频")
 				.contains("「已为你优化时限。」").contains("向上越过 30 或 60").contains("这句话绝不出现")
 				.contains("【收工回合】选项里不出现接单").contains("睡觉回体力")
@@ -130,7 +140,7 @@ class PaidanTurnTest {
 				.contains("不能只是背景。一样就够,最多两样;不要把下面的取材挨个写进去。"
 						+ "你自己的机械腿和义眼不算,要的是这一单的路上、门口或顾客那里的东西。")
 				.doesNotContain("以及你自己的机械腿和义眼")
-				.contains("余钱随完单、打赏上涨,随吃饭、换电、修车、找黑诊所下降。").doesNotContain("交月供")
+				.doesNotContain("交月供")
 				.contains("月供在第三夜收工时和房租一起结算,夜班途中不单独扣。")
 				.contains("一双机械腿是平台入职方案装的义体,按月分期;腿记录每一步,画像就长在腿上")
 				.contains("派单音直接响在脑子里")
@@ -153,7 +163,63 @@ class PaidanTurnTest {
 			String p = builder.buildTurnPrompt(engine(List.of("cyberpunk"), m.attributes(), t), "A", "测试行动");
 			assertThat(p).as("T" + n).containsOnlyOnce(TurnPromptBuilder.PAIDAN_TURN_DIRECTIVE.strip())
 					.containsOnlyOnce("\n\n【本回合时段】")
-					.contains(TurnPromptBuilder.paidanTurnClock(n) + "\n\n请推进第 " + n + " 回合。");
+					.contains(TurnPromptBuilder.paidanTurnClock(n) + TurnPromptBuilder.PAIDAN_LEG_NORMAL
+							+ "\n\n请推进第 " + n + " 回合。");
+		}
+	}
+
+	// ⑤ 订正二:经济数字、腿况注入、黑诊所口径 ───────────────────────────
+
+	@Test
+	void directiveCarriesFixedEconomyNumbers() {
+		String d = TurnPromptBuilder.PAIDAN_TURN_DIRECTIVE;
+		assertThat(d).contains("提前送达:画像上涨,评分可能上涨,余钱 +6")
+				.contains("卡点送达:画像不变,余钱 +4")
+				.contains("超时送达:评分下降,余钱只 +1(超时款已经扣过)")
+				.contains("偶尔有打赏:余钱另加 +2~4")
+				.contains("吃饭 −2,换电 −3,修车 −4~6,找黑诊所(修腿或刷机)−12~18")
+				.contains("选了出租算力:余钱 +8~12")
+				.contains("每个夜班回合送达都必须按上面的数落余钱,不得不变。");
+		assertThat(registry.meta("cyberpunk").attributes().get(1).behaviorHint())
+				.contains("提前 +6,卡点 +4").contains("超时 +1").contains("打赏另加 +2~4").contains("+8~12")
+				.contains("吃饭 −2,换电 −3,修车 −4~6,找黑诊所(修腿或刷机)−12~18");
+	}
+
+	@Test
+	void clinicCannotLiftTheRemoteSlowdown() {
+		assertThat(TurnPromptBuilder.PAIDAN_TURN_DIRECTIVE)
+				.contains("腿有没有被降速,以每回合注入的【腿况】为准")
+				.contains("解除降速只能靠余钱回到 20 以上,没有别的办法")
+				.contains("黑诊所的义体医生解不开平台的远程降速,只能修磕坏的腿、能刷机")
+				.doesNotContain("能解锁被降速的腿");
+		assertThat(registry.meta("cyberpunk").worldview()).contains("他解不开平台的远程降速,降速只有余钱回到 20 以上才解除")
+				.doesNotContain("能解锁被降速的腿");
+	}
+
+	@Test
+	void legStatusFollowsCashAtTurnStart() {
+		ArchetypeMeta m = registry.meta("cyberpunk");
+		Map<Integer, String> expected = Map.of(0, TurnPromptBuilder.PAIDAN_LEG_SLOWED, 20, TurnPromptBuilder.PAIDAN_LEG_SLOWED,
+				21, TurnPromptBuilder.PAIDAN_LEG_NORMAL, 80, TurnPromptBuilder.PAIDAN_LEG_NORMAL);
+		expected.forEach((cash, line) -> {
+			Engine e = engine(List.of("cyberpunk"), m.attributes(), 10, cash);
+			assertThat(TurnPromptBuilder.paidanLegStatus(e)).as("余钱 " + cash).isEqualTo(line);
+			String p = builder.buildTurnPrompt(e, "A", "测试行动");
+			assertThat(p).as("余钱 " + cash).containsOnlyOnce(line)
+					.contains(TurnPromptBuilder.paidanTurnClock(11) + line + "\n\n请推进第 11 回合。");
+		});
+		assertThat(TurnPromptBuilder.PAIDAN_LEG_SLOWED)
+				.isEqualTo("\n【腿况】这期月供不够,腿处于远程降速:体力掉得更快,爬楼要手撑栏杆。");
+		assertThat(TurnPromptBuilder.PAIDAN_LEG_NORMAL).isEqualTo("\n【腿况】腿没有被降速,不得写降速。");
+	}
+
+	@Test
+	void legStatusNeverAppearsInOtherWorlds() {
+		for (ArchetypeMeta m : registry.activeMetas()) {
+			if (!m.id().equals("cyberpunk")) {
+				assertThat(builder.buildTurnPrompt(engine(List.of(m.id()), m.attributes(), 10), "A", "测试行动"))
+						.as(m.id()).doesNotContain("【腿况】");
+			}
 		}
 	}
 
@@ -177,6 +243,11 @@ class PaidanTurnTest {
 		}
 		// 订正本身:「投诉」不再列为禁用词,只在题材边界那一句约束里出现。
 		assertThat(TurnPromptBuilder.PAIDAN_TURN_DIRECTIVE).doesNotContain("讨薪、投诉");
+		for (String leg : List.of(TurnPromptBuilder.PAIDAN_LEG_SLOWED, TurnPromptBuilder.PAIDAN_LEG_NORMAL)) {
+			for (String w : BANNED) {
+				assertThat(leg).as("腿况").doesNotContain(w);
+			}
+		}
 		for (int n = 1; n <= 30; n++) {
 			String c = TurnPromptBuilder.paidanTurnClock(n);
 			for (String w : BANNED) {
@@ -190,6 +261,12 @@ class PaidanTurnTest {
 		String md = Files.readString(repoRoot().resolve("prompts/event-loop.md"), StandardCharsets.UTF_8);
 		assertThat(md).contains("```\n" + TurnPromptBuilder.PAIDAN_TURN_DIRECTIVE.strip() + "\n```");
 		assertThat(md).contains("本回合必须给出结局。好结局重叠时按这个先后取:" + TurnPromptBuilder.PAIDAN_GOOD_ENDING_ORDER + "。");
+		for (String line : TurnPromptBuilder.PAIDAN_FINAL_TABLE.split("\n")) {
+			if (!line.isBlank()) {
+				assertThat(md).as("判定表").contains(line);
+			}
+		}
+		assertThat(md).contains(TurnPromptBuilder.PAIDAN_LEG_SLOWED.strip()).contains(TurnPromptBuilder.PAIDAN_LEG_NORMAL.strip());
 	}
 
 	/** 剔掉三处允许出现禁用词的地方:「【世界名】」一条、「不要这样写」反例行、「【禁用词 · 本世界】」一段。 */
@@ -234,6 +311,11 @@ class PaidanTurnTest {
 
 	/** 与快照生成时完全相同的最小存档:各轴 50,state.turn = 给定值。 */
 	private Engine engine(List<String> ids, List<AttributeAxis> axes, int turn) {
+		return engine(ids, axes, turn, 50);
+	}
+
+	/** 同上,但各轴初值 = {@code value}(腿况按余钱算,测试用它调余钱)。 */
+	private Engine engine(List<String> ids, List<AttributeAxis> axes, int turn, int value) {
 		ObjectNode world = mapper.createObjectNode();
 		world.put("schemaVersion", "0.4");
 		world.put("mode", ids.size() == 1 ? "single" : "hybrid");
@@ -241,7 +323,7 @@ class PaidanTurnTest {
 		ids.forEach(arr::add);
 		world.putObject("world").put("title", "测").put("background", "测").put("dangerLevel", "high").put("tone", "测");
 		ObjectNode attrs = world.putObject("character").putObject("attributes");
-		axes.forEach(a -> attrs.put(a.key(), 50));
+		axes.forEach(a -> attrs.put(a.key(), value));
 		world.putArray("rules");
 		world.putArray("endings").addObject().put("id", "x_end").put("title", "终").put("condition", "测")
 				.put("outcome", "neutral").put("reached", false);

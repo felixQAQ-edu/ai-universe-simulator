@@ -131,7 +131,7 @@ public class WorldGenService {
 		String raw = call(prompt); // 主调用(开 json_object)
 
 		List<String> errors = new ArrayList<>();
-		ObjectNode parsed = tryParse(raw, errors);
+		ObjectNode parsed = tryParse(archetypes, raw, errors);
 		if (parsed != null) {
 			return FixedWorldTitle.apply(archetypes, prompts.registry(), EndingOrder.apply(archetypes, parsed));
 		}
@@ -143,7 +143,7 @@ public class WorldGenService {
 		String raw2 = call(repairPrompt);
 
 		List<String> errors2 = new ArrayList<>();
-		ObjectNode parsed2 = tryParse(raw2, errors2);
+		ObjectNode parsed2 = tryParse(archetypes, raw2, errors2);
 		if (parsed2 != null) {
 			return FixedWorldTitle.apply(archetypes, prompts.registry(), EndingOrder.apply(archetypes, parsed2));
 		}
@@ -179,8 +179,11 @@ public class WorldGenService {
 		return buf.toString();
 	}
 
-	/** {@link LooseJson} 解析 + {@code validateWorld};通过返回节点,否则把错误写入 {@code out} 返 null。 */
-	private ObjectNode tryParse(String raw, List<String> out) {
+	/**
+	 * {@link LooseJson} 解析 + {@code validateWorld} + 世界专属检查({@link #worldSpecificErrors});
+	 * 通过返回节点,否则把错误写入 {@code out} 返 null。
+	 */
+	private ObjectNode tryParse(List<String> archetypes, String raw, List<String> out) {
 		JsonNode parsed;
 		try {
 			parsed = LooseJson.parse(raw, mapper);
@@ -197,6 +200,32 @@ public class WorldGenService {
 			out.addAll(errors);
 			return null;
 		}
+		List<String> specific = worldSpecificErrors(archetypes, parsed);
+		if (!specific.isEmpty()) {
+			out.addAll(specific);
+			return null;
+		}
 		return (ObjectNode) parsed;
+	}
+
+	/**
+	 * 世界专属的 world-gen 检查,在通用 {@code validateWorld} 通过之后跑;命中即视为校验失败、走现有的一次修复。
+	 * 通用校验器一字不改(ADR-008 校验器对 archetype 无知;ADR-009 {@code isTrue} 可选),其他世界在这里永远返回空表。
+	 *
+	 * <p>《派单》(ADR-036「订正(2026-11-10 二)」订正 2):每条规则都必须带布尔 {@code isTrue} ——
+	 * 结局核对数「已识破的假【群里说】」要靠它,冒烟里 3 局有 2 局整表缺失。只对单体《派单》生效。
+	 */
+	static List<String> worldSpecificErrors(List<String> archetypes, JsonNode world) {
+		if (!archetypes.equals(List.of("cyberpunk"))) {
+			return List.of();
+		}
+		List<String> errors = new ArrayList<>();
+		JsonNode rules = world.path("rules");
+		for (int i = 0; i < rules.size(); i++) {
+			if (!rules.get(i).path("isTrue").isBoolean()) {
+				errors.add("rules[" + i + "].isTrue: 本世界每条规则都必须带布尔 isTrue(真规则 true、假规则 false)");
+			}
+		}
+		return errors;
 	}
 }
