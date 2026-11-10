@@ -28,7 +28,7 @@ import tools.jackson.databind.node.ObjectNode;
 /**
  * ADR-036 Slice A2 · 固定世界名的服务端覆写(纯机制,不登记任何真实世界)。钉五件事:
  * <ol>
- * <li>未登记的世界,world-gen 结果逐字节不变;</li>
+ * <li>未登记的世界,world-gen 结果逐字节不变(Slice B 起真实世界里只有《派单》登记);</li>
  * <li>登记了的世界(测试替身),首过与修复两条成功路径都被覆写;</li>
  * <li>融合局不覆写(两半都登记了也不覆写);</li>
  * <li>读档不覆写;</li>
@@ -110,9 +110,15 @@ class FixedWorldTitleTest {
 	// ① 未登记的世界逐字节不变 ───────────────────────────────────────────
 
 	@Test
-	void noRealWorldRegistersAFixedTitleInSliceA2() {
-		assertThat(new ArchetypeRegistry().activeMetas()).isNotEmpty()
-				.allSatisfy(m -> assertThat(m.fixedWorldTitle()).as(m.id()).isNull());
+	void onlyPaidanRegistersAFixedTitle() {
+		// Slice A2 时真实世界一个都没登记;ADR-036 Slice B 起只有《派单》(cyberpunk)登记「派单」。
+		assertThat(new ArchetypeRegistry().activeMetas()).isNotEmpty().allSatisfy(m -> {
+			if (m.id().equals("cyberpunk")) {
+				assertThat(m.fixedWorldTitle()).isEqualTo("派单");
+			} else {
+				assertThat(m.fixedWorldTitle()).as(m.id()).isNull();
+			}
+		});
 	}
 
 	@Test
@@ -121,7 +127,8 @@ class FixedWorldTitleTest {
 		// 登记了别的世界,也不影响未登记的世界。
 		ArchetypeRegistry otherRegistered = registering("apocalypse");
 		for (ArchetypeMeta m : production.activeMetas()) {
-			if (m.id().equals("apocalypse")) {
+			// 只看未登记的世界(《派单》已登记,见 ②;apocalypse 在替身里登记了)。
+			if (m.fixedWorldTitle() != null || m.id().equals("apocalypse")) {
 				continue;
 			}
 			for (boolean repair : new boolean[] { false, true }) {
@@ -149,6 +156,15 @@ class FixedWorldTitleTest {
 			ObjectNode expected = (ObjectNode) mapper.readTree(world(ids));
 			((ObjectNode) expected.get("world")).put("title", FIXED);
 			assertThat(out).as("repair=" + repair).isEqualTo(expected);
+		}
+	}
+
+	@Test
+	void realPaidanRegistrationIsOverwrittenOnBothPaths() {
+		// ADR-036 Slice B:生产 registry(非替身)里的《派单》,首过与修复两条路径都落「派单」。
+		for (boolean repair : new boolean[] { false, true }) {
+			ObjectNode out = generate(new ArchetypeRegistry(), List.of("cyberpunk"), repair);
+			assertThat(out.path("world").path("title").asString()).as("repair=" + repair).isEqualTo("派单");
 		}
 	}
 

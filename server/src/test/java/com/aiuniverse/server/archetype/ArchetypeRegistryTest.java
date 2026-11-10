@@ -56,24 +56,39 @@ class ArchetypeRegistryTest {
 	}
 
 	@Test
-	void listForSelectionPutsActiveFirstThenInactivePlaceholders() {
+	void listForSelectionListsAllSevenActiveInRegistrationOrderAndNoPlaceholder() {
 		List<ArchetypeSummary> list = registry.listForSelection();
-		// 已激活六条(含克苏鲁 + 修仙 +《寻常》+ ADR-021《动物人生》)在前 + 已知未开放一条占位在后。
+		// 已激活七条(含克苏鲁 + 修仙 +《寻常》+《动物人生》+ ADR-036《派单》,登记顺序 = 选择屏顺序);
+		// 《派单》激活后未开放表为空 → 生产目录里没有占位。
 		assertThat(list.stream().map(ArchetypeSummary::archetype))
 				.containsExactly("rules_creepy", "apocalypse", "cthulhu", "cultivation", "life_sim", "animal_life",
 						"cyberpunk");
-		// 已激活六条在前、可选、钩子/标签齐。
-		for (ArchetypeSummary s : list.subList(0, 6)) {
+		for (ArchetypeSummary s : list) {
 			assertThat(s.active()).as("已激活可选:%s", s.archetype()).isTrue();
 			assertThat(s.displayName()).isNotBlank();
 			assertThat(s.tagline()).as("可选卡片有钩子:%s", s.archetype()).isNotBlank();
 			assertThat(s.vibeTag()).as("可选卡片有标签:%s", s.archetype()).isNotBlank();
 		}
-		// 占位一条在后、不可选、仍有中文名(渲染「敬请期待」)。
-		for (ArchetypeSummary s : list.subList(6, 7)) {
-			assertThat(s.active()).as("未开放占位:%s", s.archetype()).isFalse();
-			assertThat(s.displayName()).isNotBlank();
+	}
+
+	@Test
+	void listForSelectionPutsActiveFirstThenInactivePlaceholders() {
+		// 守「已激活在前、占位在后、占位不可选但有中文名」这条分支(ADR-036 裁定 4(a):生产表已空,改用测试内假占位)。
+		List<ArchetypeSummary> list = new FakePlaceholderRegistry().listForSelection();
+		assertThat(list.stream().map(ArchetypeSummary::archetype))
+				.containsExactly("rules_creepy", "apocalypse", "cthulhu", "cultivation", "life_sim", "animal_life",
+						"cyberpunk", FakePlaceholderRegistry.ID);
+		for (ArchetypeSummary s : list.subList(0, 7)) {
+			assertThat(s.active()).as("已激活可选:%s", s.archetype()).isTrue();
+			assertThat(s.tagline()).as("可选卡片有钩子:%s", s.archetype()).isNotBlank();
+			assertThat(s.vibeTag()).as("可选卡片有标签:%s", s.archetype()).isNotBlank();
 		}
+		// 占位一条在后、不可选、仍有中文名(渲染「敬请期待」)、钩子 / 标签留空。
+		ArchetypeSummary placeholder = list.get(7);
+		assertThat(placeholder.active()).isFalse();
+		assertThat(placeholder.displayName()).isEqualTo(FakePlaceholderRegistry.DISPLAY_NAME);
+		assertThat(placeholder.tagline()).isNull();
+		assertThat(placeholder.vibeTag()).isNull();
 	}
 
 	/**
@@ -169,21 +184,27 @@ class ArchetypeRegistryTest {
 		assertThat(registry.isActive("cthulhu")).isTrue();
 		assertThat(registry.isActive("cultivation")).as("修仙本批激活可玩").isTrue();
 		assertThat(registry.isActive("life_sim")).as("《寻常》ADR-020 刀 1 激活既有占位").isTrue();
-		// 已知但未激活(占位枚举)→ init 应 400「未开放」。life_sim 激活后 cyberpunk 是仅存的守护样本。
-		assertThat(registry.isActive("cyberpunk")).isFalse();
+		assertThat(registry.isActive("animal_life")).isTrue();
+		assertThat(registry.isActive("cyberpunk")).as("《派单》ADR-036 Slice B 激活既有占位").isTrue();
+		// 已知但未激活(占位)→ init 应 400「未开放」。cyberpunk 激活后已无真实样本,改用测试内假占位(裁定 4(a))。
+		ArchetypeRegistry withPlaceholder = new FakePlaceholderRegistry();
+		assertThat(withPlaceholder.isKnown(FakePlaceholderRegistry.ID)).isTrue();
+		assertThat(withPlaceholder.isActive(FakePlaceholderRegistry.ID)).isFalse();
+		// 生产 registry 不认识假占位(它只活在测试子类里)。
+		assertThat(registry.isKnown(FakePlaceholderRegistry.ID)).isFalse();
 		// 未知 id 既不已知也不已激活。
 		assertThat(registry.isActive("not_an_archetype")).isFalse();
-		assertThat(registry.activeMetas()).hasSize(6);
+		assertThat(registry.activeMetas()).hasSize(7);
 	}
 
 	@Test
 	void metaThrowsForInactiveArchetype() {
-		// 守「已知但未激活 → meta() 抛异常」。原样本 life_sim 已由 ADR-020 激活 → 换 cyberpunk 继续守这条。
+		// 守「已知但未激活 → meta() 抛异常」。原样本 life_sim、cyberpunk 先后激活 → 改用测试内假占位(ADR-036 裁定 4(a))。
 		try {
-			registry.meta("cyberpunk");
+			new FakePlaceholderRegistry().meta(FakePlaceholderRegistry.ID);
 			assertThat(false).as("未激活 archetype 应抛异常").isTrue();
 		} catch (IllegalArgumentException expected) {
-			assertThat(expected.getMessage()).contains("cyberpunk");
+			assertThat(expected.getMessage()).contains(FakePlaceholderRegistry.ID);
 		}
 	}
 

@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestFactory;
 
 import com.aiuniverse.server.archetype.ArchetypeRegistry;
+import com.aiuniverse.server.archetype.FakePlaceholderRegistry;
 import com.aiuniverse.server.eventloop.GameSession;
 import com.aiuniverse.server.eventloop.GameSessionManager;
 import com.aiuniverse.server.eventloop.TurnPhase;
@@ -42,6 +43,13 @@ class GameInitServiceTest {
 
 	private GameInitService initService(LlmClient llm, GameSessionManager sessions) {
 		ArchetypeRegistry registry = new ArchetypeRegistry();
+		WorldGenService worldGen = new WorldGenService(llm, new WorldGenPromptBuilder(registry), mapper);
+		return new GameInitService(worldGen, sessions, registry, mapper);
+	}
+
+	/** 带测试内假占位的 init(ADR-036 裁定 4(a):守「已知但未开放 → 400」分支)。 */
+	private GameInitService placeholderInitService(LlmClient llm, GameSessionManager sessions) {
+		ArchetypeRegistry registry = new FakePlaceholderRegistry();
 		WorldGenService worldGen = new WorldGenService(llm, new WorldGenPromptBuilder(registry), mapper);
 		return new GameInitService(worldGen, sessions, registry, mapper);
 	}
@@ -213,9 +221,9 @@ class GameInitServiceTest {
 		LlmClient neverCalled = (req, sink) -> {
 			throw new AssertionError("未开放模式不应触发 world-gen");
 		};
-		// cyberpunk ∈ 枚举但未激活 → 未开放(仍 400)。
-		// 原样本 life_sim 已由 ADR-020 刀 1 激活 → 换 cyberpunk 继续守这条(守护意图不变,不删断言)。
-		assertThatThrownBy(() -> initService(neverCalled, sessions).init("cyberpunk"))
+		// 已知但未激活 → 未开放(仍 400)。原样本 life_sim、cyberpunk 先后激活(ADR-020 / ADR-036)
+		// → 改用测试内假占位继续守这条(ADR-036 裁定 4(a);守护意图不变,不删断言)。
+		assertThatThrownBy(() -> placeholderInitService(neverCalled, sessions).init(FakePlaceholderRegistry.ID))
 				.isInstanceOf(IllegalArgumentException.class)
 				.hasMessageContaining("未开放");
 		assertThat(sessions.activeCount()).isZero();
@@ -295,10 +303,10 @@ class GameInitServiceTest {
 		LlmClient neverCalled = (req, sink) -> {
 			throw new AssertionError("非法/未开放成员不应触发 world-gen");
 		};
-		// 组合含未开放成员(cyberpunk)→ 未开放;含未知成员 → 非法。两者均 400、早于 world-gen。
-		// 原样本 life_sim 已由 ADR-020 刀 1 激活 → 换 cyberpunk 继续守这条(守护意图不变,不删断言)。
-		assertThatThrownBy(() -> initService(neverCalled, sessions)
-				.init(List.of("cultivation", "cyberpunk")))
+		// 组合含未开放成员 → 未开放;含未知成员 → 非法。两者均 400、早于 world-gen。
+		// 原样本 life_sim、cyberpunk 先后激活 → 改用测试内假占位(ADR-036 裁定 4(a);守护意图不变,不删断言)。
+		assertThatThrownBy(() -> placeholderInitService(neverCalled, sessions)
+				.init(List.of("cultivation", FakePlaceholderRegistry.ID)))
 				.isInstanceOf(IllegalArgumentException.class)
 				.hasMessageContaining("未开放");
 		assertThatThrownBy(() -> initService(neverCalled, sessions)

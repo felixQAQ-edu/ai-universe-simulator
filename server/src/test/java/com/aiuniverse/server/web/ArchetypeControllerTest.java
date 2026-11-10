@@ -14,7 +14,7 @@ import com.aiuniverse.server.persistence.UnavailableHistoryReader;
 
 /**
  * {@code GET /api/archetypes} 薄端点(ADR-008 决策 4 选择 UI 数据源 + ADR-019 融合组合只读投影):
- * 包 registry 的两张表为 {@code {archetypes:[...], fusions:[...]}},六条世界齐(五已激活含《寻常》+ 一占位)、
+ * 包 registry 的两张表为 {@code {archetypes:[...], fusions:[...]}},七条世界齐(ADR-036 起全部已激活、无占位)、
  * active 标志对;融合组合与 registry 同源、host 在前。
  */
 class ArchetypeControllerTest {
@@ -29,8 +29,10 @@ class ArchetypeControllerTest {
 		assertThat(list.stream().map(ArchetypeSummary::archetype))
 				.containsExactly("rules_creepy", "apocalypse", "cthulhu", "cultivation", "life_sim", "animal_life",
 						"cyberpunk");
+		// ADR-036 Slice B:《派单》激活 cyberpunk 后七条全部可选,目录里没有占位。
 		assertThat(list.stream().filter(ArchetypeSummary::active).map(ArchetypeSummary::archetype))
-				.containsExactly("rules_creepy", "apocalypse", "cthulhu", "cultivation", "life_sim", "animal_life");
+				.containsExactly("rules_creepy", "apocalypse", "cthulhu", "cultivation", "life_sim", "animal_life",
+						"cyberpunk");
 	}
 
 	/** ADR-019:合法组合与世界目录**同一次请求**下发(分两个端点 = 两个可能不同步的响应)。 */

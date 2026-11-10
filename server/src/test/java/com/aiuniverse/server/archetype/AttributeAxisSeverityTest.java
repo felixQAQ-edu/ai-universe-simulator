@@ -143,7 +143,12 @@ class AttributeAxisSeverityTest {
 			"animal_life/body", "DANGER,CAUTION,NEUTRAL",
 			"animal_life/warmth", "NEUTRAL,NEUTRAL,NEUTRAL",
 			"animal_life/ground", "NEUTRAL,NEUTRAL,NEUTRAL",
-			"animal_life/close", "NEUTRAL,NEUTRAL,NEUTRAL");
+			"animal_life/close", "NEUTRAL,NEUTRAL,NEUTRAL",
+			// ADR-036 Slice B《派单》:体力、评分致命;余钱非致命资源轴;画像累积型 perilAtHigh。
+			"cyberpunk/hp", "DANGER,CAUTION,NEUTRAL",
+			"cyberpunk/cash", "NEUTRAL,NEUTRAL,NEUTRAL",
+			"cyberpunk/rating", "DANGER,CAUTION,NEUTRAL",
+			"cyberpunk/profile", "NEUTRAL,CAUTION,DANGER");
 		List<String> actual = new java.util.ArrayList<>();
 		for (ArchetypeMeta m : registry.activeMetas()) {
 			for (AttributeAxis a : m.attributes()) {

@@ -50,7 +50,8 @@ public class ArchetypeRegistry {
 	static {
 		Map<String, String> m = new LinkedHashMap<>();
 		// life_sim 已于 ADR-020 刀 1 激活(《寻常》复用既有占位 id,对外名仍「人生模拟」)→ 本表删去那一行。
-		m.put("cyberpunk", "赛博朋克");
+		// cyberpunk 已于 ADR-036 Slice B 激活(《派单》,对外卡名仍「赛博朋克」)→ 本表删去最后一行,表为空。
+		// 分支与空表保留(ADR-036 裁定 4(a)):将来再有占位时不必重建;守护测试在测试内注入假占位。
 		INACTIVE_DISPLAY_NAMES = Collections.unmodifiableMap(m);
 	}
 
@@ -64,6 +65,7 @@ public class ArchetypeRegistry {
 		register(cultivation());
 		register(ordinaryLife());
 		register(animalLife());
+		register(paidan());
 		assertLifetimeWorldsHaveExactlyOneLethalAxis();
 	}
 
@@ -108,9 +110,22 @@ public class ArchetypeRegistry {
 		return new AttributeAxis.Band(threshold, label, narrationHint);
 	}
 
-	/** id ∈ CONTEXT §三.4 枚举(已知)。非已知 → init 视为非法 400。 */
+	/**
+	 * id ∈ CONTEXT §三.4 枚举(已知)。非已知 → init 视为非法 400。
+	 * 未开放占位({@link #inactiveDisplayNames()})也算已知 —— 生产表为空,此并集与只看 {@link #KNOWN} 逐值相同;
+	 * 它只让测试注入的假占位走得到「已知但未激活 → 未开放」这条分支(ADR-036 裁定 4(a))。
+	 */
 	public boolean isKnown(String archetype) {
-		return KNOWN.contains(archetype);
+		return KNOWN.contains(archetype) || inactiveDisplayNames().containsKey(archetype);
+	}
+
+	/**
+	 * 已知但未激活的占位:id → 玩家可见中文名(选择屏「敬请期待」灰显 + init 400「未开放」)。
+	 * 生产 = {@link #INACTIVE_DISPLAY_NAMES}(ADR-036 Slice B 起为空)。<b>只为测试留的覆写点</b>:
+	 * 守护测试在测试内构造子类、注入一个假占位,守的行为不变(ADR-036 裁定 4(a) / 已知代价 7)。
+	 */
+	protected Map<String, String> inactiveDisplayNames() {
+		return INACTIVE_DISPLAY_NAMES;
 	}
 
 	/** id 已激活(本批可生成)。已知但未激活 → init 400「未开放」。 */
@@ -428,7 +443,7 @@ public class ArchetypeRegistry {
 		for (ArchetypeMeta m : active.values()) {
 			out.add(new ArchetypeSummary(m.id(), m.displayName(), m.tagline(), m.vibeTag(), true));
 		}
-		for (Map.Entry<String, String> e : INACTIVE_DISPLAY_NAMES.entrySet()) {
+		for (Map.Entry<String, String> e : inactiveDisplayNames().entrySet()) {
 			out.add(new ArchetypeSummary(e.getKey(), e.getValue(), null, null, false));
 		}
 		return List.copyOf(out);
@@ -809,5 +824,74 @@ public class ArchetypeRegistry {
 						+ "hiddenLogic 是只有引擎能看的真实判定(触发条件 + 气力/热望/路口/牵挂 的后果);"
 						+ "discovered 标记他已经懂了的那几件——懂了,通常是因为已经付过代价。",
 				false); // 没有守则(rules=痕迹而非条款,故不带 isTrue;与修仙「有心法但非硬规则」不同,见 ADR-020 补记
+	}
+
+	/**
+	 * 《派单》(ADR-036;占位 id {@code cyberpunk} 激活,单体,深界)。城中村里的跑腿员,靠一个虚构的派单平台
+	 * 按单计酬、没有底薪;世界的引擎是一条从不解释的运转规律:<b>每一次提前送达,系统把这次用时记成你「能做到」
+	 * 的标准,此后时限收紧</b>。
+	 *
+	 * <p><b>名称两层</b>(决策 1):卡面 {@code displayName}「赛博朋克」是题材名、只作提示词里的模式标签;
+	 * 游戏内世界名由 {@code fixedWorldTitle}「派单」在 world-gen 后服务端覆写(ADR-036 Slice A2)。
+	 *
+	 * <p><b>四轴</b>(决策 3):体力 {@code hp}、评分 {@code rating} 致命;余钱 {@code cash} 非致命资源轴
+	 * (80 = 够交房租);画像 {@code profile} 累积型 + perilAtHigh(唯一越高越糟的轴),档界 30 / 60。
+	 * 其余三轴档界 50 / 20。派生集:致命 {hp, rating}、累积 {profile}、非致命 {cash}。
+	 *
+	 * <p><b>措辞</b>(决策 9 / 勘察 6):本条目里每段文字都会进提示词 —— 只用「跑腿员」,不出现「骑手」「众包」、
+	 * 题材标签与现实批判用语;平台、地名一律不点名。规则数量、结局池、初值、禁用词表、时钟归 Slice C / D 的指令槽,不在这里。
+	 */
+	private static ArchetypeMeta paidan() {
+		return new ArchetypeMeta(
+				"cyberpunk",
+				"赛博朋克",
+				"你每快一次,它就记住一次。",
+				"城中村 · 高压",
+				"《派单》——一个跑腿员的三个夜班:你在城中村里替一个虚构的派单平台送单,按单计酬,没有底薪,"
+						+ "月底要交房租。塔楼区由无人机配送,人只送城中村的窄巷、握手楼、没电梯的九楼,以及塔楼最后几层。"
+						+ "这个世界的引擎是一条从不解释的运转规律:你每一次提前送达,系统就把这次用时记成你「能做到」的标准,"
+						+ "此后派给你的时限随之收紧;系统从不说明,只在头盔显示屏上出一句「已为你优化时限。」"
+						+ "允许出现的物件都接在这条规律上:租来的助力膝爬楼更快,但每一步都上传平台;头盔显示屏报派单音和倒计时;"
+						+ "群里流传改装过的头盔,能把用时报慢,被查到就重挫评分。霓虹招牌、全息广告、塔楼无人机只作场景。"
+						+ "没有战斗,没有怪物,不确认任何超自然 —— 只写现象,不写解释。"
+						+ "恐惧不来自敌人,来自被看见、被学会、被替代。氛围:夜里的潮气、电动车的电量、楼道里的喘息,具体而克制。",
+				List.of(
+						AttributeAxis.depleting("hp", "体力",
+								"爬楼、赶时限、淋雨、摔车时下降;歇脚、吃口热饭、收工睡觉时回升。"
+										+ "由你在 stateUpdate 给出新的绝对值,与这一单的路程和楼层相称。")
+								.withBands(
+										band(100, "撑得住", "一口气上七楼,下楼还能小跑"),
+										band(50, "透支", "上楼要扶栏杆,接电话先喘一口"),
+										band(20, "见底", "手抖得握不住车把,看路开始重影")),
+						AttributeAxis.resource("cash", "余钱",
+								"80 = 够交房租,80 以上是交完还剩的;完单、打赏时上涨;"
+										+ "吃饭、换电、修车、租义体、超时扣款时下降。余钱只是局内的钱,不能充值或兑换。")
+								.withBands(
+										band(100, "宽裕", "能吃顿热的,车坏了也修得起"),
+										band(50, "紧", "每花一笔都先算一遍交租那天"),
+										band(20, "空", "一碗粉也要掂量,换电得先接单")),
+						AttributeAxis.depleting("rating", "评分",
+								"准时送达、拿到好评、接下没人要的单时上涨;超时、差评、拒单、改装头盔被查到时下降;"
+										+ "评分归零即被停派,这一局到此为止。")
+								.withBands(
+										band(100, "优选", "近单好单先推给你"),
+										band(50, "普通", "单照派,都是别人挑剩的"),
+										band(20, "观察", "只剩远单、夜单、九楼没电梯的单")),
+						// 累积型【双刃】(perilAtHigh):高位 = 时限被学到最紧,故最高档染 danger;引擎侧与 accumulating 相同。
+						AttributeAxis.doubleEdged("profile", "画像",
+								"系统对你「能跑多快」的记录。每次提前送达、使用联网义体时上涨;不会自己回落;"
+										+ "只有超时(代价是评分)或用改装头盔(代价是被查的风险)能把它压下一点。"
+										+ "这是唯一越高越糟的轴:画像越高,派给你的时限越紧。")
+								.withBands(
+										band(0, "生手", "时限宽,系统还在看你"),
+										band(30, "熟手", "时限按你最快的那几次算"),
+										band(60, "标杆", "时限只够一路不停,一个红灯都等不起"))),
+				"真假混合的跑单经验,来源用 content 开头的前缀标明:「【服务守则】」是平台条款的口吻(公事公办、不解释原因),"
+						+ "「【群里说】」是跑腿员之间口口相传的经验(口语、带人情)。两种来源都可能是真的,也都可能是假的。"
+						+ "content 是玩家能读到的那句话;hiddenLogic 是只有引擎能看的真实判定(触发条件 + 体力 / 余钱 / 评分 / 画像的后果),"
+						+ "假规则的 hiddenLogic 要写明玩家凭什么现象能识破它;涉及改装头盔的规则,hiddenLogic 要写清被查到的条件,"
+						+ "且只写物件与后果、不写任何改装方法。discovered 标记玩家已经识破或印证的那几条。",
+				true, // 真假守则型(rules 带 isTrue 有真有假)
+				"派单"); // 固定世界名(ADR-036 Slice A2 覆写 world.title)
 	}
 }
