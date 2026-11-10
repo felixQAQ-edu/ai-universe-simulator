@@ -553,6 +553,39 @@ golden parity(`EngineGoldenTest` / `TransformParityTest` / `ValidatorParityTest`
 **零回归**:后端 `mvn test` 883 例:882 绿 / 1 红,红的仍是 Slice A 记过的 `StoreMigrationToolGateTest.repoPathIsRefusedEvenWhenItIsWrittenRelativeAndUnnormalized`
 (`main` 上同样失败、环境相关,本刀不修)。**已于 `e188c92` 修复**。golden parity 四件全绿。
 
+### Slice B · registry 激活(2026-11-10,基于 `2c4c699`,实现 commit `1b6da50`,分支 `phase4/adr-036-slice-b` 待合并)
+
+勘察与决策 1 / 3、勘察 5 一致;有一处勘察 5 表没写到的实现细节(见「裁定 4(a) 的接缝」),不与 ADR 冲突。
+
+- **`paidan()`**:id `cyberpunk`;卡面 `displayName`「赛博朋克」/ `tagline`「你每快一次,它就记住一次。」/ `vibeTag`「城中村 · 高压」;
+  `fixedWorldTitle`「派单」;`rulesCarryTruth = true`。
+  - `worldview` 以「《派单》——」开头(软层),写运转规律、「已为你优化时限。」、塔楼区无人机配送与城中村的边界、接在规律上的物件(助力膝 / 头盔显示屏 / 改装头盔)、深界口径(不确认超自然,只写现象)。
+  - `ruleForm` 写两种来源前缀「【服务守则】」「【群里说】」、假规则的 `hiddenLogic` 写识破迹象、改装头盔只写物件与后果与被查条件。
+  - 规则数量(真 ≥ 3、假 ≥ 2、两类前缀各 ≥ 2)、结局池、初值、禁用词表、模式标签句**不在元数据里**,归 Slice C / D 的指令槽(避免两处并存)。
+  - 进提示词的全部文字只用「跑腿员」;单测对决策 9 的禁用词做了机械扫描(卡面名「赛博朋克」按裁定除外)。
+- **四轴**(决策 3,档名与描述照原文):体力 `hp`、评分 `rating` = `depleting`(致命,50 / 20);余钱 `cash` = `resource`(非致命,50 / 20,行为提示含「80 = 够交房租」);
+  画像 `profile` = `doubleEdged`(累积 + perilAtHigh,30 / 60)。派生集:致命 {hp, rating}、累积 {profile}、非致命 {cash}。
+  severity:体力 / 评分 `DANGER, CAUTION, NEUTRAL`;余钱全 `NEUTRAL`;画像 `NEUTRAL, CAUTION, DANGER`。
+- **登记**:构造器在 `animal_life` 之后 `register(paidan())`(选择屏末尾);`INACTIVE_DISPLAY_NAMES` 删 `cyberpunk` 行,**表为空、分支保留**。
+- **裁定 4(a) 的接缝**:`KNOWN` 的 7 个 id 激活后全部已激活,测试里没有任何「已知但未开放」的真实 id。为了能注入假占位:
+  未开放表改走可覆写的 `protected inactiveDisplayNames()`(生产 = 空表),`isKnown` 认「`KNOWN` ∪ 未开放表」。
+  生产表为空,这个并集与只看 `KNOWN` 逐值相同。测试侧新增 `FakePlaceholderRegistry`(假占位 `test_placeholder`)。
+- **不动**:引擎、schema(仍 `"0.4"`)、提示词骨架与指令槽(Slice C / D)、前端(勘察 5 表的 `schema.ts` 注释、`registry.test.ts` 换样本一并不动 ——
+  本刀不登记前端 `WORLDS` 条目,`cyberpunk` 作「未登记世界 → 中性主题」样本仍成立)、CONTEXT / 世界目录(Slice F)。
+
+**测试**(按勘察 5 表逐处):`ArchetypeRegistryTest` 目录断言改 7 条全激活、0 占位、`activeMetas` 7;占位分支(在后 / 不可选 / 有中文名)与 `meta()` 抛异常改用假占位;
+`ArchetypeControllerTest` 7 条全激活;`GameInitServiceTest` 两处「未开放 → 400」(单体、融合组合)改用假占位。
+另:`AttributeAxisSeverityTest` 全轴快照补《派单》四行(该快照遍历全部已激活轴,随新世界增长);`FixedWorldTitleTest` 按本刀改口径(真实世界里只有 `cyberpunk` 登记),并加一例「生产 registry 下 `cyberpunk` 首过 / 修复两路径都落『派单』」。
+新增 `PaidanRegistryTest`(7 例):卡面文案与固定名、四轴顺序与派生集、perilAtHigh 只在画像、四轴 `bandRanges` 与 severity、档描述与关键行为提示、禁用词扫描。
+
+**零回归**:后端 `mvn test` **892 例全绿**;golden parity 四件全绿。
+另把 `main` 与本分支各导出一次既有六个世界 + 三个融合组合的回合提示词(各 3 个回合号)与 world-gen 提示词:回合提示词 27 份逐字节相同;
+world-gen 提示词 9 份除随机抽中的「场景种子」行外逐字节相同(种子行每次运行随机,与本刀无关)。
+
+**激活的后果(如实记)**:选择屏上的 `cyberpunk` 卡从「敬请期待」灰显变成**可选可玩**(前端没有它的卡面类,显示中性卡,视觉在 Slice G)。
+但此刻它的 world-gen 没有种子池(回落「自由发挥」)、结局条数是缺省 2–3、没有指令槽,回合没有时钟与指令 ——
+**Slice C、D 完成之前不得部署**。
+
 ## 实际效果(事后补充)
 
 *Slice E 冒烟时回填:三夜时钟与注入的一致率;第 27 回合出结局的比例;停派是否由引擎按「评分」命中、标杆是否被模型如期提议;`world.title` 是否为「派单」;记忆点「跨档 ↔ 播报」一致率;来源前缀格式稳定性。*
