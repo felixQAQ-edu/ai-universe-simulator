@@ -97,10 +97,21 @@ class PaidanWorldGenTest {
 		assertThat(p).contains("这个世界叫《派单》:world.title 必须恰为「派单」")
 				.contains("提示词里的模式名「赛博朋克」只是分类标签,玩家可见的任何字段");
 		// 开局与初值。
-		assertThat(p).contains("头盔显示屏上弹出第一单,房租还差一截")
+		assertThat(p).contains("义眼里弹出第一单,派单音在脑子里响起,房租和月供还差一截")
+				.contains("开场至少出现一样今天还不存在的物件或现象,而且和第一单有关")
+				.contains("开局的熟人是巷子里黑诊所的义体医生")
 				.contains("体力 70–85;余钱 15–30;评分 50–70;画像:新号 5–15,老号 40–50。");
+		// 订正(2026-11-10):赛博朋克底色 —— 标题下那一行(world.tone)、身体、惊悚层、边界;头盔退场。
+		assertThat(p).contains("【标题下那一行】world.tone 会显示在游戏标题下面:写成一句让玩家想进入这个世界的介绍")
+				.contains("不得写成写作要求、风格说明或氛围清单")
+				.contains("一双机械腿是平台入职方案装的义体,按月分期")
+				.contains("有人说那个工号背后根本没有人,只是一个一直在跑的账号")
+				.contains("系统替你说完你还没说出口的话")
+				.contains("门后是一个还在替某人点餐的语音助手,而那个人很久没出现了")
+				.contains("不写超级企业、政府、反抗者").contains("黑客只保留「刷机」这一个灰色选项")
+				.doesNotContain("具体而克制").doesNotContain("头盔").doesNotContain("助力膝").doesNotContain("改装");
 		// Slice C 订正后的 worldview。
-		assertThat(p).contains("三个夜班之后要交房租").doesNotContain("月底要交房租")
+		assertThat(p).contains("三个夜班之后要交房租和这期义体月供").doesNotContain("月底要交房租")
 				.contains("正文不要复述「被看见、被学会、被替代」这类设计用语,只写具体发生的事。");
 	}
 
@@ -111,6 +122,10 @@ class PaidanWorldGenTest {
 		assertThat(seeds.stream().filter(s -> s.contains("开局身份:新号"))).hasSize(3);
 		assertThat(seeds.stream().filter(s -> s.contains("开局身份:老号"))).hasSize(3);
 		assertThat(seeds).allSatisfy(s -> assertThat(s).matches(".*危险等级 (low|medium|high|extreme)$"));
+		// 订正(2026-11-10):种子按近未来底色改写,头盔退场。
+		assertThat(seeds).noneSatisfy(s -> assertThat(s).contains("头盔"));
+		assertThat(String.join("", seeds)).contains("全息广告").contains("义眼").contains("机械腿").contains("送货机器人")
+				.contains("飞行车").contains("黑诊所");
 	}
 
 	// ③ 禁用词不出现在正向文字里 ──────────────────────────────────────────

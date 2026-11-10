@@ -102,8 +102,27 @@ class PaidanRegistryTest {
 		assertThat(axis("cash").resolveBand(35).narrationHint()).isEqualTo("每花一笔都先算一遍交租那天");
 		assertThat(axis("rating").resolveBand(80).narrationHint()).isEqualTo("近单好单先推给你");
 		assertThat(axis("profile").resolveBand(60).narrationHint()).isEqualTo("时限只够一路不停,一个红灯都等不起");
-		assertThat(axis("cash").behaviorHint()).contains("80 = 够交房租,80 以上是交完还剩的");
+		assertThat(axis("cash").behaviorHint()).contains("80 = 够交房租和这期义体月供,80 以上是交完还剩的");
 		assertThat(axis("rating").behaviorHint()).contains("归零");
+	}
+
+	/** ADR-036「订正(2026-11-10):赛博朋克底色」:身体是分期的高科技;头盔 / 助力膝 / 改装头盔退场。 */
+	@Test
+	void cyberBackdropCorrection() {
+		assertThat(m.worldview()).contains("一双机械腿是平台入职方案装的义体,按月分期")
+				.contains("订单、倒计时和路线投在义眼里,派单音直接响在脑子里")
+				.contains("塔楼和空中连廊悬在头顶,城中村挤在下面").contains("门上浮着这户的评分,巷口浮着路况")
+				.contains("招牌上混着几种文字").contains("送货机器人在垃圾和电线之间穿行").contains("雨、雾、蒸汽几乎不停")
+				.contains("余钱不够交这期月供时,腿会被远程降速").contains("把神经接口的算力租给平台过夜")
+				.contains("黑诊所").contains("眼前浮出一句「已为你优化时限。」")
+				.doesNotContain("具体而克制").doesNotContain("头盔").doesNotContain("助力膝");
+		assertThat(axis("profile").behaviorHint()).contains("开启腿的超频").contains("刷机").doesNotContain("联网义体")
+				.doesNotContain("改装头盔");
+		assertThat(axis("rating").behaviorHint()).contains("刷机被查到时下降").doesNotContain("改装头盔");
+		assertThat(axis("cash").behaviorHint()).contains("出租神经接口的算力").contains("交月供").contains("远程降速")
+				.doesNotContain("租义体");
+		assertThat(axis("hp").behaviorHint()).contains("腿被降速时下降得更快").contains("回不满");
+		assertThat(m.ruleForm()).contains("刷机").doesNotContain("改装头盔");
 	}
 
 	@Test

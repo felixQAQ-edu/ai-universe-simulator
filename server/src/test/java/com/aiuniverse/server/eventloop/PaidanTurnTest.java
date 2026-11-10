@@ -112,7 +112,7 @@ class PaidanTurnTest {
 	void directiveCarriesVerdictsMemoryLineOffShiftRuleAndBenchmark() {
 		String d = TurnPromptBuilder.PAIDAN_TURN_DIRECTIVE;
 		assertThat(d).contains("提前送达:画像上涨").contains("卡点送达:画像不变").contains("超时送达:评分下降,余钱被扣")
-				.contains("联网义体")
+				.contains("开启腿的超频")
 				.contains("「已为你优化时限。」").contains("向上越过 30 或 60").contains("这句话绝不出现")
 				.contains("【收工回合】选项里不出现接单").contains("睡觉回体力")
 				.contains("画像达到 95 及以上时,本回合必须提议结局 became_benchmark")
@@ -120,6 +120,25 @@ class PaidanTurnTest {
 				.contains("只用「跑腿员」").contains("本世界叫《派单》")
 				.contains("不写跑腿员之间组织起来、一起去投诉或讨说法的情节")
 				.doesNotContain("%");
+	}
+
+	/** ADR-036「订正(2026-11-10):赛博朋克底色」:worldview 不进回合提示词,底色只能在回合指令槽里每回合送达。 */
+	@Test
+	void directiveCarriesCyberBackdropCorrection() {
+		String d = TurnPromptBuilder.PAIDAN_TURN_DIRECTIVE;
+		assertThat(d).contains("【底色 · 每回合硬要求】叙事里至少出现一样今天还不存在的物件或现象,而且必须和这一单有关")
+				.contains("不能只是背景")
+				.contains("一双机械腿是平台入职方案装的义体,按月分期;腿记录每一步,画像就长在腿上")
+				.contains("派单音直接响在脑子里")
+				.contains("余钱 80 是房租加这期义体月供").contains("腿被远程降速:体力掉得更快,爬楼要靠手撑栏杆")
+				.contains("黑诊所的义体医生").contains("只写后果,不写方法")
+				.contains("把神经接口的算力租给平台过夜").contains("体力回不满")
+				.contains("「已为你优化时限。」逐字浮在眼前一次")
+				.contains("只是一个一直在跑的账号").contains("系统替你说完你还没说出口的话")
+				.contains("还在替某人点餐的语音助手")
+				.contains("不写超级企业、政府、反抗者").contains("没有战斗、武器、佣兵;黑客只保留「刷机」")
+				.contains("左腿在第六层发出一声短促的提示音,眼前的时限跟着少了四十秒")
+				.doesNotContain("头盔").doesNotContain("助力膝").doesNotContain("联网义体").doesNotContain("改装");
 	}
 
 	@Test
