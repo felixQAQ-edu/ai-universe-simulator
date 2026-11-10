@@ -67,7 +67,51 @@ public final class TurnPromptBuilder {
 	 * (CONTEXT §三.16 (9) 的口径平移到单体)。逐回合生效的固定指令归 {@code TURN_DIRECTIVES},不在这里。
 	 * 判据只在本注释与 ADR 里,不是代码检查。
 	 */
-	static final Map<String, IntFunction<String>> SINGLE_TURN_CLOCK = Map.of();
+	static final Map<String, IntFunction<String>> SINGLE_TURN_CLOCK = Map.of(
+			// 《派单》(ADR-036 决策 2 / Slice D):三个夜班 7 / 8 / 9 回合,各接一个收工回合,共 27 回合。
+			"cyberpunk", TurnPromptBuilder::paidanTurnClock);
+
+	/** 《派单》三个夜班各自的回合数(决策 2,定长写死)。 */
+	private static final int[] PAIDAN_SHIFT_TURNS = { 7, 8, 9 };
+	private static final String[] PAIDAN_NIGHTS = { "第一夜", "第二夜", "第三夜" };
+	/** 结局回合 = 第三夜的收工回合(第 27 回合)。 */
+	static final int PAIDAN_FINAL_TURN = 7 + 1 + 8 + 1 + 9 + 1;
+	/** 好结局重叠时的先后(决策 7;全表只有第 27 回合的注入带结局信息,且只写名字的先后、不复述 condition)。 */
+	static final String PAIDAN_GOOD_ENDING_ORDER = "把话传下去 > 卡点的人 > 交上了 > 差一点";
+
+	/**
+	 * 《派单》按本回合序号 n 注入的时段文字(ADR-036 决策 2)。只写「第几夜 · 夜班 / 收工」与「本班第几单」,
+	 * 不写结局条件;例外:第 26 回合加「本班最后一单」,第 27 回合(收工即结局回合)要求给出结局并写好结局的先后,
+	 * 第 28 回合起每回合要求给出结局(同 {@link #yanqiTurnClock} 的兜底形状)。
+	 */
+	static String paidanTurnClock(int n) {
+		int turn = Math.max(n, 1);
+		int start = 1;
+		String slot = null;
+		for (int night = 0; night < PAIDAN_NIGHTS.length && slot == null; night++) {
+			int shiftEnd = start + PAIDAN_SHIFT_TURNS[night] - 1;
+			int offTurn = shiftEnd + 1;
+			if (turn <= shiftEnd) {
+				int order = turn - start + 1;
+				slot = PAIDAN_NIGHTS[night] + " · 夜班,本班第 " + order + " 单"
+						+ (order == PAIDAN_SHIFT_TURNS[night] && night == PAIDAN_NIGHTS.length - 1 ? ",本班最后一单" : "");
+			} else if (turn == offTurn) {
+				slot = PAIDAN_NIGHTS[night] + " · 收工";
+			}
+			start = offTurn + 1;
+		}
+		if (slot == null) {
+			slot = PAIDAN_NIGHTS[PAIDAN_NIGHTS.length - 1] + " · 收工"; // 第 28 回合起仍写第三夜 · 收工
+		}
+		StringBuilder sb = new StringBuilder("\n\n【本回合时段】").append(slot).append("(本局第 ").append(turn)
+				.append(" 回合)。叙事与 timeline 都按这个时段写,不要提前或拖后。");
+		if (turn == PAIDAN_FINAL_TURN) {
+			sb.append("\n本回合必须给出结局。好结局重叠时按这个先后取:").append(PAIDAN_GOOD_ENDING_ORDER).append("。");
+		} else if (turn > PAIDAN_FINAL_TURN) {
+			sb.append("\n本回合必须给出结局。");
+		}
+		return sb.toString();
+	}
 
 	/** 数值轴 key → 叙事中文意象提示(清洁度:数值变化只用意象,不直呼字段名)。缺省回落 displayName。 */
 	private static final Map<String, String> IMAGERY = Map.ofEntries(
@@ -310,7 +354,58 @@ public final class TurnPromptBuilder {
 	 * 写死分配等于给模型排剧本,每一局都会长得一样,重玩价值归零。
 	 * 这是<b>「必须发生」与「必须这样发生」的分界</b>。
 	 */
-	private static final Map<String, String> TURN_DIRECTIVES = Map.of("animal_life", """
+	/**
+	 * 《派单》逐回合指令(ADR-036 Slice D;决策 2–11)。只放<b>每回合都生效</b>的东西(ADR-020 §10 判据):
+	 * 送达裁决与数值落点、「快对某人重要」的单、收工回合、记忆点软层、「成了标杆」提议硬约束、
+	 * 「把话传下去」兑现、惊悚层、题材边界、写作风格、禁用词。时段由 {@link #paidanTurnClock} 每回合注入。
+	 *
+	 * <p><b>本模板经 {@code template.formatted(...)} 渲染(非一生制世界只喂回合号,本模板一个占位都不用)——
+	 * 正文里不得出现百分号</b>(禁用词表本来也禁百分比)。
+	 *
+	 * <p><b>禁用词只出现在三处</b>:「【世界名】」一条(模式标签)、写作风格里以「不要这样写」开头的反例行、
+	 * 「【禁用词 · 本世界】」一段;其余每一行都是正向文字(单测剔掉这三处后全文扫描)。
+	 * {@code prompts/event-loop.md}「单体世界专属 ·《派单》」节逐字收录本段,lockstep 单测守护。
+	 */
+	static final String PAIDAN_TURN_DIRECTIVE = """
+
+
+			【本世界专属 ·《派单》· 每回合(ADR-036)】
+			- 【世界名】本世界叫《派单》;提示词里的模式名「赛博朋克」只是分类标签,不得写进叙事、选项、hint、timeline 等任何玩家可见文字。只用「跑腿员」称呼这个行当。
+			- 【时段】每回合末尾注入的【本回合时段】是真理之源:夜班回合是一单,收工回合不派单。不要自己推进到下一个夜班,也不要提前收工。
+			- 【送达裁决 · 每个夜班回合必须交代】叙事里写清这一单是提前、卡点还是超时送达,stateUpdate 按它落数值:
+			  · 提前送达:画像上涨,评分可能上涨;使用联网义体(如租来的助力膝)时画像也上涨;
+			  · 卡点送达:画像不变;
+			  · 超时送达:评分下降,余钱被扣,画像可以压下一点;
+			  · 体力随爬楼、赶时限、淋雨、摔车下降;余钱随完单、打赏上涨,随吃饭、换电、修车、租义体下降。
+			  系统从不解释时限为什么变了,只给下一单一个更短或更长的时限。
+			- 【快不是永远错】每个夜班里要时常出现「快对某个人真的重要」的单(送药、冷链、门后有人在等)。提前送到对那个人是对的,代价是画像被学去。不得把快写成永远错,也不得把慢写成永远对;顾客是具体的人,有具体的需要,不是道德题里的占位。
+			- 【收工回合】选项里不出现接单,只给吃饭、睡觉、换电、修车、在群里说话这类动作;睡觉回体力,对账看余钱。
+			- 【记忆点 · 已为你优化时限】若本回合 stateUpdate 让画像向上越过 30 或 60(从 29 以下到 30 以上,或从 59 以下到 60 以上),叙事中头盔显示屏逐字出现一次「已为你优化时限。」,不解释它,只写下一单的时限比上一单短了。画像下降、持平或没跨过这两个数时,这句话绝不出现。
+			- 【成了标杆】本回合 stateUpdate 让画像达到 95 及以上时,本回合必须提议结局 became_benchmark(成了标杆)。
+			- 【把话传下去】玩家选了把经验告诉别人这一类行动时,本回合叙事必须写明告诉了谁(哪一个跑腿员)、告诉的是哪一条经验。只能是一个人当面告诉另一个人,不写成许多人一起做什么。
+			- 【惊悚层 · 只写现象,不写解释,不确认超自然】群里流传的那个工号、还没决定就被「规划」好的路线、精确到喘一口气的秒数、电梯不停的楼层与还在更新的备注,都只写看见和听见的,不给答案,不出现怪物。
+			- 【题材边界】只写这一个人的三个夜班:
+			  · 平台、商家、小区、街道、城市一律虚构;制服、头盔、餐箱不写颜色;系统只说「已为你优化时限。」这一句,没有发言人、客服解释或致歉;
+			  · 顾客投诉、差评可以写,它们就是这个世界的规矩;但不写跑腿员之间组织起来、一起去投诉或讨说法的情节;
+			  · 城中村只是地形,不写成城市治理的题材;不写政治隐喻,不出现现实年代与真实新闻的影子;
+			  · 改装头盔只写物件与后果,不写改装步骤、工具或参数,被查到永远有代价;
+			  · 闯红灯、逆行之类的选项必须带代价(摔车、体力、评分),不写成更快更好,叙事不夸奖它;
+			  · 体力见底时,高处、天台、窗边的意象不与坠落、跳下同句出现。
+			- 【写作风格】冷、准、短,第二人称;情绪交给分钟数、楼层和备注。先写能看见、听见、摸到的变化,再写系统字段。霓虹、酸雨、义体、黑客只作具体物件,不作笼统的气氛形容。
+			  这样写:「楼下的霓虹招牌坏了半截,只剩一个『药』字在闪。」
+			  不要这样写:「霓虹在酸雨里闪烁,城市沉入赛博的夜。」
+			  这样写:「助力膝在第六层发出一声短促的提示音,头盔角落的时限跟着少了四十秒。」
+			  不要这样写:「冰冷的义体吞噬了他的人性。」
+			- 【禁用词 · 本世界】以下词不得出现在任何玩家可见文字:
+			  · 题材标签:赛博、赛博朋克、反乌托邦、巨型企业;
+			  · 现实批判用语:资本、剥削、打工人;
+			  · 行业称谓:骑手、众包(只用「跑腿员」);
+			  · 组织行动:联合、串联、罢单、维权、讨薪、上访、集体停工;
+			  · 城市治理:拆迁、清退、整治、驱赶、暂住、户籍、执法;
+			  · 现实品牌、平台名、地名;百分比与成功率(数字只用分钟、秒、楼层、单数、余钱)。\
+			""";
+
+	private static final Map<String, String> TURN_DIRECTIVES = Map.of("cyberpunk", PAIDAN_TURN_DIRECTIVE, "animal_life", """
 
 
 			【一生制 · 每回合写作标准(《动物人生》,ADR-021)】

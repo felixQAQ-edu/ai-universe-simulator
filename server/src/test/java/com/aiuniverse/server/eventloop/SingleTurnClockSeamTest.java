@@ -23,7 +23,7 @@ import tools.jackson.databind.node.ObjectNode;
 /**
  * ADR-036 Slice A · 单体世界按回合注入接缝(纯机制,不含《派单》内容)。钉三件事:
  * <ol>
- * <li>未登记的世界,回合提示词逐字节不变(本刀表为空;且登记别的世界不影响它);</li>
+ * <li>未登记的世界,回合提示词逐字节不变(Slice A 时表为空,Slice D 起只登记《派单》;登记别的世界不影响它);</li>
  * <li>单体表与融合表互斥:融合局不出单体表的文字,单体局不出融合表的文字;</li>
  * <li>登记一个测试用的假时钟时,指定回合号拿到对应文字,且落在「请推进第 n 回合」之前。</li>
  * </ol>
@@ -55,8 +55,9 @@ class SingleTurnClockSeamTest {
 	// ① 未登记的世界逐字节不变 ───────────────────────────────────────────
 
 	@Test
-	void productionTableIsEmptyInSliceA() {
-		assertThat(TurnPromptBuilder.SINGLE_TURN_CLOCK).isEmpty();
+	void productionTableHoldsOnlyPaidan() {
+		// Slice A 时为空;Slice D 登记《派单》(cyberpunk),表里只此一项。
+		assertThat(TurnPromptBuilder.SINGLE_TURN_CLOCK).containsOnlyKeys("cyberpunk");
 	}
 
 	@Test
@@ -65,7 +66,9 @@ class SingleTurnClockSeamTest {
 				Map.of("apocalypse", SingleTurnClockSeamTest::fakeClock));
 		int compared = 0;
 		for (Case c : singleCases()) {
-			if (c.ids().get(0).equals("apocalypse")) {
+			// 生产表里登记过的世界(Slice D 起:cyberpunk)在替换表里没有时钟,本来就会不同,不比。
+			if (c.ids().get(0).equals("apocalypse")
+					|| TurnPromptBuilder.SINGLE_TURN_CLOCK.containsKey(c.ids().get(0))) {
 				continue;
 			}
 			assertThat(onlyApocalypse.buildTurnPrompt(c.engine(), "A", "测试行动"))
@@ -74,7 +77,7 @@ class SingleTurnClockSeamTest {
 					.doesNotContain(MARK);
 			compared++;
 		}
-		assertThat(compared).isEqualTo((registry.activeMetas().size() - 1) * TURNS.length);
+		assertThat(compared).isEqualTo((registry.activeMetas().size() - 1 - TurnPromptBuilder.SINGLE_TURN_CLOCK.size()) * TURNS.length);
 	}
 
 	@Test

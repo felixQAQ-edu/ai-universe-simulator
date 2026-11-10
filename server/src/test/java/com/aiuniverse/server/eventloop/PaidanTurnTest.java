@@ -1,0 +1,235 @@
+package com.aiuniverse.server.eventloop;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
+import org.junit.jupiter.api.Test;
+
+import com.aiuniverse.server.archetype.ArchetypeMeta;
+import com.aiuniverse.server.archetype.ArchetypeRegistry;
+import com.aiuniverse.server.archetype.AttributeAxis;
+import com.aiuniverse.server.archetype.FusionSummary;
+import com.aiuniverse.server.engine.Engine;
+
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
+
+/**
+ * ADR-036 Slice D ·《派单》回合侧:夜班时钟 + 回合指令槽 + 禁用词订正。钉四件事:
+ * <ol>
+ * <li>既有六个单体世界与三个融合组合的回合提示词,与 Slice D 之前({@code main@fb2aee9})逐字节相同
+ * (快照在 {@code golden/turn-prompts/},每个世界 10 个回合号);</li>
+ * <li>夜班时钟在第 1、7、8、9、16、17、18、26、27、28 回合的输出符合决策 2 的表;</li>
+ * <li>回合指令槽包含提前 / 卡点 / 超时裁决、记忆点原句、收工规则等,且《派单》局的回合提示词里有它和时钟;</li>
+ * <li>禁用词扫描(订正后的表:「投诉」移出组织行动)+ {@code prompts/event-loop.md} lockstep。</li>
+ * </ol>
+ */
+class PaidanTurnTest {
+
+	/** 与快照生成时同一组 state.turn(本回合序号 = turn + 1)。 */
+	private static final int[] TURNS = { 0, 6, 7, 8, 15, 16, 17, 25, 26, 27 };
+
+	private final ObjectMapper mapper = new ObjectMapper();
+	private final ArchetypeRegistry registry = new ArchetypeRegistry();
+	private final TurnPromptBuilder builder = new TurnPromptBuilder(registry);
+
+	// ① 既有世界逐字节不变 ─────────────────────────────────────────────
+
+	@Test
+	void existingWorldsAndFusionsAreByteIdenticalToSnapshotsFromBeforeSliceD() throws IOException {
+		int compared = 0;
+		for (ArchetypeMeta m : registry.activeMetas()) {
+			if (m.id().equals("cyberpunk")) {
+				continue;
+			}
+			for (int t : TURNS) {
+				String name = m.id() + "_T" + (t + 1) + ".txt";
+				assertThat(builder.buildTurnPrompt(engine(List.of(m.id()), m.attributes(), t), "A", "测试行动"))
+						.as(name).isEqualTo(snapshot(name));
+				compared++;
+			}
+		}
+		for (FusionSummary c : registry.listFusionCombos()) {
+			for (int t : TURNS) {
+				String name = c.host() + "_x_" + c.foreign() + "_T" + (t + 1) + ".txt";
+				assertThat(builder.buildTurnPrompt(
+						engine(List.of(c.host(), c.foreign()), registry.fusedAxes(c.host(), c.foreign()), t), "A", "测试行动"))
+						.as(name).isEqualTo(snapshot(name));
+				compared++;
+			}
+		}
+		assertThat(compared).as("六个单体 + 三个融合,各 10 个回合号").isEqualTo((6 + 3) * TURNS.length);
+	}
+
+	// ② 夜班时钟 ───────────────────────────────────────────────────────
+
+	@Test
+	void clockMatchesDecision2Table() {
+		Map<Integer, String> slot = Map.of(
+				1, "第一夜 · 夜班,本班第 1 单",
+				7, "第一夜 · 夜班,本班第 7 单",
+				8, "第一夜 · 收工",
+				9, "第二夜 · 夜班,本班第 1 单",
+				16, "第二夜 · 夜班,本班第 8 单",
+				17, "第二夜 · 收工",
+				18, "第三夜 · 夜班,本班第 1 单",
+				26, "第三夜 · 夜班,本班第 9 单,本班最后一单",
+				27, "第三夜 · 收工",
+				28, "第三夜 · 收工");
+		slot.forEach((n, s) -> {
+			String head = "\n\n【本回合时段】" + s + "(本局第 " + n + " 回合)。叙事与 timeline 都按这个时段写,不要提前或拖后。";
+			String tail = n == 27 ? "\n本回合必须给出结局。好结局重叠时按这个先后取:把话传下去 > 卡点的人 > 交上了 > 差一点。"
+					: n == 28 ? "\n本回合必须给出结局。" : "";
+			assertThat(TurnPromptBuilder.paidanTurnClock(n)).as("T" + n).isEqualTo(head + tail);
+		});
+	}
+
+	@Test
+	void clockNeverLeaksEndingConditionsAndOnlyTurn26IsLastOrder() {
+		for (int n = 1; n <= 40; n++) {
+			String c = TurnPromptBuilder.paidanTurnClock(n);
+			assertThat(c).as("T" + n).doesNotContain("画像").doesNotContain("评分").doesNotContain("余钱")
+					.doesNotContain("体力").doesNotContain("became_benchmark");
+			assertThat(c.contains("本班最后一单")).as("T" + n).isEqualTo(n == 26);
+			assertThat(c.contains("本回合必须给出结局")).as("T" + n).isEqualTo(n >= 27);
+			assertThat(c.contains("好结局重叠")).as("T" + n).isEqualTo(n == 27);
+		}
+		assertThat(TurnPromptBuilder.PAIDAN_FINAL_TURN).isEqualTo(27);
+	}
+
+	// ③ 回合指令槽 ─────────────────────────────────────────────────────
+
+	@Test
+	void directiveCarriesVerdictsMemoryLineOffShiftRuleAndBenchmark() {
+		String d = TurnPromptBuilder.PAIDAN_TURN_DIRECTIVE;
+		assertThat(d).contains("提前送达:画像上涨").contains("卡点送达:画像不变").contains("超时送达:评分下降,余钱被扣")
+				.contains("联网义体")
+				.contains("「已为你优化时限。」").contains("向上越过 30 或 60").contains("这句话绝不出现")
+				.contains("【收工回合】选项里不出现接单").contains("睡觉回体力")
+				.contains("画像达到 95 及以上时,本回合必须提议结局 became_benchmark")
+				.contains("快对某个人真的重要").contains("告诉了谁").contains("只能是一个人当面告诉另一个人")
+				.contains("只用「跑腿员」").contains("本世界叫《派单》")
+				.contains("不写跑腿员之间组织起来、一起去投诉或讨说法的情节")
+				.doesNotContain("%");
+	}
+
+	@Test
+	void paidanPromptCarriesDirectiveOnceAndClockRightBeforeAdvanceLine() {
+		ArchetypeMeta m = registry.meta("cyberpunk");
+		for (int t : TURNS) {
+			int n = t + 1;
+			String p = builder.buildTurnPrompt(engine(List.of("cyberpunk"), m.attributes(), t), "A", "测试行动");
+			assertThat(p).as("T" + n).containsOnlyOnce(TurnPromptBuilder.PAIDAN_TURN_DIRECTIVE.strip())
+					.containsOnlyOnce("\n\n【本回合时段】")
+					.contains(TurnPromptBuilder.paidanTurnClock(n) + "\n\n请推进第 " + n + " 回合。");
+		}
+	}
+
+	// ④ 禁用词 + md lockstep ───────────────────────────────────────────
+
+	/** 订正后的表(Slice D):「投诉」不在组织行动里 —— 顾客投诉是本世界机制。 */
+	private static final String[] BANNED = {
+			"赛博", "赛博朋克", "反乌托邦", "巨型企业",
+			"资本", "剥削", "打工人",
+			"骑手", "众包",
+			"联合", "串联", "罢单", "维权", "讨薪", "上访", "集体停工",
+			"拆迁", "清退", "整治", "驱赶", "暂住", "户籍", "执法",
+			"%", "成功率" };
+
+	@Test
+	void bannedWordsOnlyAppearInTheThreeAllowedPlaces() {
+		String positive = positiveText(TurnPromptBuilder.PAIDAN_TURN_DIRECTIVE);
+		assertThat(positive).contains("【送达裁决").contains("【题材边界】").contains("这样写:");
+		for (String w : BANNED) {
+			assertThat(positive).as("正向文字里不得有「" + w + "」").doesNotContain(w);
+		}
+		// 订正本身:「投诉」不再列为禁用词,只在题材边界那一句约束里出现。
+		assertThat(TurnPromptBuilder.PAIDAN_TURN_DIRECTIVE).doesNotContain("讨薪、投诉");
+		for (int n = 1; n <= 30; n++) {
+			String c = TurnPromptBuilder.paidanTurnClock(n);
+			for (String w : BANNED) {
+				assertThat(c).as("时钟 T" + n).doesNotContain(w);
+			}
+		}
+	}
+
+	@Test
+	void eventLoopMdQuotesDirectiveVerbatim() throws IOException {
+		String md = Files.readString(repoRoot().resolve("prompts/event-loop.md"), StandardCharsets.UTF_8);
+		assertThat(md).contains("```\n" + TurnPromptBuilder.PAIDAN_TURN_DIRECTIVE.strip() + "\n```");
+		assertThat(md).contains("本回合必须给出结局。好结局重叠时按这个先后取:" + TurnPromptBuilder.PAIDAN_GOOD_ENDING_ORDER + "。");
+	}
+
+	/** 剔掉三处允许出现禁用词的地方:「【世界名】」一条、「不要这样写」反例行、「【禁用词 · 本世界】」一段。 */
+	static String positiveText(String directive) {
+		List<String> keep = new ArrayList<>();
+		boolean inBanned = false;
+		for (String line : directive.split("\n")) {
+			String s = line.strip();
+			if (s.startsWith("- 【禁用词 · 本世界】")) {
+				inBanned = true;
+				continue;
+			}
+			if (inBanned && line.startsWith("  · ")) {
+				continue;
+			}
+			inBanned = false;
+			if (s.startsWith("- 【世界名】") || s.startsWith("不要这样写")) {
+				continue;
+			}
+			keep.add(line);
+		}
+		return String.join("\n", keep);
+	}
+
+	// ── 夹具 ────────────────────────────────────────────────────────────
+
+	private String snapshot(String name) throws IOException {
+		try (InputStream in = getClass().getResourceAsStream("/golden/turn-prompts/" + name)) {
+			assertThat(in).as("快照缺失:" + name).isNotNull();
+			return new String(in.readAllBytes(), StandardCharsets.UTF_8);
+		}
+	}
+
+	private static Path repoRoot() {
+		Path p = Path.of("").toAbsolutePath();
+		while (p != null && !Files.exists(p.resolve("prompts/event-loop.md"))) {
+			p = p.getParent();
+		}
+		assertThat(p).as("找不到仓库根(prompts/event-loop.md)").isNotNull();
+		return p;
+	}
+
+	/** 与快照生成时完全相同的最小存档:各轴 50,state.turn = 给定值。 */
+	private Engine engine(List<String> ids, List<AttributeAxis> axes, int turn) {
+		ObjectNode world = mapper.createObjectNode();
+		world.put("schemaVersion", "0.4");
+		world.put("mode", ids.size() == 1 ? "single" : "hybrid");
+		ArrayNode arr = world.putArray("archetypes");
+		ids.forEach(arr::add);
+		world.putObject("world").put("title", "测").put("background", "测").put("dangerLevel", "high").put("tone", "测");
+		ObjectNode attrs = world.putObject("character").putObject("attributes");
+		axes.forEach(a -> attrs.put(a.key(), 50));
+		world.putArray("rules");
+		world.putArray("endings").addObject().put("id", "x_end").put("title", "终").put("condition", "测")
+				.put("outcome", "neutral").put("reached", false);
+		ObjectNode p = mapper.createObjectNode();
+		p.put("schemaVersion", "0.4");
+		p.set("world", world);
+		p.putObject("state").put("turn", turn).put("status", "ongoing").put("timeline", "测").put("logSummary", "")
+				.putArray("log");
+		p.putArray("triggered");
+		p.putArray("issues");
+		return Engine.restore(p, mapper, ArchetypeRegistry.accumulationKeys(axes),
+				ArchetypeRegistry.axisDisplayNames(axes), ArchetypeRegistry.nonLethalKeys(axes));
+	}
+}
