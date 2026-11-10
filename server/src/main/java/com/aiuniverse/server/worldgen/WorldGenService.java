@@ -133,7 +133,7 @@ public class WorldGenService {
 		List<String> errors = new ArrayList<>();
 		ObjectNode parsed = tryParse(raw, errors);
 		if (parsed != null) {
-			return EndingOrder.apply(archetypes, parsed);
+			return FixedWorldTitle.apply(archetypes, prompts.registry(), EndingOrder.apply(archetypes, parsed));
 		}
 
 		// 一次修复(设计稿 §4.3):带校验错误回喂「只回修正后的完整 world JSON」,同样开 json_object。
@@ -145,7 +145,7 @@ public class WorldGenService {
 		List<String> errors2 = new ArrayList<>();
 		ObjectNode parsed2 = tryParse(raw2, errors2);
 		if (parsed2 != null) {
-			return EndingOrder.apply(archetypes, parsed2);
+			return FixedWorldTitle.apply(archetypes, prompts.registry(), EndingOrder.apply(archetypes, parsed2));
 		}
 
 		// 修复仍败 → 整局 ERROR(设计稿 §4.4:无前态可守,不进半残 PLAYING)。

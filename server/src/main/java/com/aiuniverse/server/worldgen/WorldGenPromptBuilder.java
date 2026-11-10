@@ -36,6 +36,14 @@ public final class WorldGenPromptBuilder {
 	}
 
 	/**
+	 * 本 builder 所读的 registry(ADR-036 Slice A2):{@link WorldGenService} 据它查 {@code fixedWorldTitle},
+	 * 与提示词注入读同一份元数据,不另起一条注入路径(既有十余处 {@code new WorldGenService(…)} 调用点不改)。
+	 */
+	ArchetypeRegistry registry() {
+		return registry;
+	}
+
+	/**
 	 * 通用骨架(模式无关,单点维护)。注入变量:displayName / worldview / 数值轴清单 / ruleForm / archetype id
 	 * / rules 措辞 / <b>结局条数区间</b>({@code %7$s},见 {@link #ENDING_COUNTS})。
 	 *

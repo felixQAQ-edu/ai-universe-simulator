@@ -24,6 +24,9 @@ import java.util.List;
  * @param rulesCarryTruth 规则是否「真假守则」型(ADR-009 决策 2 / F-013):{@code true}=真假混合、要 {@code isTrue}
  *                    有真有假(规则怪谈/末日/克苏鲁);{@code false}=心法/修行法则型、<b>不输出 {@code isTrue}</b>
  *                    (修仙)。world-gen 骨架据此注入 rules 块的对应措辞;校验器本身零分派(isTrue 全局可选)。
+ * @param fixedWorldTitle 固定的游戏内世界名(ADR-036 决策 1 / Slice A2;<b>可空</b>,缺省 {@code null} = 不固定,
+ *                    世界名照旧由模型起)。非空时,<b>单体</b> world-gen 过校验后由服务端用它覆写 {@code world.title}
+ *                    (首过与修复两条成功路径,落盘之前);融合局不读它,续局回载不碰它,不进校验、不动 schema。
  */
 public record ArchetypeMeta(
 		String id,
@@ -33,9 +36,16 @@ public record ArchetypeMeta(
 		String worldview,
 		List<AttributeAxis> attributes,
 		String ruleForm,
-		boolean rulesCarryTruth) {
+		boolean rulesCarryTruth,
+		String fixedWorldTitle) {
 
 	public ArchetypeMeta {
 		attributes = List.copyOf(attributes);
+	}
+
+	/** 不固定世界名(既有世界的登记形态,{@code fixedWorldTitle = null})。 */
+	public ArchetypeMeta(String id, String displayName, String tagline, String vibeTag, String worldview,
+			List<AttributeAxis> attributes, String ruleForm, boolean rulesCarryTruth) {
+		this(id, displayName, tagline, vibeTag, worldview, attributes, ruleForm, rulesCarryTruth, null);
 	}
 }
