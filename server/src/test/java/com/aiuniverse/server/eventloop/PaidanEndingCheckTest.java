@@ -59,20 +59,65 @@ class PaidanEndingCheckTest {
 		serviceLogger.detachAppender(logs);
 	}
 
-	// ── #1 致命轴归零:去掉提议,交引擎触底兜底 ────────────────────────────
+	// ── #1 致命轴归零:核对直接写失败结局,体力优先 ───────────────────────
 
 	@Test
-	void hpZeroDropsProposalAndEngineBottomOutPicksCollapsed() {
+	void hpZeroIsCollapsedWrittenByTheCheck() {
 		Landed r = land(27, start(), Map.of("hp", 0), List.of(), "rent_paid");
 		assertThat(r.status).isEqualTo("ended");
 		assertThat(r.reached).isEqualTo("collapsed_in_stairwell");
+		assertThat(r.issues).anyMatch(s -> s.contains("结局核对改判 rent_paid → collapsed_in_stairwell"))
+				.noneMatch(s -> s.contains("ADR-010 gate"));
 	}
 
 	@Test
-	void ratingZeroDropsProposalAndEngineBottomOutPicksDispatchStopped() {
+	void ratingZeroIsDispatchStoppedOnAnyTurn() {
 		Landed r = land(12, start(), Map.of("rating", 0), List.of(), "almost");
 		assertThat(r.status).isEqualTo("ended");
 		assertThat(r.reached).isEqualTo("dispatch_stopped");
+		assertThat(r.issues).anyMatch(s -> s.contains("结局核对改判 almost → dispatch_stopped"));
+	}
+
+	@Test
+	void bothAxesAtZeroTakeHpFirst() {
+		Landed r = land(12, start(), Map.of("hp", 0, "rating", 0), List.of(), "dispatch_stopped");
+		assertThat(r.reached).as("两轴同时 ≤ 0 → 固定取体力").isEqualTo("collapsed_in_stairwell");
+		assertThat(r.issues).anyMatch(s -> s.contains("结局核对改判 dispatch_stopped → collapsed_in_stairwell"));
+	}
+
+	// ── 与引擎极性 gate(ADR-010,阈值 10)的衔接 ───────────────────────
+
+	@Test
+	void finalTurnBothAxesAtMost10WithCash80TakesHpFirst() {
+		Landed r = land(27, start(), Map.of("hp", 10, "rating", 8, "cash", 85, "profile", 30), List.of(), "rent_paid");
+		assertThat(r.reached).as("两轴都 ≤ 10 且余钱 ≥ 80 → 好结局不成立,取体力").isEqualTo("collapsed_in_stairwell");
+		assertThat(r.issues).anyMatch(s -> s.contains("结局核对改判 rent_paid → collapsed_in_stairwell"))
+				.as("核对已判,引擎 gate 不再二次改写").noneMatch(s -> s.contains("ADR-010 gate"));
+	}
+
+	@Test
+	void finalTurnRatingAtMost10IsDispatchStopped() {
+		Landed r = land(27, start(), Map.of("rating", 10, "cash", 90, "profile", 30), List.of(), "kept_the_pace");
+		assertThat(r.reached).isEqualTo("dispatch_stopped");
+		assertThat(r.issues).noneMatch(s -> s.contains("ADR-010 gate"));
+	}
+
+	@Test
+	void finalTurnJustAbove10KeepsTheGoodEnding() {
+		Landed r = land(27, start(), Map.of("hp", 11, "rating", 11, "cash", 85, "profile", 50), List.of(), "rent_paid");
+		assertThat(r.reached).isEqualTo("rent_paid");
+	}
+
+	@Test
+	void beforeTurn27PassedItOnIsHeldWhenHpOrRatingAtMost10() {
+		// 数值其余都成立(余钱 60、本回合识破 #2 → 2 条),只因体力 ≤ 10 不收:本回合继续,不被 gate 提前改判结束。
+		Landed hpLow = land(10, start(), Map.of("hp", 10, "cash", 60), List.of(2), "passed_it_on");
+		assertThat(hpLow.status).isEqualTo("ongoing");
+		assertThat(hpLow.reached).isNull();
+		assertThat(hpLow.issues).anyMatch(s -> s.contains("结局核对改判 passed_it_on → 无"));
+		Landed ratingLow = land(10, start(), Map.of("rating", 9, "cash", 60), List.of(2), "passed_it_on");
+		assertThat(ratingLow.status).isEqualTo("ongoing");
+		assertThat(ratingLow.reached).isNull();
 	}
 
 	// ── #2 画像 ≥ 95:任一回合都是成了标杆 ──────────────────────────────

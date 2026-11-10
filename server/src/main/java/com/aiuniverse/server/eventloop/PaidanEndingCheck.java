@@ -17,10 +17,11 @@ import tools.jackson.databind.node.ObjectNode;
  * <p>数值口径与 {@code Engine.apply} 第 2–4 步相同:{@code stateUpdate} 给了就取它、没给取当前值,clamp 0–100;
  * 「已识破」= 原有 {@code discovered} 加上本回合 {@code discoveredRuleIds}。判定表(先命中先用):
  * <ol>
- *   <li>体力或评分 ≤ 0 → 去掉模型提议,交引擎现有触底兜底(按中文轴名命中「倒在楼道里」/「停派」);</li>
+ *   <li>体力 ≤ 0 → 倒在楼道里;否则评分 ≤ 0 → 停派(核对直接写;引擎对已带 failure 结局的触底回合照收、不重挑);</li>
  *   <li>画像 ≥ 95 → {@code became_benchmark};</li>
- *   <li>第 27 回合及以后 → 把话传下去(须模型提议 + 数值成立)> 卡点的人 > 交上了 > 差一点;</li>
- *   <li>第 27 回合之前 → 只收数值成立的「把话传下去」,其余提议都不收。</li>
+ *   <li>第 27 回合及以后 → 体力 ≤ 10 → 倒在楼道里;否则评分 ≤ 10 → 停派(与引擎极性 gate 衔接,ADR-010);
+ *       否则 把话传下去(须模型提议 + 数值成立)> 卡点的人 > 交上了 > 差一点;</li>
+ *   <li>第 27 回合之前 → 只收数值成立、且体力与评分都 > 10 的「把话传下去」,其余提议都不收。</li>
  * </ol>
  *
  * <p>纯函数(只读引擎状态、只写 {@code parsed}),ADR-031 档 1 回放走同一份代码,确定性重现。
@@ -34,12 +35,14 @@ final class PaidanEndingCheck {
 	static final String PASSED_IT_ON = "passed_it_on";
 	static final String BECAME_BENCHMARK = "became_benchmark";
 	static final String ALMOST = "almost";
+	static final String COLLAPSED = "collapsed_in_stairwell";
+	static final String DISPATCH_STOPPED = "dispatch_stopped";
 
 	static final String GROUP_PREFIX = "【群里说】";
 
 	/**
 	 * 一次核对的结果。{@code proposed} = 模型提议的结局 id(未提议为 null);{@code verdict} = 写回 {@code parsed} 的
-	 * 结局 id(null = 本回合不给结局,或交引擎触底兜底);{@code skipped} = 核对没有改写 {@code parsed}(id 在本局结局池里不存在)。
+	 * 结局 id(null = 本回合不给结局);{@code skipped} = 核对没有改写 {@code parsed}(id 在本局结局池里不存在)。
 	 */
 	record Result(String proposed, String verdict, boolean skipped) {
 		boolean changed() {
@@ -68,19 +71,28 @@ final class PaidanEndingCheck {
 
 		String proposed = proposedId(parsed);
 		String verdict;
-		if (hp <= 0 || rating <= 0) {
-			verdict = null; // 交引擎触底兜底
+		if (hp <= 0) {
+			verdict = COLLAPSED; // 核对直接写,不交引擎触底兜底;两轴都归零时固定取体力(Felix 2026-11-10)
+		} else if (rating <= 0) {
+			verdict = DISPATCH_STOPPED;
 		} else if (profile >= 95) {
 			verdict = BECAME_BENCHMARK;
 		} else {
-			boolean passedOk = PASSED_IT_ON.equals(proposed) && cash >= 50 && falseGroupRulesDiscovered(engine, parsed) >= 2;
+			// 与引擎极性 gate 衔接(ADR-010):致命轴 ≤ ENDING_GATE_THRESHOLD 时引擎会拒绝 success 结局。
+			// 核对在这里先判,不把 success 交给 gate 二次改写。
+			boolean nearZero = hp <= Engine.ENDING_GATE_THRESHOLD || rating <= Engine.ENDING_GATE_THRESHOLD;
+			boolean passedOk = !nearZero && PASSED_IT_ON.equals(proposed) && cash >= 50
+					&& falseGroupRulesDiscovered(engine, parsed) >= 2;
 			if (n >= TurnPromptBuilder.PAIDAN_FINAL_TURN) {
-				verdict = passedOk ? PASSED_IT_ON
+				// 两条都濒零时取体力(固定,Felix 2026-11-10;引擎 pickFailureEnding 按 attributes 的 JSON 键序,通常也是体力在前)。
+				verdict = hp <= Engine.ENDING_GATE_THRESHOLD ? COLLAPSED
+						: rating <= Engine.ENDING_GATE_THRESHOLD ? DISPATCH_STOPPED
+						: passedOk ? PASSED_IT_ON
 						: cash >= 60 && profile <= 40 ? KEPT_THE_PACE
 						: cash >= 80 ? RENT_PAID
 						: ALMOST;
 			} else {
-				verdict = passedOk ? PASSED_IT_ON : null;
+				verdict = passedOk ? PASSED_IT_ON : null; // 濒零时把话传下去不收,本回合继续,免得被 gate 改判提前结束
 			}
 		}
 		if (verdict != null && !endingExists(engine, verdict)) {
