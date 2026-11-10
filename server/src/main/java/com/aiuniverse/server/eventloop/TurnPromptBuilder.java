@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.IntFunction;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import com.aiuniverse.server.archetype.ArchetypeMeta;
@@ -38,9 +39,35 @@ public final class TurnPromptBuilder {
 
 	private final ArchetypeRegistry registry;
 
+	/** 本实例实际查的单体按回合注入表(生产 = {@link #SINGLE_TURN_CLOCK};测试可换一张)。 */
+	private final Map<String, IntFunction<String>> singleTurnClocks;
+
+	@Autowired
 	public TurnPromptBuilder(ArchetypeRegistry registry) {
-		this.registry = registry;
+		this(registry, SINGLE_TURN_CLOCK);
 	}
+
+	/** 测试用:换一张单体按回合注入表(只用于钉接缝,生产路径不走)。 */
+	TurnPromptBuilder(ArchetypeRegistry registry, Map<String, IntFunction<String>> singleTurnClocks) {
+		this.registry = registry;
+		this.singleTurnClocks = Map.copyOf(singleTurnClocks);
+	}
+
+	/**
+	 * <b>单体世界按回合注入表</b>(ADR-036 Slice A · 方案 D):archetype → 按本回合序号 n(= {@code state.turn} + 1)
+	 * 给的一段文字,接在「请推进第 n 回合」之前。形状照抄融合的 {@link FusionTurnCopy#turnClock}
+	 * (ADR-035 决策 4 修订段),只是挂在单体层。
+	 *
+	 * <p><b>与融合表互斥</b>:单体局只查本表、融合局只查 {@link FusionTurnCopy#turnClock};
+	 * 融合局的 host / foreign 即使在本表登记也不会拿到本表的文字,反之亦然。
+	 *
+	 * <p><b>未登记 → 空串 → 回合 prompt 逐字节不变</b>(本刀不登记任何世界,表为空)。
+	 *
+	 * <p><b>本表收什么(判据,ADR-036 已知代价 6)</b>:只收「叙事推进时段在冒烟中稳定失效」的<b>时段信息</b>
+	 * (CONTEXT §三.16 (9) 的口径平移到单体)。逐回合生效的固定指令归 {@code TURN_DIRECTIVES},不在这里。
+	 * 判据只在本注释与 ADR 里,不是代码检查。
+	 */
+	static final Map<String, IntFunction<String>> SINGLE_TURN_CLOCK = Map.of();
 
 	/** 数值轴 key → 叙事中文意象提示(清洁度:数值变化只用意象,不直呼字段名)。缺省回落 displayName。 */
 	private static final Map<String, String> IMAGERY = Map.ofEntries(
@@ -647,6 +674,7 @@ public final class TurnPromptBuilder {
 				+ currentBandBlock(ctx.axes(), engine)
 				+ (sceneBlock == null ? "" : sceneBlock)
 				+ fusionTurnClock(ctx, engine.turn() + 1) // 融合局按回合文案(缺省空串,逐字不变)
+				+ singleTurnClock(ctx, engine.turn() + 1) // 单体局按回合文案(ADR-036 Slice A;未登记空串,逐字不变)
 				+ "\n\n请推进第 " + (engine.turn() + 1) + " 回合。玩家本回合选择的行动:" + action;
 	}
 
@@ -656,6 +684,15 @@ public final class TurnPromptBuilder {
 			return "";
 		}
 		IntFunction<String> clock = FUSION_TURN_COPY.get(ctx.comboKey()).turnClock();
+		return clock == null ? "" : clock.apply(nextTurn);
+	}
+
+	/** 单体世界按回合文案(ADR-036 Slice A);融合局 / 未登记的世界 → 空串。只查单体表,不碰融合表。 */
+	private String singleTurnClock(TurnContext ctx, int nextTurn) {
+		if (ctx.fused()) {
+			return "";
+		}
+		IntFunction<String> clock = singleTurnClocks.get(ctx.archetype());
 		return clock == null ? "" : clock.apply(nextTurn);
 	}
 
