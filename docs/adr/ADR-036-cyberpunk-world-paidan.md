@@ -529,6 +529,30 @@ state 里加一个班次字段,由模型提议「本班结束」、引擎落账,
 **在 `main`(`4178284`)上同样失败**,与本刀无关(测试按「临时目录往上两级即根」拼路径,macOS 的 `/var/folders/…/T/` 层级更深,拼出的路径不存在)。
 golden parity(`EngineGoldenTest` / `TransformParityTest` / `ValidatorParityTest` / `AnimalLifeLegacyGoldenTest`)全绿。
 
+### Slice A2 · 固定世界名覆写(2026-11-10,基于 `6ce5ad2`,实现 commit `d6bc398`,分支 `phase4/adr-036-slice-a2` 待合并)
+
+**纯机制,不登记任何真实世界**(《派单》在 Slice B 登记)。勘察与决策 1 一致,未发现冲突。
+
+- **字段**:`ArchetypeMeta` 加可空组件 `fixedWorldTitle`,另留不带它的 8 参构造器(缺省 `null`);registry 里六处 `new ArchetypeMeta(…)` 一字未改。
+  `ArchetypeMeta` 不直接序列化下发(选择屏走自己的投影),线上响应不多字段。
+- **覆写**:新类 `worldgen/FixedWorldTitle`,只对单体(`archetypes.size() == 1`)且字段非空时覆写 `world.title` 这一个字段;
+  模型原名与固定名不同时记一行 INFO(Slice E 读软层失守率用,只进日志)。
+  `WorldGenService` 首过、修复两条成功路径都在 `EndingOrder.apply` 之后调它 —— 即过校验之后、交给播种层落盘之前。
+- **registry 从哪来**:`WorldGenService` 本身不持有 registry;经 `WorldGenPromptBuilder` 新增的包内访问器 `registry()` 取,
+  与提示词注入读同一份元数据。这样十余处 `new WorldGenService(…)` 调用点不改。
+- **不动**:读档路径(`Engine.restore` / `resume` 不经过覆写)、`validateWorld`、state schema(仍 `"0.4"`)、提示词(软层提示词行在 Slice C)。
+
+**单测** `FixedWorldTitleTest`(6 例;测试替身 = 覆写 `meta()` 的 `ArchetypeRegistry` 匿名子类,给指定世界换上带固定名的元数据):
+① 真实六个世界都没登记;未登记世界首过 / 修复两条路径的输出与模型产出逐字节相同(另登记了别的世界也不变);
+② 登记世界两条路径都覆写,且与模型产出相比只差 `world.title`;
+③ 三个融合组合在两半都登记时仍不覆写;
+④ 存档里是模型旧名时,换上登记后的 registry 回载 + 续局,标题照旧;
+⑤ `init` 响应、盘上存档文件(只有固定名、没有模型原名)、新 store 实例回载后的续局,三处标题一致。
+反向验证:去掉「仅单体」守卫 → ③ 红;修复路径不覆写 → ② 红(均已还原)。
+
+**零回归**:后端 `mvn test` 883 例:882 绿 / 1 红,红的仍是 Slice A 记过的 `StoreMigrationToolGateTest.repoPathIsRefusedEvenWhenItIsWrittenRelativeAndUnnormalized`
+(`main` 上同样失败、环境相关,本刀不修)。golden parity 四件全绿。
+
 ## 实际效果(事后补充)
 
 *Slice E 冒烟时回填:三夜时钟与注入的一致率;第 27 回合出结局的比例;停派是否由引擎按「评分」命中、标杆是否被模型如期提议;`world.title` 是否为「派单」;记忆点「跨档 ↔ 播报」一致率;来源前缀格式稳定性。*
