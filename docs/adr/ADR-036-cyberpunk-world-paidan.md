@@ -886,6 +886,32 @@ world-gen 指令槽与回合指令槽两处同步改。**勘察 6 / 决策 9 原
 
 **仍不得部署**:合并后 Felix 再玩一局对比(看味道是否出来、tone 是否成了介绍句、每回合是否有一样「今天没有」且与这一单有关的物件、降速与出租算力是否兑现到数值)。
 
+### 订正二 · 结局核对、isTrue 必填、经济数字、腿况注入(2026-11-10,基于 `c9318bf`,决策 commit `29e47ed`、实现 commit `060103e`,分支 `phase4/adr-036-ending-check` 待合并)
+
+勘察结论见「订正(2026-11-10 二)」一节,与简报无冲突:结局核对挂在 `EventLoopService.landSettled` 的 `engine.apply` 之前(`clampClosingVigorFloor` 同一落点),Engine 一行未动;
+isTrue 检查放在 `WorldGenService.tryParse` 的通用校验之后,只对单体《派单》生效。
+
+- **结局核对**:新类 `eventloop/PaidanEndingCheck`(纯函数:只读引擎状态、只写 `parsed.ending`);`EventLoopService.checkPaidanEnding` 只在单体 `cyberpunk` 局调用它,
+  改判记 INFO「《派单》结局核对改判:原 → 新」与引擎 issue「T{n} 结局核对改判 原 → 新」;判定 id 不在本局结局池里时不改写、记 WARN。
+- **第 27 回合注入**:`TurnPromptBuilder.PAIDAN_FINAL_TABLE`(简报原句 + 判定表),接在原有的优先序行之后。
+- **isTrue**:`WorldGenService.worldSpecificErrors` —— 《派单》任一规则缺布尔 `isTrue` 记一条「rules[i].isTrue: ……」,走现有一次修复;修复后仍缺 → 整局 ERROR。
+- **经济数字**:回合槽「送达裁决」与余钱轴行为提示写死订正 3 的数,加「每个夜班回合送达都必须按上面的数落余钱,不得不变。」
+- **腿况**:`TurnPromptBuilder.SINGLE_TURN_STATUS`(与时段表同机制、只查单体局),`cyberpunk` → `paidanLegStatus`,按本回合开始时余钱 ≤ 20 / > 20 注入两句之一,接在时段之后。
+- **黑诊所**:worldview、world-gen 开局熟人、回合槽「月供与降速」改为「解不开平台的远程降速,只能修磕坏的腿、能刷机」;回合槽加「腿有没有被降速,以每回合注入的【腿况】为准」。
+- `prompts/event-loop.md` v1.9(槽全文、第 27 回合判定表、腿况两句)、`prompts/world-gen.md` v0.10.3 同步。
+
+**单测**:`PaidanEndingCheckTest`(20 例,走真实 `landSettled` → `engine.apply`):体力 / 评分归零交触底兜底;画像 ≥ 95 任一回合成了标杆(含压过第 27 回合的好结局);
+第 27 回合起优先序各档(把话传下去须提议 + 数值、卡点的人画像边界 40 / 41、交上了 80 / 79.5、没提议也给、第 29 回合仍适用、stateUpdate 缺键取当前值);
+第 27 回合前六种不成立的提议都不收、把话传下去余钱 49 / 识破数不够不收;冒烟两局原样(余钱 22 的交上了 → 差一点;余钱 2、识破 1 条的把话传下去 → 差一点)及 INFO / issue;
+判定 id 不在池里不改写;规则怪谈局结局原样。`PaidanIsTrueRepairTest`(5 例):全缺 / 缺一条触发修复且修复提示带错误、修复后仍缺 → ERROR、齐全不修复、
+规则怪谈 / 克苏鲁 / 修仙缺 isTrue 照旧放行、融合局不走本检查。`PaidanTurnTest` +4(经济数字、黑诊所口径、腿况两种 × 余钱 0 / 20 / 21 / 80 且只注入一次、其他世界没有腿况),
+时钟测试改为「只有第 27 回合带判定表」,md 同步加判定表与腿况两句。
+反向验证:摘掉 `landSettled` 里的核对调用 → `PaidanEndingCheckTest` 15 例红;isTrue 检查改为对所有世界生效 → `PaidanIsTrueRepairTest` 3 例红(均已还原)。
+
+**零回归**:后端 `mvn test` **935 例全绿**(906 + 29);九份既有 world-gen 提示词与 90 份既有回合提示词快照逐字节相同;golden parity 四件全绿;`TraceReplayTest` 27 例全绿。前端未改,未跑。
+
+**仍不得部署**:合并后 Felix 再冒烟,专项看:改判率(日志 / 存档 issue 里「结局核对改判」的条数)、改判时叙事与结局卡是否打架、余钱是否按数涨落、腿况与叙事是否一致、world-gen 是否触发 isTrue 修复。
+
 ## 实际效果(事后补充)
 
 *Slice E 冒烟时回填:三夜时钟与注入的一致率;第 27 回合出结局的比例;停派是否由引擎按「评分」命中、标杆是否被模型如期提议;`world.title` 是否为「派单」;记忆点「跨档 ↔ 播报」一致率;来源前缀格式稳定性。*
