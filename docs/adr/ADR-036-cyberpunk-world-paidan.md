@@ -526,7 +526,7 @@ state 里加一个班次字段,由模型提议「本班结束」、引擎落账,
 
 **零回归**:改动前后各导出一次六个单体世界 + 三个融合组合 × 回合号 {1, 4, 7, 11, 26, 27, 28, 31} 共 72 份回合提示词,`diff -r` 全等。
 后端 `mvn test` 877 例:876 绿 / 1 红 —— 红的是 `StoreMigrationToolGateTest.repoPathIsRefusedEvenWhenItIsWrittenRelativeAndUnnormalized`,
-**在 `main`(`4178284`)上同样失败**,与本刀无关(测试按「临时目录往上两级即根」拼路径,macOS 的 `/var/folders/…/T/` 层级更深,拼出的路径不存在)。
+**在 `main`(`4178284`)上同样失败**,与本刀无关(测试按「临时目录往上两级即根」拼路径,macOS 的 `/var/folders/…/T/` 层级更深,拼出的路径不存在)。**已于 `e188c92` 修复**(只改测试:上爬层数按临时目录深度算)。
 golden parity(`EngineGoldenTest` / `TransformParityTest` / `ValidatorParityTest` / `AnimalLifeLegacyGoldenTest`)全绿。
 
 ### Slice A2 · 固定世界名覆写(2026-11-10,基于 `6ce5ad2`,实现 commit `d6bc398`,分支 `phase4/adr-036-slice-a2` 待合并)
@@ -551,7 +551,7 @@ golden parity(`EngineGoldenTest` / `TransformParityTest` / `ValidatorParityTest`
 反向验证:去掉「仅单体」守卫 → ③ 红;修复路径不覆写 → ② 红(均已还原)。
 
 **零回归**:后端 `mvn test` 883 例:882 绿 / 1 红,红的仍是 Slice A 记过的 `StoreMigrationToolGateTest.repoPathIsRefusedEvenWhenItIsWrittenRelativeAndUnnormalized`
-(`main` 上同样失败、环境相关,本刀不修)。golden parity 四件全绿。
+(`main` 上同样失败、环境相关,本刀不修)。**已于 `e188c92` 修复**。golden parity 四件全绿。
 
 ## 实际效果(事后补充)
 
