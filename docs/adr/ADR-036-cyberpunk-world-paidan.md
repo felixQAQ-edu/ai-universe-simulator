@@ -1302,6 +1302,8 @@ isTrue 检查放在 `WorldGenService.tryParse` 的通用校验之后,只对单�
 
 **默认参数(Felix 在 dev server 上看过再调;都是 CSS 变量 / 常量,改一处即可)**:
 
+**参数经 Felix 2026-11-11 认可**:在 dev server 上看过后,下表六项全部按默认值定稿,不调。
+
 | 参数 | 默认值 | 位置 |
 |---|---|---|
 | 雨丝峰值透明度 | `--rain-peak: 0.24`(偏紫层 × 0.75) | `game.module.css` `.cardPaidan` |
