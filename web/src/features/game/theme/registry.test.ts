@@ -99,14 +99,14 @@ describe('resolveWorldTheme · 皮肤登记(feature gate,ADR-018 §4.5)', () => 
     expect(t.skin).toBeNull();
   });
 
-  // 《派单》(ADR-036 Slice G-1)同《寻常》那一刀:只补顶图 + 卡面,皮肤留给下一刀 → 局内仍走旧实现。
-  it('《派单》cyberpunk 有图有卡、但不登记皮肤', () => {
+  // 《派单》:G-1 只补顶图 + 卡面;G-2 登记局内皮肤「夜班」。
+  it('《派单》cyberpunk 有图有卡,G-2 起登记了自己的皮肤', () => {
     const t = resolveWorldTheme('cyberpunk');
     expect(t.key).toBe('cyberpunk');
     expect(t.sceneUrl).toBe('/scenes/cyberpunk.webp');
     expect(t.cardClass).toBe(styles.cardPaidan);
     expect(t.cardClass).toBeTruthy();
-    expect(t.skin).toBeNull();
+    expect(t.skin).toBe('cyberpunk');
   });
 
   // 放行标准 2:规则怪谈作 host 的融合局,在没有融合视觉签名时**纯 host 呈现**。
@@ -222,7 +222,7 @@ describe('resolveWorldTheme · 加《动物人生》后其余世界零回归', (
 
   it('《派单》登记后的解析结果逐字段钉死(不带 scenePosition)', () => {
     expect(resolveWorldTheme('cyberpunk')).toStrictEqual({
-      key: 'cyberpunk', sceneUrl: '/scenes/cyberpunk.webp', cardClass: styles.cardPaidan, skin: null,
+      key: 'cyberpunk', sceneUrl: '/scenes/cyberpunk.webp', cardClass: styles.cardPaidan, skin: 'cyberpunk',
     });
   });
 });

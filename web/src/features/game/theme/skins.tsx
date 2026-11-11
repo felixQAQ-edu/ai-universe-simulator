@@ -6,6 +6,10 @@ import { CthuAmbient } from './cthu/CthuAmbient';
 import { CthuProse } from './cthu/CthuProse';
 import { CthuStats } from './cthu/CthuStats';
 import cthu from './cthu/cthu.module.css';
+import { PaidanActions } from './paidan/PaidanActions';
+import { PaidanAmbient } from './paidan/PaidanAmbient';
+import { PaidanStats } from './paidan/PaidanStats';
+import paidan from './paidan/paidan.module.css';
 import { RulesActions } from './rules/RulesActions';
 import { RulesAmbient } from './rules/RulesAmbient';
 import { RulesStats } from './rules/RulesStats';
@@ -122,5 +126,28 @@ export const SKINS: Partial<Record<SkinId, WorldSkin>> = {
     Actions: CthuActions,
     // 正文形态槽(刀 4 新开):分片壳 + 文字异常调度器的宿主。
     Prose: CthuProse,
+  },
+  cyberpunk: {
+    id: 'cyberpunk',
+    // 《派单》(ADR-036 Slice G-2):一级记忆点是**状态事件**(画像向上跨档时义眼浮字),不占开场。
+    hasIntro: false,
+    // 时间感:利落、数字化,缓出(power3.out 与 CSS `--t-ease: cubic-bezier(0.215, 0.61, 0.355, 1)` 同源,§4.3 成对)。
+    valueRoll: {
+      durationMs: 600,
+      ease: 'power3.out',
+      // 跨档那一回合先浮字、画像数字再滚(同修仙「钟先鸣、数后变」)。默认值,Felix 看过再调。
+      ceremonyDelayMs: 600,
+    },
+    // 「盯 profile」是注册表的按 key 配置(ADR-018 §5 Q5 锁在注册表内)。画像越高越糟,
+    // 但要的触发正好是「向上跨档」—— 机制不用扩(末日那条「不为方向扩机制」的理由不受影响)。
+    signatureAxisKey: 'profile',
+    screenClass: paidan.screen,
+    pausedClass: paidan.paused,
+    // 顶部场景图 = 积水反光的承载面(本屏唯一持续环境动效,纯 CSS)。
+    bannerImgClass: paidan.puddle,
+    backClass: paidan.back,
+    Ambient: PaidanAmbient,
+    Stats: PaidanStats,
+    Actions: PaidanActions,
   },
 };

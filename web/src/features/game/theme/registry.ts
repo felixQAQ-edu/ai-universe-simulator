@@ -15,7 +15,7 @@ import styles from '../game.module.css';
  * 已登记新皮肤的世界 id。刀 1 规则怪谈(试验田)证明基建可用,刀 2 加修仙;刀 3/4 各自再加一条。
  * 未登记世界 → `skin: null` → 走旧实现。
  */
-export type SkinId = 'rules_creepy' | 'cultivation' | 'apocalypse' | 'cthulhu';
+export type SkinId = 'rules_creepy' | 'cultivation' | 'apocalypse' | 'cthulhu' | 'cyberpunk';
 
 /** 一个世界(单体或融合组合)的视觉登记。 */
 export interface WorldTheme {
@@ -99,7 +99,7 @@ const WORLDS: Readonly<Record<string, WorldEntry>> = {
     cardClass: styles.cardAnimalLife,
     skin: null,
   },
-  // 《派单》(ADR-036 Slice G-1):同《寻常》那一刀,只补顶图 + 卡面;**皮肤不登记**(局内皮肤与卡面粒子留给下一刀)。
+  // 《派单》(ADR-036):G-1 补顶图 + 卡面;G-2 登记局内皮肤「夜班」(义眼读数 / 接单卡 / 积水反光 / 义眼投影浮字)。
   cyberpunk: {
     sceneUrl: '/scenes/cyberpunk.webp',
     // 取景(图 1672×1104,门口以下地面已纵向拉长,外卖袋底在图高 53.0%,2026-11-11 实测):主体在横向中央,不登记、居中。
@@ -107,7 +107,7 @@ const WORLDS: Readonly<Record<string, WorldEntry>> = {
     // (横幅最宽 640:.screen 640 且 border-box)。Felix 2026-11-11 定居中不改:53.3% 在误差内,640×300 少见且
     // 文字在左、袋子在中不遮;'50% 60%' 虽能把 640×300 收回 50.1%,但会裁掉空中连廊。
     cardClass: styles.cardPaidan,
-    skin: null,
+    skin: 'cyberpunk', // G-2:一级记忆点「已为你优化时限。」挂 profile 向上跨档
   },
 };
 

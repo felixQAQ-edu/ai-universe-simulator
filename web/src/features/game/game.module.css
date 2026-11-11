@@ -785,7 +785,7 @@
 /* ── 《派单》赛博朋克(ADR-036 Slice G-1,深界):湿柏油蓝黑底 + 两处霓虹光源,静态 ──
  * 青和紫各占一边(决策 12 订正 6「霓虹粉紫和蓝绿」):左缘色条 = 评分青;左下一团 = 旧墙上的全息广告紫;
  * 右上一点 = 远处楼群的青光;外加一层四周压暗。霓虹只作具体光源、只占角落,不是铺满的渐变(AGENTS.md 反面清单)。
- * **本刀全部静态**:只有 ::before,不加 ::after、不加 animation(卡面粒子随局内皮肤一刀做)。
+ * G-1 时全部静态(只有 ::before);G-2 加 ::after 斜飘雨丝(见下方 .cardPaidan::after),::before 仍静态。
  * 对比度(WCAG,按渐变逐像素合成卡底,343 / 608 两种卡宽;取卡底最暗处、左下紫光最浓处、右上青光处,最低值都在左下紫光处):
  *   标题 #e0e2ec ≥ 10.2:1 / 标语 #a49fb8 ≥ 5.1:1 / 标签 #d3a6f2(叠标签底)≥ 5.0:1。
  *   悬停(多一层内阴影紫光)文字区最低 10.6 / 5.3 / 5.2;低于 4.5 的只有卡最外缘几像素,那里没有文字。 */
@@ -805,6 +805,41 @@
     radial-gradient(85% 120% at 0% 110%, rgba(186, 92, 236, 0.3), transparent 68%),
     radial-gradient(60% 80% at 100% -10%, rgba(95, 210, 216, 0.1), transparent 70%),
     radial-gradient(130% 110% at 50% 30%, transparent 45%, rgba(0, 0, 0, 0.35) 100%);
+}
+
+/* 卡面粒子:斜飘的细雨丝(ADR-036 Slice G-2)。本卡首个 ::after 动效,无可替代(AGENTS.md §3)。
+ * 短雨丝 = 竖长小椭圆点,两层不同宽度、**同一纵向周期 60px** 错开平铺(循环无缝);整层转 14° 成斜飘,
+ * 动画沿雨丝方向 `transform: translateY` 一个周期 —— **只动 transform,不动 background-position**(§6;
+ * 其余四张卡的 ::after 都在动 background-position,这里不照抄)。层比卡大一圈,转角与位移都不露边。
+ * 不用蒙版:蒙版会跟着层一起位移,每个周期跳一下;「文字带附近减弱」改由标题 / 标语的深色描边光晕承担(见下)。
+ * 默认参数(Felix 在 dev server 上看过再调):
+ *   --rain-peak  0.24  雨丝最亮处的不透明度(偏紫那层为它的 75%)
+ *   --rain-cycle 0.8s  走完一个 60px 周期的时长(约 75px/s,细雨) */
+.cardPaidan {
+  --rain-peak: 0.24;
+  --rain-cycle: 0.8s;
+}
+
+.cardPaidan::after {
+  content: '';
+  position: absolute;
+  inset: -60% -30%;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(1px 9px at 50% 50%, rgba(185, 228, 235, var(--rain-peak)), transparent) 0 0 / 29px 60px,
+    radial-gradient(1px 7px at 50% 50%, rgba(205, 180, 245, calc(var(--rain-peak) * 0.75)), transparent)
+      13px 23px / 41px 60px;
+  transform: rotate(14deg) translateY(0);
+  animation: paidanRain var(--rain-cycle) linear infinite;
+}
+
+/* 文字带附近减弱:标题与标语描一圈卡底色的光晕,雨丝从字后面经过时,紧贴笔画的那几个像素仍是卡底色。 */
+.cardPaidan .cardTitle,
+.cardPaidan .cardTagline {
+  text-shadow:
+    0 0 2px #13121d,
+    0 0 6px #13121d;
 }
 
 .cardPaidan:hover {
@@ -1188,6 +1223,16 @@
 }
 
 /* 触手蠕动:幽光团缓慢扭曲 + 错位漂移(不旋转、不闪——黏稠、不安、不可名状)。 */
+/* 《派单》雨丝:沿雨丝方向走一个 60px 纵向周期(两层同周期,首尾无缝);旋转写在关键帧里,免得被 transform 覆盖。 */
+@keyframes paidanRain {
+  from {
+    transform: rotate(14deg) translateY(0);
+  }
+  to {
+    transform: rotate(14deg) translateY(60px);
+  }
+}
+
 @keyframes cthulhuWrithe {
   0% {
     transform: translate(0, 0) scale(1);
@@ -1343,6 +1388,7 @@
   .cardApocalypse::before,
   .cardApocalypse::after,
   .cardCthulhu::after,
+  .cardPaidan::after,
   .cardCultivation::before,
   .cardCultivation::after,
   .cardFusion,

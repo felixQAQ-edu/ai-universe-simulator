@@ -1,0 +1,373 @@
+/* ═══ 《派单》· 皮肤「夜班」(ADR-036 Slice G-2)═══════════════════════════════
+ *
+ * 色板只从卡面与顶图取:柏油蓝黑底、评分青、全息紫。钠灯琥珀只留在顶图里作环境光,
+ * **UI 上任何地方都不用**(更不落在跑腿员衣物或餐箱上,ADR-036 决策 12 / 勘察 6)。
+ * 对比度表见 ADR-036「Slice G-2」节,全部 ≥ 4.5:1。
+ *
+ * 动效预算(AGENTS.md Motion Constraints §2),三个槽各一处,均为本世界首个、无可替代(§3):
+ *   持续     = 积水反光(.puddle,挂顶部场景图;本屏唯一持续环境动效)
+ *   低频偶发 = 义眼投影浮字「已为你优化时限。」(一级记忆点,一次性演出,不循环;见 PaidanAmbient)
+ *   用户触发 = 通用层的数值滚动 + 接单卡按压
+ * 无入场序列。正文与选项不参与任何动效(§4)。
+ * 一切动画只动 transform / opacity(§6);`prefers-reduced-motion: reduce` 下全部停在静帧(§5)。
+ */
+
+/* ── 主题根:色板 token + 时间感 token ───────────────────────────────── */
+.screen {
+  /* 世界决定明暗(ADR-018 §4.6):本世界固定深色。 */
+  --bg: #0f0e16;
+  --text: #dcdde6; /* 正文面板上 13.3:1、页底 14.2:1 */
+  --muted: #8f8aa3; /* 页底 5.8:1、数值卡 5.4:1 */
+  --line: rgba(95, 208, 214, 0.14);
+  --card: #17161f;
+  --chip: rgba(150, 110, 220, 0.14);
+  --accent: #5fd0d6; /* 评分青 */
+  --accent-soft: rgba(95, 208, 214, 0.1);
+  --notice-bg: rgba(186, 92, 236, 0.14);
+  --notice-fg: #e3c9f5; /* 10.9:1 */
+
+  /* 正文面板:深一层,左缘一道全息紫细线(静态,正文本身不动)。 */
+  --prose-bg: #17161f;
+  --prose-border: 1px solid rgba(255, 255, 255, 0.06);
+  --prose-shadow: inset 2px 0 0 rgba(186, 92, 236, 0.55);
+  --panel-radius: 4px;
+
+  /* 光标不闪:正文区不留循环动画(AGENTS.md §4)。 */
+  --caret-play: paused;
+
+  /* 规则条目未点亮色:#a29db6 在 #17161f 上约 6.4:1。 */
+  --rule-idle: #a29db6;
+
+  /* 时间感(成对,ADR-018 §4.3):利落、数字化,缓出(= GSAP power3.out,见 skins.tsx valueRoll)。 */
+  --t-dur: 0.18s;
+  --t-ease: cubic-bezier(0.215, 0.61, 0.355, 1);
+
+  color: var(--text);
+}
+
+/* 内容在氛围层之上(同规则怪谈 / 修仙)。 */
+.screen > *:not(.ambient):not(.hud) {
+  position: relative;
+  z-index: 1;
+}
+
+/* ── 氛围底(fixed 铺满视口:桌面端 .screen 只有 640px,两侧也是夜里)── */
+.ambient {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: #0f0e16;
+}
+
+/* ── 持续环境动效:积水反光(挂顶部场景图 = 本屏唯一持续环境动效)──────────
+ * 做法:场景图的 ::after 用 `background: inherit` 复制同一张图,提亮、加饱和、`screen` 叠加,
+ * 再用蒙版只留下**湿地面一带**(门口台阶以下到横幅底部渐隐之前);动画只改这一层的 opacity 与一点横向位移,
+ * 读起来是「地上的霓虹倒影在晃」。动的是画里本来就有的东西,不是另画一层光。
+ * 只在横幅里,天然不落正文(§4)。
+ *
+ * 默认参数(Felix 在 dev server 上看过再调,ADR-036 Slice G-2 裁定补充 3):
+ *   --puddle-period 7s   一个来回的周期(alternate,所以一明一暗共 14s)
+ *   --puddle-peak   0.42 提亮层最亮时的不透明度(最暗时为它的 30%)
+ *   --puddle-drift  3px  横向晃动幅度 */
+/* 参数定义在主题根上,debug 的倍速 / 静帧开关(根上的瞬时 class)才能覆盖它们。 */
+.screen {
+  --puddle-period: 7s;
+  --puddle-peak: 0.42;
+  --puddle-drift: 3px;
+}
+
+/* debug(仅 ?debug=1,PaidanAmbient 里的开关):4 倍速看一个完整周期 / 停在静帧看 reduced-motion 的样子。 */
+.debugFast {
+  --puddle-period: 1.75s;
+}
+
+.debugStill .puddle::after {
+  animation: none;
+}
+
+.puddle::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: inherit;
+  filter: brightness(1.7) saturate(1.35);
+  mix-blend-mode: screen;
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 52%,
+    #000 62%,
+    #000 74%,
+    transparent 86%
+  );
+  mask-image: linear-gradient(to bottom, transparent 52%, #000 62%, #000 74%, transparent 86%);
+  opacity: calc(var(--puddle-peak) * 0.3);
+  animation: puddleShimmer var(--puddle-period) ease-in-out infinite alternate;
+}
+
+@keyframes puddleShimmer {
+  0% {
+    opacity: calc(var(--puddle-peak) * 0.3);
+    transform: translateX(calc(var(--puddle-drift) * -1)) scaleY(1);
+  }
+  55% {
+    opacity: var(--puddle-peak);
+    transform: translateX(var(--puddle-drift)) scaleY(1.012);
+  }
+  100% {
+    opacity: calc(var(--puddle-peak) * 0.55);
+    transform: translateX(0) scaleY(1);
+  }
+}
+
+/* 停表(§4.4):正文不稳定期(生成中 / 开场逐字未完)持续动效也停 —— 同规则怪谈监控呼吸。 */
+.paused .puddle::after {
+  animation-play-state: paused;
+}
+
+/* ── 一级记忆点:义眼投影浮字 ─────────────────────────────────────────
+ * 挂**视口固定层的上缘**(Felix 2026-11-11 裁定 2):前端跨档发生在第 N 回合落账那一刻,
+ * 此时玩家多半已滚到选项处,顶图不在视口里;义眼投影本来就该在「眼前」,不随页面滚走。
+ * `pointer-events: none`,停留几秒后自动淡出(裁定补充 2)。
+ * 对比度:底板 0.72 叠在顶图最亮处(左墙全息紫)上,主句 ≥ 7.0:1、小标 ≥ 6.8:1。 */
+.hud {
+  position: fixed;
+  z-index: 20;
+  top: calc(env(safe-area-inset-top, 0px) + 12px);
+  left: 50%;
+  width: min(608px, calc(100% - 2rem)); /* 对齐 640 列的内容宽 */
+  pointer-events: none;
+  display: flex;
+  justify-content: flex-start;
+  transform: translate(-50%, -6px);
+  opacity: 0;
+  transition:
+    opacity 0.35s var(--t-ease),
+    transform 0.35s var(--t-ease);
+}
+
+.hudOn {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+/* 淡出比浮出慢一点,像投影熄掉而不是被收走。 */
+.hudOff {
+  opacity: 0;
+  transform: translate(-50%, -4px);
+  transition-duration: 0.9s;
+}
+
+.hudPlate {
+  padding: 7px 12px 7px 10px;
+  font-size: 14px;
+  letter-spacing: 0.14em;
+  color: #8ee8ec;
+  background: rgba(8, 9, 16, 0.72);
+  border: 1px solid rgba(127, 224, 229, 0.45);
+  border-left: 3px solid #7fe0e5;
+  border-radius: 2px;
+  text-shadow: 0 0 8px rgba(127, 224, 229, 0.55);
+  box-shadow: 0 0 18px -6px rgba(127, 224, 229, 0.45);
+}
+
+.hudTag {
+  display: block;
+  margin-bottom: 3px;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  color: #a8e0e4;
+  text-shadow: none;
+}
+
+/* ── 数值形态:义眼读数 ───────────────────────────────────────────────
+ * 方角细框、数字等宽;**档名放在数字下方**(Felix 2026-11-11 裁定补充 1:375 宽下数字旁的档名
+ * 被挤成一字一行)。进度条只按 severity 上色,不读 key(ADR-018 §4.2)。 */
+.readout {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr); /* 轴数多少都等分一行 */
+  gap: 0.5rem;
+}
+
+.cell {
+  min-width: 0;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0.55rem 0.6rem 0.6rem;
+}
+
+.cellKey {
+  display: block;
+  font-size: 0.74rem;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.cellNum {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 1.45rem;
+  line-height: 1.15;
+  font-weight: 600;
+  color: #eef0f6; /* 数值卡上 15.7:1 */
+  font-variant-numeric: tabular-nums;
+}
+
+/* 档名:数字下方一行,不换行;太长时省略而不是竖排。紫 #c9a6ee 在数值卡上 8.7:1。 */
+.cellBand {
+  display: block;
+  min-height: 1em;
+  margin-top: 0.1rem;
+  font-size: 0.72rem;
+  line-height: 1.2;
+  color: #c9a6ee;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.track {
+  margin-top: 0.4rem;
+  height: 3px;
+  border-radius: 1px;
+  background: rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+}
+
+.fill {
+  height: 100%;
+  background: #5fd0d6; /* 常态 / 未知 severity:评分青 */
+}
+
+.fillCaution {
+  background: #c9a6ee;
+}
+
+/* 危险:偏粉的告警色,不用规则怪谈的红;数字同色(数值卡上 7.9:1)。 */
+.fillDanger {
+  background: #ff8a8a;
+}
+
+.numDanger {
+  color: #ff8a8a;
+}
+
+/* ── 决策圈形态:接单卡 ────────────────────────────────────────────── */
+.orders {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.order {
+  display: flex;
+  gap: 0.7rem;
+  align-items: flex-start;
+  width: 100%;
+  text-align: left;
+  padding: 0.8rem 0.9rem;
+  background: rgba(95, 208, 214, 0.06);
+  border: 1px solid rgba(95, 208, 214, 0.28);
+  border-radius: 4px;
+  color: var(--text); /* 选项底上 13.0:1 */
+  font: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background-color var(--t-dur) var(--t-ease),
+    border-color var(--t-dur) var(--t-ease),
+    transform var(--t-dur) var(--t-ease);
+}
+
+.order:hover:not(:disabled) {
+  border-color: rgba(127, 224, 229, 0.55);
+}
+
+/* 按压 = 接单确认:青框亮起、轻轻压下(用户触发槽)。 */
+.order:active:not(:disabled) {
+  transform: scale(0.99);
+  background: rgba(95, 208, 214, 0.14);
+  border-color: #7fe0e5;
+}
+
+.order:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.orderNo {
+  flex-shrink: 0;
+  font-weight: 600;
+  color: var(--accent); /* 9.6:1 */
+  font-variant-numeric: tabular-nums;
+}
+
+.orderBody {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.orderText {
+  line-height: 1.5;
+}
+
+.orderHint {
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: #a29db6; /* 6.7:1 */
+}
+
+/* ── 返回键:同接单卡的青细框语言 ──────────────────────────────────── */
+.back {
+  border: 1px solid rgba(95, 208, 214, 0.28);
+  border-radius: 4px;
+  background: rgba(15, 14, 22, 0.78);
+  color: #b4b0c4;
+}
+
+.back:active {
+  opacity: 1;
+  border-color: #7fe0e5;
+  color: var(--text);
+}
+
+/* ── debug(仅 ?debug=1):重播记忆点 ─────────────────────────────── */
+.debugBtn {
+  align-self: flex-start;
+  font-size: 0.68rem;
+  color: var(--muted);
+  background: transparent;
+  border: 1px dashed var(--muted);
+  border-radius: 2px;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+/* ── reduced-motion:全部停在静帧 ────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .screen {
+    --t-dur: 0.01s;
+  }
+
+  .puddle::after {
+    animation: none;
+  }
+
+  /* 浮字照常出现与消失(它是信息,不是装饰),只是不位移、不淡入淡出。 */
+  .hud,
+  .hudOn,
+  .hudOff {
+    transition: none;
+    transform: translate(-50%, 0);
+  }
+
+  .order {
+    transition: none;
+  }
+}
