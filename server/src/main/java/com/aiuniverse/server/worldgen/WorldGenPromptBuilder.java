@@ -337,7 +337,7 @@ public final class WorldGenPromptBuilder {
 			  7) almost · 差一点 · neutral:第三夜收工时,以上结局都不满足。
 			  好结局重叠时的优先序:把话传下去 > 卡点的人 > 交上了 > 差一点。endings 按上表顺序输出。
 			  「把话传下去」是一个人把识破的一条经验当面告诉下一个人;它不是许多人一起做什么,description 里也不写成那样。
-			- 【系统的话】这个世界里系统只说一句话:「已为你优化时限。」它浮在眼前。不得出现平台的发言人、客服口吻的解释或致歉。
+			- 【系统的话】这个世界里系统只说一句话:「已为你优化时限。」它浮在眼前。不得出现平台的发言人、客服口吻的解释或致歉。这句话只允许写在 became_benchmark 的 description 里;world 的 title / background / tone、每条规则的 content、openingNarrative、availableActions 一律不得出现它(它在游戏里浮出的时机由回合决定)。
 			- 【惊悚层 · 只写现象,不写解释,不确认超自然】可以选一两样放进 background、rules 或开场,不必都用:
 			  · 系统替你说完你还没说出口的话;
 			  · 凌晨的单,门后是一个还在替某人点餐的语音助手,而那个人很久没出现了。

@@ -124,7 +124,7 @@ class PaidanTurnTest {
 		String d = TurnPromptBuilder.PAIDAN_TURN_DIRECTIVE;
 		assertThat(d).contains("提前送达:画像上涨").contains("卡点送达:画像不变").contains("超时送达:评分下降,余钱只 +1")
 				.contains("开启腿的超频")
-				.contains("「已为你优化时限。」").contains("向上越过 30 或 60").contains("这句话绝不出现")
+				.contains("「已为你优化时限。」").contains("以每回合注入的【记忆点】为准").doesNotContain("向上越过 30 或 60")
 				.contains("【收工回合】选项里不出现接单").contains("睡觉回体力")
 				.contains("画像达到 95 及以上时,本回合必须提议结局 became_benchmark")
 				.contains("快对某个人真的重要").contains("告诉了谁").contains("只能是一个人当面告诉另一个人")
@@ -148,7 +148,7 @@ class PaidanTurnTest {
 				.contains("余钱 80 是房租加这期义体月供").contains("腿被远程降速:体力掉得更快,爬楼要靠手撑栏杆")
 				.contains("黑诊所的义体医生").contains("只写后果,不写方法")
 				.contains("把神经接口的算力租给平台过夜").contains("体力回不满")
-				.contains("「已为你优化时限。」逐字浮在眼前一次")
+				.contains("就在叙事开头逐字浮在眼前一次")
 				.contains("只是一个一直在跑的账号").contains("系统替你说完你还没说出口的话")
 				.contains("还在替某人点餐的语音助手")
 				.contains("不写超级企业、政府、反抗者").contains("没有战斗、武器、佣兵;黑客只保留「刷机」")
@@ -164,7 +164,7 @@ class PaidanTurnTest {
 			String p = builder.buildTurnPrompt(engine(List.of("cyberpunk"), m.attributes(), t), "A", "测试行动");
 			assertThat(p).as("T" + n).containsOnlyOnce(TurnPromptBuilder.PAIDAN_TURN_DIRECTIVE.strip())
 					.containsOnlyOnce("\n\n【本回合时段】")
-					.contains(TurnPromptBuilder.paidanTurnClock(n) + TurnPromptBuilder.PAIDAN_LEG_NORMAL
+					.contains(TurnPromptBuilder.paidanTurnClock(n) + TurnPromptBuilder.PAIDAN_LEG_NORMAL + TurnPromptBuilder.PAIDAN_MEMORY_OFF
 							+ "\n\n请推进第 " + n + " 回合。");
 		}
 	}
@@ -207,7 +207,7 @@ class PaidanTurnTest {
 			assertThat(TurnPromptBuilder.paidanLegStatus(e)).as("余钱 " + cash).isEqualTo(line);
 			String p = builder.buildTurnPrompt(e, "A", "测试行动");
 			assertThat(p).as("余钱 " + cash).containsOnlyOnce(line)
-					.contains(TurnPromptBuilder.paidanTurnClock(11) + line + "\n\n请推进第 11 回合。");
+					.contains(TurnPromptBuilder.paidanTurnClock(11) + line + TurnPromptBuilder.PAIDAN_MEMORY_OFF + "\n\n请推进第 11 回合。");
 		});
 		assertThat(TurnPromptBuilder.PAIDAN_LEG_SLOWED)
 				.isEqualTo("\n【腿况】这期月供不够,腿处于远程降速:体力掉得更快,爬楼要手撑栏杆。");
@@ -219,7 +219,7 @@ class PaidanTurnTest {
 		for (ArchetypeMeta m : registry.activeMetas()) {
 			if (!m.id().equals("cyberpunk")) {
 				assertThat(builder.buildTurnPrompt(engine(List.of(m.id()), m.attributes(), 10), "A", "测试行动"))
-						.as(m.id()).doesNotContain("【腿况】");
+						.as(m.id()).doesNotContain("【腿况】").doesNotContain("【记忆点】");
 			}
 		}
 	}
@@ -244,7 +244,8 @@ class PaidanTurnTest {
 		}
 		// 订正本身:「投诉」不再列为禁用词,只在题材边界那一句约束里出现。
 		assertThat(TurnPromptBuilder.PAIDAN_TURN_DIRECTIVE).doesNotContain("讨薪、投诉");
-		for (String leg : List.of(TurnPromptBuilder.PAIDAN_LEG_SLOWED, TurnPromptBuilder.PAIDAN_LEG_NORMAL)) {
+		for (String leg : List.of(TurnPromptBuilder.PAIDAN_LEG_SLOWED, TurnPromptBuilder.PAIDAN_LEG_NORMAL,
+				TurnPromptBuilder.PAIDAN_MEMORY_ON, TurnPromptBuilder.PAIDAN_MEMORY_OFF)) {
 			for (String w : BANNED) {
 				assertThat(leg).as("腿况").doesNotContain(w);
 			}
@@ -267,7 +268,8 @@ class PaidanTurnTest {
 				assertThat(md).as("判定表").contains(line);
 			}
 		}
-		assertThat(md).contains(TurnPromptBuilder.PAIDAN_LEG_SLOWED.strip()).contains(TurnPromptBuilder.PAIDAN_LEG_NORMAL.strip());
+		assertThat(md).contains(TurnPromptBuilder.PAIDAN_LEG_SLOWED.strip()).contains(TurnPromptBuilder.PAIDAN_LEG_NORMAL.strip())
+				.contains(TurnPromptBuilder.PAIDAN_MEMORY_ON.strip()).contains(TurnPromptBuilder.PAIDAN_MEMORY_OFF.strip());
 	}
 
 	/** 剔掉三处允许出现禁用词的地方:「【世界名】」一条、「不要这样写」反例行、「【禁用词 · 本世界】」一段。 */

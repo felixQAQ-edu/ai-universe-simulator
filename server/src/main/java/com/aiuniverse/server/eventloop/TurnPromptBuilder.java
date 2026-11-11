@@ -91,7 +91,7 @@ public final class TurnPromptBuilder {
 	 * 紧接在 {@link #SINGLE_TURN_CLOCK} 的时段之后注入。与时段表同一机制、同样只查单体局;未登记 → 空串 → 回合 prompt 逐字节不变。
 	 */
 	static final Map<String, Function<Engine, String>> SINGLE_TURN_STATUS = Map.of(
-			"cyberpunk", TurnPromptBuilder::paidanLegStatus);
+			"cyberpunk", engine -> paidanLegStatus(engine) + paidanMemoryLine(engine));
 
 	static final String PAIDAN_LEG_SLOWED = "\n【腿况】这期月供不够,腿处于远程降速:体力掉得更快,爬楼要手撑栏杆。";
 	static final String PAIDAN_LEG_NORMAL = "\n【腿况】腿没有被降速,不得写降速。";
@@ -103,6 +103,33 @@ public final class TurnPromptBuilder {
 			return "";
 		}
 		return cash <= 20 ? PAIDAN_LEG_SLOWED : PAIDAN_LEG_NORMAL;
+	}
+
+	static final String PAIDAN_MEMORY_ON = "\n【记忆点】本回合叙事开头逐字浮出一次「已为你优化时限。」,不解释,只写这一单的时限比上一单短。";
+	static final String PAIDAN_MEMORY_OFF = "\n【记忆点】本回合不得出现「已为你优化时限。」这句话。";
+
+	/** 跨档那一回合记进引擎 issues 的前缀(ADR-036 订正三;后接「 旧→新」)。前缀含回合号与空格,T1 不会误配 T12。 */
+	static String paidanCrossingIssuePrefix(int turn) {
+		return "T" + turn + " 画像向上跨档";
+	}
+
+	/** 画像向上越过 30 或 60(从 &lt; 30 到 ≥ 30,或从 &lt; 60 到 ≥ 60)。 */
+	static boolean paidanProfileCrossedUp(double before, double after) {
+		return (before < 30 && after >= 30) || (before < 60 && after >= 60);
+	}
+
+	/**
+	 * 《派单》记忆点(ADR-036「订正(2026-11-10 三)」订正 1):上一回合(= 引擎当前 {@code turn})落账时画像向上跨档,
+	 * 本回合注入「浮出一次」,否则注入「不得出现」。跨档标记是那一回合记下的引擎 issue,见 EventLoopService。
+	 */
+	static String paidanMemoryLine(Engine engine) {
+		String prefix = paidanCrossingIssuePrefix(engine.turn()) + " ";
+		for (String issue : engine.issues()) {
+			if (issue.startsWith(prefix)) {
+				return PAIDAN_MEMORY_ON;
+			}
+		}
+		return PAIDAN_MEMORY_OFF;
 	}
 
 	/** 《派单》三个夜班各自的回合数(决策 2,定长写死)。 */
@@ -422,7 +449,7 @@ public final class TurnPromptBuilder {
 			- 【月供与降速】余钱 80 是房租加这期义体月供。月供在第三夜收工时和房租一起结算,夜班途中不单独扣。余钱落进「空」档(20 及以下)时,这期月供交不上,腿被远程降速:体力掉得更快,爬楼要靠手撑栏杆,叙事写出腿变慢的样子;腿有没有被降速,以每回合注入的【腿况】为准。解除降速只能靠余钱回到 20 以上,没有别的办法。巷子里黑诊所的义体医生解不开平台的远程降速,只能修磕坏的腿、能刷机,都有代价(余钱、被查的风险或腿落下的毛病),只写后果,不写方法。他说的跑单经验有真有假。
 			- 【快不是永远错】每个夜班里要时常出现「快对某个人真的重要」的单(送药、冷链、门后有人在等)。提前送到对那个人是对的,代价是画像被学去。不得把快写成永远错,也不得把慢写成永远对;顾客是具体的人,有具体的需要,不是道德题里的占位。
 			- 【收工回合】选项里不出现接单,只给吃饭、睡觉、换电、修车、在群里说话、把神经接口的算力租给平台过夜这类动作;睡觉回体力,对账看余钱。选了出租算力:余钱 +8~12,但睡不安稳,体力回不满(比好好睡一觉回得少)。
-			- 【记忆点 · 已为你优化时限】若本回合 stateUpdate 让画像向上越过 30 或 60(从 29 以下到 30 以上,或从 59 以下到 60 以上),叙事中「已为你优化时限。」逐字浮在眼前一次,不解释它,只写下一单的时限比上一单短了。画像下降、持平或没跨过这两个数时,这句话绝不出现。
+			- 【记忆点 · 已为你优化时限】这句话出不出现,以每回合注入的【记忆点】为准:注入说浮出,就在叙事开头逐字浮在眼前一次,不解释它,只写这一单的时限比上一单短;注入说不得出现,整回合都不写这句话。
 			- 【成了标杆】本回合 stateUpdate 让画像达到 95 及以上时,本回合必须提议结局 became_benchmark(成了标杆)。
 			- 【把话传下去】玩家选了把经验告诉别人这一类行动时,本回合叙事必须写明告诉了谁(哪一个跑腿员)、告诉的是哪一条经验。只能是一个人当面告诉另一个人,不写成许多人一起做什么。
 			- 【惊悚层 · 只写现象,不写解释,不确认超自然】群里那个工号背后可能根本没有人,只是一个一直在跑的账号;系统替你说完你还没说出口的话;凌晨的单,门后是一个还在替某人点餐的语音助手,而那个人很久没出现了。都只写看见和听见的,不给答案,不出现怪物。

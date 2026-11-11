@@ -419,7 +419,9 @@ public class EventLoopService implements TurnExecutor {
 		Engine engine = session.engine();
 		clampClosingVigorFloor(session, parsed);
 		checkPaidanEnding(session, parsed);
+		Double profileBefore = paidanProfile(engine);
 		List<String> leak = engine.apply(parsed, actionId);
+		markPaidanProfileCrossing(engine, profileBefore);
 		// ADR-028 §已决 A 第 7 条:局面 / 处境写入与落地同一时刻 —— 紧跟 apply,排在任何 sink 写之前
 		// (已落地未送达 → ADR-027 补写盘带走的快照里已是新状态;未落地 → 这里根本没跑到,什么都没写)。
 		if (scene != null) {
@@ -759,6 +761,31 @@ public class EventLoopService implements TurnExecutor {
 			String to = r.verdict() == null ? "无(本回合继续或交触底兜底)" : r.verdict();
 			log.info("[event-loop] save={} T{} 《派单》结局核对改判:{} → {}", session.saveId(), nextTurn, from, to);
 			engine.recordIssue("T" + nextTurn + " 结局核对改判 " + from + " → " + to);
+		}
+	}
+
+	/** 《派单》本回合落账前的画像;不是单体《派单》或没有画像轴 → null(其余世界不记、不读)。 */
+	private static Double paidanProfile(Engine engine) {
+		if (engine.world().path("archetypes").size() != 1 || !PaidanEndingCheck.ARCHETYPE.equals(archetypeOf(engine))) {
+			return null;
+		}
+		return engine.attributes().get("profile");
+	}
+
+	/**
+	 * 《派单》记忆点标记(ADR-036「订正(2026-11-10 三)」订正 1):落账后画像从 &lt; 30 到 ≥ 30、或从 &lt; 60 到 ≥ 60,
+	 * 记一行引擎 issue「T{n} 画像向上跨档 a→b」(一回合连跨两档也只记一行)。下一回合由
+	 * {@link TurnPromptBuilder#paidanMemoryLine} 读这一行决定注入哪句【记忆点】。用已有的
+	 * {@code Engine.recordIssue}:issues 随存档落盘、在轨迹 {@code pre} 里,不新增字段、不改 Engine。
+	 */
+	private static void markPaidanProfileCrossing(Engine engine, Double before) {
+		if (before == null) {
+			return;
+		}
+		Double after = engine.attributes().get("profile");
+		if (after != null && TurnPromptBuilder.paidanProfileCrossedUp(before, after)) {
+			engine.recordIssue(TurnPromptBuilder.paidanCrossingIssuePrefix(engine.turn()) + " " + fmtVigor(before)
+					+ "→" + fmtVigor(after));
 		}
 	}
 

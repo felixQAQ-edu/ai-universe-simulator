@@ -226,6 +226,49 @@ public class WorldGenService {
 				errors.add("rules[" + i + "].isTrue: 本世界每条规则都必须带布尔 isTrue(真规则 true、假规则 false)");
 			}
 		}
+		systemLineErrors(world, errors);
 		return errors;
+	}
+
+	/** 《派单》唯一的系统台词(ADR-036 决策 8)。 */
+	static final String PAIDAN_SYSTEM_LINE = "已为你优化时限";
+
+	/**
+	 * ADR-036「订正(2026-11-10 三)」订正 2:系统台词只允许出现在 {@code became_benchmark} 的 {@code description} 里。
+	 * 查玩家可见的文字:world 的 title / background / tone、rules[].content、openingNarrative、availableActions[].text / hint,
+	 * 以及其他结局的 title / condition / description(和「成了标杆」的 title / condition)。
+	 * {@code hiddenLogic} 不查(玩家不可见,规则的真实判定可能需要提到它)。匹配不带句号,改了标点也算。
+	 */
+	private static void systemLineErrors(JsonNode world, List<String> errors) {
+		for (String f : List.of("title", "background", "tone")) {
+			checkSystemLine("world." + f, world.path("world").path(f), errors);
+		}
+		JsonNode rules = world.path("rules");
+		for (int i = 0; i < rules.size(); i++) {
+			checkSystemLine("rules[" + i + "].content", rules.get(i).path("content"), errors);
+		}
+		checkSystemLine("openingNarrative", world.path("openingNarrative"), errors);
+		JsonNode actions = world.path("availableActions");
+		for (int i = 0; i < actions.size(); i++) {
+			checkSystemLine("availableActions[" + i + "].text", actions.get(i).path("text"), errors);
+			checkSystemLine("availableActions[" + i + "].hint", actions.get(i).path("hint"), errors);
+		}
+		JsonNode endings = world.path("endings");
+		for (int i = 0; i < endings.size(); i++) {
+			JsonNode e = endings.get(i);
+			boolean benchmark = "became_benchmark".equals(e.path("id").asString(""));
+			for (String f : List.of("title", "condition", "description")) {
+				if (benchmark && "description".equals(f)) {
+					continue;
+				}
+				checkSystemLine("endings[" + i + "]." + f, e.path(f), errors);
+			}
+		}
+	}
+
+	private static void checkSystemLine(String path, JsonNode node, List<String> errors) {
+		if (node.isString() && node.asString().contains(PAIDAN_SYSTEM_LINE)) {
+			errors.add(path + ": 「已为你优化时限。」只允许写在 became_benchmark 的 description 里,这里不得出现");
+		}
 	}
 }
