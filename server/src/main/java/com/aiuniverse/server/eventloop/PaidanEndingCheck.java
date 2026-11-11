@@ -19,8 +19,9 @@ import tools.jackson.databind.node.ObjectNode;
  * <ol>
  *   <li>体力 ≤ 0 → 倒在楼道里;否则评分 ≤ 0 → 停派(核对直接写;引擎对已带 failure 结局的触底回合照收、不重挑);</li>
  *   <li>画像 ≥ 95 → {@code became_benchmark};</li>
- *   <li>第 27 回合及以后 → 体力 ≤ 10 → 倒在楼道里;否则评分 ≤ 10 → 停派(与引擎极性 gate 衔接,ADR-010);
- *       否则 把话传下去(须模型提议 + 数值成立)> 卡点的人 > 交上了 > 差一点;</li>
+ *   <li>第 27 回合及以后 → 先按表判:把话传下去(须模型提议 + 数值成立)> 卡点的人 > 交上了 > 差一点;
+ *       判出好结局时体力 ≤ 10 → 倒在楼道里,否则评分 ≤ 10 → 停派(只降级 success,与引擎极性 gate 一致,ADR-010);
+ *       差一点不降级(ADR-036 订正四);</li>
  *   <li>第 27 回合之前 → 只收数值成立、且体力与评分都 > 10 的「把话传下去」,其余提议都不收。</li>
  * </ol>
  *
@@ -84,13 +85,19 @@ final class PaidanEndingCheck {
 			boolean passedOk = !nearZero && PASSED_IT_ON.equals(proposed) && cash >= 50
 					&& falseGroupRulesDiscovered(engine, parsed) >= 2;
 			if (n >= TurnPromptBuilder.PAIDAN_FINAL_TURN) {
-				// 两条都濒零时取体力(固定,Felix 2026-11-10;引擎 pickFailureEnding 按 attributes 的 JSON 键序,通常也是体力在前)。
-				verdict = hp <= Engine.ENDING_GATE_THRESHOLD ? COLLAPSED
-						: rating <= Engine.ENDING_GATE_THRESHOLD ? DISPATCH_STOPPED
-						: passedOk ? PASSED_IT_ON
+				// 先按表判(ADR-036 订正四):把话传下去 > 卡点的人 > 交上了 > 差一点。
+				boolean passedByTable = PASSED_IT_ON.equals(proposed) && cash >= 50
+						&& falseGroupRulesDiscovered(engine, parsed) >= 2;
+				String byTable = passedByTable ? PASSED_IT_ON
 						: cash >= 60 && profile <= 40 ? KEPT_THE_PACE
 						: cash >= 80 ? RENT_PAID
 						: ALMOST;
+				// 只降级好结局(与引擎极性 gate 一致:gate 只拦 success);差一点无论体力评分都保持。
+				// 两条都濒零时取体力(固定,Felix 2026-11-10)。
+				verdict = ALMOST.equals(byTable) ? ALMOST
+						: hp <= Engine.ENDING_GATE_THRESHOLD ? COLLAPSED
+						: rating <= Engine.ENDING_GATE_THRESHOLD ? DISPATCH_STOPPED
+						: byTable;
 			} else {
 				verdict = passedOk ? PASSED_IT_ON : null; // 濒零时把话传下去不收,本回合继续,免得被 gate 改判提前结束
 			}

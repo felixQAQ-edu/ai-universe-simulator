@@ -102,6 +102,47 @@ class PaidanEndingCheckTest {
 		assertThat(r.issues).noneMatch(s -> s.contains("ADR-010 gate"));
 	}
 
+	// ── 订正四:第 27 回合只降级好结局,差一点不受濒零影响 ───────────────
+
+	@Test
+	void smokeGame3AlmostAtHp6StaysAlmost() {
+		// 冒烟第三局原样:T27 体力 6、余钱 62、画像 61,按表是差一点,模型也提议差一点。
+		Landed r = land(27, start(), Map.of("hp", 6, "cash", 62, "profile", 61), List.of(), "almost");
+		assertThat(r.status).isEqualTo("ended");
+		assertThat(r.reached).isEqualTo("almost");
+		assertThat(r.issues).noneMatch(s -> s.contains("结局核对改判")).noneMatch(s -> s.contains("ADR-010 gate"));
+	}
+
+	@Test
+	void finalTurnAlmostIsKeptWhateverHpAndRating() {
+		for (Map<String, Integer> upd : List.of(Map.of("hp", 1, "cash", 30), Map.of("rating", 3, "cash", 30),
+				Map.of("hp", 10, "rating", 10, "cash", 59, "profile", 90))) {
+			Landed r = land(27, start(), upd, List.of(), "rent_paid");
+			assertThat(r.reached).as(upd.toString()).isEqualTo("almost");
+		}
+	}
+
+	@Test
+	void finalTurnHp6WithCash85IsCollapsed() {
+		Landed r = land(27, start(), Map.of("hp", 6, "cash", 85, "profile", 61), List.of(), "rent_paid");
+		assertThat(r.reached).as("按表交上了 → 体力 ≤ 10 降级").isEqualTo("collapsed_in_stairwell");
+		assertThat(r.issues).anyMatch(s -> s.contains("结局核对改判 rent_paid → collapsed_in_stairwell"));
+	}
+
+	@Test
+	void finalTurnRating8WithCash85IsDispatchStopped() {
+		Landed r = land(27, start(), Map.of("rating", 8, "cash", 85, "profile", 61), List.of(), "rent_paid");
+		assertThat(r.reached).as("按表交上了 → 评分 ≤ 10 降级").isEqualTo("dispatch_stopped");
+		assertThat(r.issues).anyMatch(s -> s.contains("结局核对改判 rent_paid → dispatch_stopped"));
+	}
+
+	@Test
+	void finalTurnPassedItOnAtHp8IsCollapsed() {
+		// 把话传下去按表成立(余钱 60、本回合识破 #2 → 2 条),体力 ≤ 10 → 降级。
+		Landed r = land(27, start(), Map.of("hp", 8, "cash", 60), List.of(2), "passed_it_on");
+		assertThat(r.reached).isEqualTo("collapsed_in_stairwell");
+	}
+
 	@Test
 	void finalTurnJustAbove10KeepsTheGoodEnding() {
 		Landed r = land(27, start(), Map.of("hp", 11, "rating", 11, "cash", 85, "profile", 50), List.of(), "rent_paid");

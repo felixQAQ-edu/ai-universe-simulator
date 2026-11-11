@@ -122,7 +122,10 @@ class PaidanRegistryTest {
 		assertThat(axis("cash").behaviorHint()).contains("出租神经接口的算力").contains("远程降速")
 				.contains("月供在第三夜收工时和房租一起结算,夜班途中不单独扣。")
 				.doesNotContain("租义体").doesNotContain("交月供");
-		assertThat(axis("hp").behaviorHint()).contains("腿被降速时下降得更快").contains("回不满");
+		assertThat(axis("hp").behaviorHint())
+				.contains("每单爬楼:五层及以下 −3,六到九层 −5,九层以上 −7;腿被降速时每单再 −3;开超频再 −4;淋雨、摔车另扣 −5~10")
+				.contains("歇脚 +3~5,吃口热的 +6~8;收工好好睡一觉 +25,收工出租算力过夜 +12")
+				.contains("每回合按上面的数落,不得大幅偏离");
 		assertThat(m.ruleForm()).contains("刷机").doesNotContain("改装头盔");
 	}
 
