@@ -989,6 +989,31 @@ isTrue 检查放在 `WorldGenService.tryParse` 的通用校验之后,只对单�
 `PaidanEndingCheckTest` +5(两轴同时 ≤ 0、两轴同时 ≤ 10 且余钱 ≥ 80、评分 ≤ 10、11 / 11 仍给好结局、第 27 回合前体力或评分 ≤ 10 不收把话传下去;且改判后不再出现「ADR-010 gate」issue),
 `PaidanTurnTest` 判定表断言加一行。反向验证:改成两轴同时濒零 / 归零时不取体力 → 两例红(已还原)。`mvn test` **940 全绿**;既有世界快照与 golden parity 四件不变。
 
+### 订正三 · 记忆点服务端注入 + 系统台词限定(2026-11-11,基于 `843cf2e`,决策 commit `ce3524f`、实现 commit `7cecf94`,分支 `phase4/adr-036-memory-line` 待合并)
+
+勘察结论见「订正(2026-11-10 三)」一节,与简报无冲突:跨档标记用已有的 `Engine.recordIssue` 记一行,不新增落盘字段、Engine 一行未动。
+
+- **跨档标记**:`EventLoopService.landSettled` 在 `engine.apply` 前取画像、之后比较(`markPaidanProfileCrossing`,只对单体 `cyberpunk`),
+  从 < 30 到 ≥ 30 或从 < 60 到 ≥ 60 记 issue「T{n} 画像向上跨档 旧→新」,连跨两档只记一行;降级回合不落账,不记。
+- **注入**:`TurnPromptBuilder.SINGLE_TURN_STATUS.cyberpunk` = 腿况 + `paidanMemoryLine`;后者看 issues 里有没有「T{当前 turn} 画像向上跨档 」开头的一行,
+  有 → `PAIDAN_MEMORY_ON`,无 → `PAIDAN_MEMORY_OFF`(两句均为简报原文),紧接【腿况】之后。回合槽「记忆点」一条改为「以每回合注入的【记忆点】为准」。
+- **world-gen**:【系统的话】补「这句话只允许写在 became_benchmark 的 description 里……一律不得出现它」;`WorldGenService.worldSpecificErrors` 加 `systemLineErrors`,
+  查 world 的 title / background / tone、rules[].content、openingNarrative、availableActions[].text / hint、其他结局三字段与成了标杆的 title / condition,
+  匹配「已为你优化时限」(不带句号);`hiddenLogic` 不查。命中走现有一次修复,修复后仍有 → 整局 ERROR。
+- `prompts/event-loop.md` v1.9.2(槽内一条 + 记忆点两句)、`prompts/world-gen.md` v0.10.4 同步。
+
+**单测**:`PaidanMemoryLineTest`(10 例,走真实 `landSettled` 再渲染下一回合):跨 30(29→30)、跨 60(冒烟原样 59→68)、不跨(30→59 / 10→29 / 60→94 / 45→45)、
+下降(65→55 / 31→20 / 70→10)、一回合连跨 30 与 60(25→64)只记一行只注入一次、标记只管一回合、存档回载后仍在、T1 不误配 T12、其他四个世界不记不注入、两句与简报逐字相同。
+`PaidanSystemLineRepairTest`(6 例):冒烟原样 tone 命中触发一次修复且修复提示带错误、九个玩家可见字段逐一命中、成了标杆 description 与 hiddenLogic 放行、修复后仍有 → ERROR、
+规则怪谈 / 克苏鲁不查、world-gen 提示词带限定句。`PaidanTurnTest` 改三处期望(推进句前多一行【记忆点】、槽内新措辞、md 同步与禁用词扫描加两句)。
+反向验证:摘掉落账里的跨档记录与 world-gen 的台词检查 → 两个新测试类 16 例中 8 例红(已还原)。
+
+**零回归**:后端 `mvn test` **956 例全绿**(940 + 16;118 份报告均为本次运行产出);九份既有 world-gen 提示词与 90 份既有回合提示词快照逐字节相同;golden parity 四件全绿;md 同步与禁用词扫描通过。前端未改,未跑。
+
+**丢尾巴**:只勘察,未改代码;两个候选改法挂在「订正(2026-11-10 三)」订正 3。
+
+**仍不得部署**:合并后 Felix 再冒烟,专项看:跨档回合是否浮出、非跨档回合是否不再出现、world-gen 是否触发台词修复、丢尾巴是否仍约每 30 回合一次。
+
 ## 实际效果(事后补充)
 
 *Slice E 冒烟时回填:三夜时钟与注入的一致率;第 27 回合出结局的比例;停派是否由引擎按「评分」命中、标杆是否被模型如期提议;`world.title` 是否为「派单」;记忆点「跨档 ↔ 播报」一致率;来源前缀格式稳定性。*
