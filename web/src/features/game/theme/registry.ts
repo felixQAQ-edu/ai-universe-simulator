@@ -99,6 +99,15 @@ const WORLDS: Readonly<Record<string, WorldEntry>> = {
     cardClass: styles.cardAnimalLife,
     skin: null,
   },
+  // 《派单》(ADR-036 Slice G-1):同《寻常》那一刀,只补顶图 + 卡面;**皮肤不登记**(局内皮肤与卡面粒子留给下一刀)。
+  cyberpunk: {
+    sceneUrl: '/scenes/cyberpunk.webp',
+    // 取景(图 1672×1104,门口以下地面已纵向拉长,外卖袋底在图高 53.0%,2026-11-11 实测):主体在横向中央,不登记、居中。
+    // 手机宽度按高度铺满,袋底恒为 53.0%;宽屏按宽度铺满,640×380 → 53.3%、最极端的 640×300 → 54.2%
+    // (横幅最宽 640:.screen 640 且 border-box)。若要收住宽屏,'50% 60%' 可使 640×300 回到 50.1%,交 Felix 定。
+    cardClass: styles.cardPaidan,
+    skin: null,
+  },
 };
 
 /**

@@ -782,6 +782,38 @@
   animation-duration: 8s; /* 蠕动更急,深渊更近 */
 }
 
+/* ── 《派单》赛博朋克(ADR-036 Slice G-1,深界):湿柏油蓝黑底 + 两处霓虹光源,静态 ──
+ * 青和紫各占一边(决策 12 订正 6「霓虹粉紫和蓝绿」):左缘色条 = 评分青;左下一团 = 旧墙上的全息广告紫;
+ * 右上一点 = 远处楼群的青光;外加一层四周压暗。霓虹只作具体光源、只占角落,不是铺满的渐变(AGENTS.md 反面清单)。
+ * **本刀全部静态**:只有 ::before,不加 ::after、不加 animation(卡面粒子随局内皮肤一刀做)。
+ * 对比度(WCAG,按渐变逐像素合成卡底,343 / 608 两种卡宽;取卡底最暗处、左下紫光最浓处、右上青光处,最低值都在左下紫光处):
+ *   标题 #e0e2ec ≥ 10.2:1 / 标语 #a49fb8 ≥ 5.1:1 / 标签 #d3a6f2(叠标签底)≥ 5.0:1。
+ *   悬停(多一层内阴影紫光)文字区最低 10.6 / 5.3 / 5.2;低于 4.5 的只有卡最外缘几像素,那里没有文字。 */
+.cardPaidan {
+  color: #e0e2ec;
+  border-left-color: #4fbfc6;
+  background: linear-gradient(160deg, #1a1828 0%, #13121d 55%, #0d0c14 100%);
+}
+
+.cardPaidan::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(85% 120% at 0% 110%, rgba(186, 92, 236, 0.3), transparent 68%),
+    radial-gradient(60% 80% at 100% -10%, rgba(95, 210, 216, 0.1), transparent 70%),
+    radial-gradient(130% 110% at 50% 30%, transparent 45%, rgba(0, 0, 0, 0.35) 100%);
+}
+
+.cardPaidan:hover {
+  border-left-color: #7fe0e5;
+  box-shadow:
+    0 10px 28px -14px rgba(0, 0, 0, 0.65),
+    inset 0 0 28px -6px rgba(186, 92, 236, 0.32);
+}
+
 /* ── 修仙:白色仙气——近白底 + 缓缓飘动的云彩 + 微金光点(缥缈仙途,空灵向上)──
  * 区别克苏鲁「深渊幽绿」、规则怪谈「冷蓝诡异」:修仙是唯一的「亮」卡——白底仙气、金辉、向上,空灵悠远。
  * 亮底 → 文字用深色(青灰墨绿,不随 app 明暗主题漂移)。 */
@@ -1406,6 +1438,12 @@
   color: #55624f;
 }
 
+/* 《派单》标签:淡紫底紫字;叠在卡底上最低对比度 5.0:1(左下紫光处,见 .cardPaidan 注释)。 */
+.cardPaidan .cardTag {
+  background: rgba(190, 110, 240, 0.18);
+  color: #d3a6f2;
+}
+
 /* 渗漏卡标签:病态青(两世界之间的颜色)。 */
 .cardFusion .cardTag {
   background: rgba(126, 169, 160, 0.16);
@@ -1463,6 +1501,11 @@
 /* 《动物人生》标语对卡底 #eef2ea 对比度 5.20:1(WCAG AA ≥ 4.5)。 */
 .cardAnimalLife .cardTagline {
   color: #5b6857;
+}
+
+/* 《派单》标语灰紫:最低对比度 5.1:1(左下紫光处,见 .cardPaidan 注释)。 */
+.cardPaidan .cardTagline {
+  color: #a49fb8;
 }
 
 /* 融合卡标语:深底卡,不能回落 var(--muted)(为浅底调的灰)。各取一个原世界的标语色调亮,

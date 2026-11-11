@@ -3,6 +3,10 @@ import styles from '../game.module.css';
 import { NEUTRAL_THEME, cardTheme, fusionKey, resolveWorldTheme } from './registry';
 
 // 单一主题注册表(ADR-018 §4.1):世界判定只发生一次。
+
+// 「未登记世界」样例:ADR-036 Slice G-1 登记了 cyberpunk 之后,KNOWN 里已没有未登记的真实 id,
+// 改用一个不存在的 id 守同一条降级路径(《寻常》那一刀从 life_sim 换成 cyberpunk 是同一件事)。
+const UNREGISTERED = 'not_registered_world';
 // 封面用例整体自 scene.test.ts 迁来(原 `sceneImageUrl`,覆盖零损失);
 // 卡片氛围与皮肤登记是本刀新收编的两项(原 vibeClass 私有且无测试)。
 
@@ -14,10 +18,11 @@ describe('resolveWorldTheme · 封面(原 sceneImageUrl 用例,逐条保留)', (
     expect(resolveWorldTheme('cultivation').sceneUrl).toBe('/scenes/cultivation.webp');
     expect(resolveWorldTheme('life_sim').sceneUrl).toBe('/scenes/life_sim.webp'); // 《寻常》静态视觉刀
     expect(resolveWorldTheme('animal_life').sceneUrl).toBe('/scenes/animal_life.webp'); // 《动物人生》静态视觉刀
+    expect(resolveWorldTheme('cyberpunk').sceneUrl).toBe('/scenes/cyberpunk.webp'); // 《派单》ADR-036 Slice G-1
   });
 
   it('未配图 / 未知 / undefined → null(优雅降级,不显图)', () => {
-    expect(resolveWorldTheme('cyberpunk').sceneUrl).toBeNull();
+    expect(resolveWorldTheme(UNREGISTERED).sceneUrl).toBeNull();
     expect(resolveWorldTheme('totally_unknown').sceneUrl).toBeNull();
     expect(resolveWorldTheme(undefined).sceneUrl).toBeNull();
   });
@@ -49,8 +54,8 @@ describe('resolveWorldTheme · 封面(原 sceneImageUrl 用例,逐条保留)', (
       '/scenes/rules_creepy.webp',
     );
     // host 已配图、组合未登记 → host 的单体图(《寻常》配图后,本例从「双无图」改成守这条)
-    expect(resolveWorldTheme(['life_sim', 'cyberpunk']).sceneUrl).toBe('/scenes/life_sim.webp');
-    expect(resolveWorldTheme(['cyberpunk', 'life_sim']).sceneUrl).toBeNull();
+    expect(resolveWorldTheme(['life_sim', UNREGISTERED]).sceneUrl).toBe('/scenes/life_sim.webp');
+    expect(resolveWorldTheme([UNREGISTERED, 'life_sim']).sceneUrl).toBeNull();
   });
 });
 
@@ -73,7 +78,7 @@ describe('resolveWorldTheme · 皮肤登记(feature gate,ADR-018 §4.5)', () => 
 
   it('未知 / 未开放世界 → 中性主题(不显图、中性卡、旧实现)', () => {
     expect(resolveWorldTheme('totally_unknown')).toEqual(NEUTRAL_THEME);
-    expect(resolveWorldTheme('cyberpunk')).toEqual(NEUTRAL_THEME);
+    expect(resolveWorldTheme(UNREGISTERED)).toEqual(NEUTRAL_THEME);
   });
 
   // 《寻常》只补静态视觉(顶图 + 卡面),皮肤刻意不登记 → 局内仍走旧实现。
@@ -90,6 +95,16 @@ describe('resolveWorldTheme · 皮肤登记(feature gate,ADR-018 §4.5)', () => 
     expect(t.key).toBe('animal_life');
     expect(t.sceneUrl).toBe('/scenes/animal_life.webp');
     expect(t.cardClass).toBe(styles.cardAnimalLife);
+    expect(t.cardClass).toBeTruthy();
+    expect(t.skin).toBeNull();
+  });
+
+  // 《派单》(ADR-036 Slice G-1)同《寻常》那一刀:只补顶图 + 卡面,皮肤留给下一刀 → 局内仍走旧实现。
+  it('《派单》cyberpunk 有图有卡、但不登记皮肤', () => {
+    const t = resolveWorldTheme('cyberpunk');
+    expect(t.key).toBe('cyberpunk');
+    expect(t.sceneUrl).toBe('/scenes/cyberpunk.webp');
+    expect(t.cardClass).toBe(styles.cardPaidan);
     expect(t.cardClass).toBeTruthy();
     expect(t.skin).toBeNull();
   });
@@ -151,7 +166,8 @@ describe('resolveWorldTheme · 顶图取景点 scenePosition', () => {
     const cases: (string | string[] | undefined)[] = [
       'rules_creepy', 'apocalypse', 'cthulhu', 'cultivation',
       ['cultivation', 'rules_creepy'], ['rules_creepy', 'apocalypse'], ['cultivation', 'cthulhu'],
-      'cyberpunk', 'totally_unknown', undefined,
+      'cyberpunk', // 《派单》主体在横向中央,居中取景,不登记
+      UNREGISTERED, 'totally_unknown', undefined,
     ];
     for (const a of cases) {
       expect(Object.prototype.hasOwnProperty.call(resolveWorldTheme(a), 'scenePosition')).toBe(false);
@@ -159,15 +175,15 @@ describe('resolveWorldTheme · 顶图取景点 scenePosition', () => {
   });
 
   it('host 有取景的未登记融合组合 → 回落 host 的图,取景点跟着图走', () => {
-    const t = resolveWorldTheme(['life_sim', 'cyberpunk']);
+    const t = resolveWorldTheme(['life_sim', UNREGISTERED]);
     expect(t.sceneUrl).toBe('/scenes/life_sim.webp');
     expect(t.scenePosition).toBe('100% 50%');
     // 《动物人生》作 host 同理:图和取景点一起回落,不会出现「别人的图 + 自己的取景」。
-    const a = resolveWorldTheme(['animal_life', 'cyberpunk']);
+    const a = resolveWorldTheme(['animal_life', UNREGISTERED]);
     expect(a.sceneUrl).toBe('/scenes/animal_life.webp');
     expect(a.scenePosition).toBe('78% 50%');
     // 反向:foreign 是《动物人生》、host 未配图 → 不带图也不带取景点。
-    const b = resolveWorldTheme(['cyberpunk', 'animal_life']);
+    const b = resolveWorldTheme([UNREGISTERED, 'animal_life']);
     expect(b.sceneUrl).toBeNull();
     expect(Object.prototype.hasOwnProperty.call(b, 'scenePosition')).toBe(false);
   });
@@ -200,8 +216,14 @@ describe('resolveWorldTheme · 加《动物人生》后其余世界零回归', (
     expect(resolveWorldTheme(['cultivation', 'cthulhu'])).toStrictEqual({
       key: 'cultivation×cthulhu', sceneUrl: '/scenes/fusion-yanqi.webp', cardClass: styles.cardFusionYanqi, skin: 'cultivation',
     });
-    expect(resolveWorldTheme('cyberpunk')).toEqual(NEUTRAL_THEME);
+    expect(resolveWorldTheme(UNREGISTERED)).toEqual(NEUTRAL_THEME);
     expect(resolveWorldTheme('totally_unknown')).toEqual(NEUTRAL_THEME);
+  });
+
+  it('《派单》登记后的解析结果逐字段钉死(不带 scenePosition)', () => {
+    expect(resolveWorldTheme('cyberpunk')).toStrictEqual({
+      key: 'cyberpunk', sceneUrl: '/scenes/cyberpunk.webp', cardClass: styles.cardPaidan, skin: null,
+    });
   });
 });
 
@@ -251,8 +273,17 @@ describe('cardTheme · 选择屏卡片氛围(收编原私有 vibeClass)', () => 
     }
   });
 
+  it('《派单》cyberpunk → 自己的卡 cardPaidan,与其余单体卡都不同', () => {
+    const c = cardTheme('cyberpunk').cardClass;
+    expect(c).toBe(styles.cardPaidan);
+    expect(c).toBeTruthy();
+    for (const other of ['rules_creepy', 'apocalypse', 'cthulhu', 'cultivation', 'life_sim', 'animal_life']) {
+      expect(c).not.toBe(cardTheme(other).cardClass);
+    }
+  });
+
   it('未登记 key → 中性卡(原 vibeClass 无测试无显式降级,收编时补上)', () => {
-    expect(cardTheme('cyberpunk').cardClass).toBe('');
+    expect(cardTheme(UNREGISTERED).cardClass).toBe('');
     expect(cardTheme('totally_unknown').cardClass).toBe('');
   });
 });
