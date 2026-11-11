@@ -917,6 +917,10 @@ worldview、world-gen 指令(开局熟人那条)、回合指令「月供与降�
 演出 = 浮出 → 停留约 2.5 秒 → 淡出,一次性,不循环;正在生成回合时不触发(`AmbientProps.generating`)。
 数值滚动给一点仪式延迟(`valueRoll.ceremonyDelayMs`,建议 600ms 左右):先浮字、画像数字再滚 —— 同修仙「钟先鸣、数后变」,数值待演示时定。
 
+> ⚠️ **订正(实现时,2026-11-11;上段原文一字不动)**:「正在生成回合时不触发」是错的,实现**不按 `generating` 抑制**。
+> 跨档由回合流的 delta 落账给出,而 delta 恰好落在 generating 的尾巴上 —— 按它拒绝,这句话就永远不出现(修仙钟鸣踩过同一处,见 `XianAmbient` 头注释)。
+> 停留也由「约 2.5 秒」定为 2.8 秒(默认值,待 Felix 看过再调)。
+
 - **位置(推荐)**:挂在**视口固定层的上缘**(`position: fixed`,宽度对齐 640 列),而不是顶图上 —— 理由见勘察 2 的位置问题;
   义眼投影本来就该在「眼前」,不随页面滚走。不压正文:浮字出现时正文已播完,且只停留数秒。
   样张第 2 张为了同框展示,把它画在了顶图上;实现时按此处推荐挪到视口上缘。
@@ -1276,6 +1280,50 @@ isTrue 检查放在 `WorldGenService.tryParse` 的通用校验之后,只对单�
 - **FINDINGS**:F-038(提示词里没有数字的数值行为,模型几乎不落)、F-039(《派单》丢尾巴约 1/30 回合,未修,候选修法见订正三)。
 - **ROADMAP v18.9**:Week 9 补本 ADR 一条;下周计划换为 Slice G(卡面 / 顶图 / 局内皮肤 + ADR-017 §5 视觉语言表一行)与丢尾巴候选修法;已完成 ADR 索引补本 ADR。
 - 本 ADR 状态改为「已实施」(原状态行保留)。
+
+### Slice G-2 · 局内皮肤「夜班」+ 义眼投影记忆点 + 积水反光 + 卡面雨丝(2026-11-11,基于 `40873eb`,决策 commit `99c3f9b`、实现 commit `a042cfa`,分支 `phase4/adr-036-slice-g2` 待合并)
+
+**改了什么**(只动 `web/`,后端零改动):
+
+- 皮肤 `cyberpunk` 登记(`skins.tsx` + `registry.ts` 的 `skin` 字段)。三件组件在 `web/src/features/game/theme/paidan/`:
+  - `PaidanStats`「义眼读数」:四格一行,名字 / 等宽数字 / **档名在数字下方**(`nowrap` + 省略号,裁定补充 1)/ 细进度条;
+    颜色只看 `severity`(常态评分青、caution 紫、danger 偏粉 `#ff8a8a`),不读 key。
+  - `PaidanActions`「接单卡」:方角细青框、编号评分青;语义同通用决策圈(只回传 id、hint 可缺)。
+  - `PaidanAmbient`:底色层 + 一级记忆点。
+- **记忆点**:`signatureAxisKey: 'profile'` 向上跨档 → 视口上缘固定层浮出「义眼 · 派单 / 已为你优化时限。」;
+  `pointer-events: none`;停留 `HUD_DWELL_MS` 2800ms 后淡出 `HUD_FADE_MS` 900ms;忙态锁(在场时再跨档忽略,不排队);
+  换回合 / 卸载由 runtime teardown 立刻收起、不补播;续局首次装载不触发(通用层);**不按 `generating` 抑制**(见设计 2 下的订正)。
+  `valueRoll.ceremonyDelayMs` 600ms(先浮字、画像数字再滚)。服务端订正三的注入不动(裁定 3 = A 两层都留)。
+- **积水反光**(局内唯一持续动效):挂 `bannerImgClass` 的 `::after`,复制顶图(`background: inherit`)提亮、`mix-blend-mode: screen`,
+  蒙版只留顶图 52–86% 的地面带;动画只动 `opacity` + `transform`(横向漂移 + 轻微纵向拉伸)。
+- **卡面雨丝** `.cardPaidan::after`:两层短雨丝(青白 + 少量偏紫),整层转 14°;循环 = `transform: translateY` 一个平铺周期(不用 `background-position`)。
+  文字带减弱**用标题 / 标语的同色描边光晕,而不是蒙版** —— 蒙版跟着 transform 一起走,每个周期会跳一下。
+- **reduced-motion**:积水、雨丝停在静帧;浮字照常出现与消失(它是信息),只是没有位移与淡入淡出;接单卡过渡关掉。
+
+**默认参数(Felix 在 dev server 上看过再调;都是 CSS 变量 / 常量,改一处即可)**:
+
+| 参数 | 默认值 | 位置 |
+|---|---|---|
+| 雨丝峰值透明度 | `--rain-peak: 0.24`(偏紫层 × 0.75) | `game.module.css` `.cardPaidan` |
+| 雨丝周期 | `--rain-cycle: 0.8s`(一个周期落 60px) | 同上 |
+| 文字带减弱 | 有:标题 / 标语 `text-shadow` 0 0 2px + 0 0 6px 卡底色 | 同上 |
+| 积水周期 | `--puddle-period: 7s` | `paidan.module.css` `.screen` |
+| 积水峰值透明度 | `--puddle-peak: 0.42` | 同上 |
+| 积水横向漂移 | `--puddle-drift: 3px` | 同上 |
+| 浮字停留 / 淡出 | 2800ms / 900ms | `PaidanAmbient.tsx` `HUD_DWELL_MS` / `HUD_FADE_MS`(淡出时长与 CSS `.hudOff` 同值) |
+
+**dev server 上怎么看(不需要真 key)**:`?debug=1` 进局后,氛围层顶上有三个按钮 ——「重播:义眼投影浮字」「积水反光:4 倍速」「积水反光:静帧」
+(静帧 = reduced-motion 的样子);DebugPanel 里 `paidan.hud` 一行显示浮字的排期 / 状态 / 被忙态锁挡下的原因。卡面雨丝在选择屏直接看。
+
+**动效槽位**(AGENTS.md Motion Constraints §2/§3):持续 = 积水反光;低频偶发 = 浮字;用户触发 = 接单卡按压。新世界首个皮肤,无被替代项。
+
+**375 宽核查(裁定补充 1,只报告不改)**:未登记皮肤、走通用 `StatsPanel` 的世界档名同样竖排 ——
+《寻常》(「康健 / 炽热 / 岔口尚多 / 轻身」四格全竖)、《动物人生》(「只剩几处」「站得很近」竖排,「壮」「冷」单字不明显);
+成因是 `game.module.css` `.statValRow` 让 `.statBand` 与数字同行、`flex` 挤压后逐字换行。修仙皮肤(《验讫》五轴)档名在柱下,不受影响。未改。
+
+**测试**:`web` 全量 vitest 39 文件 / 513 例全绿(本次运行),其中新增 `paidanSkin.test.tsx`;`eslint` / `tsc -b` / `vite build` 通过。后端未改,未跑。
+
+**仍不得部署**:Felix 在 dev server 上看过、调完参数并合并后,随 G 一起上。
 
 ## 实际效果(事后补充)
 
