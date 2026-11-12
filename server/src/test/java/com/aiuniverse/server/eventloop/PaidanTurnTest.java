@@ -48,7 +48,8 @@ class PaidanTurnTest {
 	void existingWorldsAndFusionsAreByteIdenticalToSnapshotsFromBeforeSliceD() throws IOException {
 		int compared = 0;
 		for (ArchetypeMeta m : registry.activeMetas()) {
-			if (m.id().equals("cyberpunk")) {
+			// 《派单》与《七日开张》不在这组快照里:《派单》另有快照(PaidanPromptSnapshotTest),《七日开张》是新世界。
+			if (m.id().equals("cyberpunk") || m.id().equals("time_travel")) {
 				continue;
 			}
 			for (int t : TURNS) {

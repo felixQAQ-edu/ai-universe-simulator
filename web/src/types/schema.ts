@@ -18,7 +18,8 @@ export type Archetype =
   | 'cyberpunk' // 赛博朋克
   | 'apocalypse' // 末日生存
   | 'cthulhu' // 克苏鲁(加世界流水线复用上架,backlog 第一级)
-  | 'animal_life'; // 动物人生(ADR-021 刀 3;一生制族第二个实例)
+  | 'animal_life' // 动物人生(ADR-021 刀 3;一生制族第二个实例)
+  | 'time_travel'; // 穿越古代《七日开张》(ADR-038 Slice A;浮世,单体)
 
 export type DangerLevel = 'low' | 'medium' | 'high' | 'extreme';
 

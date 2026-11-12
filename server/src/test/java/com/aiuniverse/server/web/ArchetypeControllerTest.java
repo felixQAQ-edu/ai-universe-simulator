@@ -25,14 +25,14 @@ class ArchetypeControllerTest {
 	@Test
 	void listWrapsRegistrySelectionUnderArchetypesKey() {
 		List<ArchetypeSummary> list = controller.list().archetypes();
-		assertThat(list).hasSize(7);
+		assertThat(list).hasSize(8); // ADR-038 Slice A:《七日开张》time_travel 激活,7 → 8
 		assertThat(list.stream().map(ArchetypeSummary::archetype))
 				.containsExactly("rules_creepy", "apocalypse", "cthulhu", "cultivation", "life_sim", "animal_life",
-						"cyberpunk");
-		// ADR-036 Slice B:《派单》激活 cyberpunk 后七条全部可选,目录里没有占位。
+						"cyberpunk", "time_travel");
+		// ADR-036 Slice B:《派单》激活 cyberpunk 后七条全部可选,目录里没有占位;ADR-038 Slice A 起八条。
 		assertThat(list.stream().filter(ArchetypeSummary::active).map(ArchetypeSummary::archetype))
 				.containsExactly("rules_creepy", "apocalypse", "cthulhu", "cultivation", "life_sim", "animal_life",
-						"cyberpunk");
+						"cyberpunk", "time_travel");
 	}
 
 	/** ADR-019:合法组合与世界目录**同一次请求**下发(分两个端点 = 两个可能不同步的响应)。 */

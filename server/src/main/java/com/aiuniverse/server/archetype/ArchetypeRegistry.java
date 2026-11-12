@@ -40,7 +40,7 @@ public class ArchetypeRegistry {
 	 * CONTEXT §三.4 枚举在本批冒烟验通后收口时同步追加。
 	 */
 	private static final Set<String> KNOWN = Set.of(
-			"rules_creepy", "life_sim", "cultivation", "cyberpunk", "apocalypse", "cthulhu", "animal_life");
+			"rules_creepy", "life_sim", "cultivation", "cyberpunk", "apocalypse", "cthulhu", "animal_life", "time_travel");
 
 	/**
 	 * 已知但未激活(占位枚举)的玩家可见中文名(CONTEXT §三.4)——选择屏渲染「敬请期待」灰显卡片用。
@@ -66,6 +66,7 @@ public class ArchetypeRegistry {
 		register(ordinaryLife());
 		register(animalLife());
 		register(paidan());
+		register(qiriKaizhang());
 		assertLifetimeWorldsHaveExactlyOneLethalAxis();
 	}
 
@@ -911,5 +912,76 @@ public class ArchetypeRegistry {
 						+ "且只写物件与后果、不写任何刷机方法。discovered 标记玩家已经识破或印证的那几条。",
 				true, // 真假守则型(rules 带 isTrue 有真有假)
 				"派单"); // 固定世界名(ADR-036 Slice A2 覆写 world.title)
+	}
+
+	/**
+	 * 《七日开张》(ADR-038 Slice A;决策 1 / 3)—— 单体、浮世、不属一生制族。卡面题材名「穿越古代」,
+	 * 游戏内世界名由 {@code fixedWorldTitle}「七日开张」服务端覆写(同《派单》,ADR-036 Slice A2)。
+	 *
+	 * <p><b>三轴</b>(露馅做法Ⅰ,数字经 Felix 2026-11-12 审定):摊本 {@code capital}(消耗、非致命 resource,初值 35)、
+	 * 熟客 {@code regulars}(累积,初值 0)、底细 {@code cover}(消耗、<b>致命</b>,初值 80)。派生集:致命 {cover}、
+	 * 累积 {regulars}、非致命 {capital}。key 刻意不用 {@code cash}:回合意象表 {@code IMAGERY} 全局按 key 查,
+	 * 与《派单》余钱共用一个 key 会让日后给摊本写意象时连带改掉《派单》的回合提示词(ADR-038 勘察 15)。
+	 *
+	 * <p><b>落数写死</b>(CONTEXT §三.18(d)):behaviorHint 里的数字与回合指令槽(Slice C)同源,两处都写。
+	 * 初值、规矩条数与真假比、结局池归 world-gen 指令槽(Slice B),不在这里。
+	 *
+	 * <p><b>档</b>:切点沿用默认(消耗 50 / 20、累积 30 / 60);九个档 label 是 Felix 2026-11-12 定稿的玩家可见文案
+	 * (ADR-038 文案清单),逐字照录;narrationHint 照 ADR-038 决策 3 的表。
+	 *
+	 * <p><b>措辞</b>:worldview 与 ruleForm 都会进提示词 —— 朝代只叫「本朝」,不出现「古代」或任何真实朝代、年号、地名(决策 8);
+	 * 模式名「穿越古代」只在 {@code displayName} 一处。
+	 */
+	private static ArchetypeMeta qiriKaizhang() {
+		return new ArchetypeMeta(
+				"time_travel",
+				"穿越古代",
+				"这条街什么都卖,就是没见过你这样卖的。",
+				"市井 · 穿帮",
+				"《七日开张》——你穿越到一个不具名的「本朝」,被街坊当成失踪摊主的远房亲戚,"
+						+ "接手了县城以下一条街上一个快倒闭的小摊;七天后是这条街一年一度的「百味夜集」。"
+						+ "失踪的摊主在钱匣里留下一张字迹缺笔画的小抄,写着「这个时代的规矩」;前任是谁、去了哪里,不揭示。"
+						+ "每天分早、午、晚:早上进货,午、晚开摊营业。"
+						+ "你脑子里的经营、卫生、算术、说话方式能救活这个摊,但每用一次,街坊就多看你一眼:"
+						+ "摊本涨了,底细也薄了。底细见了底,街坊就会请人来看你是不是撞了邪。"
+						+ "朝代不命名,只叫「本朝」;规模只到这一条街,地名一律虚构;没有朝堂、皇帝、官场,没有打打杀杀。",
+				List.of(
+						AttributeAxis.resource("capital", "摊本",
+								"每天早回合进货固定 −6;午、晚开摊营业各 +2~+4;第 22 回合百味夜集按普通营业回合落 +2~+4;"
+										+ "当众用现代招数立功的那一回合 +8~+12,代替当回合的营业收入(第 22 回合照算);"
+										+ "早回合立功:进货那一笔不扣(省下 6),不另加 +8~+12;"
+										+ "赔本事件 −5~−15;圆回来那一回合 −3(请街坊喝茶或送一份糕),且这一回合不营业;"
+										+ "摊本归零 = 赊账度日,不结束。"
+										+ "由你在 stateUpdate 给出新的绝对值,每回合按上面的数落,不得大幅偏离。")
+								.withBands(
+										band(100, "够周转", "进货不用掂量,还能多备一样新货"),
+										band(50, "紧巴巴", "进货先挑最便宜的,炭火省着烧"),
+										band(20, "靠赊账", "赊着进货,邻摊开始替你记账")),
+						AttributeAxis.accumulating("regulars", "熟客",
+								"解决麻烦或让客人满意 +5~+8;得罪熟客 −8。"
+										+ "由你在 stateUpdate 给出新的绝对值,按上面的数落,不得大幅偏离。")
+								.withBands(
+										band(0, "生面孔", "路过的人多,停下来的人少"),
+										band(30, "回头客", "有几张脸会在固定的时辰出现,问今天有什么新花样"),
+										band(60, "老主顾", "熟客替你招呼生客,摊前常有人等")),
+						AttributeAxis.depleting("cover", "底细",
+								"街坊眼里你还像不像个本朝人。当众用现代招数 −6(早回合立功也照扣);说漏现代词 −4;"
+										+ "被看见写阿拉伯数字 −3;大翻车 −12;"
+										+ "圆回来 +6,同一回合摊本 −3(请街坊喝茶或送一份糕),且这一回合不营业。"
+										+ "立功的同一回合,摊本与底细同时落数。底细归零,这一局到此为止。"
+										+ "由你在 stateUpdate 给出新的绝对值,每回合按上面的数落,不得大幅偏离。")
+								.withBands(
+										band(100, "藏得住", "旁人觉得你莫非师从奇人"),
+										band(50, "有点怪", "找你办怪事的人和盘问来历的人同时变多"),
+										band(20, "快露馅", "有人围着看热闹"))),
+				"真假混合的规矩,全部抄在失踪摊主留在钱匣里的那张小抄上(字迹缺笔画),写的是「这个时代的规矩」:"
+						+ "口吻是老摊主写给自己的备忘,短、土、不解释原因。"
+						+ "真规矩是前任在这条街上摸出来的门道,照做无事、不照做有后果;"
+						+ "假规矩是前任听信了别人编的说法就记了下来(竞争的摊主、过路的客商、偷懒的摊主),照做反而吃亏。"
+						+ "content 是玩家能读到的那句话;hiddenLogic 是只有引擎能看的真实判定:触发条件 + 写死数字的后果"
+						+ "(摊本 / 熟客 / 底细的增减,或该回合营业 +0);假规矩的 hiddenLogic 还要写明是谁编的、玩家凭什么现象能识破它。"
+						+ "discovered 标记玩家已经识破或印证的那几条。",
+				true, // 真假守则型(rules 带 isTrue 有真有假)
+				"七日开张"); // 固定世界名(覆写 world.title,同 ADR-036 Slice A2)
 	}
 }

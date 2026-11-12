@@ -56,13 +56,13 @@ class ArchetypeRegistryTest {
 	}
 
 	@Test
-	void listForSelectionListsAllSevenActiveInRegistrationOrderAndNoPlaceholder() {
+	void listForSelectionListsAllEightActiveInRegistrationOrderAndNoPlaceholder() {
 		List<ArchetypeSummary> list = registry.listForSelection();
-		// 已激活七条(含克苏鲁 + 修仙 +《寻常》+《动物人生》+ ADR-036《派单》,登记顺序 = 选择屏顺序);
+		// 已激活八条(含克苏鲁 + 修仙 +《寻常》+《动物人生》+ ADR-036《派单》+ ADR-038《七日开张》,登记顺序 = 选择屏顺序);
 		// 《派单》激活后未开放表为空 → 生产目录里没有占位。
 		assertThat(list.stream().map(ArchetypeSummary::archetype))
 				.containsExactly("rules_creepy", "apocalypse", "cthulhu", "cultivation", "life_sim", "animal_life",
-						"cyberpunk");
+						"cyberpunk", "time_travel");
 		for (ArchetypeSummary s : list) {
 			assertThat(s.active()).as("已激活可选:%s", s.archetype()).isTrue();
 			assertThat(s.displayName()).isNotBlank();
@@ -77,14 +77,14 @@ class ArchetypeRegistryTest {
 		List<ArchetypeSummary> list = new FakePlaceholderRegistry().listForSelection();
 		assertThat(list.stream().map(ArchetypeSummary::archetype))
 				.containsExactly("rules_creepy", "apocalypse", "cthulhu", "cultivation", "life_sim", "animal_life",
-						"cyberpunk", FakePlaceholderRegistry.ID);
-		for (ArchetypeSummary s : list.subList(0, 7)) {
+						"cyberpunk", "time_travel", FakePlaceholderRegistry.ID);
+		for (ArchetypeSummary s : list.subList(0, 8)) {
 			assertThat(s.active()).as("已激活可选:%s", s.archetype()).isTrue();
 			assertThat(s.tagline()).as("可选卡片有钩子:%s", s.archetype()).isNotBlank();
 			assertThat(s.vibeTag()).as("可选卡片有标签:%s", s.archetype()).isNotBlank();
 		}
 		// 占位一条在后、不可选、仍有中文名(渲染「敬请期待」)、钩子 / 标签留空。
-		ArchetypeSummary placeholder = list.get(7);
+		ArchetypeSummary placeholder = list.get(8);
 		assertThat(placeholder.active()).isFalse();
 		assertThat(placeholder.displayName()).isEqualTo(FakePlaceholderRegistry.DISPLAY_NAME);
 		assertThat(placeholder.tagline()).isNull();
@@ -194,7 +194,7 @@ class ArchetypeRegistryTest {
 		assertThat(registry.isKnown(FakePlaceholderRegistry.ID)).isFalse();
 		// 未知 id 既不已知也不已激活。
 		assertThat(registry.isActive("not_an_archetype")).isFalse();
-		assertThat(registry.activeMetas()).hasSize(7);
+		assertThat(registry.activeMetas()).hasSize(8); // ADR-038 Slice A:《七日开张》time_travel 激活,7 → 8
 	}
 
 	@Test

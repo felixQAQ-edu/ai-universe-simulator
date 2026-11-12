@@ -283,7 +283,9 @@ public final class WorldGenPromptBuilder {
 	 */
 	private static final Map<String, String> ENDING_COUNTS = Map.of("life_sim", "5-6", "animal_life", "5-6",
 			// 《派单》(ADR-036 决策 7):结局池 7 条全部定稿,给精确值而非区间 —— 七条各有引擎兜底或优先序的位置,少一条就缺一个落点。
-			"cyberpunk", "7");
+			"cyberpunk", "7",
+			// 《七日开张》(ADR-038 勘察 10):四条结局全部定稿、各有落点,同《派单》给精确值。
+			"time_travel", "4");
 
 	private static final String DEFAULT_ENDING_COUNT = "2-3";
 

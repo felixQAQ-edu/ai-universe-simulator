@@ -148,7 +148,11 @@ class AttributeAxisSeverityTest {
 			"cyberpunk/hp", "DANGER,CAUTION,NEUTRAL",
 			"cyberpunk/cash", "NEUTRAL,NEUTRAL,NEUTRAL",
 			"cyberpunk/rating", "DANGER,CAUTION,NEUTRAL",
-			"cyberpunk/profile", "NEUTRAL,CAUTION,DANGER");
+			"cyberpunk/profile", "NEUTRAL,CAUTION,DANGER",
+			// ADR-038 Slice A《七日开张》:摊本非致命资源轴;熟客累积(不 perilAtHigh);底细致命。
+			"time_travel/capital", "NEUTRAL,NEUTRAL,NEUTRAL",
+			"time_travel/regulars", "NEUTRAL,NEUTRAL,NEUTRAL",
+			"time_travel/cover", "DANGER,CAUTION,NEUTRAL");
 		List<String> actual = new java.util.ArrayList<>();
 		for (ArchetypeMeta m : registry.activeMetas()) {
 			for (AttributeAxis a : m.attributes()) {

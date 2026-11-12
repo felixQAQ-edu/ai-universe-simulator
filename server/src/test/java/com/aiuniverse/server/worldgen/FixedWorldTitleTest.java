@@ -118,6 +118,8 @@ class FixedWorldTitleTest {
 				assertThat(m.fixedWorldTitle()).isEqualTo("派单");
 			} else if (m.id().equals("life_sim")) {
 				assertThat(m.fixedWorldTitle()).isEqualTo("寻常");
+			} else if (m.id().equals("time_travel")) { // ADR-038 Slice A:《七日开张》
+				assertThat(m.fixedWorldTitle()).isEqualTo("七日开张");
 			} else {
 				assertThat(m.fixedWorldTitle()).as(m.id()).isNull();
 			}
