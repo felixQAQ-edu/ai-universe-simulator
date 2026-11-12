@@ -19,6 +19,7 @@ describe('resolveWorldTheme · 封面(原 sceneImageUrl 用例,逐条保留)', (
     expect(resolveWorldTheme('life_sim').sceneUrl).toBe('/scenes/life_sim.webp'); // 《寻常》静态视觉刀
     expect(resolveWorldTheme('animal_life').sceneUrl).toBe('/scenes/animal_life.webp'); // 《动物人生》静态视觉刀
     expect(resolveWorldTheme('cyberpunk').sceneUrl).toBe('/scenes/cyberpunk.webp'); // 《派单》ADR-036 Slice G-1
+    expect(resolveWorldTheme('time_travel').sceneUrl).toBe('/scenes/time_travel.webp'); // 《七日开张》ADR-038 Slice G-1
   });
 
   it('未配图 / 未知 / undefined → null(优雅降级,不显图)', () => {
@@ -81,7 +82,7 @@ describe('resolveWorldTheme · 皮肤登记(feature gate,ADR-018 §4.5)', () => 
     expect(resolveWorldTheme(UNREGISTERED)).toEqual(NEUTRAL_THEME);
   });
 
-  // 《寻常》只补静态视觉(顶图 + 卡面),皮肤刻意不登记 → 局内仍走旧实现。
+  // 《寻常》只有顶图 + 卡面(卡面自 2026-11-12 起带环境动效,纯 CSS,这里测不到),皮肤刻意不登记 → 局内仍走旧实现。
   it('《寻常》life_sim 有图有卡、但不登记皮肤', () => {
     const t = resolveWorldTheme('life_sim');
     expect(t.sceneUrl).toBe('/scenes/life_sim.webp');
@@ -89,7 +90,7 @@ describe('resolveWorldTheme · 皮肤登记(feature gate,ADR-018 §4.5)', () => 
     expect(t.skin).toBeNull();
   });
 
-  // 《动物人生》同《寻常》那一刀:只补静态视觉,皮肤刻意不登记 → 局内仍走旧实现。
+  // 《动物人生》同《寻常》:只有顶图 + 卡面(卡面自 2026-11-12 起带环境动效),皮肤刻意不登记 → 局内仍走旧实现。
   it('《动物人生》animal_life 有图有卡、但不登记皮肤', () => {
     const t = resolveWorldTheme('animal_life');
     expect(t.key).toBe('animal_life');
@@ -107,6 +108,16 @@ describe('resolveWorldTheme · 皮肤登记(feature gate,ADR-018 §4.5)', () => 
     expect(t.cardClass).toBe(styles.cardPaidan);
     expect(t.cardClass).toBeTruthy();
     expect(t.skin).toBe('cyberpunk');
+  });
+
+  // 《七日开张》(ADR-038 Slice G-1):顶图 + 卡面,皮肤不登记;主体居中,不带取景点。
+  it('《七日开张》time_travel 有图有卡、skin 为 null、不带 scenePosition', () => {
+    const t = resolveWorldTheme('time_travel');
+    expect(t.cardClass).toBeTruthy();
+    expect(t).toStrictEqual({
+      key: 'time_travel', sceneUrl: '/scenes/time_travel.webp', cardClass: styles.cardQiri, skin: null,
+    });
+    expect(Object.prototype.hasOwnProperty.call(t, 'scenePosition')).toBe(false);
   });
 
   // 放行标准 2:规则怪谈作 host 的融合局,在没有融合视觉签名时**纯 host 呈现**。
@@ -167,6 +178,7 @@ describe('resolveWorldTheme · 顶图取景点 scenePosition', () => {
       'rules_creepy', 'apocalypse', 'cthulhu', 'cultivation',
       ['cultivation', 'rules_creepy'], ['rules_creepy', 'apocalypse'], ['cultivation', 'cthulhu'],
       'cyberpunk', // 《派单》主体在横向中央,居中取景,不登记
+      'time_travel', // 《七日开张》蒸笼在横向中央,居中取景,不登记
       UNREGISTERED, 'totally_unknown', undefined,
     ];
     for (const a of cases) {
@@ -278,6 +290,16 @@ describe('cardTheme · 选择屏卡片氛围(收编原私有 vibeClass)', () => 
     expect(c).toBe(styles.cardPaidan);
     expect(c).toBeTruthy();
     for (const other of ['rules_creepy', 'apocalypse', 'cthulhu', 'cultivation', 'life_sim', 'animal_life']) {
+      expect(c).not.toBe(cardTheme(other).cardClass);
+    }
+  });
+
+  it('《七日开张》time_travel → 自己的浮世卡 cardQiri,与其余单体卡都不同', () => {
+    const c = cardTheme('time_travel').cardClass;
+    expect(c).toBe(styles.cardQiri);
+    expect(c).toBeTruthy();
+    expect(cardTheme('time_travel').skin).toBeNull();
+    for (const other of ['rules_creepy', 'apocalypse', 'cthulhu', 'cultivation', 'life_sim', 'animal_life', 'cyberpunk']) {
       expect(c).not.toBe(cardTheme(other).cardClass);
     }
   });

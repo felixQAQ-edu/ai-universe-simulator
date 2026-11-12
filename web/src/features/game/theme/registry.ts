@@ -74,8 +74,9 @@ const WORLDS: Readonly<Record<string, WorldEntry>> = {
     cardClass: styles.cardCultivation,
     skin: 'cultivation', // 刀 2:一级记忆点「一声钟鸣」挂 realm 向上跨档
   },
-  // 《寻常》(ADR-020):只补静态视觉 —— 顶图 + 浮世卡面。**皮肤不登记**(`skin: null` = 局内走旧实现),
-  // 同 ADR-020 裁定一的顺序:先验玩法再投视觉,这一刀只补到静态为止,不带记忆点与动效。
+  // 《寻常》(ADR-020):顶图 + 浮世卡面。**皮肤不登记**(`skin: null` = 局内走旧实现),无记忆点。
+  // 同 ADR-020 裁定一的顺序:先验玩法再投视觉。2026-11-09 那一刀只补到静态;2026-11-12 起卡面带一个持续环境动效
+  // (窗光里的浮尘,见 game.module.css `.cardLifeSim` 与 ADR-020 裁定一补充段)。局内仍无动效。
   life_sim: {
     sceneUrl: '/scenes/life_sim.webp',
     // 取景(原图 1774×1040,实测校准,2026-11-09):
@@ -87,7 +88,8 @@ const WORLDS: Readonly<Record<string, WorldEntry>> = {
     cardClass: styles.cardLifeSim,
     skin: null,
   },
-  // 《动物人生》(ADR-021):同《寻常》那一刀,只补静态视觉 —— 顶图 + 浮世卡面,**皮肤不登记**(局内走旧实现)。
+  // 《动物人生》(ADR-021):同《寻常》,顶图 + 浮世卡面,**皮肤不登记**(局内走旧实现),无记忆点。
+  // 2026-11-12 起卡面带一个持续环境动效(门缝底下的光与脚步,见 `.cardAnimalLife` 与 ADR-021 约束 5 补充段)。
   animal_life: {
     sceneUrl: '/scenes/animal_life.webp',
     // 取景(原图 1672×941,实测校准,2026-11-09):碗在原图 x 1075–1254、门缝在 x 1198–1255(右侧约 64%–75%)。
@@ -108,6 +110,16 @@ const WORLDS: Readonly<Record<string, WorldEntry>> = {
     // 文字在左、袋子在中不遮;'50% 60%' 虽能把 640×300 收回 50.1%,但会裁掉空中连廊。
     cardClass: styles.cardPaidan,
     skin: 'cyberpunk', // G-2:一级记忆点「已为你优化时限。」挂 profile 向上跨档
+  },
+  // 《七日开张》(ADR-038 Slice G-1):顶图 + 浮世卡面(卡面带一缕热气)。**皮肤不登记**(局内走旧实现),无记忆点。
+  time_travel: {
+    sceneUrl: '/scenes/time_travel.webp',
+    // 取景(原图 1672×941,未处理,2026-11-12 实测):焦点物件 = 蒸笼,横向在 x 718–900(图宽 42.9%–53.8%),
+    // 主体在横向中央,不登记、居中。蒸笼底边:接触阴影在 y 478–480,紧接着桌面高光在 y 482;下面的百分比按 y = 483 算(偏保守)。
+    // 手机宽度按高度铺满:375×300 / 375×380 / 640×380 下蒸笼底恒为 51.3%;宽屏按宽度铺满,最极端的 640×300 → 51.6%。
+    // 都 ≤ 53% 的标准。
+    cardClass: styles.cardQiri,
+    skin: null,
   },
 };
 

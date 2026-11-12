@@ -911,24 +911,172 @@
   animation-duration: 16s; /* 云气流动更盛 */
 }
 
-/* ── 《寻常》人生模拟(ADR-020,浮世):灰蓝旧布底 + 旧靛青左缘,静态 ──
+/* ── 《寻常》人生模拟(ADR-020,浮世):灰蓝旧布底 + 旧靛青左缘 + 窗光里的浮尘 ──
  * 浮世视觉语言(world-catalog 第二节 (3)):不要纯白、克制、有高级感,不做糖果 UI。
- * **只有色值**:不挂 ::before/::after、不加任何动画 / 光带 / 渐变装饰,也不写 :hover 专属效果
- * (卡片入场渐显与 hover 微浮来自通用 .card,所有解锁卡共有,本块不新增也不覆盖)。
- * 亮底 → 文字用深色,不随 app 明暗主题漂移(同修仙卡)。 */
+ * 2026-11-09 那一刀只有色值;2026-11-12 起加**一个持续槽**:一道斜光带(静态,画在卡底上)+ 只在光带里看得见的浮尘
+ * (ADR-020 裁定一补充段)。替代关系 = 无可替代(本卡首个动效,AGENTS.md §3)。不写 :hover 专属效果
+ * (入场渐显与 hover 微浮来自通用 .card)。亮底 → 文字用深色,不随 app 明暗主题漂移(同修仙卡)。
+ * 浮尘 = 三层小圆点,**同一纵向周期 96px** 错开平铺(循环无缝);整层转 16°,沿自身方向 `transform: translateY`
+ * 一个周期 —— **只动 transform,不动 background-position**(AGENTS.md §6)。层比卡大一圈,转角与位移都不露边。
+ * ::after 是一张卡底色遮片(静态):把光带以外的浮尘盖掉。标题 / 标语描一圈浅色光晕,浮尘经过字后面时不贴笔画。
+ * 参数(Felix 2026-11-12 在可运行样张上看过、认可的默认值):
+ *   --beam        0.6   光带亮度
+ *   --mote-peak   0.5   浮尘最浓处的不透明度
+ *   --mote-cycle  26s   浮尘走完一个 96px 周期的时长 */
 .cardLifeSim {
+  --beam: 0.6;
+  --mote-peak: 0.5;
+  --mote-cycle: 26s;
   color: #2f3a40; /* 标题 */
   border-left-color: #8a9ba3; /* 灰蓝色条 */
-  background: #eef1f2;
+  background:
+    linear-gradient(
+      118deg,
+      rgba(255, 236, 198, 0) 51%,
+      rgba(255, 236, 198, var(--beam)) 56%,
+      rgba(255, 236, 198, calc(var(--beam) * 0.45)) 70%,
+      rgba(255, 236, 198, 0) 82%
+    ),
+    #eef1f2;
 }
 
-/* ── 《动物人生》(ADR-021,浮世):淡苔绿底 + 苔绿左缘,静态 ──
- * 与《寻常》同一种写法:**只有色值**,不挂 ::before/::after、不加任何动画 / 光带 / 渐变装饰,
- * 也不写 :hover 专属效果(入场渐显与 hover 微浮来自通用 .card)。亮底 → 文字用深色,不随明暗主题漂移。 */
+.cardLifeSim::before {
+  content: '';
+  position: absolute;
+  inset: -120% -25% -240%;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(1.6px 1.6px at 50% 50%, rgba(160, 118, 62, var(--mote-peak)), transparent) 0 0 / 47px 96px,
+    radial-gradient(1.2px 1.2px at 50% 50%, rgba(160, 118, 62, calc(var(--mote-peak) * 0.8)), transparent)
+      19px 37px / 71px 96px,
+    radial-gradient(2.2px 2.2px at 50% 50%, rgba(178, 138, 82, calc(var(--mote-peak) * 0.6)), transparent)
+      31px 70px / 113px 96px;
+  transform: rotate(16deg) translateY(0);
+  animation: lifeMotes var(--mote-cycle) linear infinite;
+}
+
+/* 卡底色遮片:把光带以外的浮尘盖掉,尘只在光里看得见。 */
+.cardLifeSim::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    118deg,
+    #eef1f2 50%,
+    rgba(238, 241, 242, 0) 56%,
+    rgba(238, 241, 242, 0) 73%,
+    #eef1f2 83%
+  );
+}
+
+.cardLifeSim .cardTitle,
+.cardLifeSim .cardTagline {
+  text-shadow:
+    0 0 2px #f3f1ea,
+    0 0 5px #f3f1ea;
+}
+
+/* ── 《动物人生》(ADR-021,浮世):淡苔绿底 + 苔绿左缘 + 门缝底下的光,有脚步经过 ──
+ * 2026-11-09 那一刀只有色值;2026-11-12 起加**一个持续槽**(ADR-021 约束 5 补充段):卡底一道暖色亮线 = 门缝透进来的光
+ * (静态,连同上方一圈微光与 14px 暗带都画在卡底上),::after = 两块门板暗色的小片盖住亮线 = 脚的影子,
+ * 从右边进来、走到门口、停一会儿、走开、空等。替代关系 = 无可替代(本卡首个动效,AGENTS.md §3)。
+ * 只动 transform(AGENTS.md §6)。不写 :hover 专属效果。亮底 → 文字用深色,不随明暗主题漂移。
+ * 参数(Felix 2026-11-12 在可运行样张上看过、认可的默认值):
+ *   --gap-light   0.95  门缝光亮度
+ *   --step-cycle  12s   一趟脚步(来、停、走、空等)的总时长 */
 .cardAnimalLife {
+  --gap-light: 0.95;
+  --step-cycle: 12s;
   color: #2e3a2c; /* 标题 */
   border-left-color: #8a9a7b; /* 苔绿色条 */
-  background: #eef2ea;
+  background:
+    linear-gradient(
+        to left,
+        rgba(255, 224, 150, var(--gap-light)) 0%,
+        rgba(255, 224, 150, var(--gap-light)) 48%,
+        rgba(255, 224, 150, 0) 82%
+      )
+      right bottom / 100% 2.5px no-repeat,
+    radial-gradient(46% 9px at 74% 100%, rgba(255, 232, 170, calc(var(--gap-light) * 0.5)), rgba(255, 232, 170, 0))
+      bottom / 100% 12px no-repeat,
+    linear-gradient(to top, rgba(62, 78, 54, 0.22), rgba(62, 78, 54, 0)) bottom / 100% 14px no-repeat,
+    #eef2ea;
+}
+
+/* 两块门板暗色的小片盖住亮线 = 脚的影子。 */
+.cardAnimalLife::after {
+  content: '';
+  position: absolute;
+  left: 100%;
+  bottom: 0;
+  width: 100%;
+  height: 9px;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(196, 203, 190, 0), #c4cbbe 28%, #c4cbbe 72%, rgba(196, 203, 190, 0)) 0 0 / 30px 100%
+      no-repeat,
+    linear-gradient(90deg, rgba(196, 203, 190, 0), #c4cbbe 28%, #c4cbbe 72%, rgba(196, 203, 190, 0)) 44px 0 / 30px
+      100% no-repeat;
+  -webkit-mask-image: linear-gradient(to top, #000 45%, transparent);
+  mask-image: linear-gradient(to top, #000 45%, transparent);
+  transform: translateX(0);
+  animation: animalSteps var(--step-cycle) ease-in-out infinite;
+}
+
+/* ── 《七日开张》穿越古代(ADR-038 Slice G-1,浮世):麻布白底 + 土黄左缘 + 一缕热气 ──
+ * 配色取自顶图:卡底 = 晨光里的麻布白;色条 = 土黄布幌;标题 / 标语 = 木板深褐;右下一团淡木色 = 摊子的暗处,
+ * 热气从那里升起才看得见。**一个持续槽**:两缕热气错开半个周期,是同一种表现的两缕,不是两个效果。
+ * 替代关系 = 无可替代(本卡首个动效,AGENTS.md §3)。只动 transform 与 opacity(AGENTS.md §6)。不写 :hover 专属效果。
+ * 伪元素上写的 opacity / transform 是减弱动效时停住的那一帧。
+ * 对比度(WCAG,真实卡片 DOM,343 / 608 两种卡宽,动画全程取文字区卡底最暗处)见 .cardQiri .cardTag / .cardTagline 两处注释。
+ * 参数(Felix 2026-11-12 在可运行样张上看过、认可的默认值):
+ *   --steam-peak   0.85  热气最浓处的不透明度
+ *   --steam-cycle  9s    一缕热气从冒出到散掉的时长 */
+.cardQiri {
+  --steam-peak: 0.85;
+  --steam-cycle: 9s;
+  color: #3b3127;
+  border-left-color: #d0963f;
+  background:
+    radial-gradient(60% 120% at 82% 115%, rgba(122, 95, 60, 0.24), rgba(122, 95, 60, 0) 72%),
+    #f2ede2;
+}
+
+.cardQiri::before,
+.cardQiri::after {
+  content: '';
+  position: absolute;
+  bottom: -12%;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(50% 50% at 50% 62%, rgba(255, 253, 246, var(--steam-peak)), rgba(255, 253, 246, 0) 70%),
+    radial-gradient(
+      36% 40% at 36% 30%,
+      rgba(255, 253, 246, calc(var(--steam-peak) * 0.7)),
+      rgba(255, 253, 246, 0) 70%
+    );
+  filter: blur(3px);
+  opacity: 0.7;
+  transform: translate(4px, -15%) scale(1); /* 减弱动效时停在这一帧 */
+  animation: qiriSteam var(--steam-cycle) ease-out infinite;
+}
+
+.cardQiri::before {
+  left: 71%;
+  width: 44px;
+  height: 68px;
+}
+
+.cardQiri::after {
+  left: 80%;
+  width: 34px;
+  height: 56px;
+  animation-delay: calc(var(--steam-cycle) * -0.5);
 }
 
 /* ── 渗漏卡(融合入口,ADR-013):修仙青白仙气 × 规则怪谈冷蓝诡异【互噬】——
@@ -1243,6 +1391,48 @@
   }
 }
 
+/* 《寻常》浮尘:沿自身方向走一个 96px 纵向周期(三层同周期,首尾无缝);旋转写在关键帧里,免得被 transform 覆盖。 */
+@keyframes lifeMotes {
+  from {
+    transform: rotate(16deg) translateY(0);
+  }
+  to {
+    transform: rotate(16deg) translateY(-96px);
+  }
+}
+
+/* 《动物人生》脚步:来、停、走、空等。 */
+@keyframes animalSteps {
+  0% {
+    transform: translateX(0);
+  }
+  16% {
+    transform: translateX(-34%); /* 走到门口 */
+  }
+  42% {
+    transform: translateX(-34%); /* 停一会儿 */
+  }
+  60%,
+  100% {
+    transform: translateX(-125%); /* 走开,之后空等 */
+  }
+}
+
+/* 《七日开张》热气:冒出、升高、散开。 */
+@keyframes qiriSteam {
+  0% {
+    transform: translate(0, 30%) scale(0.7);
+    opacity: 0;
+  }
+  18% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(10px, -75%) scale(1.35);
+    opacity: 0;
+  }
+}
+
 @keyframes cthulhuWrithe {
   0% {
     transform: translate(0, 0) scale(1);
@@ -1399,6 +1589,10 @@
   .cardApocalypse::after,
   .cardCthulhu::after,
   .cardPaidan::after,
+  .cardLifeSim::before,
+  .cardAnimalLife::after,
+  .cardQiri::before,
+  .cardQiri::after,
   .cardCultivation::before,
   .cardCultivation::after,
   .cardFusion,
@@ -1482,7 +1676,7 @@
   color: #8a6c1f;
 }
 
-/* 《寻常》亮底卡:标签字对标签底 #e2e7e9 对比度 5.04:1(WCAG AA ≥ 4.5)。 */
+/* 《寻常》亮底卡:标签字对标签底 #e2e7e9 对比度 5.04:1(WCAG AA ≥ 4.5;标签底不透明,光带与浮尘不透上来,343 / 608 卡宽实测不变)。 */
 .cardLifeSim .cardTag {
   background: #e2e7e9;
   color: #55626a;
@@ -1492,6 +1686,12 @@
 .cardAnimalLife .cardTag {
   background: #e2e8dc;
   color: #55624f;
+}
+
+/* 《七日开张》亮底卡:标签字对标签底 #e7dfcc 对比度 5.36:1(真实卡片 DOM 逐像素,343 / 608 卡宽,热气全周期;标签底不透明,热气不透上来)。 */
+.cardQiri .cardTag {
+  background: #e7dfcc;
+  color: #6b5526;
 }
 
 /* 《派单》标签:淡紫底紫字;叠在卡底上最低对比度 5.0:1(左下紫光处,见 .cardPaidan 注释)。 */
@@ -1549,7 +1749,10 @@
   color: #5a6862;
 }
 
-/* 《寻常》标语对卡底 #eef1f2 对比度 4.91:1(WCAG AA ≥ 4.5)。 */
+/* 《寻常》标语(WCAG AA ≥ 4.5;真实卡片 DOM 逐像素,文字区卡底最暗处,未计浮尘本身 —— 浮尘经过字后面时由 text-shadow 描边挡):
+ * 343 卡宽 4.80:1(标语末尾伸进光带,最暗处是光带暖色);608 卡宽 4.91:1(标语不到光带,底色就是卡底 #eef1f2),
+ * 整条标语带(假设标语长到穿过光带)4.81:1。标题 #2f3a40 两种卡宽都是 10.28:1。
+ * 计入浮尘本身时,单个尘点像素处最低 3.37:1(343 卡宽)。 */
 .cardLifeSim .cardTagline {
   color: #5e6a70;
 }
@@ -1557,6 +1760,12 @@
 /* 《动物人生》标语对卡底 #eef2ea 对比度 5.20:1(WCAG AA ≥ 4.5)。 */
 .cardAnimalLife .cardTagline {
   color: #5b6857;
+}
+
+/* 《七日开张》标语木褐:真实卡片 DOM 逐像素、热气全周期、文字区卡底最暗处(右下淡木色里)—— 343 卡宽 5.11:1,608 卡宽 6.02:1;
+ * 把范围放宽到整条标语带(不只文字盒)两种卡宽都是 5.10:1。标题 #3b3127 两种卡宽都是 10.87:1。 */
+.cardQiri .cardTagline {
+  color: #625645;
 }
 
 /* 《派单》标语灰紫:最低对比度 5.1:1(左下紫光处,见 .cardPaidan 注释)。 */
