@@ -419,6 +419,7 @@ public class EventLoopService implements TurnExecutor {
 		Engine engine = session.engine();
 		clampClosingVigorFloor(session, parsed);
 		checkPaidanEnding(session, parsed);
+		guardQiriAction(session, parsed, actionId);
 		checkQiriEnding(session, parsed);
 		Double profileBefore = paidanProfile(engine);
 		Double coverBefore = qiriCover(engine);
@@ -792,6 +793,23 @@ public class EventLoopService implements TurnExecutor {
 			String to = r.verdict() == null ? "无(本回合继续)" : r.verdict();
 			log.info("[event-loop] save={} T{} 《七日开张》结局核对改判:{} → {}", session.saveId(), nextTurn, from, to);
 			engine.recordIssue("T" + nextTurn + " 结局核对改判 " + from + " → " + to);
+		}
+	}
+
+	/**
+	 * 《七日开张》按选项前缀兜底 + 每回合数值钳制(ADR-038「订正(2026-11-12 一)」,见 {@link QiriActionGuard}):
+	 * 只对单体《七日开张》生效,在 {@link #checkQiriEnding} 之前(结局核对读的是兜底、钳制之后的数值)。
+	 * 选项取 {@code session.currentActions()} —— 此刻仍是玩家本回合看到的那一组({@code pre.currentActions}),
+	 * 选项更新在落账之后。每条改写与「缺怪点子选项」记一条引擎 issue,只记录、不触发修复。
+	 */
+	private void guardQiriAction(GameSession session, ObjectNode parsed, String actionId) {
+		Engine engine = session.engine();
+		if (engine.world().path("archetypes").size() != 1 || !QiriEndingCheck.ARCHETYPE.equals(archetypeOf(engine))) {
+			return;
+		}
+		for (String issue : QiriActionGuard.apply(engine, parsed, actionId, session.currentActions())) {
+			log.info("[event-loop] save={} 《七日开张》{}", session.saveId(), issue);
+			engine.recordIssue(issue);
 		}
 	}
 

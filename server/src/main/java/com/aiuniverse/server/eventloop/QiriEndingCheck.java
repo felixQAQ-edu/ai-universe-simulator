@@ -21,14 +21,16 @@ import tools.jackson.databind.node.ObjectNode;
  * <ol>
  *   <li>任何回合底细 ≤ 0 → 请来了道士(核对直接写,不交引擎触底兜底);</li>
  *   <li>第 22 回合及以后,按表取第一个成立的:夜集第一摊(摊本 ≥ 60、熟客 ≥ 50、底细 ≥ 40)> 城中怪点子王(摊本 ≥ 60、
- *       <b>底细 ≤ 39</b>)> 明日照常开张;判出 success 而底细 ≤ 10 → <b>降级为请来了道士</b>;neutral 不降级
+ *       <b>底细 &lt; 40</b>)> 明日照常开张;判出 success 而底细 ≤ 10 → <b>降级为请来了道士</b>;neutral 不降级
  *       (同《派单》「差一点」先例,ADR-036 订正四;ADR-038 已知代价 2);</li>
  *   <li>第 22 回合之前,模型提议的结局<b>一律不收</b>,本回合继续(底细 ≤ 0 那条除外)。</li>
  * </ol>
  *
- * <p><b>「底细 ≤ 39 再降级」与提示词侧「11~39」写法不同,结果逐格相同</b>(ADR-038 决策 4「读法甲」,已知代价 3):
+ * <p>(「底细 &lt; 40」原为「≤ 39」,ADR-038「订正(2026-11-12 一)」决策 6 改:数值是小数,堵住 39 与 40 之间的空隙。)
+ *
+ * <p><b>「底细 &lt; 40 再降级」与提示词侧「11~39」写法不同,结果逐格相同</b>(ADR-038 决策 4「读法甲」,已知代价 3):
  * world-gen 的 condition 与第 22 回合注入表都按玩家看到的成立区间「11~39」写,并把「底细 ≤ 10 而摊本 ≥ 60 → 请来了道士」
- * 单列一行放在怪点子王之前;这里写成「≤ 39 再降级」是为了让降级规则在代码里真的起作用,与「请来了道士」的 condition
+ * 单列一行放在怪点子王之前;这里写成「< 40 再降级」是为了让降级规则在代码里真的起作用,与「请来了道士」的 condition
  * 「夜集时判出成功但底细 ≤ 10」对得上。逐格对拍见 {@code QiriEndingCheckTest}。
  *
  * <p>降级线取 {@link Engine#ENDING_GATE_THRESHOLD}(= 10):与引擎极性 gate(ADR-010)同一条线 —— 核对在 {@code apply}
@@ -70,7 +72,7 @@ final class QiriEndingCheck {
 			return null; // 第 22 回合之前一律不收
 		}
 		String byTable = capital >= 60 && regulars >= 50 && cover >= 40 ? NIGHT_MARKET_TOP
-				: capital >= 60 && cover <= 39 ? ODD_IDEA_KING
+				: capital >= 60 && cover < 40 ? ODD_IDEA_KING
 				: OPEN_AS_USUAL;
 		// 只降级 success(与引擎极性 gate 一致);明日照常开张(neutral)无论底细多低都保持。
 		boolean success = NIGHT_MARKET_TOP.equals(byTable) || ODD_IDEA_KING.equals(byTable);

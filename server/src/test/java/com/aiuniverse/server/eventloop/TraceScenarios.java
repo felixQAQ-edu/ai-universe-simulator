@@ -63,6 +63,8 @@ final class TraceScenarios {
 		out.put("lifetime_clamp", lifetimeClamp());
 		out.put("qiri_cover_drop", qiriCoverDrop());
 		out.put("qiri_ending_check", qiriEndingCheck());
+		out.put("qiri_action_guard", qiriActionGuard());
+		out.put("qiri_smoke_clamp", qiriSmokeClamp());
 		return out;
 	}
 
@@ -139,7 +141,8 @@ final class TraceScenarios {
 
 	/** 《七日开张》(ADR-038 Slice C):底细 45 → 15 跌破 20,服务端记「底细跌破 20」issue(回放经落账入口重做标记)。 */
 	Run qiriCoverDrop() {
-		return run(session("time_travel", 5, false), List.of("A"),
+		// 落账前底细 25(ADR-038 订正一:每回合底细 Δ 钳在 [−12, +6],45 → 15 一步跌不到)。
+		return run(qiriSession(5, Map.of("cover", 25), "趴着", "闻闻"), List.of("A"),
 				wire("街坊围上来看你写字。", "\"capital\":38,\"regulars\":20,\"cover\":15", "null", "A", "B"));
 	}
 
@@ -150,6 +153,25 @@ final class TraceScenarios {
 	Run qiriEndingCheck() {
 		return run(session("time_travel", 21, false), List.of("A"),
 				wire("夜集的灯一串串亮起来。", "\"capital\":70,\"regulars\":55,\"cover\":30",
+						"{\"id\":\"night_market_top\",\"reached\":true}"));
+	}
+
+	/**
+	 * 《七日开张》(ADR-038 订正一):第 9 回合(晚)玩家选【怪点子】,模型只给摊本 +1、底细不扣 →
+	 * 服务端兜底写成摊本 +8、底细 −6,记两条兜底 issue(回放经落账入口重做兜底,确定性重现)。
+	 */
+	Run qiriActionGuard() {
+		return run(qiriSession(8, Map.of("capital", 40, "regulars", 20, "cover", 79), "【怪点子】削取号竹牌", "歇下"),
+				List.of("A"), wire("竹牌一挂,排队的人安静了。", "\"capital\":41,\"regulars\":22,\"cover\":79", "null", "A", "B"));
+	}
+
+	/**
+	 * 《七日开张》冒烟回归(ADR-038 订正一,`6a3b425c` 第 22 回合):落账前摊本 2、模型给 64 并提议夜集第一摊 →
+	 * 钳到 14 → 结局核对判明日照常开张;玩家看到的选项里没有【怪点子】,另记「缺怪点子选项」。
+	 */
+	Run qiriSmokeClamp() {
+		return run(qiriSession(21, Map.of("capital", 2, "regulars", 52, "cover", 60), "打听夜集的摊位", "歇下"),
+				List.of("A"), wire("夜集的灯一串串亮起来。", "\"capital\":64,\"regulars\":55,\"cover\":58",
 						"{\"id\":\"night_market_top\",\"reached\":true}"));
 	}
 
@@ -194,6 +216,21 @@ final class TraceScenarios {
 			s.setBoxScene(BoxSceneState.fresh());
 		}
 		return s;
+	}
+
+	/** 《七日开张》会话:三轴按 {@code attrs} 覆盖夹具默认值,选项 A / B 的文字由场景给(兜底按选项前缀判)。 */
+	GameSession qiriSession(int advance, Map<String, Integer> attrs, String textA, String textB) {
+		ObjectNode w = world("time_travel");
+		ObjectNode a = (ObjectNode) w.path("character").path("attributes");
+		attrs.forEach(a::put);
+		Engine engine = new Engine(w, mapper);
+		for (int i = 0; i < advance; i++) {
+			engine.applyNoOp("日子", "A");
+		}
+		ArrayNode acts = mapper.createArrayNode();
+		acts.addObject().put("id", "A").put("text", textA);
+		acts.addObject().put("id", "B").put("text", textB);
+		return new GameSession("save-replay-time_travel", engine, acts);
 	}
 
 	private ObjectNode world(String archetype) {

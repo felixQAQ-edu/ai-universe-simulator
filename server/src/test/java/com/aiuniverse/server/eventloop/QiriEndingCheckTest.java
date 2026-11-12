@@ -47,7 +47,7 @@ class QiriEndingCheckTest {
 	// ① 落点表逐格(决策 4,直接测 check) ───────────────────────────────
 
 	/** ADR-038 决策 4「落点表(底细 × 摊本)」,照表手写,不复用被测代码。第 22 回合及以后成立。 */
-	private static String adrLandingTable(int capital, int regulars, int cover) {
+	private static String adrLandingTable(int capital, int regulars, double cover) {
 		if (cover <= 0) {
 			return QiriEndingCheck.TAOIST_SUMMONED;
 		}
@@ -57,7 +57,7 @@ class QiriEndingCheckTest {
 		if (cover <= 10) {
 			return QiriEndingCheck.TAOIST_SUMMONED; // 1–10 × 摊本 ≥ 60:判出怪点子王后降级
 		}
-		if (cover <= 39) {
+		if (cover < 40) { // ADR-038 订正一 决策 6:原「≤ 39」,小数 39.5 落在空隙里
 			return QiriEndingCheck.ODD_IDEA_KING;
 		}
 		return regulars >= 50 ? QiriEndingCheck.NIGHT_MARKET_TOP : QiriEndingCheck.OPEN_AS_USUAL;
@@ -65,12 +65,12 @@ class QiriEndingCheckTest {
 
 	@Test
 	void landingTableCellByCell() {
-		int[] covers = { 0, 1, 5, 10, 11, 25, 39, 40, 41, 80, 100 };
+		double[] covers = { 0, 1, 5, 10, 11, 25, 39, 39.5, 40, 41, 80, 100 };
 		int[] capitals = { 0, 35, 59, 60, 61, 100 };
 		int[] regulars = { 0, 49, 50, 100 };
 		int cells = 0;
 		for (int n : new int[] { 22, 23, 30 }) {
-			for (int cover : covers) {
+			for (double cover : covers) {
 				for (int capital : capitals) {
 					for (int reg : regulars) {
 						String expected = adrLandingTable(capital, reg, cover);
@@ -88,7 +88,7 @@ class QiriEndingCheckTest {
 				}
 			}
 		}
-		assertThat(cells).isEqualTo(3 * 11 * 6 * 4 * 5);
+		assertThat(cells).isEqualTo(3 * 12 * 6 * 4 * 5);
 	}
 
 	/** 落点表里有名字的那几格,单独点名(读红用例名时一眼看到是哪一格)。 */
@@ -102,6 +102,9 @@ class QiriEndingCheckTest {
 		assertThat(QiriEndingCheck.verdict(22, 40, 60, 25)).as("底细 11–39 × 摊本 < 60").isEqualTo("open_as_usual");
 		assertThat(QiriEndingCheck.verdict(22, 70, 60, 11)).as("底细 11 × 摊本 ≥ 60").isEqualTo("odd_idea_king");
 		assertThat(QiriEndingCheck.verdict(22, 70, 60, 39)).as("底细 39 × 摊本 ≥ 60").isEqualTo("odd_idea_king");
+		assertThat(QiriEndingCheck.verdict(22, 70, 60, 39.5)).as("底细 39.5 × 摊本 ≥ 60:39 与 40 之间不留空隙(订正一 决策 6)")
+				.isEqualTo("odd_idea_king");
+		assertThat(QiriEndingCheck.verdict(22, 70, 40, 39.5)).as("底细 39.5 × 摊本 ≥ 60 × 熟客 < 50").isEqualTo("odd_idea_king");
 		assertThat(QiriEndingCheck.verdict(22, 59, 60, 50)).as("底细 ≥ 40 × 摊本 < 60").isEqualTo("open_as_usual");
 		assertThat(QiriEndingCheck.verdict(22, 60, 50, 40)).as("底细 ≥ 40 × 摊本 ≥ 60 × 熟客 ≥ 50").isEqualTo("night_market_top");
 		assertThat(QiriEndingCheck.verdict(22, 60, 49, 40)).as("底细 ≥ 40 × 摊本 ≥ 60 × 熟客 < 50").isEqualTo("open_as_usual");
@@ -335,7 +338,7 @@ class QiriEndingCheckTest {
 		return QiriCoverDropTest.restore(mapper, registry, p);
 	}
 
-	private ObjectNode parsed(Map<String, Integer> upd, String proposed) {
+	private ObjectNode parsed(Map<String, ? extends Number> upd, String proposed) {
 		ObjectNode parsed = mapper.createObjectNode();
 		parsed.put("narrative", "夜集的灯一串串亮起来。");
 		ObjectNode su = parsed.putObject("stateUpdate");

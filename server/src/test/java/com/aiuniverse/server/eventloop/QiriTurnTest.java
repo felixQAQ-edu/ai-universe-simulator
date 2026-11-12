@@ -127,6 +127,30 @@ class QiriTurnTest {
 	}
 
 	/** CONTEXT §三.18(d):数字同时写进回合指令与该轴的 behaviorHint(两处同源)。 */
+	/** ADR-038 订正一 决策 1 / 5:选项前缀(逐字)、【营业】、按前缀落数、【语气】与三个示例场面。 */
+	@Test
+	void directiveCarriesPrefixesBusinessToneAndExamples() {
+		String d = TurnPromptBuilder.QIRI_TURN_DIRECTIVE;
+		assertThat(d).contains("前缀逐字照写:【怪点子】= 用现代的经营、卫生、算术、说话方式;【打圆场】= 主动化解别人对你来历的怀疑。")
+				.contains("每回合至少 1 个【怪点子】选项;落账后底细低于 70 时,至少再有 1 个【打圆场】选项")
+				.contains("后面必须是具体动作(如削取号竹牌、画三栏账、第二件半价),不得只写「用现代知识」「圆一圆」")
+				.contains("普通选项不带前缀;一个选项只带一个前缀")
+				.contains("【怪点子】选项的 hint 写这一招具体会招来什么(邻摊学去、客人追问、大爷辩论),不写「可能惹眼」这类警告")
+				.contains("【打圆场】选项要写出实际的掩饰办法")
+				.contains("【营业】午、晚摊子默认开着:不论玩家选什么(打听、歇下也一样),都按 +2~+4 落营业;打圆场那一回合除外(不营业)。")
+				.contains("玩家选了【怪点子】选项,按【现代招数立功】落数,叙事要写出这一招管用了")
+				.contains("玩家选了【打圆场】选项,按【圆回来】落数,叙事要写出圆过去的过程")
+				.contains("【语气】轻快、好笑。现代办法要真管用,收益写进叙事,但过程越来越不对劲(邻摊学走了却学歪了、客人为字眼吵起来);不写成安静感伤。")
+				.contains("【示例语气 · 示例,不是固定剧情】")
+				.contains("· 取号竹牌被邻摊学去,当成了抽奖;")
+				.contains("· 「第二件半价」引来一群大爷辩论什么叫第二件;")
+				.contains("· 画出三栏账,邻摊大娘问你是不是把明天的账也算出来了。");
+		// 前缀字面与服务端兜底识别的是同一个串。
+		assertThat(d).contains(QiriActionGuard.ODD_IDEA).contains(QiriActionGuard.SMOOTH_OVER);
+		assertThat(QiriActionGuard.ODD_IDEA).isEqualTo("【怪点子】");
+		assertThat(QiriActionGuard.SMOOTH_OVER).isEqualTo("【打圆场】");
+	}
+
 	@Test
 	void directiveNumbersMatchBehaviorHints() {
 		String d = TurnPromptBuilder.QIRI_TURN_DIRECTIVE;

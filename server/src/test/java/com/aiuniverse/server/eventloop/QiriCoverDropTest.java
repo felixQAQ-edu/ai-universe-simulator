@@ -81,7 +81,8 @@ class QiriCoverDropTest {
 	@Test
 	void onceFlagSurvivesSaveAndRestore() {
 		// 标记在 issues 里、随存档落盘:重启后既能在下一回合浮出,也能挡住之后的第二次跌破(不靠会话内存)。
-		Engine e = landCover(10, 50, 19);
+		// 落账前 30:跌到 19 是 Δ −11,在本世界每回合钳制区间 [−12, +6] 之内(ADR-038 订正一)。
+		Engine e = landCover(10, 30, 19);
 		Engine restored = restore(mapper, registry, e.toPersistedState());
 		assertNextTurnLine(restored, TurnPromptBuilder.QIRI_MEMORY_ON);
 		landOn(restored, 40);
@@ -188,7 +189,8 @@ class QiriCoverDropTest {
 	private ArrayNode actions() {
 		ArrayNode a = mapper.createArrayNode();
 		a.addObject().put("id", "A").put("text", "吆喝一声").put("hint", "街坊会看你");
-		a.addObject().put("id", "B").put("text", "先把账算清").put("hint", "别写错字");
+		// B 带【怪点子】前缀:本回合选的是无前缀的 A,这组选项又不缺怪点子 —— 不触发兜底,也不记「缺怪点子选项」(ADR-038 订正一)。
+		a.addObject().put("id", "B").put("text", "【怪点子】画三栏账").put("hint", "邻摊大娘凑过来看");
 		return a;
 	}
 }

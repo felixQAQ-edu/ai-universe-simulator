@@ -89,7 +89,12 @@ class TraceReplayTest {
 				.anyMatch(i -> i.contains("收束下限钳制 5->15"));
 		assertThat(RUNS.get("normal_with_leak").last().parsed().path("narrative").asString()).contains("hiddenLogic");
 		// ADR-038:《七日开张》两类服务端改写都在轨迹的落账里被重做。
-		assertThat(RUNS.get("qiri_cover_drop").session().engine().issues()).contains("T6 底细跌破 20 45→15");
+		assertThat(RUNS.get("qiri_cover_drop").session().engine().issues()).contains("T6 底细跌破 20 25→15");
+		assertThat(RUNS.get("qiri_action_guard").session().engine().issues())
+				.containsExactly("T9 怪点子兜底 capital 41→48", "T9 怪点子兜底 cover 79→73");
+		assertThat(RUNS.get("qiri_smoke_clamp").session().engine().issues()).contains("T22 钳制 capital 2→64 改 14",
+				"T22 缺怪点子选项", "T22 结局核对改判 night_market_top → open_as_usual");
+		assertThat(RUNS.get("qiri_smoke_clamp").session().engine().attributes().get("capital")).isEqualTo(14.0);
 		assertThat(RUNS.get("qiri_ending_check").session().engine().issues())
 				.contains("T22 结局核对改判 night_market_top → odd_idea_king");
 		assertThat(RUNS.get("qiri_ending_check").session().engine().status()).isEqualTo("ended");

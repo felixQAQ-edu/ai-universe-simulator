@@ -186,6 +186,20 @@ class QiriWorldGenTest {
 		assertThat(llm.requests).hasSize(2);
 	}
 
+	// ⑥ 选项前缀(ADR-038 订正一 决策 1)──────────────────────────────
+
+	@Test
+	void openingActionsCarryThePrefixRules() {
+		String p = prompts.buildWorldPrompt("time_travel");
+		assertThat(p).contains("前缀逐字照写:【怪点子】= 用现代的经营、卫生、算术、说话方式;【打圆场】= 主动化解别人对你来历的怀疑。")
+				.contains("开局的 availableActions 至少 1 个【怪点子】选项")
+				.contains("后面必须是具体动作(如削取号竹牌、画三栏账、第二件半价),不得只写「用现代知识」「圆一圆」")
+				.contains("普通选项不带前缀;一个选项只带一个前缀")
+				.contains("【怪点子】选项的 hint 写这一招具体会招来什么(邻摊学去、客人追问、大爷辩论),不写「可能惹眼」这类警告")
+				.contains("【打圆场】选项要写出实际的掩饰办法");
+		assertThat(p).contains("【怪点子】").contains("【打圆场】");
+	}
+
 	// ⑤ 文案清单 ────────────────────────────────────────────────────────
 
 	@Test
