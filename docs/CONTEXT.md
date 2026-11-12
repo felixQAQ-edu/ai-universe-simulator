@@ -82,6 +82,13 @@
    ⚠️ **补充(ADR-036,2026-11-11;上文原文一字不动)**:`cyberpunk` **已激活** —— 选择屏显示名「赛博朋克」(题材名),
    游戏内世界名固定为《派单》(服务端用 `fixedWorldTitle` 覆写 `world.title`),体验分类**深界**。四轴 `{hp,cash,rating,profile}` =
    体力 / 余钱 / 评分 / 画像(致命 {hp,rating}、非致命资源 {cash}、累积双刃 {profile})。经四次订正与三轮真 key 冒烟,Felix 认可通过。
+   ⚠️ **补充(活口径订正,2026-11-12;上文原文与 ADR-036 补充段一字不动)**:以 `ArchetypeRegistry` 为准(截至 `3d1e4ca`:`KNOWN` 七个 id、
+   构造器 `register(...)` 七条、`INACTIVE_DISPLAY_NAMES` 为空表)—— **七个 id 全部已激活**。上文作废三处:
+   - 「`life_sim`(人生模拟)」—— **作废**(未标已激活)。`life_sim` 已激活,《寻常》复用这个占位 id,出处 [ADR-020](adr/ADR-020-lifetime-world-family-and-ordinary-life.md) 刀 1。
+   - 「`cyberpunk`(赛博朋克)」—— **作废**(未标已激活)。已由上方 ADR-036 补充段订正,出处 [ADR-036](adr/ADR-036-cyberpunk-world-paidan.md) Slice B。
+   - 「原 5 枚举为初版基线,后续世界经加世界流水线(registry 加一条已激活元数据)陆续上架,本枚举同步追加。」—— 其中「本枚举同步追加」**作废**(未兑现):
+     `animal_life`(动物人生)从未追加进本枚举。它已激活,出处 [ADR-021](adr/ADR-021-lifetime-family-layer-and-animal-life.md) 刀 3「登记《动物人生》」(2026-08-15)。
+   有哪些 id、哪些已激活,当前活口径以 `ArchetypeRegistry`(`KNOWN` 与构造器 `register(...)`)为准。
 5. **数值范围与模式特有数值(ADR-008 展开)**:默认 0–100。`character.attributes` 是**开放字典**(§二原 schema 就是 `{hp,san}` 示例、从未限定 key),模式特有数值=换 key:规则怪谈 `{hp,san}` / 末日 `{hp,hunger}` / 克苏鲁 `{hp,san,knowledge}` / 修仙 `{hp,mana,realm}`(气血/灵力/境界)。**引擎/校验对数值 key 语义无知**——`Engine.apply` 遍历 `attributes` map 通用结算(绝对值/clamp 0–100/跳变>40 标记),`validateWorld`/`TURN_SCHEMA` **只硬校验每个已给轴的范围 0–100,不硬校验 key 集合**(不做 per-archetype 硬清单)。「该渲染/生成哪些轴」由 **per-archetype 元数据**(§三.14,非强制校验)告知消费方,不靠 schema 拦。**衰减型数值(如末日饥饿)由 AI 落**(每回合 `stateUpdate` 给新绝对值,衰减提示喂提示词),**引擎不读 `decay`、不认识「会衰减」语义**。加 key(hunger/knowledge/mana/realm)**不算 schema 字段变更**。详见 ADR-008。**轴角色 axisRole 见 §三.14 / §三.8(ADR-009 F-012)**。
 6. **提示词是核心资产**:统一放 `prompts/`,按管线步骤组织(`world-gen` / `char-gen` / `rule-gen` / `event-loop` / `ending-gen` / `fusion`),版本化管理。
 7. **内容安全**:所有生成文本经审核网关通过后再返回前端(方案见 ADR-004)。
@@ -120,6 +127,14 @@
 
 15. **选择屏目录契约 `GET /api/archetypes`(ADR-008 决策 4,A 计划落地)**:一个轻量只读端点,供前端「选择你的世界」第一屏渲染世界目录(不让前端硬编码模式清单)。响应 `{ "archetypes": [ {archetype, displayName, tagline, vibeTag, active} ] }`——**已激活**(可玩:`rules_creepy`/`apocalypse`/`cthulhu`/`cultivation`)在前(全字段),**已知未开放**(§三.4 枚举里 `life_sim`/`cyberpunk`)在后(`active:false`、`tagline`/`vibeTag` 为 `null`,前端灰显「敬请期待」、不可选)。数据源 = `ArchetypeRegistry.listForSelection()`。为此 **`ArchetypeMeta` 增两个玩家可见文案字段** `tagline`(一句话钩子)/`vibeTag`(氛围/危险短标签)——**仅供选择屏卡片展示,不进 world-gen 注入**(注入仍用长 `worldview`,§三.14);玩家可见文案用中文(§三.3)。前端经 `api/listArchetypes`(平台 IO 只在 `api/` 适配层,守 §三.13)消费。**加新世界**:registry 加一条已激活元数据即自动进目录(未配文案则 `tagline`/`vibeTag` 留空);卡片视觉氛围由前端 per-archetype CSS 主题承载(展示层,不入后端)。约定层补充,JSON `schemaVersion` 仍 "0.2"(端点是只读投影 + registry 伴生字段,非 state schema 字段变更)。
     ⚠️ **补充(ADR-036,2026-11-11;上文原文一字不动)**:`cyberpunk` 已激活,从「已知未开放」移到已激活一侧(卡面显示名「赛博朋克」)。
+    ⚠️ **补充(活口径订正,2026-11-12;上文原文与 ADR-036 补充段一字不动)**:上文两组的 id 清单作废,端点形态与分组规则不变:
+    - 「**已激活**(可玩:`rules_creepy`/`apocalypse`/`cthulhu`/`cultivation`)在前(全字段)」—— 括号里的 id 清单**作废**(漏了 `life_sim` / `animal_life` / `cyberpunk`)。
+      「已激活在前、全字段」这条规则仍成立。
+    - 「**已知未开放**(§三.4 枚举里 `life_sim`/`cyberpunk`)在后」—— 括号里的 id 清单**作废**:**当前无未开放的 id**。
+      「`active:false`、`tagline`/`vibeTag` 为 `null`、前端灰显「敬请期待」、不可选」这条规则仍成立。
+    - 两组各有哪些 id,读 `ArchetypeRegistry.listForSelection()`(已激活 = 构造器 `register(...)` 的元数据,未开放 = `INACTIVE_DISPLAY_NAMES`),
+      本补充不写死清单(写死的清单会漂,照 ROADMAP v8.8 先例)。`INACTIVE_DISPLAY_NAMES` 现为空表,但「未开放」分支是**刻意保留**的
+      ([ADR-036](adr/ADR-036-cyberpunk-world-paidan.md) 裁定 4(a)):将来再有占位时不必重建。
 
 16. **混合模式融合协议(ADR-012 轴合并 + ADR-013 融合协议,round 1 端到端验通 2026-07-08;ADR-014 骨架参数化 + 第二组合,round 1.5 端到端验通 2026-07-14)**:混合模式(`mode:"hybrid"`、`archetypes` 2–3)把多套设定调和成**一个自洽世界**(非轮流播/拼接)。round 1 彩蛋=**修仙 × 规则怪谈「识海遗蜕」**(host=修仙);round 1.5=**规则怪谈 × 末日「守则即补给」缺页的人防工程**(host=rules_creepy,hunger 换皮「补给」、首例三致命轴 {hp,san,hunger})。**引擎/校验/`schemaVersion`(保 "0.4")一律不动**——融合只在**播种层 + 提示词 + 前端**三处;引擎侧融合世界只是「一个有 N 轴的普通世界」,照旧遍历 attributes(守 §三.5 引擎数值无知)。融合提示词=**参数化骨架 + per-combo 槽位**(ADR-014:派生槽=致命轴清单/结局条数从 `fusedAxes` 算,文案槽=真假称呼/资源经济/裁决口吻/附加指令;安全规矩全在骨架单点维护)。八条约定:
 
@@ -222,6 +237,7 @@
 | v0.9 | 2026-06-25 | 加世界流水线第一次复用·克苏鲁(`cthulhu`)落地 + 真 key 冒烟验通:§三.4 archetype 枚举追加 `cthulhu`(已激活,签名轴=禁忌知识 `knowledge` 累积型双刃)、§三.15 已激活示例补 cthulhu;§三.14 轴行为提示字段 `decay` 泛化为 `behaviorHint`(涵盖衰减/累积/联动,引擎仍不读),并记两条架构缺口 F-012(引擎 ≤0 触底假设只对 depletion 轴成立)/ F-013(骨架强制 isTrue 与非真假守则世界冲突)——均本批提示词兜、引擎正解留修仙批。约定层补充,JSON `schemaVersion` 仍 "0.2"(registry 伴生字段 + 元数据提示文本,非 state schema 变更),仅 CONTEXT 文档版本升 v0.9 |
 | **v1.0** | 2026-06-25 | **修仙(`cultivation`)落地 + ADR-009 架构正解(根治 F-012/F-013),真 key 冒烟验通**:§三.4 枚举 `cultivation` 标已激活(全新数值体系 `{hp,mana,realm}`=气血/灵力/境界,主角轴=境界 accumulation)、§三.5/§三.15 同步;**§二 `rules[].isTrue` 改可选**(F-013,校验零分派)+ **JSON `schemaVersion` "0.2"→"0.3"**(首次真动字段约束;`WORLD_SCHEMA` 接受双版本守 parity 夹具,见 ADR-009);**§三.8 触底按轴角色 `axisRole`**(depletion ≤0 致死 / accumulation 不触底,F-012 引擎根治)、**§三.14 元数据增 `axisRole` + `rulesCarryTruth`**。golden parity 字节级守 depletion 零回归(server 173 / web 30 全绿)。F-012/F-013 已关闭。CONTEXT 文档版本升 v1.0(本批是首个真动 JSON `schemaVersion` 的批次)。 |
 | **v1.1** | 2026-06-26 | **结局极性 gate(ADR-010 根治 F-014 + 关闭 F-015),真 key 冒烟验通**:**§二 `endings[].outcome` 新增**(可选极性 `success|failure|neutral`,AI 标、引擎只读;`toClientState` 不剥)+ **JSON `schemaVersion` "0.3"→"0.4"**(`WORLD_SCHEMA` 接受 `{0.2,0.3,0.4}` 三版本守 parity);**§三.8 结局极性 gate**(致命轴濒零 ≤`ENDING_GATE_THRESHOLD`(10)时引擎拒绝 AI `outcome==success` 结局、据极性确定性挑 failure;触底/gate 收窄到致命轴)+ **§三.14 元数据增 `lethal`**(depletion 内部细分致命生命轴/非致命资源轴;灵力 `lethal=false` 关闭 F-015)。引擎只读 outcome 标 + lethal 轴值、不懂结局语义(守 ADR-008);golden parity 字节级零回归(server 188 / web 30 全绿)。真 key 冒烟两局验通:气血 0→拦成功结局给「身死道消」、气血 5 濒死未死→不强制结束给挣扎选项(两边界都对);灵力两局 0 未误死。F-014/F-015 已关闭。CONTEXT 文档版本升 v1.1。 |
+| **v2.6** | 2026-11-12 | **§三.4 / §三.15 活口径订正(纯 docs)**:两处各加一个补充块,逐条摘出作废原句 —— §三.4:`life_sim` / `cyberpunk` 未标已激活、「本枚举同步追加」未兑现(漏 `animal_life`);以 `ArchetypeRegistry` 为准七个 id 全部已激活,`life_sim` = ADR-020 刀 1、`animal_life` = ADR-021 刀 3、`cyberpunk` = ADR-036 Slice B。§三.15:两组的 id 清单作废,当前无未开放的 id,改指 `listForSelection()` / `INACTIVE_DISPLAY_NAMES`、不写死清单(v8.8 先例),空表分支为刻意保留(ADR-036 裁定 4(a))。上文原文与 ADR-036 补充段一字未动。**JSON `schemaVersion` 不动(仍 "0.4")**;仅 CONTEXT 文档版本升 v2.6。 |
 | **v2.5** | 2026-11-11 | **ADR-036《派单》验通后回写(Slice F)**:§三.4 / §三.15 加补充段 —— `cyberpunk` 已激活(卡面「赛博朋克」、游戏内世界名固定《派单》、深界);新增 **§三.18 单体世界的服务端编排**五条:(a) 单体按回合注入时段与状态行 / (b) 世界专属结局核对在 `engine.apply` 之前改写提议、Engine 不动、回放确定 / (c) 世界专属 world-gen 检查在 `validateWorld` 之后、走一次修复 / (d) 要落数值的行为必须写明具体数字(FINDINGS F-038)/ (e) 跨档触发的一次性台词由服务端判定、下一回合注入。上文原文一字未动。**JSON `schemaVersion` 不动(仍 "0.4")**;仅 CONTEXT 文档版本升 v2.5。 |
 | **v2.4** | 2026-10-17 | **ADR-035 第三组合《验讫》后端经真 key 冒烟验通,§三.16 回写两条约定(循「验通再立字」先例)**:§三.16 加补充段(上文原文一字未动),八条扩为十条 —— **(9) 按回合注入时段**(per-combo 可空 `FusionTurnCopy.turnClock`:叙事推进时段在冒烟中稳定失效时,改由服务端按 `state.turn` 注入,不动 schema 与引擎)、**(10) 每回合都会回传模型的文本都受揭示阶梯约束**(规则含 `hiddenLogic`、结局池四字段、行为提示、附加指令只用第一级词汇,真相只放在按档注入的文本里)。**JSON `schemaVersion` 不动(仍 "0.4")**;仅 CONTEXT 文档版本升 v2.4。 |
 | **v2.3** | 2026-10-03 | **ADR-028 §已决 L(F-031 / F-034)**:《动物人生》离开回合改用屋外片段与「刚出门」槽位、屋外片段增每回合共同边界、被留下余波按拍注入并在时钟契约里用时钟例外替换「绝不允许……同一天」、world-gen 开场与新局 T1–10 加纸箱时间锚点。纯提示词渲染层与局面编排改动。本节以外 CONTEXT 正文一字未动,**不新增约定、不改落盘内容**(§三.17 的 `boxScene` 不涉及:离开回合的「刚出门」映射沿用既有 `slots` 字段,处境仍落地后写入;逐拍时钟由已落盘的结算结果与拍号派生);**JSON `schemaVersion` 不动(仍 "0.4")**;仅 CONTEXT 文档版本升 v2.3。 |
