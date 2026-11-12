@@ -2,7 +2,9 @@ package com.aiuniverse.server.worldgen;
 
 import java.time.Clock;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -214,11 +216,22 @@ public class WorldGenService {
 	 *
 	 * <p>《派单》(ADR-036「订正(2026-11-10 二)」订正 2):每条规则都必须带布尔 {@code isTrue} ——
 	 * 结局核对数「已识破的假【群里说】」要靠它,冒烟里 3 局有 2 局整表缺失。只对单体《派单》生效。
+	 *
+	 * <p>按 archetype 分派(ADR-038 勘察 7):单体 {@code cyberpunk} → 《派单》原有检查,原样不动;
+	 * 单体 {@code time_travel} → 《七日开张》三项({@link #qiriErrors});其余(含任何融合局)→ 空表。
 	 */
 	static List<String> worldSpecificErrors(List<String> archetypes, JsonNode world) {
-		if (!archetypes.equals(List.of("cyberpunk"))) {
-			return List.of();
+		if (archetypes.equals(List.of("cyberpunk"))) {
+			return paidanErrors(world);
 		}
+		if (archetypes.equals(List.of("time_travel"))) {
+			return qiriErrors(world);
+		}
+		return List.of();
+	}
+
+	/** 《派单》(ADR-036 订正二 / 三):每条规则带布尔 isTrue + 系统台词只在「成了标杆」的 description。 */
+	private static List<String> paidanErrors(JsonNode world) {
 		List<String> errors = new ArrayList<>();
 		JsonNode rules = world.path("rules");
 		for (int i = 0; i < rules.size(); i++) {
@@ -227,6 +240,54 @@ public class WorldGenService {
 			}
 		}
 		systemLineErrors(world, errors);
+		return errors;
+	}
+
+	/** 《七日开张》四个固定结局 id(ADR-038 决策 4 / 审定 11),world-gen 检查要求全部在场。 */
+	static final List<String> QIRI_ENDING_IDS = List.of("night_market_top", "odd_idea_king", "open_as_usual",
+			"taoist_summoned");
+
+	/** 《七日开张》真、假规矩各自的下限(ADR-038 决策 5 / 审定 7)。 */
+	static final int QIRI_MIN_EACH_TRUTH = 3;
+
+	/**
+	 * 《七日开张》世界专属检查(ADR-038 决策 5 / 审定 7),三项:
+	 * <ol>
+	 * <li>每条规则的 {@code isTrue} 必须是布尔(照搬《派单》订正二);</li>
+	 * <li>四个固定结局 id 都在 —— 结局核对与引擎 {@code pickFailureEnding} 都要落到它们(勘察 13);</li>
+	 * <li>{@code isTrue:true} 与 {@code isTrue:false} 各 ≥ 3 条。</li>
+	 * </ol>
+	 * <b>不查</b>恰好 8 条、4 真 4 假(提示词里仍要求):修复仍败 = 整局 ERROR,凑数要求不值得让玩家开不了局(已知代价 8)。
+	 * 「历史不作数」那条是措辞判断,不做程序检查。
+	 */
+	private static List<String> qiriErrors(JsonNode world) {
+		List<String> errors = new ArrayList<>();
+		JsonNode rules = world.path("rules");
+		int trueCount = 0;
+		int falseCount = 0;
+		for (int i = 0; i < rules.size(); i++) {
+			JsonNode isTrue = rules.get(i).path("isTrue");
+			if (!isTrue.isBoolean()) {
+				errors.add("rules[" + i + "].isTrue: 本世界每条规矩都必须带布尔 isTrue(真规矩 true、假规矩 false)");
+			} else if (isTrue.asBoolean()) {
+				trueCount++;
+			} else {
+				falseCount++;
+			}
+		}
+		if (trueCount < QIRI_MIN_EACH_TRUTH) {
+			errors.add("rules: isTrue:true 的规矩只有 " + trueCount + " 条,本世界至少 " + QIRI_MIN_EACH_TRUTH + " 条(要求恰好 8 条、4 真 4 假)");
+		}
+		if (falseCount < QIRI_MIN_EACH_TRUTH) {
+			errors.add("rules: isTrue:false 的规矩只有 " + falseCount + " 条,本世界至少 " + QIRI_MIN_EACH_TRUTH + " 条(要求恰好 8 条、4 真 4 假)");
+		}
+		Set<String> ids = new HashSet<>();
+		world.path("endings").forEach(e -> ids.add(e.path("id").asString("")));
+		for (String id : QIRI_ENDING_IDS) {
+			if (!ids.contains(id)) {
+				errors.add("endings: 缺少固定结局 " + id + "(本世界 endings 恰好 4 条:" + String.join(" / ", QIRI_ENDING_IDS) + ")");
+			}
+		}
 		return errors;
 	}
 
