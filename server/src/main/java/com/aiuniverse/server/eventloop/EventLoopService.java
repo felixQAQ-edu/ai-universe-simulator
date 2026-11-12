@@ -419,6 +419,7 @@ public class EventLoopService implements TurnExecutor {
 		Engine engine = session.engine();
 		clampClosingVigorFloor(session, parsed);
 		checkPaidanEnding(session, parsed);
+		checkQiriEnding(session, parsed);
 		Double profileBefore = paidanProfile(engine);
 		Double coverBefore = qiriCover(engine);
 		List<String> leak = engine.apply(parsed, actionId);
@@ -766,6 +767,34 @@ public class EventLoopService implements TurnExecutor {
 		}
 	}
 
+	/**
+	 * 《七日开张》结局核对(ADR-038 决策 4 / Slice D):落账前按本回合 stateUpdate 落账后的数值改写 {@code parsed.ending},
+	 * 判定表见 {@link QiriEndingCheck}。只对单体《七日开张》生效,其余世界原路径、一行不碰。
+	 * 守门与日志照 {@link #checkPaidanEnding} 的形状逐字重复(不先抽象,ADR-038 已知代价 4)。
+	 */
+	private void checkQiriEnding(GameSession session, ObjectNode parsed) {
+		Engine engine = session.engine();
+		if (engine.world().path("archetypes").size() != 1 || !QiriEndingCheck.ARCHETYPE.equals(archetypeOf(engine))) {
+			return;
+		}
+		QiriEndingCheck.Result r = QiriEndingCheck.check(engine, parsed);
+		if (r == null) {
+			return;
+		}
+		int nextTurn = engine.turn() + 1;
+		if (r.skipped()) {
+			log.warn("[event-loop] save={} T{} 《七日开张》结局核对:判定 {} 不在本局结局池里,不改写(原提议 {})",
+					session.saveId(), nextTurn, r.verdict(), r.proposed());
+			return;
+		}
+		if (r.changed()) {
+			String from = r.proposed() == null ? "无" : r.proposed();
+			String to = r.verdict() == null ? "无(本回合继续)" : r.verdict();
+			log.info("[event-loop] save={} T{} 《七日开张》结局核对改判:{} → {}", session.saveId(), nextTurn, from, to);
+			engine.recordIssue("T" + nextTurn + " 结局核对改判 " + from + " → " + to);
+		}
+	}
+
 	/** 《派单》本回合落账前的画像;不是单体《派单》或没有画像轴 → null(其余世界不记、不读)。 */
 	private static Double paidanProfile(Engine engine) {
 		if (engine.world().path("archetypes").size() != 1 || !PaidanEndingCheck.ARCHETYPE.equals(archetypeOf(engine))) {
@@ -791,12 +820,9 @@ public class EventLoopService implements TurnExecutor {
 		}
 	}
 
-	/** 《七日开张》单体局的 archetype id(ADR-038)。 */
-	static final String QIRI_ARCHETYPE = "time_travel";
-
 	/** 《七日开张》本回合落账前的底细;不是单体《七日开张》或没有底细轴 → null(其余世界不记、不读)。 */
 	private static Double qiriCover(Engine engine) {
-		if (engine.world().path("archetypes").size() != 1 || !QIRI_ARCHETYPE.equals(archetypeOf(engine))) {
+		if (engine.world().path("archetypes").size() != 1 || !QiriEndingCheck.ARCHETYPE.equals(archetypeOf(engine))) {
 			return null;
 		}
 		return engine.attributes().get("cover");

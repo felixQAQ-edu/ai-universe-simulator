@@ -88,6 +88,11 @@ class TraceReplayTest {
 		assertThat(RUNS.get("lifetime_clamp").session().engine().issues())
 				.anyMatch(i -> i.contains("收束下限钳制 5->15"));
 		assertThat(RUNS.get("normal_with_leak").last().parsed().path("narrative").asString()).contains("hiddenLogic");
+		// ADR-038:《七日开张》两类服务端改写都在轨迹的落账里被重做。
+		assertThat(RUNS.get("qiri_cover_drop").session().engine().issues()).contains("T6 底细跌破 20 45→15");
+		assertThat(RUNS.get("qiri_ending_check").session().engine().issues())
+				.contains("T22 结局核对改判 night_market_top → odd_idea_king");
+		assertThat(RUNS.get("qiri_ending_check").session().engine().status()).isEqualTo("ended");
 	}
 
 	// ── 测试面 6:落账行为一变,回放报告不一致;跨版本只报告不失败 ──────────

@@ -61,6 +61,8 @@ final class TraceScenarios {
 		out.put("box_scene_leave_degraded", boxSceneLeaveDegraded());
 		out.put("lifetime_exit_action", lifetimeExitAction());
 		out.put("lifetime_clamp", lifetimeClamp());
+		out.put("qiri_cover_drop", qiriCoverDrop());
+		out.put("qiri_ending_check", qiriEndingCheck());
 		return out;
 	}
 
@@ -135,6 +137,22 @@ final class TraceScenarios {
 				wire("手有点抖。", "\"vigor\":5,\"longing\":40,\"crossroads\":30,\"ties\":35", "null", "A", "B"));
 	}
 
+	/** 《七日开张》(ADR-038 Slice C):底细 45 → 15 跌破 20,服务端记「底细跌破 20」issue(回放经落账入口重做标记)。 */
+	Run qiriCoverDrop() {
+		return run(session("time_travel", 5, false), List.of("A"),
+				wire("街坊围上来看你写字。", "\"capital\":38,\"regulars\":20,\"cover\":15", "null", "A", "B"));
+	}
+
+	/**
+	 * 《七日开张》(ADR-038 Slice D):第 22 回合模型提议夜集第一摊,落账后底细 30 → 结局核对改判城中怪点子王并记 issue
+	 * (回放经落账入口重做核对,确定性重现)。
+	 */
+	Run qiriEndingCheck() {
+		return run(session("time_travel", 21, false), List.of("A"),
+				wire("夜集的灯一串串亮起来。", "\"capital\":70,\"regulars\":55,\"cover\":30",
+						"{\"id\":\"night_market_top\",\"reached\":true}"));
+	}
+
 	// ── 执行 ─────────────────────────────────────────────────────────────
 
 	Run run(GameSession s, List<String> actions, Object... responses) {
@@ -192,6 +210,18 @@ final class TraceScenarios {
 			case "rules_creepy" -> attrs.put("hp", 90).put("san", 80);
 			case "life_sim" -> attrs.put("vigor", 70).put("longing", 50).put("crossroads", 40).put("ties", 30);
 			case "animal_life" -> attrs.put("body", 80).put("warmth", 60).put("ground", 50).put("close", 50);
+			case "time_travel" -> {
+				attrs.put("capital", 50).put("regulars", 55).put("cover", 45);
+				ArrayNode endings = w.putArray("endings"); // 换成本世界的四条固定结局(ADR-038 决策 4)
+				endings.addObject().put("id", "night_market_top").put("title", "夜集第一摊").put("condition", "c")
+						.put("outcome", "success").put("reached", false);
+				endings.addObject().put("id", "odd_idea_king").put("title", "城中怪点子王").put("condition", "c")
+						.put("outcome", "success").put("reached", false);
+				endings.addObject().put("id", "open_as_usual").put("title", "明日照常开张").put("condition", "c")
+						.put("outcome", "neutral").put("reached", false);
+				endings.addObject().put("id", "taoist_summoned").put("title", "请来了道士").put("condition", "底细降到 0")
+						.put("outcome", "failure").put("reached", false);
+			}
 			default -> throw new IllegalArgumentException(archetype);
 		}
 		return w;

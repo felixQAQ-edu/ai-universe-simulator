@@ -212,12 +212,25 @@ public final class TurnPromptBuilder {
 		StringBuilder sb = new StringBuilder("\n\n【本回合时段】").append(slot).append("(本局第 ").append(turn)
 				.append(" 回合)。叙事与 timeline 都按这个时段写,不要提前或拖后。");
 		if (turn == QIRI_FINAL_TURN) {
-			sb.append("\n本回合按普通营业回合落数(立功照算),然后本回合必须给出结局。");
+			sb.append("\n本回合按普通营业回合落数(立功照算),然后本回合必须给出结局。").append(QIRI_FINAL_TABLE);
 		} else if (turn > QIRI_FINAL_TURN) {
 			sb.append("\n本回合必须给出结局。");
 		}
 		return sb.toString();
 	}
+
+	/**
+	 * 第 22 回合随时段注入的结局判定表(ADR-038 决策 4 / Slice D)。与服务端 {@link QiriEndingCheck} 逐格同判:
+	 * 这里按提示词侧口径写(怪点子王「底细在 11~39 之间」,并把「底细 ≤ 10 而摊本 ≥ 60 → 请来了道士」单列一行放在它之前);
+	 * 核对按「底细 ≤ 39 再降级」判,两者结果相同(读法甲)。逐格对拍见 {@code QiriEndingCheckTest}。
+	 */
+	static final String QIRI_FINAL_TABLE = "\n先按营业回合落本回合 stateUpdate,再按表从上往下判定,取第一个成立的:"
+			+ "\n· 底细归零:请来了道士;"
+			+ "\n· 夜集第一摊:摊本 ≥ 60、熟客 ≥ 50、底细 ≥ 40;"
+			+ "\n· 底细 ≤ 10 而摊本 ≥ 60:请来了道士;"
+			+ "\n· 城中怪点子王:摊本 ≥ 60、底细在 11~39 之间;"
+			+ "\n· 以上都不成立:明日照常开张。"
+			+ "\n叙事要和结局一致;结局 description 写出最后那块招牌。";
 
 	/** 《七日开张》跨档台词(Felix 2026-11-12 定稿,文案清单,逐字;标点照原文)。 */
 	static final String QIRI_CROSSING_LINE = "隔壁摊的大娘把声音压得极低:「你们老家的人,做买卖都这么邪门儿?」";
