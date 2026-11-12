@@ -223,7 +223,11 @@ class PaidanTurnTest {
 	@Test
 	void legStatusNeverAppearsInOtherWorlds() {
 		for (ArchetypeMeta m : registry.activeMetas()) {
-			if (!m.id().equals("cyberpunk")) {
+			if (m.id().equals("time_travel")) {
+				// ADR-038 Slice C:《七日开张》有自己的【记忆点】(大娘那句话,见 QiriTurnTest),但没有【腿况】。
+				assertThat(builder.buildTurnPrompt(engine(List.of(m.id()), m.attributes(), 10), "A", "测试行动"))
+						.as(m.id()).doesNotContain("【腿况】").doesNotContain("已为你优化时限");
+			} else if (!m.id().equals("cyberpunk")) {
 				assertThat(builder.buildTurnPrompt(engine(List.of(m.id()), m.attributes(), 10), "A", "测试行动"))
 						.as(m.id()).doesNotContain("【腿况】").doesNotContain("【记忆点】");
 			}

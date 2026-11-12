@@ -55,9 +55,9 @@ class SingleTurnClockSeamTest {
 	// ① 未登记的世界逐字节不变 ───────────────────────────────────────────
 
 	@Test
-	void productionTableHoldsOnlyPaidan() {
-		// Slice A 时为空;Slice D 登记《派单》(cyberpunk),表里只此一项。
-		assertThat(TurnPromptBuilder.SINGLE_TURN_CLOCK).containsOnlyKeys("cyberpunk");
+	void productionTableHoldsOnlyPaidanAndQiri() {
+		// Slice A 时为空;Slice D 登记《派单》(cyberpunk);ADR-038 Slice C 登记《七日开张》(time_travel)。
+		assertThat(TurnPromptBuilder.SINGLE_TURN_CLOCK).containsOnlyKeys("cyberpunk", "time_travel");
 	}
 
 	@Test

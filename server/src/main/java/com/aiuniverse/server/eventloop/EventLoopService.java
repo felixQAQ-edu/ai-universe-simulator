@@ -420,8 +420,10 @@ public class EventLoopService implements TurnExecutor {
 		clampClosingVigorFloor(session, parsed);
 		checkPaidanEnding(session, parsed);
 		Double profileBefore = paidanProfile(engine);
+		Double coverBefore = qiriCover(engine);
 		List<String> leak = engine.apply(parsed, actionId);
 		markPaidanProfileCrossing(engine, profileBefore);
+		markQiriCoverDrop(engine, coverBefore);
 		// ADR-028 §已决 A 第 7 条:局面 / 处境写入与落地同一时刻 —— 紧跟 apply,排在任何 sink 写之前
 		// (已落地未送达 → ADR-027 补写盘带走的快照里已是新状态;未落地 → 这里根本没跑到,什么都没写)。
 		if (scene != null) {
@@ -785,6 +787,33 @@ public class EventLoopService implements TurnExecutor {
 		Double after = engine.attributes().get("profile");
 		if (after != null && TurnPromptBuilder.paidanProfileCrossedUp(before, after)) {
 			engine.recordIssue(TurnPromptBuilder.paidanCrossingIssuePrefix(engine.turn()) + " " + fmtVigor(before)
+					+ "→" + fmtVigor(after));
+		}
+	}
+
+	/** 《七日开张》单体局的 archetype id(ADR-038)。 */
+	static final String QIRI_ARCHETYPE = "time_travel";
+
+	/** 《七日开张》本回合落账前的底细;不是单体《七日开张》或没有底细轴 → null(其余世界不记、不读)。 */
+	private static Double qiriCover(Engine engine) {
+		if (engine.world().path("archetypes").size() != 1 || !QIRI_ARCHETYPE.equals(archetypeOf(engine))) {
+			return null;
+		}
+		return engine.attributes().get("cover");
+	}
+
+	/**
+	 * 《七日开张》跨档台词标记(ADR-038 决策 6 / 审定 6,形状同 {@link #markPaidanProfileCrossing}):落账后底细 ≤ 20、
+	 * 落账前 &gt; 20,且本局 issues 里还没有任何一条「底细跌破 20」标记 → 记一行引擎 issue「T{n} 底细跌破 20 a→b」。
+	 * <b>每局只记一次</b>(与《派单》每次跨档都记不同);下一回合由 {@link TurnPromptBuilder#qiriMemoryLine} 读它。
+	 */
+	static void markQiriCoverDrop(Engine engine, Double before) {
+		if (before == null) {
+			return;
+		}
+		Double after = engine.attributes().get("cover");
+		if (after != null && TurnPromptBuilder.qiriCoverDropped(before, after, engine.issues())) {
+			engine.recordIssue(TurnPromptBuilder.qiriCoverDropIssuePrefix(engine.turn()) + " " + fmtVigor(before)
 					+ "→" + fmtVigor(after));
 		}
 	}

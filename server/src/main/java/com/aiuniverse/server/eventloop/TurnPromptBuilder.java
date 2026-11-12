@@ -70,7 +70,9 @@ public final class TurnPromptBuilder {
 	 */
 	static final Map<String, IntFunction<String>> SINGLE_TURN_CLOCK = Map.of(
 			// 《派单》(ADR-036 决策 2 / Slice D):三个夜班 7 / 8 / 9 回合,各接一个收工回合,共 27 回合。
-			"cyberpunk", TurnPromptBuilder::paidanTurnClock);
+			"cyberpunk", TurnPromptBuilder::paidanTurnClock,
+			// 《七日开张》(ADR-038 决策 2 / Slice C):七天 × 早 / 午 / 晚 21 回合 + 第 22 回合百味夜集,定长。
+			"time_travel", TurnPromptBuilder::qiriTurnClock);
 
 	/**
 	 * 第 27 回合注入的结局判定表(ADR-036「订正(2026-11-10 二)」订正 1)。与服务端 {@link PaidanEndingCheck} 同一张表:
@@ -91,7 +93,9 @@ public final class TurnPromptBuilder {
 	 * 紧接在 {@link #SINGLE_TURN_CLOCK} 的时段之后注入。与时段表同一机制、同样只查单体局;未登记 → 空串 → 回合 prompt 逐字节不变。
 	 */
 	static final Map<String, Function<Engine, String>> SINGLE_TURN_STATUS = Map.of(
-			"cyberpunk", engine -> paidanLegStatus(engine) + paidanMemoryLine(engine));
+			"cyberpunk", engine -> paidanLegStatus(engine) + paidanMemoryLine(engine),
+			// 《七日开张》(ADR-038 决策 6 / 勘察 5):只放跨档台词的「浮出一次 / 不得出现」二选一,没有【腿况】那类状态行。
+			"time_travel", TurnPromptBuilder::qiriMemoryLine);
 
 	static final String PAIDAN_LEG_SLOWED = "\n【腿况】这期月供不够,腿处于远程降速:体力掉得更快,爬楼要手撑栏杆。";
 	static final String PAIDAN_LEG_NORMAL = "\n【腿况】腿没有被降速,不得写降速。";
@@ -173,6 +177,88 @@ public final class TurnPromptBuilder {
 			sb.append("\n本回合必须给出结局。");
 		}
 		return sb.toString();
+	}
+
+	// ── 《七日开张》(ADR-038 Slice C)──────────────────────────────────────
+
+	/** 百味夜集回合 = 第 22 回合(决策 2:七天 × 早 / 午 / 晚 21 回合之后)。 */
+	static final int QIRI_FINAL_TURN = 7 * 3 + 1;
+	private static final String[] QIRI_SLOTS = { "早", "午", "晚" };
+	private static final String[] QIRI_SLOT_WORK = { "进货", "开摊营业", "开摊营业" };
+
+	/**
+	 * 《七日开张》按本回合序号 n 注入的时段文字(ADR-038 决策 2):
+	 * <ul>
+	 * <li>n = 1–21:「第 d 天 · 早 / 午 / 晚」(d = ⌈n/3⌉)+ 该时段做什么 + 离百味夜集还有几天(第 7 天写「明天就是百味夜集」);</li>
+	 * <li>n = 22:百味夜集 · 开摊,按普通营业回合落数,本回合必须给出结局;</li>
+	 * <li>n ≥ 23:兜底,仍写百味夜集,本回合必须给出结局(同《派单》第 28 回合起的形状)。</li>
+	 * </ul>
+	 * <b>天数口径</b>:第 d 天写「还有 8 − d 天」(第 1 天 = 七天,与 world-gen 开场「离百味夜集还有七天」一致;第 7 天 = 明天)。
+	 * ADR-038 决策 2 草稿写的是「7 − d」,与同表「第 7 天写明天就是百味夜集」自相矛盾(第 6 天也会是「还有 1 天」),
+	 * 按「措辞是草稿,实现时由单测钉住」取 8 − d;不写结局条件(判定表随第 22 回合注入,Slice D)。
+	 */
+	static String qiriTurnClock(int n) {
+		int turn = Math.max(n, 1);
+		String slot;
+		if (turn < QIRI_FINAL_TURN) {
+			int day = (turn + 2) / 3;
+			int part = (turn - 1) % 3;
+			int left = 8 - day;
+			slot = "第 " + day + " 天 · " + QIRI_SLOTS[part] + "(" + QIRI_SLOT_WORK[part] + ")"
+					+ (left == 1 ? ",明天就是百味夜集" : ",离百味夜集还有 " + left + " 天");
+		} else {
+			slot = "百味夜集 · 开摊";
+		}
+		StringBuilder sb = new StringBuilder("\n\n【本回合时段】").append(slot).append("(本局第 ").append(turn)
+				.append(" 回合)。叙事与 timeline 都按这个时段写,不要提前或拖后。");
+		if (turn == QIRI_FINAL_TURN) {
+			sb.append("\n本回合按普通营业回合落数(立功照算),然后本回合必须给出结局。");
+		} else if (turn > QIRI_FINAL_TURN) {
+			sb.append("\n本回合必须给出结局。");
+		}
+		return sb.toString();
+	}
+
+	/** 《七日开张》跨档台词(Felix 2026-11-12 定稿,文案清单,逐字;标点照原文)。 */
+	static final String QIRI_CROSSING_LINE = "隔壁摊的大娘把声音压得极低:「你们老家的人,做买卖都这么邪门儿?」";
+	static final String QIRI_MEMORY_ON = "\n【记忆点】本回合叙事开头原样写出这一句,一字不改,只写这一次:" + QIRI_CROSSING_LINE;
+	static final String QIRI_MEMORY_OFF = "\n【记忆点】本回合不得出现这句话:" + QIRI_CROSSING_LINE;
+
+	/** 底细跌破 20 那一回合记进引擎 issues 的前缀(后接「 旧→新」)。前缀含回合号与空格,T1 不会误配 T12。 */
+	static String qiriCoverDropIssuePrefix(int turn) {
+		return "T" + turn + " 底细跌破 20";
+	}
+
+	/** 本局 issues 里是否已有任何一条「底细跌破 20」标记(每局只浮一次的判据)。 */
+	static boolean qiriCoverDropAlreadyMarked(List<String> issues) {
+		for (String issue : issues) {
+			if (issue.matches("T\\d+ 底细跌破 20 .*")) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * 是否要记「底细跌破 20」(ADR-038 决策 6 / 审定 6):落账前 &gt; 20、落账后 ≤ 20(与档界「20 归低档」一致),
+	 * 且本局还没有记过 —— <b>每局只浮一次</b>,圆回来回升后再跌破,不再记、不再浮。
+	 */
+	static boolean qiriCoverDropped(double before, double after, List<String> issues) {
+		return before > 20 && after <= 20 && !qiriCoverDropAlreadyMarked(issues);
+	}
+
+	/**
+	 * 《七日开张》记忆点(ADR-038 决策 6,形状同 {@link #paidanMemoryLine}):上一回合(= 引擎当前 {@code turn})落账时记了
+	 * 「底细跌破 20」,本回合注入「浮出一次」,否则注入「不得出现」。标记是那一回合记下的引擎 issue,见 EventLoopService。
+	 */
+	static String qiriMemoryLine(Engine engine) {
+		String prefix = qiriCoverDropIssuePrefix(engine.turn()) + " ";
+		for (String issue : engine.issues()) {
+			if (issue.startsWith(prefix)) {
+				return QIRI_MEMORY_ON;
+			}
+		}
+		return QIRI_MEMORY_OFF;
 	}
 
 	/** 数值轴 key → 叙事中文意象提示(清洁度:数值变化只用意象,不直呼字段名)。缺省回落 displayName。 */
@@ -484,7 +570,45 @@ public final class TurnPromptBuilder {
 			  · 现实品牌、平台名、地名;百分比与成功率(数字只用分钟、秒、楼层、单数、余钱)。\
 			""";
 
-	private static final Map<String, String> TURN_DIRECTIVES = Map.of("cyberpunk", PAIDAN_TURN_DIRECTIVE, "animal_life", """
+	/**
+	 * 《七日开张》逐回合指令(ADR-038 Slice C;决策 3 / 6 / 8)。只放<b>每回合都生效</b>的东西(ADR-020 §10 判据):
+	 * 世界名与模式标签、时段以注入为准、落数(决策 3 的表,与各轴 behaviorHint 同源)、立功联动(含早回合立功)、圆回来、
+	 * 招牌软层、记忆点以注入为准、题材边界(决策 8,world-gen 槽同写)。时段由 {@link #qiriTurnClock} 每回合注入,
+	 * 跨档台词由 {@link #qiriMemoryLine} 注入。
+	 *
+	 * <p>本模板经 {@code template.formatted(...)} 渲染(一个占位都不用)—— 正文里不得出现百分号。
+	 * 模式名「穿越古代」只出现在「【世界名】」一条。{@code prompts/event-loop.md}「单体世界专属 ·《七日开张》」节逐字收录本段,lockstep 单测守护。
+	 */
+	static final String QIRI_TURN_DIRECTIVE = """
+
+
+			【本世界专属 ·《七日开张》· 每回合(ADR-038)】
+			- 【世界名】本世界叫《七日开张》;提示词里的模式名「穿越古代」只是分类标签,不得写进叙事、选项、hint、timeline 等任何玩家可见文字。朝代不命名,只叫「本朝」。
+			- 【时段】每回合末尾注入的【本回合时段】是真理之源:早回合进货,午、晚回合开摊营业,第 22 回合是百味夜集。不要自己跳到下一个时段或下一天,也不要提前开夜集。
+			- 【落数 · 每回合必须按下面的数落】stateUpdate 按叙事里发生的事落数值:
+			  · 摊本:每天早回合进货固定 −6;午、晚开摊营业各 +2~+4;第 22 回合百味夜集按普通营业回合落 +2~+4;赔本事件 −5~−15;摊本归零 = 赊账度日,不结束;
+			  · 熟客:解决麻烦或让客人满意 +5~+8;得罪熟客 −8;
+			  · 底细:当众用现代招数 −6;说漏现代词 −4;被看见写阿拉伯数字 −3;大翻车 −12。
+			- 【现代招数立功 · 摊本与底细同一回合落数】玩家当众用现代的经营、卫生、算术、说话方式把事办成了:
+			  · 午、晚回合与第 22 回合:摊本 +8~+12,代替当回合的营业收入(不再另加 +2~+4);底细 −6;
+			  · 早回合:进货那一笔不扣(省下 6),不另加 +8~+12;底细照扣 −6。
+			- 【圆回来】玩家选了把怪事圆过去(请街坊喝茶或送一份糕):底细 +6,同一回合摊本 −3,且这一回合不营业(没有 +2~+4)。
+			  按上面的数落,不得大幅偏离。
+			- 【招牌】摊子的招牌随经营变化:换了货、改了卖法、立了功,招牌上的字跟着变;叙事里写出招牌眼下写的是什么。
+			- 【记忆点】隔壁摊大娘那句话出不出现,以每回合注入的【记忆点】为准:注入说写出,就在叙事开头原样写一次;注入说不得出现,整回合都不写这句话。
+			- 【题材边界】只写这一条街上的七天:
+			  · 不引用任何真实诗文;
+			  · 不预言、不借用真实历史;
+			  · 不出现真实朝代、年号、都城、官制专名,官职只用通称;
+			  · 不写朝堂、皇帝、官场;
+			  · 不写火药、炸药、毒药等的制法;现代知识只限生活、经营、卫生、算术、说话方式;
+			  · 不用时事梗或出自真人的梗;
+			  · 不写体罚,要罚只罚扫地、罚站;
+			  · 主角是成年人,不写婚恋线。\
+			""";
+
+	private static final Map<String, String> TURN_DIRECTIVES = Map.of("cyberpunk", PAIDAN_TURN_DIRECTIVE,
+			"time_travel", QIRI_TURN_DIRECTIVE, "animal_life", """
 
 
 			【一生制 · 每回合写作标准(《动物人生》,ADR-021)】
