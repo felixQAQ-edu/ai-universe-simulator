@@ -38,7 +38,7 @@ class QiriTurnTest {
 	private final ArchetypeRegistry registry = new ArchetypeRegistry();
 	private final TurnPromptBuilder builder = new TurnPromptBuilder(registry);
 
-	static final String LINE = "隔壁摊的大娘把声音压得极低:「你们老家的人,做买卖都这么邪门儿?」";
+	static final String LINE = "隔壁摊的大娘把声音压得极低：「你们老家的人，做买卖都这么邪门儿？」";
 
 	// ① 七日时钟 ───────────────────────────────────────────────────────
 
@@ -61,6 +61,13 @@ class QiriTurnTest {
 			assertThat(TurnPromptBuilder.qiriTurnClock(n)).as("T" + n).startsWith(head);
 		});
 		assertThat(TurnPromptBuilder.QIRI_FINAL_TURN).isEqualTo(22);
+	}
+
+	/** 订正(2026-11-12):结局 description 是 world-gen 时写好的,写不出七天后的招牌 —— 招牌由结局回合的叙事来写。 */
+	@Test
+	void finalTurnAsksTheNarrativeNotTheDescriptionForTheLastSignboard() {
+		assertThat(TurnPromptBuilder.qiriTurnClock(22)).contains("叙事要和结局一致;本回合叙事最后写出招牌上最后写的是什么。")
+				.doesNotContain("description");
 	}
 
 	@Test
@@ -105,7 +112,9 @@ class QiriTurnTest {
 				// 圆回来
 				.contains("底细 +6,同一回合摊本 −3,且这一回合不营业(没有 +2~+4)").contains("按上面的数落,不得大幅偏离")
 				// 招牌、记忆点
-				.contains("叙事里写出招牌眼下写的是什么").contains("以每回合注入的【记忆点】为准")
+				.contains("叙事里写出招牌眼下写的是什么")
+				.contains("给出结局的那一回合,叙事最后写出招牌上最后写的是什么。")
+				.contains("以每回合注入的【记忆点】为准")
 				// 题材边界(决策 8,与 world-gen 槽同写)
 				.contains("不引用任何真实诗文").contains("不预言、不借用真实历史")
 				.contains("不出现真实朝代、年号、都城、官制专名,官职只用通称").contains("不写朝堂、皇帝、官场")
@@ -183,7 +192,9 @@ class QiriTurnTest {
 		assertThat(card.tagline()).isEqualTo("这条街什么都卖,就是没见过你这样卖的。");
 		assertThat(card.vibeTag()).isEqualTo("市井 · 穿帮");
 		// 3:跨档台词,逐字在两行【记忆点】里。
-		assertThat(TurnPromptBuilder.QIRI_CROSSING_LINE).isEqualTo(LINE);
+		assertThat(TurnPromptBuilder.QIRI_CROSSING_LINE).isEqualTo(LINE)
+				.as("订正(2026-11-12):冒号、逗号、问号是全角,照 Felix 原文").contains("：").contains("，").contains("？")
+				.doesNotContain(":").doesNotContain(",").doesNotContain("?");
 		assertThat(TurnPromptBuilder.QIRI_MEMORY_ON)
 				.isEqualTo("\n【记忆点】本回合叙事开头原样写出这一句,一字不改,只写这一次:" + LINE);
 		assertThat(TurnPromptBuilder.QIRI_MEMORY_OFF).isEqualTo("\n【记忆点】本回合不得出现这句话:" + LINE);

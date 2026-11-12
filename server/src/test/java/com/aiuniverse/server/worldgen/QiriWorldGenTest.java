@@ -74,7 +74,8 @@ class QiriWorldGenTest {
 				.contains("只用中文轴名 摊本 / 熟客 / 底细,不写 capital / regulars / cover")
 				.contains("description 写得好笑,不写成惩罚");
 		// 招牌软层、示例语气、题材边界(决策 6 / 7 / 8)。
-		assertThat(p).contains("每条结局的 description 都要写出最后那块招牌上写的是什么")
+		assertThat(p).contains("- 【招牌】摊子的招牌会随经营变化;结局 description 不写具体的招牌字样。")
+				.doesNotContain("description 都要写出最后那块招牌")
 				.contains("【示例语气 · 示例,不是固定剧情】")
 				.contains("取号竹牌被邻摊学去,当成了抽奖").contains("「第二件半价」引来一群大爷辩论什么叫第二件")
 				.contains("画出三栏账,邻摊大娘问你是不是把明天的账也算出来了")

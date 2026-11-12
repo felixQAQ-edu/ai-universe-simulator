@@ -414,7 +414,7 @@ public final class WorldGenPromptBuilder {
 			  3) open_as_usual · 明日照常开张 · neutral:百味夜集当晚,以上都不成立。
 			  4) taoist_summoned · 请来了道士 · failure:底细降到 0;或夜集时判出成功但底细 ≤ 10。condition 只绑底细一条轴。
 			  endings 按上表顺序输出。「请来了道士」是一个荒诞的收场:街坊觉得你来路古怪,请了道士来看;description 写得好笑,不写成惩罚。
-			- 【招牌】摊子的招牌会随经营变化。每条结局的 description 都要写出最后那块招牌上写的是什么。
+			- 【招牌】摊子的招牌会随经营变化;结局 description 不写具体的招牌字样。
 			- 【示例语气 · 示例,不是固定剧情】下面三件事只示范这个世界的语气,不要照搬进 background 或开场:
 			  · 取号竹牌被邻摊学去,当成了抽奖;
 			  · 「第二件半价」引来一群大爷辩论什么叫第二件;
