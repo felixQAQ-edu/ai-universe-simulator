@@ -104,7 +104,7 @@ public class ArchetypeRegistry {
 	/**
 	 * 行为档草案(#3,Felix 2026-06-30 签字;文案=草稿,真机冒烟再调)。阈值全轴统一:
 	 * depletion 切 50/20(threshold=上界 → 充沛 100 / 受创 50 / 濒危 20)、accumulation 切 30/60
-	 * (threshold=下界 → 0 / 31 / 61)。{@link AttributeAxis#resolveBand(int)} axisRole 感知。
+	 * (threshold=下界 inclusive → 0 / 30 / 60)。{@link AttributeAxis#resolveBand(int)} axisRole 感知。
 	 */
 	private static AttributeAxis.Band band(int threshold, String label, String narrationHint) {
 		return new AttributeAxis.Band(threshold, label, narrationHint);
