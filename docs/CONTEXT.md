@@ -195,6 +195,11 @@
     **旧局判定只看这个键在不在**:没有键的《动物人生》存档是旧局(记 WARN、整局跳过局面层、回合 prompt 与 `583abc9` 逐字节相同),
     下次存盘写入旧局标记 `{"legacy": true}`;新开的局在创建时就写入键。空串或未知的处境一律拒载(拒载不半载,同约定 (2)),
     不替它猜默认值;其他世界的存档没有这个键,即便有也忽略。
+    ⚠️ **订正(ADR-037,2026-11-12;上文 ADR-028 补充段原文一字不动)**:其中「回合 prompt 与 `583abc9` 逐字节相同」**改读为
+    「锚定剔除公共现实边界块后,回合 prompt 与 `583abc9` 逐字节相同」**。[ADR-037](adr/ADR-037-world-tone-and-common-topic-boundary.md)
+    决策 2 把【现实边界 · 硬约束】加进回合骨架,对所有世界生效,旧局也拿到这一块(Felix 2026-11-12 接受,ADR-037 已知代价 9)。
+    剔除带上下文锚定:「【绝境的写法】末行 + 边界块」整串替换回末行,且该整串须恰好出现 1 次(`AnimalLifeLegacyGoldenTest` 经
+    `CommonPromptAdditions.stripTurn`);金样本 `golden/adr028-legacy-turn-prompts/` 未重录。旧局判定、旧局标记与拒载规则不变。
 
 18. **单体世界的服务端编排(ADR-036《派单》验通后回写,2026-11-11)**:《派单》经四次订正与三轮真 key 冒烟验通,
     循「验通再立字」先例(同 §三.16 (9)(10)、§三.17)立五条。**五条都不动 state schema、不动 Engine**,JSON `schemaVersion` 仍 "0.4"。
@@ -222,6 +227,17 @@
     (issues 已落盘、在轨迹 `pre` 里,不新增字段;不用会话内存标记,否则重启丢失、ADR-031 提示词哈希复核对不上),
     下一回合按 (a) 注入「浮出一次」或「不得出现」二选一(ADR-036 订正三)。world-gen 侧同时把该台词限定在唯一允许的位置,由 (c) 拦截。
 
+19. **tone 定义与公共现实边界在骨架,更严的边界留各世界指令槽(ADR-037,2026-11-12)**:
+    **(a) `world.tone` 的定义写在骨架里**:world-gen 两份骨架(单体 `SKELETON`、融合 `FUSION_SKELETON`)在 `- world:{…}` 下各有同一条子条目 ——
+    tone 显示在游戏标题下面,写成一句让玩家想进入这个世界的介绍、从玩家的处境说起,不得写成写作要求、风格说明或氛围词清单。
+    各世界指令槽不再各写一份 tone 要求(《派单》原有的一条已删)。
+    **(b) 公共现实边界写在骨架里**:【现实边界 · 硬约束】(不写政治隐喻、不借设定影射现实政治事件或人物;不出现现实品牌和商号;
+    不点名现实在世人物)紧接【绝境的写法】,在 world-gen 两份骨架与回合骨架里逐字相同(回合骨架单体与融合共用),两份 md 同步,
+    `CommonBoundaryPromptLockstepTest` 守护。只放所有世界都接受的最小公共子集。
+    **(c) 更严的边界留各世界自己的指令槽**:不出现现实年代、地名一律虚构、不与现实名称谐音拆字、不写集体行动等,只在需要的世界槽里写
+    (目前只有《派单》)。槽里与公共子集重复的句子可以存在(《派单》两句,ADR-037 已知代价 2),**不得**在槽里放宽或覆盖骨架。
+    这是提示词约束,不是引擎保证:程序层不拦截,ADR-004 流末扫描不扫品牌与政治词。不动 state schema、不动 Engine,JSON `schemaVersion` 仍 "0.4"。
+
 ## 四、版本历史
 
 | 版本 | 日期 | 修订内容 |
@@ -237,6 +253,7 @@
 | v0.9 | 2026-06-25 | 加世界流水线第一次复用·克苏鲁(`cthulhu`)落地 + 真 key 冒烟验通:§三.4 archetype 枚举追加 `cthulhu`(已激活,签名轴=禁忌知识 `knowledge` 累积型双刃)、§三.15 已激活示例补 cthulhu;§三.14 轴行为提示字段 `decay` 泛化为 `behaviorHint`(涵盖衰减/累积/联动,引擎仍不读),并记两条架构缺口 F-012(引擎 ≤0 触底假设只对 depletion 轴成立)/ F-013(骨架强制 isTrue 与非真假守则世界冲突)——均本批提示词兜、引擎正解留修仙批。约定层补充,JSON `schemaVersion` 仍 "0.2"(registry 伴生字段 + 元数据提示文本,非 state schema 变更),仅 CONTEXT 文档版本升 v0.9 |
 | **v1.0** | 2026-06-25 | **修仙(`cultivation`)落地 + ADR-009 架构正解(根治 F-012/F-013),真 key 冒烟验通**:§三.4 枚举 `cultivation` 标已激活(全新数值体系 `{hp,mana,realm}`=气血/灵力/境界,主角轴=境界 accumulation)、§三.5/§三.15 同步;**§二 `rules[].isTrue` 改可选**(F-013,校验零分派)+ **JSON `schemaVersion` "0.2"→"0.3"**(首次真动字段约束;`WORLD_SCHEMA` 接受双版本守 parity 夹具,见 ADR-009);**§三.8 触底按轴角色 `axisRole`**(depletion ≤0 致死 / accumulation 不触底,F-012 引擎根治)、**§三.14 元数据增 `axisRole` + `rulesCarryTruth`**。golden parity 字节级守 depletion 零回归(server 173 / web 30 全绿)。F-012/F-013 已关闭。CONTEXT 文档版本升 v1.0(本批是首个真动 JSON `schemaVersion` 的批次)。 |
 | **v1.1** | 2026-06-26 | **结局极性 gate(ADR-010 根治 F-014 + 关闭 F-015),真 key 冒烟验通**:**§二 `endings[].outcome` 新增**(可选极性 `success|failure|neutral`,AI 标、引擎只读;`toClientState` 不剥)+ **JSON `schemaVersion` "0.3"→"0.4"**(`WORLD_SCHEMA` 接受 `{0.2,0.3,0.4}` 三版本守 parity);**§三.8 结局极性 gate**(致命轴濒零 ≤`ENDING_GATE_THRESHOLD`(10)时引擎拒绝 AI `outcome==success` 结局、据极性确定性挑 failure;触底/gate 收窄到致命轴)+ **§三.14 元数据增 `lethal`**(depletion 内部细分致命生命轴/非致命资源轴;灵力 `lethal=false` 关闭 F-015)。引擎只读 outcome 标 + lethal 轴值、不懂结局语义(守 ADR-008);golden parity 字节级零回归(server 188 / web 30 全绿)。真 key 冒烟两局验通:气血 0→拦成功结局给「身死道消」、气血 5 濒死未死→不强制结束给挣扎选项(两边界都对);灵力两局 0 未误死。F-014/F-015 已关闭。CONTEXT 文档版本升 v1.1。 |
+| **v2.7** | 2026-11-12 | **ADR-037 回写**:§三.17 ADR-028 补充段加订正块 ——「回合 prompt 与 `583abc9` 逐字节相同」改读为「锚定剔除公共现实边界块后逐字节相同」(上文原文一字未动);新增 **§三.19 tone 定义与公共现实边界在骨架,更严的边界留各世界指令槽**(world-gen 两份骨架的 tone 子条目;三份骨架 + 两份 md 逐字相同的【现实边界 · 硬约束】;更严的留槽、槽不得放宽骨架)。**JSON `schemaVersion` 不动(仍 "0.4")**;仅 CONTEXT 文档版本升 v2.7。 |
 | **v2.6** | 2026-11-12 | **§三.4 / §三.15 活口径订正(纯 docs)**:两处各加一个补充块,逐条摘出作废原句 —— §三.4:`life_sim` / `cyberpunk` 未标已激活、「本枚举同步追加」未兑现(漏 `animal_life`);以 `ArchetypeRegistry` 为准七个 id 全部已激活,`life_sim` = ADR-020 刀 1、`animal_life` = ADR-021 刀 3、`cyberpunk` = ADR-036 Slice B。§三.15:两组的 id 清单作废,当前无未开放的 id,改指 `listForSelection()` / `INACTIVE_DISPLAY_NAMES`、不写死清单(v8.8 先例),空表分支为刻意保留(ADR-036 裁定 4(a))。上文原文与 ADR-036 补充段一字未动。**JSON `schemaVersion` 不动(仍 "0.4")**;仅 CONTEXT 文档版本升 v2.6。 |
 | **v2.5** | 2026-11-11 | **ADR-036《派单》验通后回写(Slice F)**:§三.4 / §三.15 加补充段 —— `cyberpunk` 已激活(卡面「赛博朋克」、游戏内世界名固定《派单》、深界);新增 **§三.18 单体世界的服务端编排**五条:(a) 单体按回合注入时段与状态行 / (b) 世界专属结局核对在 `engine.apply` 之前改写提议、Engine 不动、回放确定 / (c) 世界专属 world-gen 检查在 `validateWorld` 之后、走一次修复 / (d) 要落数值的行为必须写明具体数字(FINDINGS F-038)/ (e) 跨档触发的一次性台词由服务端判定、下一回合注入。上文原文一字未动。**JSON `schemaVersion` 不动(仍 "0.4")**;仅 CONTEXT 文档版本升 v2.5。 |
 | **v2.4** | 2026-10-17 | **ADR-035 第三组合《验讫》后端经真 key 冒烟验通,§三.16 回写两条约定(循「验通再立字」先例)**:§三.16 加补充段(上文原文一字未动),八条扩为十条 —— **(9) 按回合注入时段**(per-combo 可空 `FusionTurnCopy.turnClock`:叙事推进时段在冒烟中稳定失效时,改由服务端按 `state.turn` 注入,不动 schema 与引擎)、**(10) 每回合都会回传模型的文本都受揭示阶梯约束**(规则含 `hiddenLogic`、结局池四字段、行为提示、附加指令只用第一级词汇,真相只放在按档注入的文本里)。**JSON `schemaVersion` 不动(仍 "0.4")**;仅 CONTEXT 文档版本升 v2.4。 |

@@ -1,7 +1,8 @@
 # ADR-037 · world.tone 统一定义 + 公共题材边界进骨架 + 《寻常》登记固定世界名
 
 - **日期**:2026-11-12
-- **状态**:已采纳(定稿 2026-11-12:三项决策与待审四项均由 Felix 2026-11-12 定下,见文末「Felix 裁定清单」;实现按「落地切分」第 1 刀进行,第 2 刀文档回写待 Felix 核过第 1 刀后再做)。
+- **状态**:**已实施**(2026-11-12:第 1 刀 `d2bec94`(Felix 静态校勘核过)+ 第 2 刀文档回写,均在分支 `claude/adr-037-tone-boundary`;待 CI 绿后 ff 合并 `main`,**未部署**,未跑真 key)。
+  ⚠️ 定稿时的状态行,原文保留:已采纳(定稿 2026-11-12:三项决策与待审四项均由 Felix 2026-11-12 定下,见文末「Felix 裁定清单」;实现按「落地切分」第 1 刀进行,第 2 刀文档回写待 Felix 核过第 1 刀后再做)。
   ⚠️ 草案时的原状态行,原文保留:提议(草案;三项决策 Felix 2026-11-12 已定,本 ADR 只落字、不动代码。骨架里的放置位置与小标题、golden 怎么订正两处待 Felix 审定,见文末清单)
 - **决策者**:Felix
 
@@ -323,7 +324,7 @@ Felix 原话:
 - 新增世界或融合组合时,其指令槽想写与公共子集冲突的东西(例如需要点名历史人物)→ 先回到本 ADR 讨论公共子集是否要收窄,不在槽里覆盖骨架。
 - 《动物人生》的故事名被玩家反馈为混乱(例如存档列表里认不出是哪一局)→ 重新评估决策 3 对《动物人生》的不登记。
 
-## 落地切分(本段只写,不执行;Felix 审过本 ADR 并定下文末清单后才开工,每刀 atomic commit)
+## 落地切分(定稿时只写不执行;两刀均已完成,见「实施记录」)
 
 1. **实现刀**(一个 commit,单独可编译可测):
    - `WorldGenPromptBuilder.SKELETON` / `FUSION_SKELETON` 各加 tone 行与边界块;`TurnPromptBuilder.SKELETON` 加边界块;
@@ -347,6 +348,52 @@ Felix 原话:
 4. **golden 订正方式** —— **已定**:按推荐,剔除后再比原金样本,不重录。追加三条约束:
    剔除带上下文锚定、整串恰好 1 次(决策 5(c));变异验证加「挪到【泄露硬约束】之后,回合 golden 与融合 world-gen golden 也必须分别红」(决策 5(b));
    已知代价补「剔除清单累积,超过两层改为重录」(已知代价 10)。
+
+## 实施记录
+
+### 第 1 刀 · 骨架 + 槽 + md + registry + 测试(2026-11-12,基于 `ef1b649`,实现 commit `d2bec94`)
+
+勘察与本 ADR 一致,未发现冲突。Felix 2026-11-12 静态校勘核过(原话逐字、三份骨架位置、《派单》删行、锚定剔除、md 同步、lockstep、变异)。
+
+- **源码**:`WorldGenPromptBuilder.SKELETON` / `FUSION_SKELETON` 各加 tone 子条目与【现实边界 · 硬约束】块;`TurnPromptBuilder.SKELETON` 加边界块;
+  `PAIDAN_WORLD_GEN_DIRECTIVE` 删【标题下那一行】;`ArchetypeRegistry.ordinaryLife()` 末参加 `"寻常"`;三处类注释同步。
+- **md**:`prompts/world-gen.md` v0.11、`prompts/event-loop.md` v1.10。
+- **测试**:新增 `CommonPromptAdditions`(逐字常量 + 锚定剔除,整串恰好 1 次,失败信息带世界名)与 `CommonBoundaryPromptLockstepTest`(7 条,世界清单从 registry 实数);
+  `PaidanWorldGenTest` / `PaidanTurnTest` / `AnimalLifeLegacyGoldenTest` 改为锚定剔除后比原金样本(未重录);《派单》tone 断言、两处 fixedWorldTitle 断言订正。
+
+**dump diff 读数**(临时 harness,用完即删、未提交):
+
+- registry 实数:7 个单体 + 3 个融合。dump 118 份 = world-gen 10 + 回合 100(每个世界 10 个回合号,同 `PaidanTurnTest`)+ 《动物人生》旧局 8。
+- 改前(`ef1b649`)、改后各自 `clean` 编译;同一构建 dump 两次全等(两次都验);单体、融合两种种子尾巴都裁掉。
+- 逐份 diff:world-gen 10 份每份只多 tone 子条目与边界块,《派单》另少【标题下那一行】;回合 100 份与旧局 8 份每份只多边界块。118 / 118 符合预期。
+- 反证:按决策 5(c) 的锚定整串剔回后,118 份与改前**逐字节相等**。
+
+**变异验证**(每次只改一处、各自还原;跑 `CommonBoundaryPromptLockstepTest`、`ContentSafetyPromptLockstepTest`、`PaidanWorldGenTest`、`PaidanTurnTest`、`AnimalLifeLegacyGoldenTest`、`WorldGenPromptBuilderTest` 共 45 例):
+
+| 变异 | 变红的用例 |
+|---|---|
+| 删 `FUSION_SKELETON` 的边界块 | `CommonBoundaryPromptLockstepTest.fusionWorldGenPromptsCarryBoundary`;`PaidanWorldGenTest.existingWorldGenPromptsAreByteIdenticalExceptTheSeedLine` |
+| 删 `SKELETON` 的 tone 行 | `CommonBoundaryPromptLockstepTest.singleWorldGenPromptsCarryToneLine`;`PaidanWorldGenTest` 的 golden 比对与 `paidanPromptCarriesRulesEndingsAndWorldName` |
+| 单体 world-gen 边界块挪到【泄露硬约束】之后 | `WorldGenPromptBuilderTest.worldGenDirectiveSlotIsEmptyForFourWorldsAndLeavesNoBlankLine_ADR020`(`:202`);`PaidanWorldGenTest` 的 golden 比对 |
+| 融合 world-gen 边界块挪到【泄露硬约束】之后 | `PaidanWorldGenTest` 的 golden 比对,红于 `[cultivation_x_rules_creepy]`(锚定整串 0 次) |
+| 回合边界块挪到【输出格式】之后 | `PaidanTurnTest.existingWorldsAndFusionsAreByteIdenticalToSnapshotsFromBeforeSliceD`,红于 `[rules_creepy_T1.txt]`;`AnimalLifeLegacyGoldenTest` 两例,红于 `[legacy T3]` / `[fresh T3]` |
+
+**全量**:先 `rm -rf server/target/surefire-reports`,`./mvnw clean test`:**968 例,0 失败 0 错误 0 跳过**(含新增 7 例;改前总数未单独跑)。
+日志里的「APPLICATION FAILED TO START」来自 `PgStartupRefusalTest` 的有意拒启。前端未改,未跑 web。
+
+**⚠️ 已知缺口(如实记,不补)**:《派单》自身不在任何 golden 内(`PaidanWorldGenTest` 的 golden 比对与 `PaidanTurnTest` 都跳过 `cyberpunk`)。
+它 world-gen prompt「只少【标题下那一行】、只多 tone 行与边界块」这件事,只有本刀的一次性 dump 读数,加上 `PaidanWorldGenTest` 的
+`doesNotContain("【标题下那一行】")` / `contains(TONE_LINE)` 与 lockstep 的 `contains` 兜着 —— **没有逐字节的常驻断言**。
+将来有人改《派单》槽里别的行,不会有测试报「变了」。
+
+### 第 2 刀 · 文档回写(2026-11-12,基于 `d2bec94`;纯 docs,零代码)
+
+- 本 ADR:实施记录 + 状态改为已实施。
+- [ADR-036](ADR-036-cyberpunk-world-paidan.md):已知代价 9 末句、「另开一刀的待办」两处后各加一行 ⚠️ 指针指向本 ADR,原文不动。
+- [CONTEXT](../CONTEXT.md):§三.17 ADR-028 补充段加订正块(「与 `583abc9` 逐字节相同」改读为「锚定剔除公共现实边界块后逐字节相同」);
+  §三.18 之后补一条约定 §三.19「tone 定义与公共现实边界在骨架,更严的边界留各世界指令槽」;CONTEXT 升 v2.7。`schemaVersion` 不动(仍 "0.4")。
+- ROADMAP:Week 10 记一笔;「上线后观察」登记两项(标题下那一行是不是介绍句;叙事里有没有现实品牌或政治影射)。
+- README ADR 列表状态更新为「已实施」。
 
 ## 实际效果(事后补充)
 
