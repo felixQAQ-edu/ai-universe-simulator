@@ -34,9 +34,11 @@ class PaidanRegistryTest {
 	}
 
 	@Test
-	void onlyPaidanRegistersAFixedWorldTitle() {
+	void onlyPaidanAndOrdinaryLifeRegisterAFixedWorldTitle() {
+		// ADR-037 决策 3:《寻常》登记「寻常」(单独断言见 FixedWorldTitleTest);《动物人生》刻意不登记。
+		assertThat(registry.meta("life_sim").fixedWorldTitle()).isEqualTo("寻常");
 		for (ArchetypeMeta meta : registry.activeMetas()) {
-			if (!meta.id().equals("cyberpunk")) {
+			if (!meta.id().equals("cyberpunk") && !meta.id().equals("life_sim")) {
 				assertThat(meta.fixedWorldTitle()).as(meta.id()).isNull();
 			}
 		}

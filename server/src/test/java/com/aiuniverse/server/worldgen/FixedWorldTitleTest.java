@@ -110,11 +110,14 @@ class FixedWorldTitleTest {
 	// ① 未登记的世界逐字节不变 ───────────────────────────────────────────
 
 	@Test
-	void onlyPaidanRegistersAFixedTitle() {
-		// Slice A2 时真实世界一个都没登记;ADR-036 Slice B 起只有《派单》(cyberpunk)登记「派单」。
+	void onlyPaidanAndOrdinaryLifeRegisterAFixedTitle() {
+		// Slice A2 时真实世界一个都没登记;ADR-036 Slice B 起《派单》(cyberpunk)登记「派单」;
+		// ADR-037 决策 3 起《寻常》(life_sim)登记「寻常」;《动物人生》刻意不登记(每一辈子的故事名不同是特色)。
 		assertThat(new ArchetypeRegistry().activeMetas()).isNotEmpty().allSatisfy(m -> {
 			if (m.id().equals("cyberpunk")) {
 				assertThat(m.fixedWorldTitle()).isEqualTo("派单");
+			} else if (m.id().equals("life_sim")) {
+				assertThat(m.fixedWorldTitle()).isEqualTo("寻常");
 			} else {
 				assertThat(m.fixedWorldTitle()).as(m.id()).isNull();
 			}

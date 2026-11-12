@@ -53,7 +53,9 @@ class PaidanTurnTest {
 			}
 			for (int t : TURNS) {
 				String name = m.id() + "_T" + (t + 1) + ".txt";
-				assertThat(builder.buildTurnPrompt(engine(List.of(m.id()), m.attributes(), t), "A", "测试行动"))
+				// ADR-037:锚定剔除骨架新增的现实边界块后,再与原快照逐字节比(决策 5(c))。
+				assertThat(CommonPromptAdditions.stripTurn(
+						builder.buildTurnPrompt(engine(List.of(m.id()), m.attributes(), t), "A", "测试行动"), name))
 						.as(name).isEqualTo(snapshot(name));
 				compared++;
 			}
@@ -61,8 +63,8 @@ class PaidanTurnTest {
 		for (FusionSummary c : registry.listFusionCombos()) {
 			for (int t : TURNS) {
 				String name = c.host() + "_x_" + c.foreign() + "_T" + (t + 1) + ".txt";
-				assertThat(builder.buildTurnPrompt(
-						engine(List.of(c.host(), c.foreign()), registry.fusedAxes(c.host(), c.foreign()), t), "A", "测试行动"))
+				assertThat(CommonPromptAdditions.stripTurn(builder.buildTurnPrompt(
+						engine(List.of(c.host(), c.foreign()), registry.fusedAxes(c.host(), c.foreign()), t), "A", "测试行动"), name))
 						.as(name).isEqualTo(snapshot(name));
 				compared++;
 			}

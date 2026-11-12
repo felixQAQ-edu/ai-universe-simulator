@@ -52,6 +52,10 @@ public final class WorldGenPromptBuilder {
 	 * 该段与回合骨架<b>逐字相同</b>(措辞一旦分家,这一份就成了「为这一侧单独写的安全条款」= 会被当成孤立例外
 	 * 的形状);<b>{@link #FUSION_SKELETON} 是独立一份骨架,必须同步改</b>,漏改则两个融合世界的 world-gen 侧
 	 * 拿不到这段话,而 parity 只报变没变、不报该不该变。{@code ContentSafetyPromptLockstepTest} 守护五个面。
+	 *
+	 * <p><b>ADR-037</b>:{@code world:{…}} 下的 tone 定义子条目、紧接【绝境的写法】的【现实边界 · 硬约束】块,
+	 * 两份 world-gen 骨架各一份、与回合骨架逐字相同(边界块),{@code CommonBoundaryPromptLockstepTest} 守护。
+	 * 边界块必须在【泄露硬约束】之前:{@code %8$s} 挂在【泄露硬约束】行尾,放在之后会破空串槽的 parity。
 	 */
 	private static final String SKELETON = """
 			你是"通用生成引擎(UG Engine)"的世界生成模块。你一次性产出完整世界:
@@ -68,6 +72,7 @@ public final class WorldGenPromptBuilder {
 			不要任何前后缀解释文字。字段:
 			- schemaVersion:必须为 "0.4";mode:"single";archetypes:["%5$s"]
 			- world:{ title, background, tone 用中文;dangerLevel ∈ {low,medium,high,extreme} 取种子给定值 }
+			  - world.tone 显示在游戏标题下面,写成一句让玩家想进入这个世界的介绍,从玩家的处境说起;不得写成写作要求、风格说明或氛围词清单。
 			- character:{ attributes:{ 上述数值轴,各 0-100 }, traits:2-4 个中文, inventory:1-3 件中文 }
 			- rules:6-8 条,%6$s:
 			  - id 用【整数】,从 1 连续编号;
@@ -99,6 +104,9 @@ public final class WorldGenPromptBuilder {
 			正确做法是保持情绪与后果的重量,把镜头停在「发生了什么 / 他选择了什么 / 代价是什么」,
 			不进入「具体怎么做」。
 
+			【现实边界 · 硬约束】
+			不写政治隐喻、不借设定影射现实政治事件或人物;不出现现实品牌和商号;不点名现实在世人物。
+
 			【泄露硬约束】绝不把 isTrue / hiddenLogic 的内容,或规则真伪/正确解法,写进 background / tone /
 			玩家可见的 rules.content / openingNarrative / availableActions 等任何玩家可见字段。隐藏逻辑只进 hiddenLogic。%8$s
 			""";
@@ -121,6 +129,8 @@ public final class WorldGenPromptBuilder {
 	 * (同 {@code 【泄露硬约束】} 的既有形态,各自持一份拷贝),故该段两边都要有、且与回合骨架逐字相同。
 	 * {@code prompts/world-gen.md} 按既有惯例只写一次(融合段声明「输出格式骨架与上文单体完全相同」),
 	 * 但<b>这一份漏改不会让 parity 变红</b>——它只会让 16 处变成 14 处,而那看起来像成功了。
+	 *
+	 * <p><b>ADR-037</b>:tone 定义子条目与【现实边界 · 硬约束】块同 {@link #SKELETON},同步改。
 	 */
 	private static final String FUSION_SKELETON = """
 			你是"通用生成引擎(UG Engine)"的【世界融合】模块。本局是混合模式:把两套世界观
@@ -150,6 +160,7 @@ public final class WorldGenPromptBuilder {
 			不要任何前后缀解释文字。字段:
 			- schemaVersion:必须为 "0.4";mode:"hybrid";archetypes:[%8$s]
 			- world:{ title, background, tone 用中文;dangerLevel ∈ {low,medium,high,extreme} }
+			  - world.tone 显示在游戏标题下面,写成一句让玩家想进入这个世界的介绍,从玩家的处境说起;不得写成写作要求、风格说明或氛围词清单。
 			- character:{ attributes:{ 上述数值轴,各 0-100 }, traits:2-4 个中文, inventory:1-3 件中文 }
 			- rules:6-8 条,真假混合的守则,【%10$s(isTrue:false)至少 3 条、%11$s(不带 isTrue)至少 3 条】:
 			  - id 用【整数】,从 1 连续编号;
@@ -184,6 +195,9 @@ public final class WorldGenPromptBuilder {
 			⚠️ 这不是让你把绝望写轻。写轻反而不合格;
 			正确做法是保持情绪与后果的重量,把镜头停在「发生了什么 / 他选择了什么 / 代价是什么」,
 			不进入「具体怎么做」。
+
+			【现实边界 · 硬约束】
+			不写政治隐喻、不借设定影射现实政治事件或人物;不出现现实品牌和商号;不点名现实在世人物。
 
 			【泄露硬约束】绝不把 isTrue/hiddenLogic 的内容,或守则真伪/正确解法,写进 background / tone /
 			玩家可见的 rules.content / openingNarrative / availableActions 等任何玩家可见字段。隐藏逻辑只进 hiddenLogic。
@@ -301,8 +315,10 @@ public final class WorldGenPromptBuilder {
 
 	/**
 	 * 《派单》world-gen 指令槽(ADR-036 Slice C;决策 1–10)。只放<b>一局只读一次</b>的东西(ADR-020 §10 判据):
-	 * 世界名、标题下那一行(tone)、身体、规则数量与来源前缀、开局、初值、结局池与优先序、禁用词与题材边界、惊悚层素材
-	 * (身体 / 底色 / 惊悚层 / tone 一条按 ADR-036「订正(2026-11-10):赛博朋克底色」改写)。
+	 * 世界名、身体、规则数量与来源前缀、开局、初值、结局池与优先序、禁用词与题材边界、惊悚层素材
+	 * (身体 / 底色 / 惊悚层按 ADR-036「订正(2026-11-10):赛博朋克底色」改写)。
+	 * 原有的「【标题下那一行】」(tone)一条已由 ADR-037 决策 1 移到两份骨架,对所有世界生效,本槽不再写。
+	 * 「【题材边界】」里与 ADR-037 公共【现实边界 · 硬约束】重复的两句(政治隐喻、现实品牌)按 ADR-037 已知代价 2 保留。
 	 * 逐回合生效的(提前 / 卡点 / 超时裁决、时钟、记忆点、写作风格)归回合侧 Slice D。
 	 *
 	 * <p><b>禁用词只出现在两处</b>:「【世界名】」那一条(模式标签「赛博朋克」)与「【禁用词 · 本世界】」那一段。
@@ -314,7 +330,6 @@ public final class WorldGenPromptBuilder {
 
 			【本世界专属 ·《派单》(ADR-036)】
 			- 【世界名】这个世界叫《派单》:world.title 必须恰为「派单」,background 与 openingNarrative 里提到这个世界时也叫它《派单》。提示词里的模式名「赛博朋克」只是分类标签,玩家可见的任何字段(world / rules.content / endings / availableActions / openingNarrative)都不得出现它。
-			- 【标题下那一行】world.tone 会显示在游戏标题下面:写成一句让玩家想进入这个世界的介绍,从跑腿员的处境说起;不得写成写作要求、风格说明或氛围清单。
 			- 【一局的形状】一局是三个夜班,三个夜班之后要交房租和这期义体月供。玩家是城中村里的跑腿员,只用「跑腿员」称呼这个行当。
 			- 【身体】跑腿员的一双机械腿是平台入职方案装的义体,按月分期;订单、倒计时、路线投在义眼里,派单音直接响在脑子里。腿记录每一步,画像就长在腿上。
 			- 【开局】openingNarrative 写第一个夜班刚开始:义眼里弹出第一单,派单音在脑子里响起,房租和月供还差一截。开场至少出现一样今天还不存在的物件或现象,而且和第一单有关,不能只是背景。从下面几项里各取一个具体的样子写进 background 与开场,彼此要对得上:

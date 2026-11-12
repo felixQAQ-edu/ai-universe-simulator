@@ -220,6 +220,10 @@ public final class TurnPromptBuilder {
 	 * 该段与 {@code prompts/event-loop.md}、{@code prompts/world-gen.md}、
 	 * {@link com.aiuniverse.server.worldgen.WorldGenPromptBuilder} 的两份骨架<b>逐字节相同</b>,
 	 * 由 {@code ContentSafetyPromptLockstepTest} 守护五个面——改一处必须改五处。
+	 *
+	 * <p><b>【现实边界 · 硬约束】(ADR-037 决策 2)</b>:紧接【绝境的写法】,单体与融合局共用本骨架;
+	 * 与两份 world-gen 骨架、两份 md 逐字相同,{@code CommonBoundaryPromptLockstepTest} 守护。
+	 * 更严的边界(现实年代、地名一律虚构等)不进这里,留各世界指令槽。
 	 */
 	private static final String SKELETON = """
 			你是 UG Engine 的事件流模块,正在推进一局%1$s。你会收到完整世界设定(world / character /
@@ -249,6 +253,9 @@ public final class TurnPromptBuilder {
 			⚠️ 这不是让你把绝望写轻。写轻反而不合格;
 			正确做法是保持情绪与后果的重量,把镜头停在「发生了什么 / 他选择了什么 / 代价是什么」,
 			不进入「具体怎么做」。
+
+			【现实边界 · 硬约束】
+			不写政治隐喻、不借设定影射现实政治事件或人物;不出现现实品牌和商号;不点名现实在世人物。
 
 			【输出格式 · 严格遵守】先逐字输出本回合中文叙事散文(承接玩家上一步行动的后果,氛围贴合本模式、逻辑自洽),
 			叙事之后另起一行,输出一行哨兵 %5$s,哨兵之后输出本回合的结构化尾巴 JSON。叙事在哨兵前、尾巴在哨兵后,

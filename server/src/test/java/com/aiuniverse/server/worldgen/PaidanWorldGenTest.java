@@ -17,6 +17,7 @@ import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 import com.aiuniverse.server.archetype.ArchetypeRegistry;
+import com.aiuniverse.server.eventloop.CommonPromptAdditions;
 
 /**
  * ADR-036 Slice C ·《派单》world-gen 指令槽。钉:
@@ -62,7 +63,9 @@ class PaidanWorldGenTest {
 			for (int i = 0; i < 5; i++) { // 种子随机:多抽几次,前缀都不变
 				String prompt = builder.buildWorldPrompt(e.getValue());
 				int cut = prompt.lastIndexOf(SEED_MARK);
-				assertThat(prompt.substring(0, cut)).as(e.getKey()).isEqualTo(expected);
+				// ADR-037:锚定剔除骨架新增的 tone 行与现实边界块后,再与原金样本(3e72099)逐字节比(决策 5(c))。
+				assertThat(CommonPromptAdditions.stripWorldGen(prompt.substring(0, cut), e.getValue().size() == 2, e.getKey()))
+						.as(e.getKey()).isEqualTo(expected);
 				assertThat(prompt.substring(cut + SEED_MARK.length())).as(e.getKey() + " 种子行").isNotBlank()
 						.doesNotContain("\n");
 			}
@@ -101,10 +104,11 @@ class PaidanWorldGenTest {
 				.contains("开场至少出现一样今天还不存在的物件或现象,而且和第一单有关")
 				.contains("开局的熟人是巷子里黑诊所的义体医生")
 				.contains("体力 70–85;余钱 15–30;评分 50–70;画像:新号 5–15,老号 40–50。");
-		// 订正(2026-11-10):赛博朋克底色 —— 标题下那一行(world.tone)、身体、惊悚层、边界;头盔退场。
-		assertThat(p).contains("【标题下那一行】world.tone 会显示在游戏标题下面:写成一句让玩家想进入这个世界的介绍")
-				.contains("不得写成写作要求、风格说明或氛围清单")
-				.contains("一双机械腿是平台入职方案装的义体,按月分期")
+		// 订正(2026-11-10):赛博朋克底色 —— 身体、惊悚层、边界;头盔退场。
+		// 原「【标题下那一行】」(world.tone)一条已由 ADR-037 决策 1 移到骨架(对所有世界生效):槽里不再有,骨架那一行在场。
+		assertThat(p).doesNotContain("【标题下那一行】").doesNotContain("从跑腿员的处境说起")
+				.contains(CommonPromptAdditions.TONE_LINE);
+		assertThat(p).contains("一双机械腿是平台入职方案装的义体,按月分期")
 				.contains("有人说那个工号背后根本没有人,只是一个一直在跑的账号")
 				.contains("系统替你说完你还没说出口的话")
 				.contains("门后是一个还在替某人点餐的语音助手,而那个人很久没出现了")
