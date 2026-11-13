@@ -1,7 +1,8 @@
 # ADR-039 · 展示层 DTO 增量:时段标签与选项 tag 由服务端下发
 
 - **日期**:2026-11-13
-- **状态**:已采纳(定稿 2026-11-13:待审七项均由 Felix 2026-11-13 定下,见文末「Felix 裁定清单」;标签文案已给齐。实现按「落地切分」进行)
+- **状态**:**已实施**(2026-11-13:刀 1–4 见文末「实施记录」,分支 `phase4/adr-039-time-label-action-tag`;**未合并、未部署**,tag 的长相待 Felix 在浏览器里看过再定;未跑真 key)。
+  ⚠️ 定稿时的状态行,原文保留:已采纳(定稿 2026-11-13:待审七项均由 Felix 2026-11-13 定下,见文末「Felix 裁定清单」;标签文案已给齐。实现按「落地切分」进行)
   ⚠️ 草案时的原状态行,原文保留:提议(草案;只落字、不动代码。方向由 Felix 2026-11-12 裁定;字段名、三处口径与玩家可见文案待 Felix 审定,见文末「待 Felix 审定清单」)
 - **决策者**:Felix
 
@@ -337,6 +338,61 @@ static QiriCalendar of(int n)   // n < 1 按 1;1–21 → DAY(day 1–7, part 0�
 5. tag 文字:「怪点子」「打圆场」,确认。
 6. tag 位置:编号与文字之间、同一行(照本 ADR);长相实现后 Felix 在浏览器里看过再定。
 7. 模型自带的 `tag` 键一律丢弃:确认。
+
+## 实施记录(2026-11-13,基于 `main` `2d79c9e`)
+
+| 刀 | commit | 内容 |
+|---|---|---|
+| 定稿 | `298ad69` | 状态改已采纳,回填七项裁定与标签文案 |
+| 1 | `9cd4a00` | 基线先行:`ClientProjectionParityTest` + `golden/adr039-client-projection/` 10 份;`DecisionCircle` 不带 tag 的 `innerHTML` 基线。生产代码零改动 |
+| 2 | `d4462dc` | 抽 `QiriCalendar`;`qiriTurnClock` 与 `QiriActionGuard.morning` 改读它 |
+| 3 | `57f9bac` | `ClientProjection` + 两张登记表;`init` / `resume` / `buildDelta` 三处接入;`InitResponse.timeLabel`(`NON_NULL`) |
+| 4 | `b3efaa3` | 前端:`ClientAction`、`timeLabel?`、`parseDelta`、`gameStore.timeLabel`、通用 `DecisionCircle` 显示 tag、`.actionTag` |
+
+**与决策的出入(如实记)**
+
+1. 决策 2 写的签名是 `timeLabel(Engine)` / `actions(Engine, ArrayNode)`,实现照此。空数组用 `JsonNodeFactory.instance`(无状态类里没有 `mapper`)。
+2. 决策 5 写「类型放 `api/contract.ts`」,实现照此;`theme/contract.ts` 与 `DecisionCircle` 经 `api/index.ts` 引入,未直接引 `contract.ts`。
+3. 验证 A 写「经真实的 Spring `JsonMapper` 序列化」。实现用的是测试里 `new ObjectMapper()`(Jackson 3 默认配置)对整个 `InitResponse` 做
+   `writeValueAsString`,**不是 Spring 容器里那个实例**。全仓没有任何序列化包含策略的配置(勘察 5-1),两者对 `null` 分量的行为相同,
+   多出来的 `null` 键同样抓得到;但严格说没有经过 MockMvc 走一遍 HTTP 层。
+4. 验证 C「旧存档回载后 `state` 也带」:测的是 `SessionDocument.encode` → `decode` 后的会话经 `ClientProjection` 现算得出两项,
+   并断言文档里没有 `tag` / `timeLabel` 字样;**没有**走 `FileSessionStore` 落盘再 `reloadFromStore` 再 `resume` 的整条路。
+5. 刀 2 一处行为差异:`QiriActionGuard.morning(n)` 在 n ≤ 0 时的返回值变了(现按 n = 1 算)。n 恒为 `engine.turn() + 1` ≥ 1,生产路径走不到。
+6. `.actionTag` 的长相是实现时给的一版(细边框、`--line` / `--muted`、0.8em),**待 Felix 看过再定**。
+
+**读数**
+
+- 服务端 `mvn test`:129 个套件、1061 条,0 失败 0 错误 0 跳过(跑前清了 `surefire-reports`,只算当次产出的报告)。
+- 前端 `npm test`:39 个文件、525 条全绿;`eslint .`、`tsc -b`、`vite build` 通过。
+- 基线:刀 1 之后 `golden/adr039-client-projection/` 与 `ClientProjectionParityTest.java` 无改动(`git diff --stat 9cd4a00` 为空),
+  刀 3 之后该测试仍绿 —— 七个单体 + 三个融合的 `init` / `state@0` / 正常回合 `delta` / `state@1` / 降级回合 `delta` 逐字节不变。
+  十个世界的「正常回合」都真的落了账(各轴 60 → 55),不是降级冒充。基线连跑两次结果相同。
+- 既有测试文件未改:`git diff --stat 2d79c9e -- Qiri{ActionGuard,CoverDrop,EndingCheck,Turn}Test.java` 为空;`Trace*Test`、
+  `SingleTurnClockSeamTest`、`PaidanPromptSnapshotTest` 同样未改、全绿。
+- 变异核对:把 `ClientProjection.actions` 里的 `deepCopy()` 去掉,`projectionNeverMutatesTheStoredActions` 与接线测试
+  `deltaAndStateCarryBothFieldsWhileSessionAndSaveKeepThePrefix` 两条变红;已恢复。
+- 接线测试里兜底照常:第 2 回合选【怪点子】,模型给 capital 48 / cover 50 → issue `T2 怪点子兜底 capital 48→56`、`T2 怪点子兜底 cover 50→44`;
+  「缺怪点子选项」只在存档里真没有那一组时记(T1 记、T2 不记)。
+- 双 dev 对拍(ADR-018 §4.5.1;改动前 `2d79c9e` 起在 5174、本分支起在 5173,同一个桩后端喂同一份数据,`#root` 的 innerHTML
+  归一化 CSS Modules 哈希与空白后算「长度:校验和」):
+
+  | 屏 | 本分支 | `2d79c9e` | |
+  |---|---|---|---|
+  | 选择屏 | 841:652856100 | 841:652856100 | 相等 |
+  | 规则怪谈(带皮肤)开局 / 打一回合后 | 1672:22213893 / 1669:4061744394 | 同 | 相等 |
+  | 《寻常》(通用决策圈;选项里故意带一条【怪点子】开头)开局 / 打一回合后 | 1120:1803772942 / 1125:3093929372 | 同 | 相等 |
+  | 《七日开张》开局 / 打一回合后 | 1725:415913655 / 1730:4175859115 | 1657:460517745 / 1662:3867828837 | **不等(正对照)** |
+
+  桩后端只回固定数据(形状照真实服务端的 `InitResponse` / `delta`),**不是真实后端**:这一项验的是前端渲染,服务端行为由上面的测试验。
+  只对拍了三个世界(一个带皮肤、一个不带、一个登记了 tag),没有把八个世界逐个过一遍;其余四套皮肤的决策圈组件文件本刀未改。
+  旧前端那一列顺带复现了已知代价 1:选项显示为「B.画三栏账」,前缀与小签都没有。
+
+**没做 / 没验**
+
+- 没跑真 key;没有经真实后端在浏览器里走《七日开张》(本地后端的 mock 模型只回声,world-gen 过不了校验)。
+- `timeLabel` 在界面上不显示(按决策 5),所以它只有测试读数,没有浏览器读数。
+- 没部署。刀 3 与刀 4 必须同一次部署。
 
 ## 实际效果(事后补充)
 
