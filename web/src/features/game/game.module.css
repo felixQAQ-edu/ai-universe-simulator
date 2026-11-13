@@ -106,13 +106,18 @@
   font-size: 0.7rem;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: var(--muted);
+  /* 主题令牌(ADR-038 G-2 决策 6):回落值 = 旧值,不配令牌的世界计算样式不变。 */
+  color: var(--phase-color, var(--muted));
+  text-shadow: var(--phase-shadow, none);
 }
 
 .title {
   margin: 0.25rem 0 0.1rem;
   font-size: 1.5rem;
   line-height: 1.25;
+  /* 主题令牌(ADR-038 G-2 决策 6):回落值 = 旧值(继承的字体;<h1> 的 UA 默认粗体)。 */
+  font-family: var(--title-font, inherit);
+  font-weight: var(--title-weight, bold);
 }
 
 .tone {
@@ -347,7 +352,7 @@
   color: var(--rule-idle, var(--muted));
   /* 未验证的规则留白边,验证后才长出左侧警示条 —— 让「坐实的规则」在面板里跳出来。 */
   border-left: 3px solid transparent;
-  border-radius: 0 8px 8px 0;
+  border-radius: var(--rule-radius, 0 8px 8px 0);
   padding: 0.2rem 0.5rem;
   margin-left: -0.5rem;
   transition: color 0.25s ease, background 0.3s ease, border-color 0.3s ease;
@@ -408,10 +413,12 @@
   font-size: 0.68rem;
   margin-left: 0.4rem;
   padding: 0.05rem 0.4rem;
-  border-radius: 6px;
-  background: var(--accent);
-  color: #fff;
-  font-weight: 600;
+  /* 主题令牌(ADR-038 G-2 决策 6):五项的回落值 = 旧值(旧样式没有边框 = none)。 */
+  border: var(--rule-tag-border, none);
+  border-radius: var(--rule-tag-radius, 6px);
+  background: var(--rule-tag-bg, var(--accent));
+  color: var(--rule-tag-fg, #fff);
+  font-weight: var(--rule-tag-weight, 600);
   letter-spacing: 0.02em;
 }
 

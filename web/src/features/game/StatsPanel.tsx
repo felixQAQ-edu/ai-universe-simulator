@@ -17,6 +17,7 @@ export function StatsPanel({
   values,
   signatureTick = 0,
   rootRef = NULL_ROOT,
+  timeLabel = null,
 }: {
   axes: AttributeAxisMeta[];
   values: Record<string, number>;
@@ -27,6 +28,8 @@ export function StatsPanel({
    * 跨档那一回合数值滚动会推迟起步,让一级记忆点先响(ADR-018 §5 Q5);缺省 0 = 从不推迟。
    */
   signatureTick?: number;
+  /** 时段标签(见 `StatsProps.timeLabel`);null / 缺省 = 本局没有标签,不往形态组件传这个键。 */
+  timeLabel?: string | null;
 }) {
   const bundle = useSkin();
   // 数值滚动的**单一驱动量**:档名与 severity 一律按此刻屏幕上的数去查,
@@ -38,7 +41,15 @@ export function StatsPanel({
   const views = axes.map((axis) => toAxisView(axis, shown, signatureKey));
   if (!bundle) return <LegacyStats axes={views} />;
   const Form = bundle.skin.Stats;
-  return <Form axes={views} runtime={bundle.runtime} rootRef={rootRef} />;
+  // 标签非空才放进 props:没有标签的世界,形态组件的 props 与加这个字段之前逐键相同(ADR-038 G-2 决策 6)。
+  return (
+    <Form
+      axes={views}
+      runtime={bundle.runtime}
+      rootRef={rootRef}
+      {...(timeLabel ? { timeLabel } : {})}
+    />
+  );
 }
 
 /** 未接线时的空主题根:模块级常量,避免每次渲染换新对象引起下游 effect 反复重跑。 */

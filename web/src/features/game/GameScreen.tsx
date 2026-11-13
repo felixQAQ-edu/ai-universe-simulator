@@ -104,6 +104,7 @@ function PlayingScreen() {
   const availableActions = useGameStore((s) => s.availableActions);
   const ending = useGameStore((s) => s.ending);
   const notice = useGameStore((s) => s.notice);
+  const timeLabel = useGameStore((s) => s.timeLabel);
   const chooseAction = useGameStore((s) => s.chooseAction);
   const reset = useGameStore((s) => s.reset);
 
@@ -207,6 +208,7 @@ function PlayingScreen() {
           values={attributeValues}
           signatureTick={signature.tick}
           rootRef={rootRef}
+          timeLabel={timeLabel}
         />
 
         {ProseForm ? (

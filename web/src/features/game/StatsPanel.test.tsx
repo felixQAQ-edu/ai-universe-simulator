@@ -3,6 +3,9 @@ import { describe, expect, it } from 'vitest';
 import type { AttributeAxisMeta, AxisBand } from '../../api';
 import { resolveBandLabel } from './bands';
 import { StatsPanel } from './StatsPanel';
+import { SkinContext, type StatsProps, type WorldSkin } from './theme/contract';
+import { SkinRuntime } from './theme/lifecycle';
+import { SKINS } from './theme/skins';
 
 // #3 行为档区间(后端 init 下发 [{min,max,label}],连续覆盖 [0,100],axisRole 无关)。
 const HP_BANDS: AxisBand[] = [
@@ -135,5 +138,38 @@ describe('resolveBandLabel(纯函数,边界 inclusive)', () => {
     expect(resolveBandLabel(999, HP_BANDS)).toBe('充沛');
     expect(resolveBandLabel(50, undefined)).toBeNull();
     expect(resolveBandLabel(50, [])).toBeNull();
+  });
+});
+
+// ADR-038 Slice G-2 决策 6:时段标签只在非空时才进形态组件的 props —— 没有标签的世界,props 逐键不变。
+describe('StatsPanel · timeLabel 只在非空时下传', () => {
+  function seenProps(timeLabel?: string | null) {
+    const seen: StatsProps[] = [];
+    const Spy = (props: StatsProps) => {
+      seen.push(props);
+      return null;
+    };
+    const skin: WorldSkin = { ...SKINS.cyberpunk!, Stats: Spy };
+    const axes: AttributeAxisMeta[] = [{ key: 'hp', displayName: '体力' }];
+    render(
+      <SkinContext.Provider value={{ skin, runtime: new SkinRuntime() }}>
+        {timeLabel === undefined ? (
+          <StatsPanel axes={axes} values={{ hp: 50 }} />
+        ) : (
+          <StatsPanel axes={axes} values={{ hp: 50 }} timeLabel={timeLabel} />
+        )}
+      </SkinContext.Provider>,
+    );
+    return seen[seen.length - 1];
+  }
+
+  it('缺省 / null / 空串 → props 里没有 timeLabel 这个键', () => {
+    for (const v of [undefined, null, '']) {
+      expect(Object.keys(seenProps(v)).sort()).toEqual(['axes', 'rootRef', 'runtime']);
+    }
+  });
+
+  it('有标签 → 原样下传', () => {
+    expect(seenProps('第四日 · 午市').timeLabel).toBe('第四日 · 午市');
   });
 });
