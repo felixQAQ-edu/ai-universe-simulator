@@ -63,3 +63,29 @@ describe('DecisionCircle', () => {
     expect(onChoose).toHaveBeenCalledWith('C');
   });
 });
+
+// ADR-039 验证 D:不带 tag 的选项,DOM 与改动前逐字节相同。
+// 下面这串是在动 DecisionCircle 之前(main 2d79c9e 的实现)录下的 innerHTML,之后不得改。
+// 唯一的归一化:CSS Modules 的 class 哈希(`_name_hash` → `name`)。哈希随样式文件内容变,给样式文件加一条规则
+// 就会换一个哈希,那不是 DOM 结构变化(同 ADR-018 §4.5.1 的对拍口径)。
+describe('DecisionCircle · 不带 tag 的 DOM 基线(ADR-039)', () => {
+  it('innerHTML 与改动前录下的字符串全等', () => {
+    const { container } = render(
+      <DecisionCircle
+        actions={[
+          action({ id: 'A', text: '硬闯禁区', hint: '越靠近,那低语越清晰' }),
+          action({ id: 'B', text: '【怪点子】原路退回' }),
+        ]}
+        disabled={false}
+        onChoose={() => {}}
+      />,
+    );
+    expect(container.innerHTML.replace(/_([A-Za-z]+)_[0-9a-f]{6}/g, '$1')).toBe(
+      '<div class="actions"><button type="button" class="action"><span class="actionMain">' +
+        '<span class="actionId">A.</span><span>硬闯禁区</span></span>' +
+        '<span class="actionHint">越靠近,那低语越清晰</span></button>' +
+        '<button type="button" class="action"><span class="actionMain">' +
+        '<span class="actionId">B.</span><span>【怪点子】原路退回</span></span></button></div>',
+    );
+  });
+});
