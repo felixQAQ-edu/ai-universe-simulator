@@ -10,6 +10,10 @@ import { PaidanActions } from './paidan/PaidanActions';
 import { PaidanAmbient } from './paidan/PaidanAmbient';
 import { PaidanStats } from './paidan/PaidanStats';
 import paidan from './paidan/paidan.module.css';
+import { QiriActions } from './qiri/QiriActions';
+import { QiriAmbient } from './qiri/QiriAmbient';
+import { QiriStats } from './qiri/QiriStats';
+import qiri from './qiri/qiri.module.css';
 import { RulesActions } from './rules/RulesActions';
 import { RulesAmbient } from './rules/RulesAmbient';
 import { RulesStats } from './rules/RulesStats';
@@ -149,5 +153,26 @@ export const SKINS: Partial<Record<SkinId, WorldSkin>> = {
     Ambient: PaidanAmbient,
     Stats: PaidanStats,
     Actions: PaidanActions,
+  },
+  time_travel: {
+    id: 'time_travel',
+    // 《七日开张》(ADR-038 Slice G-2):一级记忆点是**状态事件**(熟客升档时亮一盏灯笼),不占开场。
+    hasIntro: false,
+    // 时间感(Felix 定):数字滚 600ms,power3.out = 演示里的 1 − (1 − t)³;珠子跟着同一个显示值走。
+    // 升档那一回合灯先亮,数字与珠子 600ms 后才动。
+    valueRoll: { durationMs: 600, ease: 'power3.out', ceremonyDelayMs: 600 },
+    // 「盯 regulars」是注册表的按 key 配置(ADR-018 §5 Q5 锁在注册表内);皮肤组件不读这个 key,也不读熟客的数值。
+    signatureAxisKey: 'regulars',
+    screenClass: qiri.screen,
+    // 局内没有持续或低频的 CSS 循环动效,停表时无事可停。
+    pausedClass: '',
+    // 局内不加持续环境动效(顶图不冒热气)。
+    bannerImgClass: '',
+    // 返回键:细框方角,上沿一道土黄。
+    backClass: qiri.back,
+    backPressDurMs: 150,
+    Ambient: QiriAmbient,
+    Stats: QiriStats,
+    Actions: QiriActions,
   },
 };

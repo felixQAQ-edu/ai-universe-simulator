@@ -110,12 +110,12 @@ describe('resolveWorldTheme · 皮肤登记(feature gate,ADR-018 §4.5)', () => 
     expect(t.skin).toBe('cyberpunk');
   });
 
-  // 《七日开张》(ADR-038 Slice G-1):顶图 + 卡面,皮肤不登记;主体居中,不带取景点。
-  it('《七日开张》time_travel 有图有卡、skin 为 null、不带 scenePosition', () => {
+  // 《七日开张》(ADR-038 Slice G-1 顶图 + 卡面;Slice G-2 登记局内皮肤);主体居中,不带取景点。
+  it('《七日开张》time_travel 有图有卡、登记了皮肤、不带 scenePosition', () => {
     const t = resolveWorldTheme('time_travel');
     expect(t.cardClass).toBeTruthy();
     expect(t).toStrictEqual({
-      key: 'time_travel', sceneUrl: '/scenes/time_travel.webp', cardClass: styles.cardQiri, skin: null,
+      key: 'time_travel', sceneUrl: '/scenes/time_travel.webp', cardClass: styles.cardQiri, skin: 'time_travel',
     });
     expect(Object.prototype.hasOwnProperty.call(t, 'scenePosition')).toBe(false);
   });
@@ -298,7 +298,7 @@ describe('cardTheme · 选择屏卡片氛围(收编原私有 vibeClass)', () => 
     const c = cardTheme('time_travel').cardClass;
     expect(c).toBe(styles.cardQiri);
     expect(c).toBeTruthy();
-    expect(cardTheme('time_travel').skin).toBeNull();
+    expect(cardTheme('time_travel').skin).toBe('time_travel'); // G-2 起登记(卡片本身不消费 skin)
     for (const other of ['rules_creepy', 'apocalypse', 'cthulhu', 'cultivation', 'life_sim', 'animal_life', 'cyberpunk']) {
       expect(c).not.toBe(cardTheme(other).cardClass);
     }

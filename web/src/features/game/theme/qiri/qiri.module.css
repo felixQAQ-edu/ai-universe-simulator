@@ -1,0 +1,422 @@
+/* ═══ 《七日开张》· 局内皮肤(ADR-038 Slice G-2)═══════════════════════════════
+ *
+ * 风格硬线(Felix 2026-11-13):平面、克制 —— 只有平涂、1px 细线、方角(圆角 ≤ 2px)。
+ * 不用木纹 / 纸纹 / 渐变质感 / 投影 / 高光 / 歪斜 / 圆润造型。
+ * 朱红只用在三处:危险态、正文左侧栏线、「已验证」。样张里没有的装饰一律不加。
+ * 色板与字号照 docs/qiri-g2-samples/qiri-ingame.html 的 .qiri 逐值移植。
+ *
+ * 动效预算(AGENTS.md Motion Constraints §2),均为本世界局内首个、无可替代(§3):
+ *   持续     = 无
+ *   低频偶发 = 灯笼(一级记忆点;驱动在 QiriAmbient,样子在 QiriStats,填色与过渡在本文件)
+ *   用户触发 = 数值滚动与珠子(同一个驱动量)+ 选项 / 返回键按压
+ * 正文不参与任何动效(§4)。减弱动效下:珠子直接落位(JS 侧),灯笼照常亮和熄但没有过渡。
+ */
+
+/* 项目里第一份网页字体(ADR-038 Slice G-2 决策 5)。来源、授权、裁剪命令见 fonts/README.md。
+ * 只带 36 个码位;只有一个字重,一律按 400 用,不做模拟加粗。浏览器只在页面真用到这个族名时才下载。 */
+@font-face {
+  font-family: 'QiriKai';
+  src: url('./fonts/qiri-kai.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ── 主题根:色板 token ─────────────────────────────────────────────────── */
+.screen {
+  /* 世界决定明暗(ADR-018 §4.6):本世界固定浅色。 */
+  --bg: #f2ede2;
+  --paper: #f8f4ea;
+  --text: #3b3127;
+  --muted: #625645;
+  --line: #cdbfa2;
+  --wood: #4f3a24;
+  --bead-off: #cfc2a4;
+  --ochre: #96621a;
+  --zhu: #a2351f;
+  /* 朱红按样张 opacity 0.55 叠在纸色上的实色(正文左侧栏线用)。 */
+  --zhu-line: #c98b7a;
+  --kai: 'QiriKai', 'Kaiti SC', 'STKaiti', 'KaiTi', 'Kaiti TC', 'BiauKai', 'Songti SC', 'Noto Serif SC', serif;
+
+  /* 通用层读的 token。 */
+  --card: var(--paper);
+  --chip: #f1e9d6;
+  /* 通用规矩面板的「已验证」高亮 = 朱红三处之一。 */
+  --accent: var(--zhu);
+  --accent-soft: rgba(162, 53, 31, 0.07);
+  /* 提示条:样张没有;写死以防系统深色模式的回落值漏进来。字用正文色(Felix 审定 8)。 */
+  --notice-bg: #efe6d2;
+  --notice-fg: var(--text);
+
+  --panel-radius: 2px;
+
+  /* 正文:纸色面板,左侧一道 1px 朱红细线,别的没有。line 是一条平涂实线,不是渐变质感。 */
+  --prose-bg: linear-gradient(var(--zhu-line), var(--zhu-line)) 0.8rem 0.9rem / 1px calc(100% - 1.8rem)
+      no-repeat,
+    var(--paper);
+  --prose-border: 1px solid var(--line);
+  --prose-shadow: none;
+  --prose-pad: 1rem 1.05rem 1rem 1.5rem;
+  /* 光标不闪:正文区不留循环动画(AGENTS.md §4)。 */
+  --caret-play: paused;
+
+  /* 世界标题:楷体、不加粗。 */
+  --title-font: var(--kai);
+  --title-weight: 400;
+  /* 顶图上的回合行:正文色 + 底色描边(样张 .phase)。 */
+  --phase-color: var(--text);
+  --phase-shadow: 0 0 2px var(--bg), 0 0 5px var(--bg);
+
+  /* 规矩面板:通用结构,只吃色板与方角。 */
+  --rule-idle: var(--muted);
+  --rule-radius: 0;
+  --rule-tag-bg: transparent;
+  --rule-tag-fg: var(--zhu);
+  --rule-tag-border: 1px solid currentColor;
+  --rule-tag-radius: 0;
+  --rule-tag-weight: 400;
+
+  /* 时间感(成对,ADR-018 §4.3)。 */
+  --t-dur: 0.15s;
+  --t-ease: ease;
+
+  color: var(--text);
+  font-synthesis: none;
+}
+
+/* 内容在氛围底之上。 */
+.screen > *:not(.ambient) {
+  position: relative;
+  z-index: 1;
+}
+
+/* 氛围底(fixed 铺满视口:桌面端 .screen 只有 640px,两侧也是这个世界的底色)。没有任何动画。 */
+.ambient {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: var(--bg);
+}
+
+/* ── 返回键:细框方角,上沿一道土黄 ───────────────────────────────────────── */
+.back {
+  padding: 0 0.6rem;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--paper) 80%, transparent);
+  border: 1px solid var(--line);
+  border-top: 2px solid var(--ochre);
+  border-radius: 2px;
+}
+
+.back:focus-visible,
+.opt:focus-visible {
+  outline: 2px solid var(--wood);
+  outline-offset: 2px;
+}
+
+/* ── 数值形态:九档算盘(线稿)────────────────────────────────────────────── */
+.ledgerPanel {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  padding: 0.7rem 0.8rem 0.75rem;
+}
+
+.panelHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 0.55rem;
+  margin-bottom: 0.7rem;
+  border-bottom: 1px solid var(--line);
+}
+
+/* 时辰牌:一块平的深木色小牌,方角。 */
+.hourTag {
+  padding: 0.12rem 0.55rem;
+  font-family: var(--kai);
+  font-weight: 400;
+  font-size: 0.82rem;
+  letter-spacing: 0.14em;
+  color: #f3ead6;
+  background: var(--wood);
+  border-radius: 1px;
+}
+
+/* 记忆点:一盏平的灯笼。只有线和一块平涂;亮起 = 灯身填上土黄。没有光晕、没有文字。 */
+.lantern {
+  width: 15px;
+  height: 24px;
+  color: var(--wood);
+}
+
+.lantern svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+/* 熄灭过渡 900ms(= QiriAmbient 的 LANTERN_FADE_MS);亮起过渡 350ms。 */
+.lanternBody {
+  fill: transparent;
+  transition: fill 0.9s ease;
+}
+
+.lanternOn .lanternBody {
+  fill: #dc9a34;
+  transition-duration: 0.35s;
+}
+
+.names,
+.abacus,
+.readout {
+  display: grid;
+}
+
+.names span {
+  text-align: center;
+  font-family: var(--kai);
+  font-weight: 400;
+  font-size: 0.86rem;
+  letter-spacing: 0.28em;
+  margin-right: -0.28em;
+  color: var(--muted);
+  padding-bottom: 0.3rem;
+}
+
+.abacus {
+  position: relative;
+  height: 96px;
+  border: 1.5px solid var(--wood);
+  border-radius: 1px;
+  background: #f1e9d6;
+  overflow: hidden;
+}
+
+/* 梁:一道线。 */
+.abacus::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 27px;
+  height: 2px;
+  background: var(--wood);
+  z-index: 2;
+}
+
+.group {
+  position: relative;
+  display: flex;
+  justify-content: space-around;
+  padding: 0 4px;
+}
+
+.group + .group {
+  border-left: 1px solid var(--wood);
+}
+
+/* 梁上的定位点,在每组个位那一档。 */
+.group::after {
+  content: '';
+  position: absolute;
+  top: 26.5px;
+  right: calc(16.6% + 2px);
+  width: 3px;
+  height: 3px;
+  margin-right: -1.5px;
+  background: var(--paper);
+  z-index: 3;
+}
+
+.rod {
+  position: relative;
+  width: 24px;
+  height: 100%;
+}
+
+.rod::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--line);
+}
+
+/* 珠子:扁六边形(算珠的侧影),平涂。算上的深木色,没算上的浅色。位置由内联 transform 给。 */
+.bead {
+  position: absolute;
+  left: 50%;
+  margin-left: -11px;
+  width: 22px;
+  height: 10px;
+  background: var(--bead-off);
+  clip-path: polygon(20% 0, 80% 0, 100% 50%, 80% 100%, 20% 100%, 0 50%);
+  will-change: transform;
+}
+
+.beadOn {
+  background: var(--wood);
+}
+
+/* 危险:该组算上的珠子转朱红(注意态珠子不变色)。 */
+.group.danger .beadOn {
+  background: var(--zhu);
+}
+
+.readout {
+  margin-top: 0.55rem;
+}
+
+.cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.05rem;
+  min-width: 0;
+}
+
+.cellNum {
+  font-family: var(--kai);
+  font-size: 1.5rem;
+  line-height: 1.1;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+.cellBand {
+  font-size: 0.74rem;
+  color: var(--muted);
+  min-height: 1.1rem;
+}
+
+.cellRisk {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  min-height: 1rem;
+}
+
+.cellRisk:not(:empty)::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  background: currentColor;
+}
+
+.cell.caution .cellRisk {
+  color: var(--ochre);
+}
+
+.cell.danger .cellRisk,
+.cell.danger .cellNum {
+  color: var(--zhu);
+}
+
+/* ── 决策圈:细框条目。编号在一个小方框里,tag 是右上一个小字签 ───────────── */
+.opts {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.opt {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  column-gap: 0.7rem;
+  align-items: start;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: var(--text);
+  cursor: pointer;
+  padding: 0.75rem 0.8rem;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background-color var(--t-dur) var(--t-ease),
+    border-color var(--t-dur) var(--t-ease);
+}
+
+.opt:hover:not(:disabled) {
+  border-color: var(--wood);
+}
+
+.opt:active:not(:disabled) {
+  background: #efe6d2;
+}
+
+.opt:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.optNo {
+  width: 1.35rem;
+  height: 1.35rem;
+  margin-top: 0.12rem;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--wood);
+  font-size: 0.7rem;
+  line-height: 1;
+  color: var(--wood);
+}
+
+.optBody {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.optHint {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+/* 小签:深木色细框,所有 tag 同一种样式。 */
+.optTag {
+  margin-top: 0.1rem;
+  font-size: 0.68rem;
+  letter-spacing: 0.1em;
+  line-height: 1;
+  padding: 0.2rem 0.3rem;
+  border: 1px solid currentColor;
+  white-space: nowrap;
+  color: var(--wood);
+}
+
+/* debug(仅 ?debug=1):重播灯笼。 */
+.debugBtn {
+  align-self: flex-start;
+  font-size: 0.68rem;
+  color: var(--muted);
+  background: transparent;
+  border: 1px dashed var(--muted);
+  border-radius: 2px;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+/* ── 减弱动效 ─────────────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  /* 灯笼仍然亮和熄,只是没有过渡。 */
+  .lanternBody,
+  .lanternOn .lanternBody {
+    transition: none;
+  }
+
+  .opt {
+    transition: none;
+  }
+}

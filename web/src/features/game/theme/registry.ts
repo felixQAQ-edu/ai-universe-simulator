@@ -15,7 +15,7 @@ import styles from '../game.module.css';
  * 已登记新皮肤的世界 id。刀 1 规则怪谈(试验田)证明基建可用,刀 2 加修仙;刀 3/4 各自再加一条。
  * 未登记世界 → `skin: null` → 走旧实现。
  */
-export type SkinId = 'rules_creepy' | 'cultivation' | 'apocalypse' | 'cthulhu' | 'cyberpunk';
+export type SkinId = 'rules_creepy' | 'cultivation' | 'apocalypse' | 'cthulhu' | 'cyberpunk' | 'time_travel';
 
 /** 一个世界(单体或融合组合)的视觉登记。 */
 export interface WorldTheme {
@@ -119,7 +119,7 @@ const WORLDS: Readonly<Record<string, WorldEntry>> = {
     // 手机宽度按高度铺满:375×300 / 375×380 / 640×380 下蒸笼底恒为 51.3%;宽屏按宽度铺满,最极端的 640×300 → 51.6%。
     // 都 ≤ 53% 的标准。
     cardClass: styles.cardQiri,
-    skin: null,
+    skin: 'time_travel', // ADR-038 G-2:一级记忆点「灯笼」挂 regulars 向上跨档
   },
 };
 
