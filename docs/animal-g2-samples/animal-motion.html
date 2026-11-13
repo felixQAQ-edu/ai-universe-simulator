@@ -1,0 +1,249 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>动物人生光带动效</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* 布局:左边是数值面板(这个世界自己的配色)加一排触发按钮,右边是调参;窄屏上下叠。 */
+:root {
+  --shell: #f1eff4; --panel: #ffffff; --ink: #1c1822; --ink-soft: #6b6375; --rule: #dcd9e2; --mark: #55626a;
+  --font: system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --shell: #0c0a10; --panel: #1b1722; --ink: #ece9f1; --ink-soft: #9a93a6; --rule: #2f2a39; --mark: #a9b7bf; color-scheme: dark; }
+}
+:root[data-theme="dark"] { --shell: #0c0a10; --panel: #1b1722; --ink: #ece9f1; --ink-soft: #9a93a6; --rule: #2f2a39; --mark: #a9b7bf; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { background: var(--shell); color: var(--ink); font-family: var(--font); line-height: 1.5; padding-block: 1.5rem 3rem;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.wrap { max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 1.25rem; }
+.head h1 { margin: 0; font-size: 1.35rem; }
+.head p { margin: 0.35rem 0 0; color: var(--ink-soft); font-size: 0.9rem; max-width: 62ch; }
+.bench { display: flex; flex-wrap: wrap; gap: 1.5rem; align-items: flex-start; }
+.stageCol { flex: 0 1 375px; min-width: 0; display: flex; flex-direction: column; gap: 1rem; }
+.side { flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 1rem; }
+.box { background: var(--panel); border: 1px solid var(--rule); border-radius: 12px; padding: 0.9rem 1rem; display: flex; flex-direction: column; gap: 0.8rem; }
+.box h2 { margin: 0; font-size: 0.95rem; }
+.box p { margin: 0; font-size: 0.82rem; color: var(--ink-soft); }
+.row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+.label { font-size: 0.8rem; color: var(--ink-soft); }
+.btn { font: inherit; font-size: 0.82rem; padding: 0.4rem 0.7rem; background: transparent; color: var(--ink); cursor: pointer; border: 1px solid var(--rule); border-radius: 8px; text-align: left; }
+.btn small { display: block; font-family: var(--mono); font-size: 0.7rem; color: var(--ink-soft); }
+.btn[aria-pressed="true"] { background: var(--mark); color: var(--panel); border-color: var(--mark); }
+.btn:focus-visible { outline: 2px solid var(--mark); outline-offset: 2px; }
+.events { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0.5rem; }
+.ctl { display: grid; grid-template-columns: 1fr auto; gap: 0.15rem 0.75rem; align-items: center; font-size: 0.85rem; }
+.ctl output { font-family: var(--mono); font-size: 0.8rem; font-variant-numeric: tabular-nums; color: var(--ink-soft); }
+.ctl input[type="range"] { grid-column: 1 / -1; width: 100%; accent-color: var(--mark); }
+textarea#params { width: 100%; min-height: 9rem; resize: vertical; font-family: var(--mono); font-size: 0.78rem; line-height: 1.5; background: var(--shell); color: var(--ink); border: 1px solid var(--rule); border-radius: 8px; padding: 0.6rem; }
+
+/* ── 动物人生数值面板(与静态样张第三版同一套样式) ── */
+.ani { --bg: #eef2ea; --paper: #f6f8f3; --text: #2e3a2c; --muted: #5b6857; --line: #cdd5c6; --seam: #bdb7a7; --light: #e3b94f; --light-dim: #cfc8ad; --alarm: #8a3b30;
+  --walk: 500ms; color: var(--text); background: var(--bg); border-radius: 18px; border: 1px solid var(--rule); padding: 1rem; }
+.floor { background: var(--paper); border: 1px solid var(--line); border-radius: 2px; padding: 0.55rem 0.9rem 0.6rem;
+  display: grid; grid-template-columns: auto 1fr auto auto; column-gap: 0.7rem; align-items: end; }
+.sName, .sBand, .sNum, .track { padding: 0.5rem 0 0.45rem; }
+.sName { font-size: 0.78rem; letter-spacing: 0.1em; color: var(--muted); }
+.sBand { font-size: 0.86rem; display: flex; align-items: center; gap: 0.3rem; min-width: 4.6em; }
+.sBand i { width: 5px; height: 5px; flex: none; visibility: hidden; }
+.sBand.caution i { visibility: visible; border: 1px solid var(--muted); }
+.sBand.danger i { visibility: visible; background: var(--alarm); }
+.sBand.danger { color: var(--alarm); }
+.sNum { font-size: 0.72rem; color: var(--muted); font-variant-numeric: tabular-nums; min-width: 1.6em; text-align: right; }
+.track { position: relative; align-self: stretch; overflow: hidden; }
+.track .ground { position: absolute; left: 0; right: 0; bottom: 0.62rem; height: 1px; background: var(--seam); }
+.track .joint { position: absolute; bottom: calc(0.62rem - 3px); width: 1px; height: 3px; background: var(--seam); }
+.track .beam { position: absolute; right: 0; bottom: calc(0.62rem + 1px); height: 4px; width: 100%; background: var(--light); transform-origin: right center;
+  clip-path: polygon(calc(100% - var(--p) * 1% + 5px) 0, 100% 0, 100% 100%, calc(100% - var(--p) * 1%) 100%); }
+.track .gap { position: absolute; right: 0; bottom: 0.62rem; width: 2px; height: 13px; background: var(--light); }
+.track.caution .beam { background: var(--light-dim); }
+.track.danger .beam { visibility: hidden; }
+.track.danger .gap { background: var(--seam); }
+/* 记忆点:一双脚的影子。两小段纸色盖在光带上 = 光被挡住的两处;只动 transform */
+.track .feet { position: absolute; right: 9%; bottom: calc(0.62rem + 1px); width: 24px; height: 4px;
+  background: linear-gradient(90deg, var(--paper) 0 8px, transparent 8px 16px, var(--paper) 16px 24px);
+  transform: translateX(calc(24px + 9cqw + 40px)); transition: transform var(--walk) ease-in; }
+.track { container-type: inline-size; }
+/* 记忆点乙:进局时光照进来一次。一片纸色的遮片盖住光带,从门那头往里退开;只动 transform */
+.track .veil { position: absolute; left: 0; right: 2px; bottom: calc(0.62rem + 1px); height: 5px; background: var(--paper);
+  transform-origin: left center; transform: scaleX(0); transition: transform var(--intro, 900ms) ease-out; }
+.floor.closed .veil { transform: scaleX(1); transition: none; }
+.floor.closed .gap { background: var(--seam); }
+.floor.visiting .feet { transform: translateX(0); transition-timing-function: ease-out; }
+.floor.still .feet { transition: none; }
+</style>
+
+<div class="wrap">
+  <header class="head">
+    <h1>动物人生光带动效</h1>
+    <p>点左边的按钮让数值变化,看光带怎么伸缩。数字、档名、光带由同一个值驱动。两种记忆点都在这里:甲是「近人」升档时一双脚的影子走进光里;乙是进局时光照进来一次。</p>
+  </header>
+  <div class="bench">
+    <div class="stageCol">
+      <div class="ani"><div class="floor" id="floor"></div></div>
+      <div class="box">
+        <h2>发生了什么</h2>
+        <p>这个世界没有写死的落数规则,下面的数字是示意,只为看动效。</p>
+        <div class="events" id="events"></div>
+      </div>
+    </div>
+    <aside class="side">
+      <div class="box">
+        <h2>光带</h2>
+        <label class="ctl" for="roll"><span>光带伸缩多久(数字同步滚)</span><output id="o-roll"></output>
+          <input type="range" id="roll" min="200" max="1500" step="50" value="500"></label>
+      </div>
+      <div class="box">
+        <h2>甲:脚的影子</h2>
+        <label class="ctl" for="walk"><span>走进来 / 走开各多久</span><output id="o-walk"></output>
+          <input type="range" id="walk" min="200" max="1500" step="50" value="500"></label>
+        <label class="ctl" for="hold"><span>停多久</span><output id="o-hold"></output>
+          <input type="range" id="hold" min="400" max="4000" step="100" value="1400"></label>
+        <label class="ctl" for="ceremony"><span>影子先到,隔多久数字才动</span><output id="o-ceremony"></output>
+          <input type="range" id="ceremony" min="0" max="1500" step="50" value="600"></label>
+        <div class="row">
+          <button type="button" class="btn" id="replay">再来一次</button>
+          <button type="button" class="btn" id="t-rm" aria-pressed="false">减弱动效时的样子</button>
+        </div>
+      </div>
+      <div class="box">
+        <h2>乙:进局时光照进来一次</h2>
+        <p>不挂任何轴。进局先暗半秒(门缝没亮、地板上没有光),然后门缝亮起,光从门那头铺进来。</p>
+        <label class="ctl" for="intro"><span>光铺进来多久</span><output id="o-intro"></output>
+          <input type="range" id="intro" min="300" max="2500" step="50" value="900"></label>
+        <div class="row"><button type="button" class="btn" id="enter">进局(看乙)</button></div>
+      </div>
+      <div class="box">
+        <h2>当前参数</h2>
+        <textarea id="params" readonly aria-label="当前参数"></textarea>
+        <div class="row"><button type="button" class="btn" id="copy">复制参数</button><span class="label" id="copied" aria-live="polite"></span></div>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script>
+(function () {
+  // 轴名、档界、档名取自 ArchetypeRegistry;初值与增减是示意。风险等级在真实实现里由服务端给,这里按档位摆一个替身。
+  var AXES = [
+    { key: 'body', name: '身子', init: 80, bands: [[51, '壮', 'neutral'], [21, '有旧伤', 'caution'], [0, '撑不住', 'danger']] },
+    { key: 'warmth', name: '暖', init: 70, bands: [[51, '暖和', 'neutral'], [21, '冷', 'caution'], [0, '冻着', 'danger']] },
+    { key: 'ground', name: '地面', init: 60, bands: [[51, '走得开', 'neutral'], [21, '只剩几处', 'caution'], [0, '没有地方', 'danger']] },
+    { key: 'close', name: '近人', init: 24, bands: [[60, '站得很近', 'neutral'], [30, '敢靠近', 'neutral'], [0, '躲着人', 'neutral']] }
+  ];
+  var EVENTS = [
+    ['靠近了一点', { close: 8 }], ['挨了一下', { body: -12 }], ['夜里', { warmth: -14 }], ['找到背风处', { warmth: 12 }],
+    ['一处去不了了', { ground: -15 }], ['被吓退', { close: -10 }], ['重开', null]
+  ];
+  var NAME = { body: '身子', warmth: '暖', ground: '地面', close: '近人' };
+  var WORD = { neutral: '正常', caution: '注意', danger: '危险' };
+  var JOINTS = ['22%', '61%', '38%', '74%'];
+  var cfg = { roll: 500, walk: 500, hold: 1400, ceremony: 600, intro: 900, reduced: false };
+  var sysReduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var floor = document.getElementById('floor'), state = {}, raf = 0, busy = false;
+
+  function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+  function clamp(v) { return Math.max(0, Math.min(100, v)); }
+  function band(axis, v) { for (var i = 0; i < axis.bands.length; i++) if (v >= axis.bands[i][0]) return axis.bands[i]; return axis.bands[axis.bands.length - 1]; }
+  function still() { return cfg.reduced || sysReduced; }
+
+  AXES.forEach(function (axis, i) {
+    floor.appendChild(el('span', 'sName', axis.name));
+    var tr = el('div', 'track'); tr.setAttribute('role', 'img');
+    tr.appendChild(el('span', 'ground'));
+    var j = el('span', 'joint'); j.style.left = JOINTS[i]; tr.appendChild(j);
+    tr.appendChild(el('span', 'beam')); tr.appendChild(el('span', 'feet')); tr.appendChild(el('span', 'veil')); tr.appendChild(el('span', 'gap'));
+    floor.appendChild(tr);
+    var num = el('span', 'sNum'); floor.appendChild(num);
+    var bd = el('span', 'sBand'); bd.appendChild(el('i')); var bt = el('span'); bd.appendChild(bt); floor.appendChild(bd);
+    state[axis.key] = { axis: axis, goal: axis.init, shown: axis.init, from: axis.init, to: axis.init, t0: 0, last: null, track: tr, num: num, band: bd, bandText: bt };
+  });
+
+  // 唯一的显示入口:一个整数进来,数字、档名、状态、光带一起换。
+  function paint(s) {
+    var v = clamp(Math.round(s.shown));
+    if (v === s.last) return;
+    s.last = v;
+    var b = band(s.axis, v), sev = b[2];
+    s.num.textContent = v; s.bandText.textContent = b[1];
+    s.band.className = 'sBand ' + sev; s.track.className = 'track ' + sev;
+    s.track.style.setProperty('--p', v);
+    s.track.setAttribute('aria-label', [s.axis.name, v, b[1], WORD[sev]].join(' · '));
+  }
+  function tick(now) {
+    var moving = false;
+    Object.keys(state).forEach(function (k) {
+      var s = state[k];
+      if (s.shown !== s.to) {
+        var t = Math.min(1, (now - s.t0) / cfg.roll), e = 1 - Math.pow(1 - t, 3);
+        s.shown = t >= 1 ? s.to : s.from + (s.to - s.from) * e;
+        if (t < 1) moving = true;
+      }
+      paint(s);
+    });
+    raf = moving ? requestAnimationFrame(tick) : 0;
+  }
+  function go(key, to) {
+    var s = state[key];
+    if (still()) { s.shown = s.from = s.to = to; paint(s); return; }
+    s.from = s.shown; s.to = to; s.t0 = performance.now();
+    if (!raf) raf = requestAnimationFrame(tick);
+  }
+  Object.keys(state).forEach(function (k) { paint(state[k]); });
+
+  // 替身触发。真实实现里由通用层的「签名轴向上跨档」计数给信号,皮肤不读近人的数值。
+  function visit() {
+    if (busy) return; busy = true;
+    floor.classList.toggle('still', still());
+    floor.style.setProperty('--walk', cfg.walk + 'ms');
+    floor.classList.add('visiting');
+    var walk = still() ? 0 : cfg.walk;
+    setTimeout(function () { floor.classList.remove('visiting'); setTimeout(function () { busy = false; }, walk); }, walk + cfg.hold);
+  }
+  function tier(v) { return v >= 60 ? 2 : v >= 30 ? 1 : 0; }
+
+  var evHost = document.getElementById('events');
+  EVENTS.forEach(function (ev) {
+    var b = el('button', 'btn'); b.type = 'button'; b.appendChild(document.createTextNode(ev[0]));
+    b.appendChild(el('small', '', ev[1] ? Object.keys(ev[1]).map(function (k) { return NAME[k] + ' ' + (ev[1][k] > 0 ? '+' : '−') + Math.abs(ev[1][k]); }).join(',') : '回到初值'));
+    b.addEventListener('click', function () {
+      var before = tier(state.close.goal);
+      if (!ev[1]) AXES.forEach(function (a) { state[a.key].goal = a.init; });
+      else Object.keys(ev[1]).forEach(function (k) { state[k].goal = clamp(state[k].goal + ev[1][k]); });
+      var crossed = tier(state.close.goal) > before;
+      if (crossed) visit();
+      var run = function () { AXES.forEach(function (a) { if (state[a.key].to !== state[a.key].goal) go(a.key, state[a.key].goal); }); };
+      if (crossed && cfg.ceremony > 0 && !still()) setTimeout(run, cfg.ceremony); else run();
+    });
+    evHost.appendChild(b);
+  });
+
+  function params() {
+    document.getElementById('params').value = [
+      '光带伸缩: ' + cfg.roll + 'ms', '影子走进来 / 走开: ' + cfg.walk + 'ms', '影子停: ' + cfg.hold + 'ms', '影子先到,隔多久数字才动: ' + cfg.ceremony + 'ms', '乙 · 光铺进来: ' + cfg.intro + 'ms'
+    ].join('\n');
+  }
+  ['roll', 'walk', 'hold', 'ceremony', 'intro'].forEach(function (id) {
+    var input = document.getElementById(id);
+    function sync() { cfg[id] = Number(input.value); document.getElementById('o-' + id).textContent = input.value + 'ms'; params(); }
+    input.addEventListener('input', sync); sync();
+  });
+  document.getElementById('replay').addEventListener('click', visit);
+  var entering = false;
+  document.getElementById('enter').addEventListener('click', function () {
+    if (entering || still()) return;
+    entering = true;
+    floor.style.setProperty('--intro', cfg.intro + 'ms');
+    floor.classList.add('closed');
+    setTimeout(function () { floor.classList.remove('closed'); setTimeout(function () { entering = false; }, cfg.intro); }, 500);
+  });
+  var rm = document.getElementById('t-rm');
+  rm.addEventListener('click', function () { cfg.reduced = !cfg.reduced; rm.setAttribute('aria-pressed', String(cfg.reduced)); });
+  document.getElementById('copy').addEventListener('click', function () {
+    var out = document.getElementById('params'), note = document.getElementById('copied');
+    function fallback() { out.focus(); out.select(); note.textContent = '已选中,按复制键'; }
+    try { navigator.clipboard.writeText(out.value).then(function () { note.textContent = '已复制'; }, fallback); } catch (e) { fallback(); }
+  });
+})();
+</script>
