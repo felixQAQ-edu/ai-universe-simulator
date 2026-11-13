@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 
 import com.aiuniverse.server.archetype.ArchetypeRegistry;
 import com.aiuniverse.server.archetype.AttributeAxis;
+import com.aiuniverse.server.eventloop.ClientProjection;
 import com.aiuniverse.server.eventloop.GameSession;
 import com.aiuniverse.server.eventloop.GameSessionManager;
 
@@ -87,8 +88,11 @@ public class GameInitService {
 				ArchetypeRegistry.nonLethalKeys(axes), opening);
 
 		// 4. 消毒投影 + 初始动作 + openingNarrative + 本局数值轴元数据(前端面板渲染)一次性下发。
+		//    决策圈与时段标签走 ClientProjection(ADR-039):上面交给 sessions.create 的仍是原始 actions(前缀原样落盘),
+		//    只有下发的这一份是投影后的副本。
 		ObjectNode clientWorld = session.engine().toClientState();
-		return new InitResponse(saveId, clientWorld, opening, actions, attributeMeta(axes));
+		return new InitResponse(saveId, clientWorld, opening, ClientProjection.actions(session.engine(), actions),
+				attributeMeta(axes), ClientProjection.timeLabel(session.engine()));
 	}
 
 	/**
@@ -127,9 +131,10 @@ public class GameInitService {
 		List<String> ids = new ArrayList<>();
 		clientWorld.path("archetypes").forEach(a -> ids.add(a.asString("")));
 		List<AttributeAxis> axes = archetypes.resolveAxes(ids); // 与播种/回载同一真理源
-		ArrayNode actions = session.currentActions();
+		// 决策圈与时段标签与 init / 回合 delta 同一个投影(ADR-039);都是现算的,旧存档回载后也有。
 		return new InitResponse(saveId, clientWorld, "",
-				actions == null ? mapper.createArrayNode() : actions.deepCopy(), attributeMeta(axes));
+				ClientProjection.actions(session.engine(), session.currentActions()), attributeMeta(axes),
+				ClientProjection.timeLabel(session.engine()));
 	}
 
 	/** 单个 archetype 入参校验(ADR-008 决策 4):非已知枚举 → 非法;已知但未激活 → 未开放。两者均 → 400。 */

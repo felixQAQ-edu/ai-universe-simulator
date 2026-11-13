@@ -592,8 +592,13 @@ public class EventLoopService implements TurnExecutor {
 			}
 		}
 		// availableActions:本回合下发集(无隐藏字段);ended 回合可空,客户端忽略。
-		ArrayNode actions = session.currentActions();
-		delta.set("availableActions", actions == null ? mapper.createArrayNode() : actions.deepCopy());
+		// 经 ClientProjection(ADR-039):下发的是副本,登记了 tag 表的世界在副本上去前缀、加 tag;session.currentActions 不动。
+		delta.set("availableActions", ClientProjection.actions(engine, session.currentActions()));
+		// 时段标签:有才写这个键(未登记的世界 / 融合局 / 已结束的局不写,delta 逐字节不变)。
+		String timeLabel = ClientProjection.timeLabel(engine);
+		if (timeLabel != null) {
+			delta.put("timeLabel", timeLabel);
+		}
 		return delta;
 	}
 
