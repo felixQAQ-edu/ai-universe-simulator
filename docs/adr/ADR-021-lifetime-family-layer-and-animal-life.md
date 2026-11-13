@@ -824,3 +824,281 @@ registry 一条元数据 + `schema.ts` **一行** + 五张表各一条(`SEED_POO
   `.../worldgen/WorldGenPromptBuilder.java`(`:250` 世界层槽)、
   `.../archetype/ArchetypeRegistry.java`、`web/src/types/schema.ts`(`:16`)、
   `docs/world-ordinary-life-writing-standards.md`(per-world,族级空位见立字二)。
+
+
+## 局内皮肤 + 入场记忆点(草案,2026-11-14):解除约束条件第 5 条
+
+**状态:待 Felix 审定。** 本节只定方向,`web/src` 与后端零改动;审过再实现。上文原文一字不动。
+写法照 [ADR-038](ADR-038-time-travel-world-qiri-kaizhang.md) Slice G-2。
+
+**本节解除的约束**:上文「约束条件」第 5 条「第一版**不做专属皮肤**」,及其「已兑现(2026-11-09)」段与「补充(2026-11-12)」段里的
+「本条约束仍然成立」「约束本体『不做专属皮肤』仍然成立」。**本节审定之日起,约束 5 解除**:《动物人生》登记自己的局内皮肤与一级记忆点。
+出处:Felix 2026-11-11 定「每个世界都要有自己的局内界面」,2026-11-14 定稿本皮肤的样张。
+(2026-11-11 那句裁定在仓库里此前没有落字 —— `grep "局内界面"` 对 `docs/` 与 `AGENTS.md` 零命中,本节据本刀简报转述,这里是它第一次入档。)
+两段卡面动效补充(本 ADR 约束 5 下 2026-11-12 那段、ADR-020 裁定一的对应段)不动,仍然成立。
+审定后在约束 5 下面加一个指向本节的补充块(原文不改),草案阶段不加。
+另:上文「第二局与《动物人生》当前实现停止(2026-08-19)」的裁定原文不动;其后的玩法修订在 [ADR-028](ADR-028-box-scene-changeable-left-behind.md)
+(已全部完成并部署)与 ADR-029,本节只管局内视觉,不涉及玩法。
+
+**为什么写在本 ADR 而不是新开一份**:解除的是本 ADR 自己立的约束,世界的 G-2 皮肤写在该世界的 ADR 里已有两次先例(ADR-036、ADR-038 的 Slice G-2);
+卡面动效那次 Felix 也裁定「加补充段,不新开 ADR」。本节不改变任何跨世界的契约或约定(见决策 5),没有需要独立编号的决策。
+
+**真理源**:Felix 2026-11-14 逐项看过并定稿的样张,随本分支进 `main`(样张分支 `asset/animal-g2-samples` `4f501c4`,父提交即 `main` `9a0b20d`,
+本分支 fast-forward 到它,没有合并提交)。CSS 数值、结构、参数以它们为准;样张里的世界名、正文、选项、规矩条文是示意文本,
+演示里的初值与增减也是示意,不进产品。
+
+| 文件(`docs/animal-g2-samples/`) | 用途 | sha256(已核,与简报一致) |
+|---|---|---|
+| `animal-ingame.html` | 静态样张(第三版) | `78faae78f89437d8d709ee8b50ce720e03d0a54655a06264cb1ae54cc631c6ea` |
+| `animal-motion.html` | 光带与记忆点演示 | `2a65772e5c97e4d49ff783e6e3cf3fd1b5792d935f6979b229f77e7b83d8e3d0` |
+
+演示里有甲(脚的影子)与乙(进局时光照进来)两种记忆点:**Felix 定乙,甲不移植** —— `.feet`、`visit()`、`tier()` 及其三个滑块(走进来 / 停 / 影子先到)都不要。
+
+**风格硬线**(同 ADR-038 Slice G-2):平涂、1px 细线、方角(圆角 ≤ 2px);不用纹理 / 渐变质感 / 投影 / 高光 / 圆润造型。
+暗红 `#8a3b30` 全屏只用在「危险」的档名与其小方块上。样张里没有的装饰一律不加。
+
+### 勘察结论(只读 `main` `9a0b20d`)
+
+**1. ⚠️ 与简报前提不符:现行服务端下,只有「身子」会进「注意 / 危险」;「暖」「地面」「近人」三根轴永远是 neutral。**
+简报写「必须 Felix 亲眼看的:……『都糟』时三行无光的样子」,样张「都糟」状态也是三行 danger(身子 14 / 暖 17 / 地面 9)。
+但 severity 由服务端派生(`AttributeAxis.withSeverity`),只有两种轴会得到 caution / danger:致命消耗轴(低位)、`perilAtHigh` 的累积轴(高位)。
+`ArchetypeRegistry` 里《动物人生》四根轴:
+
+| 轴 | 登记 | 服务端给出的 severity |
+|---|---|---|
+| 身子 `body` | `depleting`(致命消耗) | ≤ 20 danger / 21–50 caution / ≥ 51 neutral |
+| 暖 `warmth` | `resource`(非致命消耗) | **三档全 neutral** |
+| 地面 `ground` | `accumulating`(未标 `perilAtHigh`) | **三档全 neutral** |
+| 近人 `close` | `accumulating`(ADR-028 §已决 J 有意为之) | 三档全 neutral(与样张一致) |
+
+样张脚本里自己写了「风险等级在真实实现里由服务端给,这里按档位摆一个替身」;那个替身给「暖」「地面」摆了 caution / danger,服务端不会给。
+后果:按本节的设计(状态只跟 severity 走)上线后,**「暖」「地面」两行的光带永远是亮色**,数值再低也只是变短,不会转淡、不会熄、档名不会转暗红;
+「都糟」时**只有一行无光**(身子),不是三行。
+三条出路,本草案不选(简报写明不做后端,皮肤也不许自己按数值判断危险,ADR-018 §4.2):
+
+- **(a) 接受现状**:皮肤照本节做。真机上能看到的是一行无光;三行无光只能在桩数据里看。
+- **(b) 另开一刀改服务端**:让「暖」「地面」的低位也给 caution / danger。要给 `AttributeAxis` 加一种新的派生(非致命轴低位报险、累积轴低位报险),
+  动的是 ADR-018 刀 0 的 severity 契约,不属于本刀,也不该夹带。皮肤不用为它改一个字。
+- **(c) 皮肤按数值或档序号自己判**:违反 ADR-018 §4.2,不采用。
+
+本节其余设计在 (a)(b) 下都成立。验证方案里「局中 / 都糟」的截图与对比度用桩数据照样张摆三行 danger,另加一组「现行服务端能给出的最糟」(待审 1)。
+
+**2. 规则怪谈的入场是怎么托管的(照同一条路)。**
+- 登记:`hasIntro: true`,不登记 `signatureAxisKey`(收到的 `signatureTick` 恒为 0)。
+- 托管位置:`RulesAmbient`。入场 effect 只依赖 `runtime`(对象跨回合稳定)→ **`PlayingScreen` 每挂载一次播一次**:
+  新开局播,续局也播(续局同样是从选择屏挂载进 `PlayingScreen`),换回合不重播;返回选择屏再进来算新的一次。
+- 时间线:挂载后 600ms 才开演;三拍约 450ms;再 240ms 余韵后调 `onIntroDone`。
+- 放行正文:`PlayingScreen` 在第 0 回合且 `hasIntro` 时把正文压成空串,等 `onIntroDone` 再逐字(ADR-018 §4.7 串行);
+  2.5s 兜底计时器保证不会卡住。续局(回合 > 0)正文直接显示,入场照播、互不等待。
+- 抑制:减弱动效、生成中、忙态锁占用 → 不播,并立即 `onIntroDone`。
+- 清理:定时器与时间线全登记到 `runtime`;换回合 / 卸载走同一个 teardown,不补播。
+- StrictMode:守卫记的是「有没有真的开演」,不是「有没有排过期」,开发模式下双挂载后仍会播(`rulesSkin.test.tsx` 有守护)。
+- 跨层:`RulesAmbient` 只写主题根的 class 与自定义属性,各层 CSS 自己响应,不 query 别的组件的 DOM。
+- **与规则怪谈不同的一点**:灯闪从「正常」状态开始,所以它在 `useEffect`(首帧画完之后)里起步没有问题;
+  本皮肤的入场从「暗」开始,**首帧就必须是暗的**,否则会先亮一帧再暗下去(见决策 3)。
+
+**3. `AxisView.value` 是滚动中的显示值**(ADR-038 G-2 勘察 1 已核,源码未变):`StatsPanel` 先 `useAnimatedValues` 得到逐帧插值、已取整的 `shown`,
+`value` / `bandLabel` / `severity` / `a11yText` 都从它算。数字每过一个整数重渲一次;装载时(新开局、续局)直接落位,不滚。减弱动效下不插值。
+
+**4. 契约与通用 CSS 令牌:够用,不需要新增。** 契约零改动(`StatsProps` / `AmbientProps` / `ActionsProps` / `WorldSkin` 一个字段不加);
+通用 CSS 不加令牌。逐项对过样张:
+
+| 样张 | 用现有的什么 |
+|---|---|
+| 标题字重 600 | `--title-weight: 600`(字体不设,`--title-font` 留回落值) |
+| 回合行正文色 + 底色描边 | `--phase-color` / `--phase-shadow` |
+| 规矩条目方角、「已验证」细框签 | `--rule-radius: 0`、`--rule-tag-*` 五项、`--rule-idle` |
+| 规矩已验证的底与左条 | `--accent: var(--muted)`、`--accent-soft: rgba(91, 104, 87, 0.1)`(样张原值) |
+| 正文 / 规矩面板的纸色、细框、方角 | `--card`、`--prose-bg` / `--prose-border` / `--prose-pad`、`--panel-radius: 2px` |
+| 提示条 | `--notice-bg` / `--notice-fg` |
+| 返回键 | `backClass` |
+
+令牌盖不到、**本节不扩**的几处(前三处与 ADR-038 G-2 实施记录第 2–4 条同形,Felix 当时裁定维持通用值):
+- 标题上边距 0.25rem(样张 0.3rem);正文 1rem / 行高 1.85(样张 0.95rem / 1.8);「已验证」签左右内边距 0.4rem(样张 0.3rem);规矩条目间距 0.35rem(样张 0.25rem)。
+- **结局卡片与「再来一局」按钮**:通用 `.ending` 圆角 14px、`.primaryBtn` 是 999px 的胶囊形,都没有令牌,样张也没画结局屏。
+  本皮肤下结局屏会有这两处圆角超过 2px(《七日开张》现在也是这样)。待审 6。
+
+**5. 样张里有、不移植的**:`.ani` 色板里的 `--plank` / `--plank-cold` 两个变量在样张 CSS 里没有任何地方用到(早期版本留下的),不移植。
+样张外壳的 18px 圆角与外框是演示页的手机框,不是皮肤的一部分。
+
+**6. 注册表与测试现状。** `registry.ts` `WORLDS.animal_life.skin` 为 `null`;`SkinId` 联合类型里没有 `'animal_life'`。
+`registry.test.ts:94`「《动物人生》animal_life 有图有卡、但不登记皮肤」等断言,实现时改。
+《动物人生》没有登记任何融合组合,皮肤只在单体局出现。服务端没有给它登记 `timeLabel` 与选项 `tag`(ADR-039 只登记了 `time_travel`)。
+
+### 决策
+
+**1. 皮肤登记**:`theme/animal/` 下 `AnimalAmbient`、`AnimalStats`、`AnimalActions`、`animal.module.css`、`animalSkin.test.tsx`;
+`skins.tsx` 加一条;`SkinId` 加 `'animal_life'`;`WORLDS.animal_life.skin` 由 `null` 改为 `'animal_life'`。不开 `Interlude` / `Prose` 槽。
+
+```
+animal_life: {
+  id: 'animal_life',
+  hasIntro: true,                                    // 入场:光照进来一次(同规则怪谈的托管方式)
+  valueRoll: { durationMs: 500, ease: 'power3.out' },// = 演示的 1 − (1 − t)³;不回弹;没有仪式延迟
+  // 不登记 signatureAxisKey:记忆点不挂任何轴
+  screenClass, pausedClass: '',                      // 局内没有循环动效,停表时无事可停
+  bannerImgClass: '',                                // 顶图不挂动效
+  backClass,                                         // 不登记 backPressDurMs(待审 5)
+  Ambient: AnimalAmbient, Stats: AnimalStats, Actions: AnimalActions,
+}
+```
+
+**2. 数值形态:地板线上的门缝光(`AnimalStats`)**
+
+一个带细框的面板(`--paper` 底、`--line` 1px 框、圆角 2px),**没有面板头**。每根轴一行,按 `axes` 顺序,**行数跟 `axes` 走,不写死四行**:
+
+```
+.floor                      一张四列网格:auto | 1fr | auto | auto(各行的列对齐)
+  每根轴四个格子:
+  .sName                    轴名(displayName)
+  .track                    地板线那一格
+    .ground                 1px 地板线(--seam)
+    .joint                  3px 小接缝,left 按行号取 22% / 61% / 38% / 74%,行数更多时循环
+    .beamClip > .beam       4px 光带(见下「光带怎么画」)
+    .veil                   入场用的纸色遮片(见决策 3)
+    .gap                    最右 2px × 13px 的门缝
+  .sNum                     数字(Math.round(value),等宽数字)
+  .sBand                    小方块 <i> + 档名(bandLabel;没有档表时为空,占位保留)
+```
+
+- **主题层不认轴**(ADR-018 §4.2):不按 key 判断哪一行是什么;接缝位置按行号取,不按轴取。
+- **单一驱动量**(§4.2.1):数字、档名、光带长度只从 `AxisView.value` 派生,本组件不另起驱动量。
+- **光带怎么画**:样张(静态版)改的是 `width`,演示版改的是 `clip-path` 里的自定义属性。本节改用 **`transform`**:
+  `.beamClip` 是一个横向裁切框(`overflow: hidden`,盖住光带那 4px 高、整格宽);里面的 `.beam` 宽 100%、左端用**固定不变**的
+  `clip-path: polygon(5px 0, 100% 0, 100% 100%, 0 100%)` 切出斜边,位置写 `transform: translateX((100 − v)%)`,`v = clamp(round(value), 0, 100)`。
+  光带整体向门那头平移,露在裁切框里的正好是从右端起 `v%` 的一段,左端是斜边 —— 与样张画面一致(`v = 0` 时整条移出、看不见)。
+  这样随数值变化的属性**只有 `transform`**,不触发布局,也不重算 `clip-path`。
+- **伸缩没有过渡**(Felix 定):光带的长短只是 `value` 逐帧变化的结果(通用层 500ms、`power3.out` 滚数字,每过一个整数重渲一次),
+  CSS 里不给 `.beam` 写 `transition`,也不用 Web Animations。
+- **状态只跟 `severity` 走**:
+  - `neutral` 与 `null`:光带 `--light #e3b94f`,门缝同色;小方块不显示(`visibility: hidden`,**占位保留**,档名左缘对齐)。
+  - `caution`:光带转 `--light-dim #cfc8ad`;档名前一个空心小方块(5px,`--muted` 1px 框)。
+  - `danger`:该行**不画光带**(`visibility: hidden`);门缝转 `--seam #bdb7a7`;档名与实心小方块转暗红 `--alarm #8a3b30`。
+  - 三种状态之间是直接切换,没有过渡(样张如此)。
+  - 本皮肤**不显示**「正常 / 注意 / 危险」这几个字。读屏走 `a11yText`(通用层给,含风险词):`.track` 带 `role="img"` 与 `aria-label={a11yText}`(同样张),
+    轴名 / 数字 / 档名三个可见格子 `aria-hidden`,免得一行念两遍(待审 7)。
+- **字号与间距**照样张逐值移植:轴名 0.78rem、字距 0.1em、`--muted`;数字 0.72rem、`--muted`、`tabular-nums`、`min-width: 1.6em` 右对齐;
+  档名 0.86rem、`min-width: 4.6em`;各格上下内边距 0.5rem / 0.45rem;面板内边距 0.55rem 0.9rem 0.6rem;列间距 0.7rem;地板线距格底 0.62rem。
+- **减弱动效**:数字由通用层直接到位,光带同一帧到位。
+
+**3. 记忆点:进局时光照进来一次(乙)**
+
+- **不挂任何轴**:不登记 `signatureAxisKey`,`hasIntro: true`。托管照规则怪谈(勘察 2):`AnimalAmbient` 托管,
+  **`PlayingScreen` 每挂载一次播一次 —— 新开局与续局都播**,换回合不重播。
+- **过程**(样张原值):
+  1. **暗 500ms**:每行光带被一片纸色遮片盖住,门缝为灰(`--seam`)。
+  2. **门缝亮起**(直接切换,没有过渡),同时遮片从门那头往里退开:**900ms、`ease-out`**,遮片 `transform: scaleX(1) → scaleX(0)`、
+     `transform-origin: left`(向左端收拢)。光铺到各行当前数值处就停住 —— 遮片退过光带左端之后,那一行就不再有变化。
+  3. 900ms 走完:调 `onIntroDone`,解锁。从挂载到结束共 1400ms。
+- **数字不滚**:装载时数值直接落位(勘察 3),入场期间数字、档名一直是终态,只有光是「后到」的。
+- **`danger` 的行**:本来就不画光带,遮片退开后该行没有变化;门缝在暗的 500ms 里是灰的,之后仍是灰的。
+- **接法**(同 ADR-038 G-2 审定的接法乙,契约零改动):`AnimalAmbient` 在主题根上挂 / 摘一个 class `closed`;
+  `animal.module.css` 里 `.veil` 常态是 `scaleX(0)` 且带 `transition: transform 900ms ease-out`,
+  `.closed .veil { transform: scaleX(1); transition: none }`、`.closed .gap { background: var(--seam) }`(样张原样)。
+  遮片的样子在 `AnimalStats`、驱动在 `AnimalAmbient`,两个文件头注释互相指路;两边都不 query 对方的 DOM。
+- **首帧就是暗的**:`AnimalAmbient` 用 `useLayoutEffect` 挂 `closed`(React 会在浏览器画第一帧之前同步重渲),不是 `useEffect`。
+  规则怪谈用 `useEffect` 是因为它从「正常」开始;这里若照抄,会先亮一帧再暗。实现后逐帧取证(验证 F)。
+- **与正文的先后**(ADR-018 §4.7 串行,`hasIntro: true` 的既有含义):新开局(第 0 回合)正文等入场走完(1400ms)才开始逐字;
+  续局正文直接显示,入场照播。入场结束后不另加余韵(规则怪谈有 240ms;待审 3)。
+- **抑制**:减弱动效 → 不播,首帧就是亮着的终态,立即 `onIntroDone`;挂载时若正在生成 → 同样不播(照规则怪谈)。
+- **清理与边界**:定时器登记到 `runtime`;根 class 按「皮肤 + 回合」作用域,入场途中换了回合 → 立刻是终态,不补播
+  (1.4s 内要先选选项再等生成落地,实际碰不到)。忙态锁挡重播按钮连点。StrictMode 双挂载后仍会播(测试守)。
+- **读屏**:遮片是装饰,`aria-hidden`;入场对读屏无声。
+- **调试**:`?debug=1` 下 `AnimalAmbient` 给一个「重播:光照进来」按钮(同 `RulesAmbient`);遥测 `trace('animal.intro', …)`。
+- **AGENTS.md §1 一级记忆点表**补一行(措辞待审 8):「| 动物人生 `animal_life` | **门缝光** light under the door |」,
+  表下补一句「动物人生为 ADR-021 局内皮肤一节新增(2026-11-14):进局时门缝亮起,光贴着地板从门那头铺进来一次;不挂任何轴。」
+
+**4. 其余部件**
+
+- **正文**:纸色面板、1px 细框、方角,没有任何装饰。不开 `Prose` 槽:`--prose-bg: var(--paper)`、`--prose-border: 1px solid var(--line)`、
+  `--prose-shadow: none`、`--prose-pad: 1rem 1.05rem`、`--panel-radius: 2px`。正文不加任何动画;光标 `--caret-play: paused`。
+- **决策圈 `AnimalActions`**:**一块**细框面板(`--paper` 底、`--line` 1px 框、圆角 2px)里几行,行与行之间一道 1px `--line`;
+  每行两栏 `编号 | 正文 + hint`,编号 0.7rem `--muted`,hint 0.78rem `--muted`,行内边距 0.8rem 0.95rem。**不画爪印。**
+  按下:`:active` 底色转 `#f1ead0`,`transition: background-color 0.4s ease-out`;减弱动效下无过渡。没有 hover 态(样张没有)。
+  焦点框 `2px solid var(--text)`(样张原值,不是暗红)。禁用态(生成中)样张没画:`cursor: default; opacity: 0.55`,同《七日开张》(待审 4)。
+  语义与通用 `DecisionCircle` 一致(只回传 id、hint 是叙事元数据,ADR-011)。
+- **选项 `tag`**(ADR-039 决策 5:自带决策圈的皮肤必须显示):现在服务端没有给动物人生登记 `tag`,样张也没画。
+  本皮肤仍然支持:带 `tag` 时在该行右侧多一栏小签 —— `--muted` 1px 细框、无底、方角、0.68rem、字重 400,**与本皮肤的「已验证」签同一种样式**;
+  所有 tag 一种样式,不按内容区分;没带时该节点不渲染。测试断言带 / 不带两种 DOM。样式是我拟的,待审 4。
+- **返回键**(`backClass`):细框方角,无装饰 —— `--line` 1px 框、圆角 2px、底 `--paper` 80%、字 `--muted`、左右内边距 0.6rem(样张原值)。
+  通用层既有的按压反馈(`:active` 透明度 0.65)保留,时长走 `--t-dur: 0.15s`(待审 5)。
+- **规矩面板**:通用结构。`--rule-radius: 0`;已验证条目底 `rgba(91, 104, 87, 0.1)`、左条 `--muted`(经 `--accent-soft` / `--accent`);
+  「已验证」签:`--rule-tag-bg: transparent`、`--rule-tag-fg: var(--muted)`、`--rule-tag-border: 1px solid currentColor`、
+  `--rule-tag-radius: 0`、`--rule-tag-weight: 400` —— **签色用 `--muted`,不用暗红**。
+  「刚被坐实」的一次性脉冲是通用层既有的反馈,照旧(它用 `--accent` 做底、`--bg` 做字:本皮肤下是 `#eef2ea` 压 `#5b6857`,算得 5.20:1)。
+- **顶图上的回合行**:`--phase-color: var(--text)`、`--phase-shadow: 0 0 2px var(--bg), 0 0 5px var(--bg)`。
+- **世界标题**:系统字体,`--title-weight: 600`(现有令牌够用)。
+- **字体**:全部系统字体,**不引网页字体** —— 世界名每局由模型起,字符集不固定,裁不了子集。
+- **提示条**:样张没有。本世界固定浅色(ADR-018 §4.6),主题根写死 `--notice-bg: #f1ead0`、`--notice-fg: var(--text)`(`#2e3a2c`),
+  防系统深色模式的回落值漏进来。算得 9.91:1,实测后报(待审 5)。
+- **氛围层**:`AnimalAmbient` 只渲染一块 `position: fixed` 的 `--bg` 底(桌面端 640 列两侧也是这个世界的底色)+ 入场的驱动。**局内没有任何持续环境动效。**
+- **色板**照样张 `.ani` 逐值移植:`--bg #eef2ea`、`--paper #f6f8f3`、`--text #2e3a2c`、`--muted #5b6857`、`--line #cdd5c6`、
+  `--seam #bdb7a7`、`--light #e3b94f`、`--light-dim #cfc8ad`、`--alarm #8a3b30`;按下底色 `#f1ead0`。
+- **动效预算**(AGENTS.md Motion Constraints §2):持续 = **无**;低频偶发 = **无**(入场是一次性的,不占槽,同规则怪谈灯闪的记法);
+  用户触发 = 数值滚动与光带(同一个驱动量,算一个)+ 选项 / 返回键按压。都是本世界局内首个,**「新世界首个,无可替代」**(§3)。
+  卡面上「门缝底下的光与脚步」在选择屏,不同屏。
+
+**5. 契约、通用层、后端**:契约零改动;通用 CSS 零改动(不加令牌);通用组件零改动。后端、提示词、其他世界、卡面都不动。`schemaVersion` 不动(仍 "0.4")。
+
+### 已知代价
+
+1. **「暖」「地面」两行在现行服务端下永远不会转淡 / 熄灭**(勘察 1)。样张「都糟」的三行无光在线上不会出现,除非另开一刀改服务端的 severity 派生。
+2. **选项按下动的是 `background-color`**,不是 `transform` / `opacity`(AGENTS.md §6 写的是「优先」)。样张如此;面积是一行选项,只在按住时发生。
+   其余被动画 / 被逐帧改写的属性只有 `transform`(光带、遮片)与通用层既有的返回键 `opacity`。
+3. **入场从「暗」开始,首帧依赖 `useLayoutEffect`**。若某个环境下首帧仍先亮后暗,要改成「CSS 默认即暗、挂 class 才亮」的反向写法,
+   那样根 class 每回合都得重挂(根 class 按回合作用域)。先按正向写,逐帧取证后定。
+4. **续局也播入场**:每次从选择屏进到局里都有 0.5s 暗 + 0.9s 铺光。续局时正文不等它。
+5. **新开局正文晚 1.4s 才开始逐字**(`hasIntro: true` 的串行语义;规则怪谈约 1.3s)。
+6. **入场对读屏无声**,也不带文字。
+7. **结局屏的两处圆角超过 2px**(勘察 4),本节不扩令牌。
+8. **`value` 很小时光带只剩斜边的一个角**(`v = 1` 约 1–2px 宽),与样张相同;`v = 0` 时没有光带但门缝仍亮
+   (只有 `danger` 才熄门缝 —— 对「身子」来说 0 一定已在 danger 档;对全 neutral 的轴会出现「门缝亮着、地上没有光」)。
+9. **移植债**:无新增库、无网页字体;`color-mix`(返回键底)已有先例。
+
+### 验证方案(实现时照做,写进报告;不达标停下汇报,不自行调色)
+
+- **A · 单测**(照 `qiriSkin.test.tsx`):
+  - 登记:`animal_life` → 新皮肤、`hasIntro === true`、`signatureAxisKey === undefined`、`bannerImgClass === ''`、`valueRoll` 500 / `power3.out`。
+  - 面板结构:没有面板头;每根轴一行(轴名 / 地板线 / 接缝 / 光带 / 遮片 / 门缝 / 数字 / 档名);光带的 `translateX` 与 `value` 对应(0、1、46、100、越界、小数)。
+  - 行数随 `axes` 变(1、3、4、6 行;接缝位置第 5 行起循环);换 `axes` 顺序,行跟着换。
+  - `severity` 四种取值:neutral / null 无小方块但占位在;caution 光带淡色 + 空心方块;danger 无光带、门缝灰、档名与实心方块进危险态;
+    同一个 severity 换 key 结果一样;任何取值下都不出现「正常 / 注意 / 危险」字样,`aria-label` 是 `a11yText`。
+  - 决策圈:带 `tag` 时显示、不带时节点不存在;只回传 id;hint 缺失不渲染;生成中禁用。
+  - 入场:挂载即 `closed` → 500ms 摘掉 → 再 900ms 调 `onIntroDone`(只调一次);续局(回合 > 0)也播;换回合不重播;
+    途中换回合立刻收尾、不补播;减弱动效不播且立即放行;生成中不播;StrictMode 双挂载后仍会播;卸载后定时器不残留;非 debug 时不渲染重播按钮。
+  - `registry.test.ts`:`animal_life` 的 `skin` 由 `null` 改为 `'animal_life'`,相关断言同步改。
+- **B · DOM 对拍**(ADR-018 §4.5.1):`git worktree` 起 `main` 第二个 dev server,同一份桩数据;选择屏、其余六套皮肤世界、《寻常》的 `<main>` outerHTML
+  归一化后**逐字节相等**(规则怪谈照 ADR-038 G-2 的办法归一化 `--fl-*`);动物人生两边**不等**(正对照)。
+- **C · 计算样式对拍**:本节不动通用 CSS,预期全等;仍对其余世界的 `.title` / `.phase` / `.rule` / `.ruleTag` / `.notice` 读一遍计算值,两边相等。
+- **D · 对比度**(真实 DOM,375 宽;口径同校勘:文字设透明,文字盒四边内缩 4px,逐像素取最暗底色;局中与都糟两种状态取最低):
+  校勘的 15 类 —— 返回键、回合行、标题、标题下一行、轴名、数字、档名(常态 / 危险)、正文、选项文字、选项提示、选项编号、规矩标题、
+  规矩(未验证)、规矩(已验证)、「已验证」签 —— 加提示条,全部 ≥ 4.5:1(校勘在样张上的最低值:返回键 4.78、「已验证」签 4.81)。
+  回合行与标题在 **375×300 / 375×380 / 640×300 / 640×380** 四种横幅下各测一次,顶图按登记的取景点 `78% 50%`。
+  另测我加的两类:选项 `tag`、按下时(底 `#f1ead0`)的选项文字与提示(算得 9.91 / 4.89)。
+- **E · 截图**:三种数值状态(局中 / 都好 / 都糟,照样张的三组数,severity 用桩数据摆)+ 一组现行服务端能给出的最糟(只有身子 danger)。
+- **F · 动效取证**:`document.getAnimations()` + 逐帧读计算样式,列出**被动画的属性清单**(预期:遮片 `transform`、选项 `background-color`、
+  返回键 `opacity`;光带的 `transform` 是逐次重渲改写,不是 CSS 动画);入场各阶段的实测时长(暗 / 铺光 / 放行正文的时刻)与**首帧是否为暗**;
+  一次数值滚动的时长与光带单帧最大位移;减弱动效下的表现(不播入场、数字与光带同帧到位、`getAnimations()` 为空)。
+- **G · 全绿**:`cd web && npm test && npm run lint && npm run build`,报具体数字;后端不动,不跑。
+
+**必须 Felix 亲眼看**:真机上光带伸缩的手感、入场那一下、「都糟」时的样子(现行服务端下是一行无光,见勘察 1)。
+
+### 实现切分(审过再开工;每刀 atomic commit)
+
+1. **皮肤**:`theme/animal/` 全套 + `skins.tsx` + `registry.ts` 登记 + 测试(一个 commit 可编译可测;没有通用层那一刀,因为契约与通用 CSS 都不动)。
+2. **文档回写**:本节审定结果与实施记录;约束 5 下加指向本节的补充块;ADR-017 §5 动物人生行补充(「光 / 动」栏)与 §9 ① 表;
+   AGENTS.md §1 表;世界目录;ROADMAP;`registry.ts` 里动物人生那两行「皮肤不登记」的注释随实现一起改。
+
+### 待 Felix 审定清单
+
+1. **勘察 1**:「暖」「地面」在现行服务端永远是 neutral,线上只有「身子」一行会转淡 / 熄。选 (a) 接受,还是 (b) 另开一刀改服务端的 severity 派生?
+   (本刀两种选择下都照本节做,不动后端。)
+2. 约束 5 的解除写成本 ADR 末尾一节(不新开 ADR),审定后在约束 5 下加一个指向本节的补充块?(推荐:是)
+3. 入场:新开局与续局都播(照规则怪谈);新开局正文等 1400ms 才逐字;入场结束后不加余韵?(推荐:是)
+4. 样张没画、我拟的两处:选项禁用态 `opacity: 0.55`;选项 `tag` 小签的样式(`--muted` 细框,与「已验证」签相同)?
+5. 样张没画、我拟的另两处:提示条 `#f1ead0` 底 + 正文色字;返回键按压用通用层的透明度反馈、150ms,不登记 `backPressDurMs`?
+6. 结局卡片 14px 圆角与胶囊形按钮在本皮肤下保持通用样式(不为它加令牌)?(推荐:保持;《七日开张》同样)
+7. 读屏:地板线那一格带 `aria-label = a11yText`,轴名 / 数字 / 档名三格 `aria-hidden`?(推荐:是)
+8. 措辞:AGENTS.md §1 / ADR-017 §9 ①「**门缝光** light under the door」;ADR-017 §5「光 / 动」栏
+   「进局时光从门缝贴着地板铺进来一次(一级记忆点);局内无持续动效」?
+9. 光带用 `transform` 平移 + 固定斜边裁切来画(不用样张的 `width` / `clip-path` 自定义属性),画面与样张一致?(推荐:是)
