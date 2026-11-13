@@ -379,6 +379,10 @@
   min-width: 0;
 }
 
+.optText {
+  min-width: 0;
+}
+
 .optHint {
   font-size: 0.78rem;
   color: var(--muted);

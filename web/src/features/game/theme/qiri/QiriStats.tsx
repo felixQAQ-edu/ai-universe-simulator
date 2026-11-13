@@ -101,7 +101,10 @@ function Bead({ on, upper, top }: { on: boolean; upper: boolean; top: number }) 
       return; // 内联 transform 已是目标位置:直接落位
     }
     // 在途 → 从此刻的实际位置接着走(计算样式里含动画效果);不在途 → 从上一次的落点走。
-    const cur = running ? currentY(el, from) : from;
+    // ⚠️ 必须看 playState:已经走完的动画对象还留在 ref 里,此时计算样式读到的是**刚提交的新内联位置**
+    // (= 目标),若当成「在途」就会得出「已在目标」而整段不动 —— 珠子一帧跳 18px(实测抓到过)。
+    const inFlight = running?.playState === 'running';
+    const cur = inFlight ? currentY(el, from) : from;
     running?.cancel();
     if (cur === target) return;
     const back = target - Math.sign(target - cur) * BEAD_BACK_PX;

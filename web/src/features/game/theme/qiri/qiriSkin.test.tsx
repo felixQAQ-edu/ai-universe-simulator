@@ -1,15 +1,16 @@
 import { StrictMode, useCallback, useRef, useState } from 'react';
 import { act, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AttributeAxisMeta, AxisBand, ClientAction } from '../../../../api';
 import { StatsPanel } from '../../StatsPanel';
-import { SkinContext } from '../contract';
+import { SkinContext, type AxisView } from '../contract';
 import { SkinRuntime, useSkinRuntime } from '../lifecycle';
 import { resolveWorldTheme } from '../registry';
 import { SKINS } from '../skins';
 import { rodFor, rodsFor } from './abacus';
 import { LANTERN_FADE_MS, LANTERN_HOLD_MS, QiriAmbient } from './QiriAmbient';
 import { QiriActions } from './QiriActions';
+import { BEAD_MS, QiriStats } from './QiriStats';
 import styles from './qiri.module.css';
 import { QIRI_KAI_CHARS } from './subset';
 
@@ -193,6 +194,81 @@ describe('QiriStats · 状态只跟 severity 走(不读 key、不读数值高低
     const b = one('danger', 'regulars');
     expect(a.cell.className).toBe(b.cell.className);
     expect(a.group.className).toBe(b.group.className);
+  });
+});
+
+// 珠子的手感(Web Animations)。jsdom 没有 `animate`,这里装一个假的,只看「起不起动画、从哪儿起」。
+describe('QiriStats · 珠子动画的起点', () => {
+  const view = (value: number): AxisView => ({
+    key: 'k', displayName: '某轴', value, percent: value, bandLabel: null, severity: null,
+    a11yText: '', signature: false,
+  });
+  const proto = HTMLElement.prototype as unknown as { animate?: unknown };
+  const g = globalThis as unknown as { DOMMatrixReadOnly?: unknown };
+  // jsdom 没有 DOMMatrixReadOnly;装一个只认 translateY 的,好让「读此刻位置」那条路径真的走到
+  // (不装的话读位置会抛、落进回落值,下面那条回归测试对旧代码也会绿 —— 等于没守)。
+  beforeEach(() => {
+    g.DOMMatrixReadOnly = class {
+      m42: number;
+      constructor(t: string) {
+        this.m42 = Number(/translateY\((-?[\d.]+)px\)/.exec(t)?.[1] ?? 0);
+      }
+    };
+  });
+  afterEach(() => {
+    delete proto.animate;
+    delete g.DOMMatrixReadOnly;
+  });
+
+  function mount(playState: string) {
+    const calls: { el: HTMLElement; frames: Keyframe[]; opts: KeyframeAnimationOptions }[] = [];
+    proto.animate = function (this: HTMLElement, frames: Keyframe[], opts: KeyframeAnimationOptions) {
+      calls.push({ el: this, frames, opts });
+      return { playState, cancel: () => {} };
+    };
+    const props = { runtime: new SkinRuntime(), rootRef: { current: null } };
+    const r = render(<QiriStats axes={[view(4)]} {...props} />);
+    return { calls, set: (v: number) => r.rerender(<QiriStats axes={[view(v)]} {...props} />) };
+  }
+
+  it('首次装载不起动画(续局时珠子直接在位)', () => {
+    const { calls } = mount('finished');
+    expect(calls).toHaveLength(0);
+  });
+
+  it('4 → 5:个位上珠落下、四颗下珠退回,共 5 段;每段 160ms、0.55 到位 0.78 弹回', () => {
+    const { calls, set } = mount('finished');
+    set(5);
+    expect(calls).toHaveLength(5);
+    const upper = calls.find((c) => c.el.dataset.bead === 'upper')!;
+    expect(upper.opts.duration).toBe(BEAD_MS);
+    expect(upper.frames.map((f) => f.transform)).toEqual([
+      'translateY(0px)', 'translateY(12px)', 'translateY(10.5px)', 'translateY(12px)',
+    ]);
+    expect(upper.frames.map((f) => f.offset)).toEqual([undefined, 0.55, 0.78, undefined]);
+  });
+
+  // 回归:走完的动画对象还留在 ref 里,若把它当「在途」去读计算样式,读到的是刚提交的新位置,
+  // 于是判成「已在目标」整段不动 —— 真实页面里珠子一帧跳 18px(2026-11-13 逐帧取证抓到)。
+  it('上一段已走完 → 再改目标仍起一段新动画,从上一个落点出发', () => {
+    const { calls, set } = mount('finished');
+    set(5);
+    calls.length = 0;
+    set(4);
+    expect(calls).toHaveLength(5);
+    const upper = calls.find((c) => c.el.dataset.bead === 'upper')!;
+    expect(upper.frames[0].transform).toBe('translateY(12px)');
+    expect(upper.frames[3].transform).toBe('translateY(0px)');
+  });
+
+  it('减弱动效 → 不起动画,直接落位', () => {
+    vi.spyOn(window, 'matchMedia').mockImplementation(
+      (q: string) => ({ matches: true, media: q }) as MediaQueryList,
+    );
+    const { calls, set } = mount('finished');
+    set(5);
+    expect(calls).toHaveLength(0);
+    vi.restoreAllMocks();
   });
 });
 
