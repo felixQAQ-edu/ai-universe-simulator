@@ -1,7 +1,7 @@
 import { createContext, useContext } from 'react';
 import type { ComponentType, RefObject } from 'react';
 import type { AxisSeverity } from '../../../api';
-import type { AvailableAction } from '../../../types/schema';
+import type { ClientAction } from '../../../api';
 import type { SkinRuntime } from './lifecycle';
 import type { SkinId } from './registry';
 
@@ -102,7 +102,7 @@ export interface AmbientProps {
 
 /** 决策圈形态组件收到的东西(与通用 DecisionCircle 同签名)。 */
 export interface ActionsProps {
-  actions: AvailableAction[];
+  actions: ClientAction[];
   disabled: boolean;
   onChoose: (id: string) => void;
 }

@@ -270,6 +270,55 @@ describe('openTurnStream', () => {
     expect(delta!.turn).toBe(3);
   });
 
+  it('ADR-039:delta 的 timeLabel 是结构键(不进 attributes),选项的 tag 原样带上;老 delta 解析结果里没有这个键', async () => {
+    const withBoth =
+      'event: delta\ndata: {"turn":1,"status":"ongoing","capital":48,"discoveredRules":[],"availableActions":[{"id":"B","text":"画三栏账","hint":"","tag":"怪点子"}],"timeLabel":"第一日 · 午市"}\n\n';
+    const old =
+      'event: delta\ndata: {"turn":1,"status":"ongoing","hp":90,"discoveredRules":[],"availableActions":[{"id":"A","text":"继续","hint":""}]}\n\n';
+    const parse = async (wire: string) => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(sseResponse(wire, 6)));
+      let delta: TurnDelta | null = null;
+      await new Promise<void>((resolve) => {
+        const stream = api.openTurnStream('s1', 0, 'A');
+        stream.onDelta((d) => (delta = d));
+        stream.onClose(() => resolve());
+      });
+      return delta!;
+    };
+
+    const d = await parse(withBoth);
+    expect(d.timeLabel).toBe('第一日 · 午市');
+    expect(d.attributes).toEqual({ capital: 48 });
+    expect(d.availableActions).toEqual([{ id: 'B', text: '画三栏账', hint: '', tag: '怪点子' }]);
+
+    expect(await parse(old)).toEqual({
+      turn: 1,
+      status: 'ongoing',
+      attributes: { hp: 90 },
+      discoveredRules: [],
+      availableActions: [{ id: 'A', text: '继续', hint: '' }],
+    });
+  });
+
+  it('ADR-039:init / state 响应里的 timeLabel 与 tag 原样带出', async () => {
+    const payload = {
+      saveId: 's1',
+      world: { schemaVersion: '0.4', world: { title: '七日开张' }, rules: [], character: {} },
+      openingNarrative: '',
+      availableActions: [{ id: 'B', text: '画三栏账', hint: '', tag: '怪点子' }],
+      attributes: [],
+      timeLabel: '第三日 · 晚市',
+    };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(200, payload)));
+    const init = await api.initGame('time_travel');
+    expect(init.timeLabel).toBe('第三日 · 晚市');
+    expect(init.availableActions[0].tag).toBe('怪点子');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(200, payload)));
+    const state = await api.resumeGame('s1');
+    expect(state.timeLabel).toBe('第三日 · 晚市');
+    expect(state.availableActions[0].tag).toBe('怪点子');
+  });
+
   // 载荷原为 illegal_action;ADR-022 刀 2 后该 code 不再走 SSE(守卫 1 前移到 controller),
   // 故换成仍活的 busy —— 断言意图(SSE error 帧 → onError)一个字未变。
   it('error 事件 → onError', async () => {

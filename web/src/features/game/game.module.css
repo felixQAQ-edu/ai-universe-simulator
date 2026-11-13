@@ -295,6 +295,19 @@
   color: var(--muted);
 }
 
+/* 选项小签(ADR-039):编号与文字之间、同一行。所有 tag 同一种样式;只用现有 token,不加动效。 */
+.actionTag {
+  display: inline-block;
+  margin-right: 0.5em;
+  padding: 0 0.45em;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  font-size: 0.8em;
+  line-height: 1.5;
+  color: var(--muted);
+  vertical-align: 0.08em;
+}
+
 /* 定性风险提示(ADR-011):选项文字下方独立小字,muted、次级层级,缩进对齐正文起点;缺失时不渲染、不占位。 */
 .actionHint {
   display: block;

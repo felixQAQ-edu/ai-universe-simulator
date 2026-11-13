@@ -431,3 +431,68 @@ describe('reset', () => {
     expect(store.getState().world).toBeNull();
   });
 });
+
+// ADR-039:时段标签与选项 tag 是服务端给的展示文字。store 只存、不换算、不解析。
+describe('时段标签与选项 tag(ADR-039)', () => {
+  function apiWith(init: InitResult) {
+    const made = makeApi('ok');
+    made.api.initGame = async () => init;
+    made.api.resumeGame = async () => init;
+    return made;
+  }
+
+  it('没下发时段标签的世界:timeLabel 为 null,选项原样', async () => {
+    const { api } = makeApi('ok');
+    const store = createGameStore(api);
+    await store.getState().startGame('rules_creepy');
+    expect(store.getState().timeLabel).toBeNull();
+    expect(store.getState().availableActions).toEqual(INIT_RESULT.availableActions);
+  });
+
+  it('init 带 timeLabel 与 tag → 原样进 store;delta 更新;delta 不带(已结束)→ 清成 null', async () => {
+    const { api, stream } = apiWith({
+      ...INIT_RESULT,
+      timeLabel: '第一日 · 早市',
+      availableActions: [
+        { id: 'A', text: '吆喝一声', hint: '' },
+        { id: 'B', text: '画三栏账', hint: '', tag: '怪点子' },
+      ],
+    });
+    const store = createGameStore(api);
+    await store.getState().startGame('time_travel');
+    expect(store.getState().timeLabel).toBe('第一日 · 早市');
+    expect(store.getState().availableActions[1]).toEqual({ id: 'B', text: '画三栏账', hint: '', tag: '怪点子' });
+
+    store.getState().chooseAction('B');
+    stream().fireDelta({
+      turn: 1,
+      status: 'ongoing',
+      attributes: { hp: 100, san: 100 },
+      discoveredRules: [],
+      availableActions: [{ id: 'A', text: '请街坊喝茶', hint: '', tag: '打圆场' }],
+      timeLabel: '第一日 · 午市',
+    });
+    expect(store.getState().timeLabel).toBe('第一日 · 午市');
+    expect(store.getState().availableActions[0].tag).toBe('打圆场');
+    stream().fireClose();
+
+    store.getState().chooseAction('A');
+    stream().fireDelta({
+      turn: 2,
+      status: 'ended',
+      attributes: { hp: 100, san: 100 },
+      discoveredRules: [],
+      availableActions: [],
+    });
+    expect(store.getState().timeLabel).toBeNull();
+  });
+
+  it('续局带 timeLabel → 进 store;reset 后清掉', async () => {
+    const { api } = apiWith({ ...INIT_RESULT, timeLabel: '夜集 · 开张' });
+    const store = createGameStore(api);
+    await store.getState().resumeGame('s1');
+    expect(store.getState().timeLabel).toBe('夜集 · 开张');
+    store.getState().reset();
+    expect(store.getState().timeLabel).toBeNull();
+  });
+});

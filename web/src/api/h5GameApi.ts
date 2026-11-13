@@ -167,7 +167,7 @@ function parseField<T>(data: string): T | null {
 }
 
 /** delta 专用解析:wire 里数值轴是 top-level 字段,收进 attributes map(对 key 无知,通吃 hp/san 与 hp/hunger)。 */
-const DELTA_STRUCTURAL = new Set(['turn', 'status', 'discoveredRules', 'availableActions']);
+const DELTA_STRUCTURAL = new Set(['turn', 'status', 'discoveredRules', 'availableActions', 'timeLabel']);
 
 function parseDelta(data: string): TurnDelta | null {
   const raw = parseField<Record<string, unknown>>(data);
@@ -176,6 +176,8 @@ function parseDelta(data: string): TurnDelta | null {
   for (const [k, v] of Object.entries(raw)) {
     if (!DELTA_STRUCTURAL.has(k) && typeof v === 'number') attributes[k] = v;
   }
+  // 时段标签(ADR-039):有且是字符串才带上这个键;没有就不带(不写 undefined 键,老响应解析结果不变)。
+  const timeLabel = typeof raw.timeLabel === 'string' ? { timeLabel: raw.timeLabel } : {};
   return {
     turn: Number(raw.turn ?? 0),
     status: raw.status === 'ended' ? 'ended' : 'ongoing',
@@ -186,6 +188,7 @@ function parseDelta(data: string): TurnDelta | null {
     availableActions: Array.isArray(raw.availableActions)
       ? (raw.availableActions as TurnDelta['availableActions'])
       : [],
+    ...timeLabel,
   };
 }
 

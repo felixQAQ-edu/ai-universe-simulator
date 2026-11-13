@@ -13,12 +13,13 @@ import type {
   DiscoveredRule,
   EndingPayload,
   CatalogCapabilities,
+  ClientAction,
   FusionCombo,
   GameApi,
   TurnStream,
 } from '../api';
 import { GameApiError, gameApi } from '../api';
-import type { Archetype, AvailableAction } from '../types/schema';
+import type { Archetype } from '../types/schema';
 import { createSavePointers, type SavePointers, type SaveSummary } from './savePointers';
 
 /**
@@ -74,7 +75,12 @@ export interface GameState {
   attributeValues: Record<string, number>;
   /** 全部玩家可见规则(content),来自消毒 world;discovered 高亮据 discoveredRuleIds。 */
   discoveredRuleIds: number[];
-  availableActions: AvailableAction[];
+  availableActions: ClientAction[];
+  /**
+   * 时段标签(ADR-039;服务端下发的展示文字,如「第三日 · 晚市」)。没有 = null(多数世界、融合局、已结束的局)。
+   * 说的是玩家正要打的那一回合。**通用层只存不显示**;显示归登记了它的世界的皮肤。
+   */
+  timeLabel: string | null;
   ending: EndingPayload | null;
   /** 不可恢复失败信息(init 阶段)。 */
   errorMessage: string | null;
@@ -131,7 +137,8 @@ const INITIAL = {
   attributeAxes: [] as AttributeAxisMeta[],
   attributeValues: {} as Record<string, number>,
   discoveredRuleIds: [] as number[],
-  availableActions: [] as AvailableAction[],
+  availableActions: [] as ClientAction[],
+  timeLabel: null as string | null,
   ending: null,
   errorMessage: null,
   errorCode: null,
@@ -284,6 +291,7 @@ export function createGameStore(api: GameApi, opts: GameStoreOptions = {}) {
         attributeValues: { ...(res.world.character?.attributes ?? {}) },
         discoveredRuleIds: res.world.rules.filter((r) => r.discovered).map((r) => r.id),
         availableActions: res.availableActions,
+        timeLabel: res.timeLabel ?? null,
         ending: reached
           ? { id: reached.id, title: reached.title, description: reached.description ?? '' }
           : null,
@@ -345,6 +353,7 @@ export function createGameStore(api: GameApi, opts: GameStoreOptions = {}) {
             attributeValues: { ...attrs },
             discoveredRuleIds: res.world.rules.filter((r) => r.discovered).map((r) => r.id),
             availableActions: res.availableActions,
+            timeLabel: res.timeLabel ?? null,
             ending: null,
             errorMessage: null,
             notice: null,
@@ -386,6 +395,7 @@ export function createGameStore(api: GameApi, opts: GameStoreOptions = {}) {
             attributeValues: { ...attrs },
             discoveredRuleIds: res.world.rules.filter((r) => r.discovered).map((r) => r.id),
             availableActions: res.availableActions,
+            timeLabel: res.timeLabel ?? null,
             ending: reached
               ? { id: reached.id, title: reached.title, description: reached.description ?? '' }
               : null,
@@ -443,6 +453,7 @@ export function createGameStore(api: GameApi, opts: GameStoreOptions = {}) {
             attributeValues: delta.attributes,
             discoveredRuleIds: discoveredIds(delta.discoveredRules),
             availableActions: delta.availableActions,
+            timeLabel: delta.timeLabel ?? null,
           });
         });
 

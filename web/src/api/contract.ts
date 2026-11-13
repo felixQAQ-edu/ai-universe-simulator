@@ -21,6 +21,16 @@ import type {
   World,
 } from '../types/schema';
 
+/**
+ * 下发给前端的一个选项(视图 3;ADR-039)。比 schema 里的 {@link AvailableAction} 多一个可选的 `tag`:
+ * 服务端从选项文字开头的前缀派生(《七日开张》【怪点子】→「怪点子」),带 `tag` 时 `text` 里已经没有前缀。
+ *
+ * **`tag` 是展示文字,不是枚举**:原样显示,不比较内容、不按内容分支、所有 tag 同一种样式。
+ * 前端也不自己从 `text` 里解析前缀 —— 认不认识某个前缀只有服务端知道。
+ * 放在 `api/` 而不是 `types/schema.ts`:它不是 state schema 字段,存档里没有(同 `ClientRule` / `ClientWorld`)。
+ */
+export type ClientAction = AvailableAction & { tag?: string };
+
 /** 消毒后的规则(剥 isTrue/hiddenLogic,只留玩家可见的 content 与 discovered)。 */
 export type ClientRule = Pick<Rule, 'id' | 'content' | 'discovered'>;
 
@@ -128,9 +138,15 @@ export interface InitResult {
   /** 开场散文整段(后端不流式;逐字 vibe 由前端 client-side reveal 动画补,ADR-007 §1)。 */
   openingNarrative: string;
   /** 初始决策圈(2–4 个,只能选 id)。 */
-  availableActions: AvailableAction[];
+  availableActions: ClientAction[];
   /** 本模式数值轴元数据(顺序即面板渲染顺序);ADR-008 多模式动态面板。 */
   attributes: AttributeAxisMeta[];
+  /**
+   * 本局此刻的时段标签(ADR-039;如《七日开张》「第三日 · 晚市」)。展示文字,服务端按回合算好,前端不换算。
+   * 说的是**玩家正要打的那一回合**(= `world.state.turn` + 1),不是屏幕上那段正文所属的回合。
+   * 没登记的世界、融合局、已结束的局没有这个键。
+   */
+  timeLabel?: string;
 }
 
 /** 回合 delta 里随发现规则下发的轻量条目(消毒后只有 id + content)。 */
@@ -152,7 +168,9 @@ export interface TurnDelta {
   status: GameStatus;
   attributes: Record<string, number>;
   discoveredRules: DiscoveredRule[];
-  availableActions: AvailableAction[];
+  availableActions: ClientAction[];
+  /** 落地后的时段标签(ADR-039,同 {@link InitResult.timeLabel});没有这个键 = 本回合之后没有标签。 */
+  timeLabel?: string;
 }
 
 /** 结局画面数据(ADR-006 §4.2 `ending` 事件,已消毒)。 */

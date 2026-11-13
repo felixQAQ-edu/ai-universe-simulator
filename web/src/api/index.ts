@@ -4,6 +4,7 @@ export type {
   AttributeAxisMeta,
   AxisBand,
   AxisSeverity,
+  ClientAction,
   ClientRule,
   ClientWorld,
   DiscoveredRule,

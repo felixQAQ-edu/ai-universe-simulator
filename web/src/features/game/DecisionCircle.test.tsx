@@ -89,3 +89,59 @@ describe('DecisionCircle · 不带 tag 的 DOM 基线(ADR-039)', () => {
     );
   });
 });
+
+// ADR-039:带 tag 的选项在编号与文字之间显示小签。tag 是服务端给的展示文字,组件原样显示、不解析 text。
+describe('DecisionCircle · 选项 tag(ADR-039)', () => {
+  it('带 tag:小签在编号与文字之间,文字里没有前缀', () => {
+    const { container } = render(
+      <DecisionCircle
+        actions={[{ id: 'B', text: '画三栏账', hint: '', tag: '怪点子' }]}
+        disabled={false}
+        onChoose={() => {}}
+      />,
+    );
+    expect(container.innerHTML.replace(/_([A-Za-z]+)_[0-9a-f]{6}/g, '$1')).toBe(
+      '<div class="actions"><button type="button" class="action"><span class="actionMain">' +
+        '<span class="actionId">B.</span><span class="actionTag">怪点子</span><span>画三栏账</span></span></button></div>',
+    );
+  });
+
+  it('不同的 tag 用同一种样式(同一个 class),不按内容区分', () => {
+    render(
+      <DecisionCircle
+        actions={[
+          { id: 'A', text: '画三栏账', hint: '', tag: '怪点子' },
+          { id: 'B', text: '请街坊喝茶', hint: '', tag: '打圆场' },
+          { id: 'C', text: '随便什么', hint: '', tag: '以后别的世界的签' },
+        ]}
+        disabled={false}
+        onChoose={() => {}}
+      />,
+    );
+    const classes = ['怪点子', '打圆场', '以后别的世界的签'].map((t) => screen.getByText(t).className);
+    expect(new Set(classes).size).toBe(1);
+  });
+
+  it('组件不自己解析前缀:没给 tag 就不显示小签,text 原样', () => {
+    render(
+      <DecisionCircle
+        actions={[{ id: 'A', text: '【怪点子】画三栏账', hint: '' }]}
+        disabled={false}
+        onChoose={() => {}}
+      />,
+    );
+    expect(screen.getByRole('button').textContent).toBe('A.【怪点子】画三栏账');
+    expect(screen.getByRole('button').querySelectorAll('span')).toHaveLength(3);
+  });
+
+  it('tag 是空串:当作没有', () => {
+    render(
+      <DecisionCircle
+        actions={[{ id: 'A', text: '吆喝一声', hint: '', tag: '' }]}
+        disabled={false}
+        onChoose={() => {}}
+      />,
+    );
+    expect(screen.getByRole('button').querySelectorAll('span')).toHaveLength(3);
+  });
+});
