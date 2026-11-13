@@ -54,7 +54,8 @@ final class QiriActionGuard {
 
 	/** 第 n 回合是否早回合(进货):n &lt; 22 且 (n − 1) mod 3 = 0。第 22 回合及以后不是。 */
 	static boolean morning(int n) {
-		return n < TurnPromptBuilder.QIRI_FINAL_TURN && (n - 1) % 3 == 0;
+		QiriCalendar cal = QiriCalendar.of(n); // 与时段行、时段标签同一份换算(ADR-039 决策 3)
+		return cal.stage() == QiriCalendar.Stage.DAY && cal.part() == 0;
 	}
 
 	/**

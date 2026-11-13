@@ -182,7 +182,7 @@ public final class TurnPromptBuilder {
 	// ── 《七日开张》(ADR-038 Slice C)──────────────────────────────────────
 
 	/** 百味夜集回合 = 第 22 回合(决策 2:七天 × 早 / 午 / 晚 21 回合之后)。 */
-	static final int QIRI_FINAL_TURN = 7 * 3 + 1;
+	static final int QIRI_FINAL_TURN = QiriCalendar.NIGHT_MARKET_TURN;
 	private static final String[] QIRI_SLOTS = { "早", "午", "晚" };
 	private static final String[] QIRI_SLOT_WORK = { "进货", "开摊营业", "开摊营业" };
 
@@ -198,13 +198,13 @@ public final class TurnPromptBuilder {
 	 * 按「措辞是草稿,实现时由单测钉住」取 8 − d;不写结局条件(判定表随第 22 回合注入,Slice D)。
 	 */
 	static String qiriTurnClock(int n) {
-		int turn = Math.max(n, 1);
+		// 第几天 / 时段只从 QiriCalendar 取(ADR-039 决策 3:与下发的时段标签同一份换算);这里只管拼提示词的字。
+		QiriCalendar cal = QiriCalendar.of(n);
+		int turn = cal.turn();
 		String slot;
-		if (turn < QIRI_FINAL_TURN) {
-			int day = (turn + 2) / 3;
-			int part = (turn - 1) % 3;
-			int left = 8 - day;
-			slot = "第 " + day + " 天 · " + QIRI_SLOTS[part] + "(" + QIRI_SLOT_WORK[part] + ")"
+		if (cal.stage() == QiriCalendar.Stage.DAY) {
+			int left = 8 - cal.day();
+			slot = "第 " + cal.day() + " 天 · " + QIRI_SLOTS[cal.part()] + "(" + QIRI_SLOT_WORK[cal.part()] + ")"
 					+ (left == 1 ? ",明天就是百味夜集" : ",离百味夜集还有 " + left + " 天");
 		} else {
 			slot = "百味夜集 · 开摊";
