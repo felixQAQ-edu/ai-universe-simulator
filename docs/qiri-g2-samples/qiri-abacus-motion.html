@@ -1,0 +1,326 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>七日开张算盘动效</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* 布局:左边是数值面板(这个世界自己的配色)加一排「发生了什么」的按钮,右边是调参;窄屏上下叠。 */
+:root {
+  --shell: #f1eff4; --panel: #ffffff; --ink: #1c1822; --ink-soft: #6b6375; --rule: #dcd9e2; --mark: #55626a;
+  --font: system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --shell: #0c0a10; --panel: #1b1722; --ink: #ece9f1; --ink-soft: #9a93a6; --rule: #2f2a39; --mark: #a9b7bf; color-scheme: dark; }
+}
+:root[data-theme="dark"] { --shell: #0c0a10; --panel: #1b1722; --ink: #ece9f1; --ink-soft: #9a93a6; --rule: #2f2a39; --mark: #a9b7bf; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { background: var(--shell); color: var(--ink); font-family: var(--font); line-height: 1.5; padding-block: 1.5rem 3rem;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.wrap { max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 1.25rem; }
+.head h1 { margin: 0; font-size: 1.35rem; }
+.head p { margin: 0.35rem 0 0; color: var(--ink-soft); font-size: 0.9rem; max-width: 62ch; }
+.bench { display: flex; flex-wrap: wrap; gap: 1.5rem; align-items: flex-start; }
+.stageCol { flex: 0 1 375px; min-width: 0; display: flex; flex-direction: column; gap: 1rem; }
+.side { flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 1rem; }
+.box { background: var(--panel); border: 1px solid var(--rule); border-radius: 12px; padding: 0.9rem 1rem; display: flex; flex-direction: column; gap: 0.8rem; }
+.box h2 { margin: 0; font-size: 0.95rem; }
+.box p { margin: 0; font-size: 0.82rem; color: var(--ink-soft); }
+.row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+.label { font-size: 0.8rem; color: var(--ink-soft); }
+.seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; }
+.seg button, .btn { font: inherit; font-size: 0.82rem; padding: 0.4rem 0.7rem; background: transparent; color: var(--ink); border: 0; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--rule); }
+.seg button[aria-pressed="true"], .btn[aria-pressed="true"] { background: var(--mark); color: var(--panel); }
+.btn { border: 1px solid var(--rule); border-radius: 8px; text-align: left; }
+.btn small { display: block; font-family: var(--mono); font-size: 0.7rem; color: var(--ink-soft); }
+.btn[aria-pressed="true"] small { color: inherit; }
+.seg button:focus-visible, .btn:focus-visible { outline: 2px solid var(--mark); outline-offset: 2px; }
+.events { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0.5rem; }
+.ctl { display: grid; grid-template-columns: 1fr auto; gap: 0.15rem 0.75rem; align-items: center; font-size: 0.85rem; }
+.ctl output { font-family: var(--mono); font-size: 0.8rem; font-variant-numeric: tabular-nums; color: var(--ink-soft); }
+.ctl input[type="range"] { grid-column: 1 / -1; width: 100%; accent-color: var(--mark); }
+textarea#params { width: 100%; min-height: 10rem; resize: vertical; font-family: var(--mono); font-size: 0.78rem; line-height: 1.5; background: var(--shell); color: var(--ink); border: 1px solid var(--rule); border-radius: 8px; padding: 0.6rem; }
+
+/* ── 《七日开张》数值面板(与静态样张第二版同一套样式) ── */
+.qiri { --bg: #f2ede2; --paper: #f8f4ea; --text: #3b3127; --muted: #625645; --line: #cdbfa2; --wood: #4f3a24; --bead-off: #cfc2a4; --ochre: #96621a; --zhu: #a2351f;
+  --kai: 'Kaiti SC', 'STKaiti', 'KaiTi', 'Kaiti TC', 'BiauKai', 'Songti SC', 'Noto Serif SC', serif;
+  color: var(--text); background: var(--bg); border-radius: 18px; border: 1px solid var(--rule); padding: 1rem; }
+.ledgerPanel { background: var(--paper); border: 1px solid var(--line); border-radius: 2px; padding: 0.7rem 0.8rem 0.75rem; }
+.panelHead { display: flex; align-items: center; justify-content: space-between; padding-bottom: 0.55rem; margin-bottom: 0.7rem; border-bottom: 1px solid var(--line); }
+.hourTag { padding: 0.12rem 0.55rem; font-family: var(--kai); font-size: 0.82rem; letter-spacing: 0.14em; color: #f3ead6; background: var(--wood); border-radius: 1px; }
+/* 记忆点:一盏平的灯笼。只有线和一块平涂,亮起 = 灯身填上土黄 */
+.lantern { width: 15px; height: 24px; color: var(--wood); transition: opacity 0.9s ease; }
+.lantern svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.lantern .body { fill: transparent; transition: fill 0.9s ease; }
+.lantern.lit .body { fill: #dc9a34; transition-duration: 0.35s; }
+.lantern.noIdle { opacity: 0; }
+.lantern.noIdle.lit { opacity: 1; transition-duration: 0.35s; }
+.lantern.still, .lantern.still .body { transition: none; }
+.names, .readout { display: grid; grid-template-columns: 1fr 1fr 1fr; }
+.names span { text-align: center; font-family: var(--kai); font-size: 0.86rem; letter-spacing: 0.28em; margin-right: -0.28em; color: var(--muted); padding-bottom: 0.3rem; }
+.abacus { position: relative; display: grid; grid-template-columns: 1fr 1fr 1fr; height: 96px; border: 1.5px solid var(--wood); border-radius: 1px; background: #f1e9d6; overflow: hidden; }
+.abacus::before { content: ''; position: absolute; left: 0; right: 0; top: 27px; height: 2px; background: var(--wood); z-index: 2; }
+.group { position: relative; display: flex; justify-content: space-around; padding: 0 4px; }
+.group + .group { border-left: 1px solid var(--wood); }
+.group::after { content: ''; position: absolute; top: 26.5px; right: calc(16.6% + 2px); width: 3px; height: 3px; margin-right: -1.5px; background: var(--paper); z-index: 3; }
+.rod { position: relative; width: 24px; height: 100%; }
+.rod::before { content: ''; position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--line); }
+.bead { position: absolute; left: 50%; margin-left: -11px; width: 22px; height: 10px; background: var(--bead-off); clip-path: polygon(20% 0, 80% 0, 100% 50%, 80% 100%, 20% 100%, 0 50%); will-change: transform; }
+.bead.on { background: var(--wood); }
+.group.danger .bead.on { background: var(--zhu); }
+.readout { margin-top: 0.55rem; }
+.cell { display: flex; flex-direction: column; align-items: center; gap: 0.05rem; }
+.cellNum { font-family: var(--kai); font-size: 1.45rem; line-height: 1.1; font-weight: 700; font-variant-numeric: tabular-nums; }
+.cellBand { font-size: 0.74rem; color: var(--muted); min-height: 1.1rem; }
+.cellRisk { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.68rem; letter-spacing: 0.08em; color: var(--muted); min-height: 1rem; }
+.cellRisk:not(:empty)::before { content: ''; width: 5px; height: 5px; background: currentColor; }
+.cell.caution .cellRisk { color: var(--ochre); }
+.cell.danger .cellRisk, .cell.danger .cellNum { color: var(--zhu); }
+</style>
+
+<div class="wrap">
+  <header class="head">
+    <h1>七日开张算盘动效</h1>
+    <p>点左边的按钮让数值变化,看珠子怎么走。数字、档名、珠子在这里由同一个值驱动:数字显示到几,珠子就摆成几。熟客升档(到 30、到 60)时,右上角的灯笼亮一下。右边可以调,调好把参数抄给我。</p>
+  </header>
+
+  <div class="bench">
+    <div class="stageCol">
+      <div class="qiri">
+        <div class="ledgerPanel">
+          <div class="panelHead"><span class="hourTag">第四日 · 午市</span><span class="lantern" id="lantern" aria-hidden="true"><svg viewBox="0 0 15 24" fill="none" stroke="currentColor" stroke-width="1"><path d="M7.5 0v3M4 3.5h7M7.5 20.5V24M5 20.5h5"/><path class="body" d="M4 5.5h7l3 3.5v7l-3 3.5H4L1 16V9z"/><path d="M7.5 5.5v14"/></svg></span></div>
+          <div class="names" id="names"></div>
+          <div class="abacus" id="abacus"></div>
+          <div class="readout" id="readout"></div>
+        </div>
+      </div>
+      <div class="box">
+        <h2>发生了什么</h2>
+        <p>数字取自这个世界的落数规则。</p>
+        <div class="events" id="events"></div>
+      </div>
+    </div>
+
+    <aside class="side">
+      <div class="box">
+        <h2>珠子怎么跟数字走</h2>
+        <div class="seg" role="group" aria-label="珠子怎么跟数字走">
+          <button type="button" id="m-roll" aria-pressed="true">数字滚,珠子一路跟</button>
+          <button type="button" id="m-snap" aria-pressed="false">一次到位</button>
+        </div>
+        <p id="modeNote"></p>
+      </div>
+      <div class="box">
+        <h2>手感</h2>
+        <label class="ctl" for="roll"><span>数字滚多久</span><output id="o-roll"></output>
+          <input type="range" id="roll" min="200" max="1500" step="50" value="600"></label>
+        <label class="ctl" for="bead"><span>一颗珠子走多久</span><output id="o-bead"></output>
+          <input type="range" id="bead" min="0" max="400" step="10" value="160"></label>
+        <label class="ctl" for="back"><span>撞到头弹回多少</span><output id="o-back"></output>
+          <input type="range" id="back" min="0" max="4" step="0.5" value="1.5"></label>
+        <div class="row">
+          <button type="button" class="btn" id="t-risk" aria-pressed="false">「正常」时不显示状态词</button>
+          <button type="button" class="btn" id="t-rm" aria-pressed="false">减弱动效时的样子</button>
+        </div>
+      </div>
+      <div class="box">
+        <h2>灯笼</h2>
+        <label class="ctl" for="hold"><span>亮多久再熄</span><output id="o-hold"></output>
+          <input type="range" id="hold" min="800" max="6000" step="100" value="2800"></label>
+        <label class="ctl" for="ceremony"><span>灯先亮,隔多久数字才动</span><output id="o-ceremony"></output>
+          <input type="range" id="ceremony" min="0" max="1500" step="50" value="600"></label>
+        <div class="row">
+          <button type="button" class="btn" id="t-idle" aria-pressed="true">平时留一个空灯笼</button>
+          <button type="button" class="btn" id="replay">再亮一次</button>
+        </div>
+      </div>
+      <div class="box">
+        <h2>当前参数</h2>
+        <textarea id="params" readonly aria-label="当前参数"></textarea>
+        <div class="row"><button type="button" class="btn" id="copy">复制参数</button><span class="label" id="copied" aria-live="polite"></span></div>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script>
+(function () {
+  // 轴、初值、档界、档名取自 ArchetypeRegistry。风险等级在真实实现里由服务端给;这里按档位摆一个替身,只为看颜色怎么翻。
+  var AXES = [
+    { key: 'capital', name: '摊本', init: 35, bands: [[51, '够周转', 'neutral'], [21, '紧巴巴', 'caution'], [0, '靠赊账', 'danger']] },
+    { key: 'regulars', name: '熟客', init: 0, bands: [[60, '老主顾', 'neutral'], [30, '回头客', 'neutral'], [0, '生面孔', 'neutral']] },
+    { key: 'cover', name: '底细', init: 80, bands: [[51, '藏得住', 'neutral'], [21, '有点怪', 'caution'], [0, '快露馅', 'danger']] }
+  ];
+  var EVENTS = [
+    ['早 · 进货', { capital: -6 }], ['午 / 晚 · 营业', { capital: 3 }], ['立功', { capital: 10, cover: -6 }], ['客人满意', { regulars: 6 }],
+    ['把熟客摆到 27', { set: { regulars: 27 } }], ['说漏现代词', { cover: -4 }], ['大翻车', { cover: -12 }], ['圆回来', { cover: 6, capital: -3 }], ['重开一局', null]
+  ];
+  var WORD = { neutral: '正常', caution: '注意', danger: '危险' };
+  var NAME = { capital: '摊本', regulars: '熟客', cover: '底细' };
+  var UP_ON = 12, LO_ON = -18; // 上珠、下珠「算上」时相对原位的位移(px)
+
+  var cfg = { mode: 'roll', roll: 600, bead: 160, back: 1.5, hideNeutral: false, reduced: false, hold: 2800, ceremony: 600, idle: true };
+  var lamp = document.getElementById('lantern'), lampBusy = false;
+  var sysReduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var state = {}; // key -> { shown(float), from, to, t0, el refs }
+  var raf = 0;
+
+  function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+  function clamp(v) { return Math.max(0, Math.min(100, v)); }
+  function band(axis, v) { for (var i = 0; i < axis.bands.length; i++) if (v >= axis.bands[i][0]) return axis.bands[i]; return axis.bands[axis.bands.length - 1]; }
+
+  function build() {
+    var names = document.getElementById('names'), abacus = document.getElementById('abacus'), readout = document.getElementById('readout');
+    AXES.forEach(function (axis) {
+      names.appendChild(el('span', '', axis.name));
+      var g = el('div', 'group'); var rods = [];
+      for (var r = 0; r < 3; r++) {
+        var rod = el('div', 'rod'); var beads = [];
+        var up = el('i', 'bead'); up.style.top = '4px'; rod.appendChild(up); beads.push(up);
+        for (var j = 0; j < 4; j++) { var b = el('i', 'bead'); b.style.top = (48 + j * 11) + 'px'; rod.appendChild(b); beads.push(b); }
+        g.appendChild(rod); rods.push(beads);
+      }
+      abacus.appendChild(g);
+      var c = el('div', 'cell'); var num = el('span', 'cellNum'), bd = el('span', 'cellBand'), rk = el('span', 'cellRisk');
+      c.appendChild(num); c.appendChild(bd); c.appendChild(rk); readout.appendChild(c);
+      state[axis.key] = { axis: axis, goal: axis.init, shown: axis.init, from: axis.init, to: axis.init, t0: 0, last: null, group: g, rods: rods, cell: c, num: num, band: bd, risk: rk };
+    });
+  }
+
+  function moveBead(b, on, upper) {
+    var target = on ? (upper ? UP_ON : LO_ON) : 0;
+    b.classList.toggle('on', on);
+    if (b._t === target) return;
+    b._t = target;
+    var still = cfg.reduced || sysReduced || cfg.bead === 0 || !b.animate;
+    var cur = still ? target : new DOMMatrixReadOnly(getComputedStyle(b).transform).m42;
+    if (b._a) { b._a.cancel(); b._a = null; }
+    b.style.transform = 'translateY(' + target + 'px)';
+    if (still || cur === target) return;
+    var dir = target > cur ? 1 : -1, back = target - dir * cfg.back;
+    b._a = b.animate([
+      { transform: 'translateY(' + cur + 'px)', easing: 'cubic-bezier(0.5, 0, 1, 0.7)' },
+      { transform: 'translateY(' + target + 'px)', offset: 0.55, easing: 'ease-out' },
+      { transform: 'translateY(' + back + 'px)', offset: 0.78, easing: 'ease-in' },
+      { transform: 'translateY(' + target + 'px)' }
+    ], { duration: cfg.bead });
+  }
+
+  // 唯一的显示入口:一个整数进来,数字、档名、状态、珠子一起换。
+  function paint(s) {
+    var v = clamp(Math.round(s.shown));
+    if (v === s.last) return;
+    s.last = v;
+    var b = band(s.axis, v), sev = b[2];
+    s.num.textContent = v; s.band.textContent = b[1];
+    s.risk.textContent = (cfg.hideNeutral && sev === 'neutral') ? '' : WORD[sev];
+    s.cell.className = 'cell ' + sev; s.group.className = 'group ' + sev;
+    s.cell.setAttribute('aria-label', [s.axis.name, v, b[1], WORD[sev]].join(' · '));
+    [Math.floor(v / 100), Math.floor(v / 10) % 10, v % 10].forEach(function (d, i) {
+      var beads = s.rods[i];
+      moveBead(beads[0], d >= 5, true);
+      for (var j = 0; j < 4; j++) moveBead(beads[j + 1], j < d % 5, false);
+    });
+  }
+
+  function tick(now) {
+    var busy = false;
+    Object.keys(state).forEach(function (k) {
+      var s = state[k];
+      if (s.shown !== s.to) {
+        var t = Math.min(1, (now - s.t0) / cfg.roll), e = 1 - Math.pow(1 - t, 3);
+        s.shown = t >= 1 ? s.to : s.from + (s.to - s.from) * e;
+        if (t < 1) busy = true;
+      }
+      paint(s);
+    });
+    raf = busy ? requestAnimationFrame(tick) : 0;
+  }
+
+  function go(key, to) {
+    var s = state[key]; to = clamp(to);
+    if (cfg.mode === 'snap' || cfg.reduced || sysReduced) { s.shown = s.from = s.to = to; paint(s); return; }
+    s.from = s.shown; s.to = to; s.t0 = performance.now();
+    if (!raf) raf = requestAnimationFrame(tick);
+  }
+
+  function repaintAll() { Object.keys(state).forEach(function (k) { state[k].last = null; paint(state[k]); }); }
+
+  // 灯笼:替身触发。真实实现里由通用层的「签名轴向上跨档」计数给信号,皮肤不读熟客的数值。
+  function still() { return cfg.reduced || sysReduced; }
+  function light() {
+    if (lampBusy) return; // 忙态锁:亮着的时候再来一次直接忽略,不排队
+    lampBusy = true;
+    lamp.classList.toggle('still', still());
+    lamp.classList.add('lit');
+    setTimeout(function () { lamp.classList.remove('lit'); setTimeout(function () { lampBusy = false; }, still() ? 0 : 900); }, cfg.hold);
+  }
+  function tier(v) { return v >= 60 ? 2 : v >= 30 ? 1 : 0; }
+
+  build(); repaintAll();
+
+  var evHost = document.getElementById('events');
+  EVENTS.forEach(function (ev) {
+    var b = el('button', 'btn'); b.type = 'button'; b.appendChild(document.createTextNode(ev[0]));
+    var desc = !ev[1] ? '35 / 0 / 80' : ev[1].set ? '方便试升档' : Object.keys(ev[1]).map(function (k) { return NAME[k] + ' ' + (ev[1][k] > 0 ? '+' : '−') + Math.abs(ev[1][k]); }).join(',');
+    b.appendChild(el('small', '', desc));
+    b.addEventListener('click', function () {
+      var before = tier(state.regulars.goal);
+      if (!ev[1]) AXES.forEach(function (a) { state[a.key].goal = a.init; });
+      else if (ev[1].set) Object.keys(ev[1].set).forEach(function (k) { state[k].goal = ev[1].set[k]; });
+      else Object.keys(ev[1]).forEach(function (k) { state[k].goal = clamp(state[k].goal + ev[1][k]); });
+      var crossed = tier(state.regulars.goal) > before; // 只认向上
+      if (crossed) light();
+      var run = function () { AXES.forEach(function (a) { if (state[a.key].to !== state[a.key].goal) go(a.key, state[a.key].goal); }); };
+      if (crossed && cfg.ceremony > 0 && !still()) setTimeout(run, cfg.ceremony); else run();
+    });
+    evHost.appendChild(b);
+  });
+
+  var NOTE = {
+    roll: '数字从旧值滚到新值,每滚过一个数,珠子就按那个数重摆一次。个位那一档会连着拨好几下。',
+    snap: '数字不滚,直接换成新值;珠子同一刻各走一步到位。'
+  };
+  function params() {
+    document.getElementById('modeNote').textContent = NOTE[cfg.mode];
+    document.getElementById('params').value = [
+      '珠子怎么跟: ' + (cfg.mode === 'roll' ? '数字滚,珠子一路跟' : '一次到位'),
+      '数字滚多久: ' + cfg.roll + 'ms' + (cfg.mode === 'snap' ? '(一次到位时不用)' : ''),
+      '一颗珠子走多久: ' + cfg.bead + 'ms',
+      '撞到头弹回: ' + cfg.back + 'px',
+      '「正常」时显示状态词: ' + (cfg.hideNeutral ? '不显示' : '显示'),
+      '灯笼亮多久: ' + cfg.hold + 'ms',
+      '灯先亮,隔多久数字才动: ' + cfg.ceremony + 'ms',
+      '平时留空灯笼: ' + (cfg.idle ? '留' : '不留')
+    ].join('\n');
+  }
+  [['roll', 'ms'], ['bead', 'ms'], ['back', 'px'], ['hold', 'ms'], ['ceremony', 'ms']].forEach(function (p) {
+    var input = document.getElementById(p[0]);
+    function sync() { cfg[p[0]] = Number(input.value); document.getElementById('o-' + p[0]).textContent = input.value + p[1]; params(); }
+    input.addEventListener('input', sync); sync();
+  });
+  ['m-roll', 'm-snap'].forEach(function (id) {
+    document.getElementById(id).addEventListener('click', function () {
+      cfg.mode = id === 'm-roll' ? 'roll' : 'snap';
+      document.getElementById('m-roll').setAttribute('aria-pressed', String(cfg.mode === 'roll'));
+      document.getElementById('m-snap').setAttribute('aria-pressed', String(cfg.mode === 'snap'));
+      params();
+    });
+  });
+  function toggle(id, key, after) {
+    var b = document.getElementById(id);
+    b.addEventListener('click', function () { cfg[key] = !cfg[key]; b.setAttribute('aria-pressed', String(cfg[key])); params(); if (after) after(); });
+  }
+  toggle('t-risk', 'hideNeutral', repaintAll);
+  toggle('t-rm', 'reduced');
+  toggle('t-idle', 'idle', function () { lamp.classList.toggle('noIdle', !cfg.idle); });
+  document.getElementById('replay').addEventListener('click', light);
+  document.getElementById('copy').addEventListener('click', function () {
+    var out = document.getElementById('params'), note = document.getElementById('copied');
+    function fallback() { out.focus(); out.select(); note.textContent = '已选中,按复制键'; }
+    try { navigator.clipboard.writeText(out.value).then(function () { note.textContent = '已复制'; }, fallback); } catch (e) { fallback(); }
+  });
+  params();
+})();
+</script>
