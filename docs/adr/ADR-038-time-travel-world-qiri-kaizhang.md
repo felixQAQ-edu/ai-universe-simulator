@@ -577,3 +577,271 @@ Felix 2026-11-12 选定。
 
 - 顶图在局内横幅里的实际取景:进局要调模型,本刀没开局,51.3% / 51.6% 是按 `cover` 居中算的,不是在页面上量的。
 - 真机上的轻重、脚步节奏、热气够不够明显、顶图在手机上的取景:Felix 亲眼看。
+
+## Slice G-2(草案,2026-11-13):局内皮肤 + 灯笼记忆点(前端)
+
+**状态:待 Felix 审定。** 本节只定方向,`web/src` 与后端零改动;审过再实现。上文原文一字不动。
+写法照 [ADR-036](ADR-036-cyberpunk-world-paidan.md) Slice G-2。
+
+**真理源**:Felix 2026-11-13 逐项看过并定稿的样张,随本分支进 `main`(样张分支 `asset/qiri-g2-samples` `d1dc74f`,父提交即 `main` `02fd335`,
+本分支 fast-forward 到它,没有合并提交)。CSS 数值、结构、参数以它们为准;样张里的正文、选项、规矩条文是示意文本,不进产品。
+
+| 文件(`docs/qiri-g2-samples/`) | 用途 | sha256(已核,与简报一致) |
+|---|---|---|
+| `qiri-ingame.html` | 静态样张(第三版) | `f6ba4cf7953be6dc69545794c714be2035306593ad5c07dadee650478da88c09` |
+| `qiri-abacus-motion.html` | 算盘与灯笼的可运行演示 | `c6e281e9eba7b7b9fa2c5b8bc9cafd326f5b5935da413ad34eac503655023c58` |
+| `qiri-kai-medium-subset.woff2` | 楷体子集(6,668 B) | `5ef2e5f48f2c9d24c3fdfb2b0aa58aa794e10cc11c029b9f78754347a11a6ae0` |
+
+**风格硬线**(Felix 2026-11-13,对以后的皮肤也适用):平面、克制 —— 只有平涂、1px 细线、方角(圆角 ≤ 2px);不用木纹 / 纸纹 / 渐变质感 /
+投影 / 高光 / 歪斜 / 圆润造型。朱红只用在三处:危险态、正文左侧栏线、「已验证」。样张里没有的装饰一律不加。
+
+### 勘察结论(只读 `main` `02fd335`)
+
+**1. `AxisView.value` 是滚动中的显示值 —— 成立,珠子可以只从它派生。**
+`StatsPanel` 先 `useAnimatedValues(values, bundle, signatureTick)` 得到 `shown`(GSAP 逐帧插值、**已取整**),再 `toAxisView(axis, shown, …)`;
+`value`、`bandLabel`、`severity`、`a11yText` 都从同一个 `shown` 算(`StatsPanel.tsx:30–35`、`useAnimatedValues.ts` 头注释)。
+滚动中每过一个整数重渲一次,珠子随之重摆 —— 正是 ADR-018 §4.2.1 要求的单一驱动量,不另起驱动量、不等滚完再落珠。
+reduced-motion 下 `useAnimatedValues` 不插值、同帧落位。
+
+**2. 皮肤契约与现有槽位(`theme/contract.ts`)。**
+- `StatsProps` 现在只有 `axes` / `runtime` / `rootRef`:**拿不到 `timeLabel`,也拿不到 `signatureTick`**。
+  `signatureTick` 已经进了 `StatsPanel`(给仪式延迟用),但没往形态组件传。
+- `timeLabel` 已在 `gameStore`(`init` / 续局 / `delta` 三处写入,ADR-039 刀 4),`PlayingScreen` 没读它。
+- 签名轴信号:`PlayingScreen` 里 `useSignalCrossing` **算一次**,`signature.tick` 同时给 `Ambient`(演记忆点)与 `StatsPanel`(仪式延迟)。
+  规矩 ②「续局首帧不触发」在这里实现。熟客档表 0 / 30 / 60 升序,向上跨档正好是要的触发,机制不用扩。
+- 先例:五套皮肤的一级记忆点**都由 `Ambient`(或 `Interlude` / `Prose`)托管**,没有一套放在 `Stats` 里;
+  修仙跨层的做法是「氛围层写主题根 class、数值形态写主题根自定义属性」(`XianAmbient` `setRootClass`、`XianStats` `--seal-x/--seal-y`),
+  两边都不 query 对方的 DOM。
+
+**3. 通用部件里没有令牌可改的四处(与「只吃本皮肤色板」相关)。**
+- **世界标题** `.title`(`<h1>`,`game.module.css:112`):没有字体令牌;`<h1>` 的 UA 默认 `font-weight: bold`,楷体会被**模拟加粗**,违反「一律 400」。
+- **回合行** `.phase`(`:104`):颜色写死 `var(--muted)`,没有描边令牌;样张要 `--text` + 底色描边(`text-shadow: 0 0 2px bg, 0 0 5px bg`)。
+- **规矩条目** `.rule`(`:343`):`border-radius: 0 8px 8px 0`,超过 2px 硬线;**「已验证」** `.ruleTag`(`:407`)是 `--accent` 实底白字、圆角 6px,
+  样张是朱红 1px 细框、无底、方角。
+- **正文**:通用 `Prose` 没有伪元素口子,但 `.prose { background: var(--prose-bg, …) }` 能吃整条 `background` 简写(见设计 4)。
+- 现成先例:`--prose-bg` / `--prose-border` / `--prose-shadow` / `--prose-pad` / `--panel-radius` / `--rule-lh` / `--rule-idle` / `--caret-play`
+  —— 都是「通用 CSS 读令牌、回落值 = 旧值」,未登记世界计算样式不变、DOM 不变。
+- 提示条 `.notice` 在系统深色模式下回落成深底(`game.module.css:428`);本世界固定浅色(ADR-018 §4.6),必须在主题根上写死 `--notice-bg` / `--notice-fg`。样张里没有提示条。
+
+**4. 字体:ADR-017 与 AGENTS.md 都没有字体限制条款。**
+`grep -n "字体\|font\|字重\|衬线\|楷\|宋体\|webfont\|网页字体"` 对 `AGENTS.md` **零命中**,对 ADR-017 **零命中**。相关的只有三处,摘原句:
+- ADR-017 §3 升级条款:「缓引清单转正**须回 Project 窗口对齐**,**不得在实现批里自行引入**。白名单之外的任何库同此。」
+  —— 管的是**库**(npm 包 / 运行时代码)。字体文件是静态资源、不执行代码、不进 `package.json`,本 ADR 判它**不属于「库」**,不走白名单流程。
+  这是本 ADR 的解释,不是 ADR-017 的原文;Felix 若认为字体也该算,改走窗口对齐(待审 9)。
+- ADR-017 §4 移植债:「**引这些库 = 未来回国做小程序时视觉层重做的债。**」—— 字体同理会进这一篮子(小程序要 `wx.loadFontFace`),记作已知代价。
+- ADR-018 §6 挂账表(已关闭):「**修仙衬线在低 DPI 的渲染质量** …… 中文衬线在低 DPI 安卓与微信 WebView 下小字号笔画易糊」
+  —— 同一类风险,楷体在 Android 上的样子交 Felix 真机看(简报已列)。
+- 现有前端**没有任何 `@font-face`**,全部是系统字体栈(`index.css:12`、各皮肤的 `Songti SC` / 等宽栈)。本刀是第一份网页字体。
+
+**5. 子集字符数:简报写「36 个字(外加空格)」,实际列出的是 35 个字 + 空格 = 36 个码位。**
+逐字数过:数字 10、`·` 1、一至七 7、日 1、早午晚市 4、夜集开张收 5、摊本熟客底细 6、第 1 = 35。设计不受影响,以列出的字符为准。
+另:本机 fontTools 4.61.1 缺 `brotli`,**读不了 woff2**,所以样张子集的实际字符集本刀没核;实现刀装 `brotli` 后重裁时一并核(见决策 5)。
+
+**6. 楷体会出现的字,来源逐一核过。**
+- 世界标题:`fixedWorldTitle` 恒为「七日开张」(ADR-038 决策 1)。
+- 时辰牌:`ClientProjection.java:50–63` —— `"第" + 一二三四五六七[day] + "日 · " + {早市, 午市, 晚市}`、`"夜集 · 开张"`、`"夜集 · 收摊"`。
+- 轴名:`ArchetypeRegistry` `displayName` 摊本 / 熟客 / 底细。
+- 数值数字:0–100。
+- tag(怪点子 / 打圆场)、档名、状态词**不用楷体**,不进子集。
+
+**7. 注册表与测试现状。** `registry.ts:115–123` `time_travel` 为 `skin: null`;`registry.test.ts:114–118`、`297–301` 断言它为 null,实现时改。
+`paidanSkin.test.tsx` 的结构(登记 / 共享语义 / 形态冒烟 / 记忆点触发与收尾)可照抄。
+
+### 决策
+
+**1. 皮肤登记**:`theme/qiri/` 下 `QiriAmbient`、`QiriStats`、`QiriActions`、`qiri.module.css`、`abacus.ts`(纯函数)、`qiriSkin.test.tsx`;
+`skins.tsx` 加一条;`SkinId` 加 `'time_travel'`;`WORLDS.time_travel.skin` 由 `null` 改为 `'time_travel'`。不开 `Interlude` / `Prose` 槽。
+
+```
+time_travel: {
+  id: 'time_travel',
+  hasIntro: false,                                   // 记忆点是状态事件,不占开场
+  valueRoll: { durationMs: 600, ease: 'power3.out',  // = 演示的 1 − (1 − t)³
+               ceremonyDelayMs: 600 },               // 灯先亮,数字与珠子 600ms 后才动
+  signatureAxisKey: 'regulars',
+  screenClass, pausedClass,
+  bannerImgClass: '',                                // 局内不加持续环境动效(顶图不冒热气)
+  backClass, backPressDurMs: 150,                    // 待审 6
+  Ambient: QiriAmbient, Stats: QiriStats, Actions: QiriActions,
+}
+```
+
+**2. 数值形态:九档算盘(`QiriStats`)**
+
+结构(自上而下):
+
+```
+.ledgerPanel
+  .panelHead      左:时辰牌 .hourTag(timeLabel;没有时整个节点不渲染)  右:灯笼 .lantern(aria-hidden)
+  .names          三个轴名,按 axes 顺序,直接用 displayName
+  .abacus         三组(.group)× 三档(.rod,百 / 十 / 个)× 五颗珠(上 1 下 4);梁一道线,每组个位档梁上一个定位点
+  .readout        三格(.cell):数字 .cellNum / 档名 .cellBand / 状态词 .cellRisk
+```
+
+- **主题层不认轴**(ADR-018 §4.2):三组按 `axes` 顺序排,不按 key 判断哪根是摊本;颜色只读 `severity`。
+- **珠子映射**(纯函数 `abacus.ts`,只吃 `AxisView.value`):`v = clamp(round(value), 0, 100)`,三档数字 `[⌊v/100⌋, ⌊v/10⌋ mod 10, v mod 10]`;
+  每档 `upper = d ≥ 5`、`lower = d mod 5`(下珠从靠梁那颗起算)。靠梁的算数,上珠当五、下珠当一。
+- **位置**(样张原值):上珠原位 `top: 4px`、算上时 `translateY(12px)`;下珠第 j 颗原位 `top: 48 + 11j px`、算上时 `translateY(−18px)`。算盘高 96px,梁在 27–29px。
+- **颜色**:算上 `--wood #4f3a24`、没算上 `--bead-off #cfc2a4`;`danger` 时该组算上的珠子与数字转 `--zhu #a2351f`;
+  `caution` 时只有状态词与小方点转 `--ochre #96621a`,**珠子不变色**;`neutral` 状态词「正常」。`severity` 为 null → 状态词为空串、不画小方点
+  (`.cellRisk:not(:empty)::before`,节点保留只为三格底边对齐)。状态词由 `severityWord()` 给,不在皮肤里另写映射。
+- **手感**(Felix 定,照演示 `moveBead`):一颗珠子走 160ms,关键帧 `0 → 0.55 到位 → 0.78 反向弹回 1.5px → 1 归位`,
+  缓动 `cubic-bezier(0.5, 0, 1, 0.7)` / `ease-out` / `ease-in`;**珠子在动时目标又变了,从当前位置接着走**(读计算样式里的 `translateY`,取消旧动画再起新的)。
+  用浏览器自带的 Web Animations(`element.animate`),**不引库、不用 GSAP**:这是逐元素的短关键帧,CSS 过渡做不出「到位后反向弹回」,
+  GSAP 在这里没有时间线可编排。只动 `transform`(AGENTS.md §6)。jsdom 没有 `animate` → 直接落位(同演示的守卫)。
+- **数字滚动**由通用层做(600ms、`power3.out`),本组件不自己滚;数字、档名、状态词、珠子同一渲染换(勘察 1)。
+- **reduced-motion**:数字由通用层直接到位;珠子不起动画、直接落位。
+- **字体**:轴名、数字、时辰牌用楷体(决策 5);`.cellNum` `font-weight: 400`。⚠️ 演示里 `.cellNum` 是 `700` / `1.45rem`,
+  静态样张是 `400` / `1.5rem`,**以静态样张为准**(简报「一律 400」)。
+- 读屏:每格 `aria-label = axis.a11yText`(通用层给,「熟客 · 36 · 回头客 · 正常」);算盘整块 `aria-hidden`(珠子是数字的另一种画法,不重复念)。
+
+**3. 记忆点:熟客升档时亮一盏灯笼**
+
+- **信号**:`signatureAxisKey: 'regulars'`,用通用层现有的 `signature.tick`(向上跨档才加一、一次跨多档只加一、续局首帧不加)。不新增判定,皮肤不读熟客数值。
+  熟客档界只有 30 / 60,所以每局最多亮两次。
+- **形态**:面板头右侧一个只有线的小灯笼(SVG 照样张逐字搬,15×24,`stroke-width 1`,颜色 `--wood`)。平时空轮廓;触发时灯身 `fill: #dc9a34`,
+  停 2800ms 再回到空轮廓。亮起过渡 350ms、熄灭 900ms(只动 `fill`,见已知代价 8)。没有光晕、没有文字。
+- **忙态锁**:亮着(含熄灭过程)时再来一次直接忽略,不排队(AGENTS.md §5;`runtime.tryLock()`,同 `PaidanAmbient`)。
+- **不按 `generating` 抑制**:跨档由回合流 delta 落账给出,delta 恰好落在 generating 的尾巴上(`PaidanAmbient` / `XianAmbient` 头注释踩过同一处)。
+- **先后**:灯先亮,数字与珠子 600ms 后才动(`ceremonyDelayMs: 600`,通用层施加)。
+- **reduced-motion**:仍然亮和熄,只是没有过渡(CSS 里 `transition: none`)。
+- **接法(推荐乙)**:
+
+  | | 做法 | 好处 | 代价 |
+  |---|---|---|---|
+  | 甲 | `StatsProps` 加可选 `signatureTick`;`QiriStats` 自己管灯笼的状态与定时器 | 灯笼的样子与驱动在同一个文件 | 记忆点第一次放进 `Stats`,与五套皮肤的先例不同;调试重播按钮也得进 `Stats`;契约多一个字段 |
+  | **乙(推荐)** | `QiriAmbient` 托管:收 `signatureTick` → 加锁 → `setRootClass(styles.lanternOn)` → 2800ms 后换 `styles.lanternOff` → 再 900ms 清空、解锁;定时器全登记到 `runtime`。`QiriStats` 只画静态 SVG,`qiri.module.css` 里 `.lanternOn .lanternBody { fill: #dc9a34 }` | **契约零改动**;同修仙「氛围层写主题根 class,形态层的 CSS 自己响应」;调试重播与遥测(`trace`)照 `PaidanAmbient` 放在 Ambient | 灯笼的样子在 `QiriStats`、驱动在 `QiriAmbient`,两个文件头注释互相指路;根 class 按「皮肤 + 回合」作用域,换回合时立刻熄、不走 900ms(要换回合得先选项再等生成,2.8s 内到不了,实际碰不到) |
+  | 丙 | `QiriStats` 从 context 或 store 自己读信号 | — | 第二套读法,违反「判定只在 `PlayingScreen` 一次」(ADR-018 §4.1)。不采用 |
+
+  甲乙都满足「不新增第二套判定、皮肤不读熟客数值」。推荐乙,因为它不动契约,也沿用现有托管位置。
+
+- **调试**:`?debug=1` 下 `QiriAmbient` 给一个「重播:灯笼」按钮(同 `PaidanAmbient`),不需要真 key 就能看。数值滚动与珠子可用现有 `DebugPanel` 改值观看。
+
+**4. 其余部件**
+
+- **正文**:纸色面板 `--paper`,左侧一道 1px 朱红细线,别的没有。不开 `Prose` 槽、不改通用 `Prose`:
+  `--prose-bg: linear-gradient(var(--zhu-line), var(--zhu-line)) 0.8rem 0.9rem / 1px calc(100% - 1.8rem) no-repeat, var(--paper)`,
+  `--prose-pad: 1rem 1.05rem 1rem 1.5rem`,`--prose-border: 1px solid var(--line)`,`--panel-radius: 2px`。
+  `--zhu-line` 是朱红 `#a2351f` 按样张 `opacity 0.55` 叠在纸色上的实色(实现时算出写死)。这里的 `linear-gradient` 只是画一条平涂实线,不是渐变质感。
+  正文不加任何动画(AGENTS.md §4);光标 `--caret-play: paused`。
+- **决策圈 `QiriActions`**:细框条目(`--paper` 底、`--line` 1px 框、圆角 2px),三栏网格 `编号 | 正文 + hint | tag`;
+  编号在 1px `--wood` 方框里;**带 `tag` 的选项在右上显示小签**(`--wood` 1px 细框、无底、方角,所有 tag 同一种样式,不按内容区分);
+  没有 `tag` 时该节点不渲染。按压 = `:active` 换底 `#efe6d2` + `:hover` 换框色,过渡 150ms,reduced-motion 下无过渡。
+  语义与通用 `DecisionCircle` 一致(只回传 id、hint 是叙事元数据,ADR-011)。**这是 ADR-039 决策 5 立的验收项**,测试断言带 / 不带 tag 两种 DOM。
+- **返回键**(`backClass`):细框方角,`--line` 1px 框、上沿 2px `--ochre`、圆角 2px、底 `--paper` 80%。按下时长登记 `backPressDurMs`(待审 6)。
+- **规矩面板**:不单独设计,用通用结构,只吃本皮肤色板:`--accent: #a2351f`(朱红)、`--accent-soft: rgba(162, 53, 31, 0.07)`、
+  `--rule-idle: var(--muted)`、`--panel-radius: 2px`。圆角与「已验证」的样式见决策 6 的令牌。
+  「刚被坐实」的一次性脉冲(通用 `ruleFlash`)照旧 —— 它是通用层既有的用户触发反馈,不是本刀新增;其中 `box-shadow 0 0 0 3px` 是外环不是投影,保留(待审 7)。
+- **顶图上的回合行**:`--phase-color: var(--text)`(`#3b3127`)、`--phase-shadow: 0 0 2px var(--bg), 0 0 5px var(--bg)`(样张 `.phase`)。
+  「第 N 回合 · 危险度」这一行**保留**;ADR-039 已知代价 2 留给皮肤刀的问题(要不要换掉或隐藏顶部回合数)就此答复:不换、不藏,
+  时辰牌放面板头,读作「现在是什么时候」,不挪到选项上方(Felix 定)。
+- **世界标题**:楷体、`font-weight: 400`(决策 6 的令牌)。
+- **提示条**:样张没有。主题根写死 `--notice-bg: #efe6d2`、`--notice-fg: var(--ochre)`,防系统深色模式漏进来;对比度实测后报(待审 8)。
+- **氛围层**:`QiriAmbient` 只渲染一块 `position: fixed` 的 `--bg` 底(桌面端 640 列两侧也是这个世界的底色,同 `PaidanAmbient`)+ 灯笼的驱动。**没有任何持续动画**。
+- **色板**:全部照样张 `.qiri` 逐值移植 —— `--bg #f2ede2`、`--paper #f8f4ea`、`--text #3b3127`、`--muted #625645`、`--line #cdbfa2`、`--wood #4f3a24`、
+  `--bead-off #cfc2a4`、`--ochre #96621a`、`--zhu #a2351f`、算盘底 `#f1e9d6`、时辰牌字 `#f3ead6`;字号同样张。本世界固定浅色。
+- **动效预算**(AGENTS.md §2):持续 = **无**;低频偶发 = 灯笼(一级记忆点,一次性);用户触发 = 数值滚动与珠子(同一个驱动量,算一个)+ 选项 / 返回键按压。
+  三处都是本世界局内首个,**「新世界首个,无可替代」**(§3)。卡面热气在选择屏,不同屏。
+
+**5. 字体(项目里第一份网页字体)**
+
+- **来源**:霞鹜文楷 LXGW WenKai Medium v1.530,仓库 `lxgw/LxgwWenKai` @ `d20c88d9ed1570a54ef09b46f37724712bbe0203`,
+  `fonts/TTF/LXGWWenKai-Medium.ttf`(sha256 `f4b8a34d1f838fe411540cb7c97b1c384ac9738a876c4104500bc42508b2312a`),SIL OFL 1.1;
+  其 `OFL.txt` 的附加许可允许为网页字体裁子集并保留字体名。授权文本随字体文件进仓库。
+- **重裁**(实现刀做,不在本草案 commit):下载上面那份 TTF、核 sha256;`pip install brotli`(woff2 输出要它);
+  ```
+  pyftsubset LXGWWenKai-Medium.ttf --text='0123456789·一二三四五六七日早午晚市夜集开张收摊本熟客底细第 ' \
+    --layout-features='tnum' --flavor=woff2 --output-file=qiri-kai.woff2
+  ```
+  核对输出的 cmap = 列出的 36 个码位;与样张子集比字符集(字节不一致不要紧),以重裁的为准,记 sha256 与字节数。
+  `--layout-features='tnum'` 是为了保住 `font-variant-numeric: tabular-nums`(pyftsubset 默认会丢掉多数特性);源字体若根本没有 `tnum`,
+  如实记下并按已知代价 5 处理。
+- **落点**:`web/src/features/game/theme/qiri/fonts/qiri-kai.woff2` + 同目录 `OFL.txt` + 一份 `README.md`(来源、提交、sha256、裁剪命令)。
+  `qiri.module.css` 里用相对 `url()` 引,由 Vite 打指纹(重裁后文件名跟着变,不怕缓存)。不放 `web/public`。
+- **声明**:`@font-face { font-family: 'QiriKai'; src: url(./fonts/qiri-kai.woff2) format('woff2'); font-display: swap; font-weight: 400; }`;
+  使用处 `font-family: 'QiriKai', 'Kaiti SC', 'STKaiti', 'KaiTi', 'Kaiti TC', 'BiauKai', 'Songti SC', 'Noto Serif SC', serif`(样张原栈)。
+  浏览器只在页面上真用到这个族名时才下载,其他世界不会加载它。
+- **用楷体的只有四处**:世界标题、时辰牌、轴名、数值数字。只有一个字重,一律 `font-weight: 400`,不做模拟加粗(`font-synthesis: none` 一并写上)。
+- **字符集写死的约束**:以后改标签文案或轴名,**必须同步重裁子集**。测试钉住:前端测试列出四处可能出现的全部字符串
+  (「七日开张」、三个轴名、0–100、`ClientProjection` 能产出的全部 23 个时辰标签:七天 × 早 / 午 / 晚市 21 个 + 夜集两个),断言每个字都在子集常量里;
+  子集常量与 `README.md` 里的裁剪命令是同一串字。缺字时浏览器按字回落到下一个字体(系统楷体),不出豆腐块,但会一个词两种字形。
+
+**6. 契约与通用层改动(其余五套皮肤的调用与 DOM 不变)**
+
+- **`StatsProps` 加可选 `timeLabel?: string`**。`PlayingScreen` 读 store 的 `timeLabel` 传给 `StatsPanel`,`StatsPanel` 只在它非空时
+  才把这个键放进形态组件的 props(`...(timeLabel ? { timeLabel } : {})`)。服务端只给 `time_travel` 单体局下发 `timeLabel`(ADR-039),
+  所以其余世界形态组件收到的 props 逐键不变;`LegacyStats` 不收它。
+- **记忆点接法按决策 3 推荐乙:契约零改动**。若 Felix 选甲,再加一个可选 `signatureTick` 到 `StatsProps`,同样只在本皮肤用。
+- **通用 CSS 加四组共 10 个带回落值的令牌**(同 `--prose-bg` / `--rule-idle` 先例;回落值 = 现值,未登记世界与五套皮肤的计算样式不变):
+
+  | 位置 | 令牌 | 回落值(= 现值) | 本皮肤 |
+  |---|---|---|---|
+  | `.title` | `--title-font` / `--title-weight` | `inherit` / `bold` | 楷体栈 / `400` |
+  | `.phase` | `--phase-color` / `--phase-shadow` | `var(--muted)` / `none` | `var(--text)` / 底色描边 |
+  | `.rule` | `--rule-radius` | `0 8px 8px 0` | `0` |
+  | `.ruleTag` | `--rule-tag-bg` / `--rule-tag-fg` / `--rule-tag-border` / `--rule-tag-radius` / `--rule-tag-weight` | `var(--accent)` / `#fff` / `none` / `6px` / `600` | `transparent` / `var(--zhu)` / `1px solid currentColor` / `0` / `400` |
+
+  ⚠️ 这是对**共享文件**的改动,不是只动本世界。`title` 的回落 `bold` 必须与 UA 的 `<h1>` 默认计算值一致(700),实现时实测。
+
+### 已知代价
+
+1. **字符集写死**:改标签文案或轴名不重裁,缺的字回落系统楷体(一个词两种字形)。时辰标签的文字在 Java(`ClientProjection`),
+   前端测试是**手抄**那 9 个标签,服务端改了文案前端测试不会红。缓解:决策 5 的测试 + 本条记录;本刀不动后端,不在 Java 侧加守卫(挂账)。
+2. **时辰牌比正文早一格**(ADR-039 已知代价 2):回合落地后时辰牌已是下一步。Felix 定放面板头、读作「现在是什么时候」。
+3. **顶部「第 N 回合」与时辰牌并存**:N = `state.turn`,时辰牌说的是第 N+1 回合,屏上有两种时间读数。Felix 定保留回合行。
+4. **共享 CSS 多了 10 个令牌**:未登记世界不受影响靠的是「回落值 = 现值」,DOM 对拍看不出 CSS 变化 → 验证方案 C 另做计算样式对拍。
+5. **楷体数字可能不等宽**:若源字体没有 `tnum` 或子集丢了它,滚动时数字宽度会变,居中的数字会左右晃。缓解:重裁保 `tnum`;没有就给 `.cellNum` 固定宽度,实测后报。
+6. **字体加载闪一下**(`font-display: swap`):首帧可能先用系统楷体 / 宋体,约 6.6KB 到了再换。接受。
+7. **移植债多一项**:小程序要 `wx.loadFontFace` 加载这份字体(ADR-017 §4 那一篮子),量很小,记账。
+8. **灯笼过渡动的是 `fill`**,不是 `transform` / `opacity`(AGENTS.md §6 写的是「优先」)。一个 15×24 的 SVG 路径,重绘面积可忽略;
+   换成「叠一层已填色的灯身、改 `opacity`」可以严格守 §6,但多一层 DOM。默认按样张用 `fill`,待审 5。
+9. **灯笼对读屏无声**:装饰性(`aria-hidden`),没有文字;熟客升档仍可从该格 `aria-label` 的档名读到。同修仙钟鸣。
+10. **珠子数量**:45 颗,一次 0→100 的滚动会让个位档连续拨很多下,每次都是一个短 WAAPI 动画。只动 `transform`;低端 Android 的实际帧率本地验不了,交真机。
+11. **Android 系统没有楷体**:网页字体加载失败时落到 `Noto Serif SC` / `serif`(宋体),不是楷体。交 Felix 真机看。
+
+### 验证方案(实现时照做,写进报告;不达标停下汇报,不自行调色)
+
+- **A · 单测**:
+  - 珠子映射:0、5、9、41、100 各档上珠 / 下珠的算上数(另含 100 的百位、越界值 clamp、小数取整)。
+  - 皮肤测试照 `paidanSkin.test.tsx`:登记(`time_travel` → 新皮肤、`signatureAxisKey === 'regulars'`、`hasIntro === false`、`bannerImgClass === ''`);
+    面板结构(时辰牌 / 灯笼 / 三个轴名 / 三组九档 / 三格);带 / 不带 `timeLabel`(不带时时辰牌节点不存在);
+    severity 四种取值(neutral / caution / danger / null 的状态词、danger 时珠子与数字的危险态、caution 时珠子不变色);
+    决策圈带 / 不带 `tag`(不带时小签节点不存在);灯笼:tick 变化亮起 → 2800ms 换熄灭 → +900ms 清空;亮着时再来一次被忽略;首次装载不亮;卸载后不残留。
+  - 字符集守卫:决策 5 的全部字符串 ⊆ 子集常量。
+  - `registry.test.ts`:`time_travel` 的 `skin` 由 `null` 改为 `'time_travel'`,相关断言同步改。
+- **B · DOM 对拍**(ADR-018 §4.5.1):`git worktree` 起 `main` 第二个 dev server,同一份桩数据;其余五套皮肤世界、两个未登记世界(《寻常》、动物人生)、
+  选择屏的 `<main>` outerHTML 归一化后**逐字节相等**;《七日开张》两边**不等**(正对照)。
+- **C · 计算样式对拍**(补 B 看不到的共享 CSS 令牌):同两个 dev server,对其余七个世界的 `.title` / `.phase` / `.rule` / `.ruleTag`
+  读 `font-family` / `font-weight` / `color` / `text-shadow` / `border-radius` / `background-color` / `border` 的计算值,两边相等。
+- **D · 对比度**(真实 DOM,375 宽;文字设透明后逐像素取文字区最暗底色):全部文字类 ≥ 4.5:1。我列的清单(比校勘的 18 类多,
+  实测时与校勘清单对齐,待审 10):标题、介绍行、回合行、返回键文字、时辰牌、轴名、数字(常态 / 危险)、档名、状态词(正常 / 注意 / 危险)、
+  正文、选项正文、选项编号、hint、tag、规矩标题、规矩未验证 / 已验证、「已验证」、提示条。
+  顶图上的回合行与标题在 **375×300 / 375×380 / 640×300 / 640×380** 四种横幅下各测一次。
+- **E · 截图**:三种数值状态(局中 41 / 36 / 18、都好、都糟)与满 100(样张的四组数)。
+- **F · 动效取证**(同 Slice G-1 的方法):`document.getAnimations()` 读关键帧属性 + 暂停逐帧读计算样式,列出**被动画的属性清单**
+  (预期:珠子 `transform`、数字的插值不是 CSS 动画、灯笼 `fill`、选项与返回键的过渡属性);reduced-motion 下的表现(珠子直接落位、灯笼无过渡但亮和熄)。
+- **G · 全绿**:`cd web && npm test && npm run lint && npm run build`,报具体数字;后端不动,不跑。
+
+**必须 Felix 亲眼看**:真机上珠子的手感、灯笼够不够明显、楷体在 Android 上的样子。
+
+### 实现切分(审过再开工;每刀 atomic commit)
+
+1. **字体**:重裁子集 + `OFL.txt` + `README.md`(来源、sha256、命令)。纯资源,不接线。
+2. **通用层**:`StatsProps.timeLabel` + `PlayingScreen` / `StatsPanel` 接线 + `game.module.css` 10 个令牌。其余世界 DOM 与计算样式不变(验证 B / C)。
+3. **皮肤**:`theme/qiri/` 全套 + `skins.tsx` + `registry.ts` 登记 + 测试。
+4. **文档回写**:本节实施记录;ADR-017 §5《七日开张》行「待局内皮肤」填实、§9 ① 表补一行;AGENTS.md §1 一级记忆点表补
+   `| 穿越古代《七日开张》\`time_travel\` | **灯笼** lantern lit |`(措辞待审 11);世界目录「局内皮肤仍未做」加补充;ROADMAP。
+
+### 待 Felix 审定清单
+
+1. 记忆点接法:**乙**(Ambient 托管、写主题根 class,契约零改动)/ 甲(`StatsProps` 加 `signatureTick`)?(推荐:乙)
+2. `timeLabel` 接法:`StatsProps` 加可选字段、只在非空时传?(推荐:是)
+3. 通用 CSS 加 10 个带回落值的令牌(标题字体 / 字重、回合行颜色 / 描边、规矩条目圆角、「已验证」五项),而不是在皮肤里写后代选择器?(推荐:令牌)
+4. 正文朱红细线用 `--prose-bg` 画(不开 `Prose` 槽、不改通用 `Prose`)?(推荐:是)
+5. 灯笼过渡按样张动 `fill`(已知代价 8),还是叠一层改 `opacity`?(推荐:`fill`)
+6. 返回键按压时长 `backPressDurMs: 150`(与选项过渡同值;`--t-dur: 0.15s`)?
+7. 规矩「刚被坐实」的通用脉冲(含 3px 外环)在本皮肤照旧?(推荐:照旧,不是本刀新增的效果)
+8. 提示条用 `#efe6d2` 底、`--ochre` 字(样张没有,防深色模式漏进来)?对比度实测后报。
+9. 字体不算 ADR-017 意义上的「库」,不走白名单窗口?(推荐:不算)
+10. 对比度「18 类」的清单以校勘的为准 —— 请把那 18 类给我,实测时逐项对齐;我列的多出来的几类照测。
+11. AGENTS.md §1 / ADR-017 §9 ① 一级记忆点的措辞:「**灯笼** lantern lit」?ADR-017 §5「光 / 动」栏:「熟客升档时面板头的灯笼亮一下(一级记忆点);局内无持续动效」?
