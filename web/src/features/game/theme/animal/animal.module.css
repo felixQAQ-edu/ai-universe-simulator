@@ -1,0 +1,354 @@
+/* ═══ 《动物人生》· 局内皮肤(ADR-021「局内皮肤 + 入场记忆点」一节)═══════════════
+ *
+ * 风格硬线(同 ADR-038 Slice G-2):平涂、1px 细线、方角(圆角 ≤ 2px)。
+ * 不用纹理 / 渐变质感 / 投影 / 高光 / 圆润造型。
+ * 暗红 --alarm 全屏只用在「危险」的档名与其小方块上。样张里没有的装饰一律不加。
+ * 色板与字号照 docs/animal-g2-samples/animal-ingame.html 的 .ani 逐值移植。
+ *
+ * 动效预算(AGENTS.md Motion Constraints §2),均为本世界局内首个、无可替代(§3):
+ *   持续     = 无
+ *   低频偶发 = 无(入场「门缝光」是一次性的,不占槽;驱动在 AnimalAmbient,样子在 AnimalStats 与本文件)
+ *   用户触发 = 数值滚动与光带(同一个驱动量)+ 选项 / 返回键按压
+ * 正文不参与任何动效(§4)。减弱动效下:不播入场,数字与光带同帧到位,选项无过渡。
+ * 字体:全部系统字体(世界名每局由模型起,字符集不固定,不引网页字体)。
+ */
+
+/* ── 主题根:色板 token ─────────────────────────────────────────────────── */
+.screen {
+  /* 世界决定明暗(ADR-018 §4.6):本世界固定浅色。 */
+  --bg: #eef2ea;
+  --paper: #f6f8f3;
+  --text: #2e3a2c;
+  --muted: #5b6857;
+  --line: #cdd5c6;
+  --seam: #bdb7a7;
+  --light: #e3b94f;
+  --light-dim: #cfc8ad;
+  --alarm: #8a3b30;
+  /* 选项按下的底色;提示条也用它。 */
+  --press: #f1ead0;
+
+  /* 通用层读的 token。 */
+  --card: var(--paper);
+  --chip: var(--bg);
+  /* 通用规矩面板的「已验证」:左条用 --muted、底是它的一成(样张 .rule.found 原值)。不用暗红。 */
+  --accent: var(--muted);
+  --accent-soft: rgba(91, 104, 87, 0.1);
+  /* 提示条:样张没有;写死以防系统深色模式的回落值漏进来。 */
+  --notice-bg: var(--press);
+  --notice-fg: var(--text);
+
+  --panel-radius: 2px;
+
+  /* 正文:一块纸色、1px 细框,别的没有。 */
+  --prose-bg: var(--paper);
+  --prose-border: 1px solid var(--line);
+  --prose-shadow: none;
+  --prose-pad: 1rem 1.05rem;
+  /* 光标不闪:正文区不留循环动画(AGENTS.md §4)。 */
+  --caret-play: paused;
+
+  /* 世界标题:系统字体,字重 600(样张 .title)。 */
+  --title-weight: 600;
+  /* 顶图上的回合行:正文色 + 底色描边(样张 .phase)。 */
+  --phase-color: var(--text);
+  --phase-shadow: 0 0 2px var(--bg), 0 0 5px var(--bg);
+
+  /* 规矩面板:通用结构,方角、细框的「已验证」签(签色用 --muted)。 */
+  --rule-idle: var(--muted);
+  --rule-radius: 0;
+  --rule-tag-bg: transparent;
+  --rule-tag-fg: var(--muted);
+  --rule-tag-border: 1px solid currentColor;
+  --rule-tag-radius: 0;
+  --rule-tag-weight: 400;
+
+  /* 时间感(成对,ADR-018 §4.3):返回键按压用。 */
+  --t-dur: 0.15s;
+  --t-ease: ease;
+
+  color: var(--text);
+}
+
+/* 内容在氛围底之上。 */
+.screen > *:not(.ambient) {
+  position: relative;
+  z-index: 1;
+}
+
+/* 氛围底(fixed 铺满视口:桌面端 .screen 只有 640px,两侧也是这个世界的底色)。没有任何动画。 */
+.ambient {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: var(--bg);
+}
+
+/* ── 返回键:细框方角,无装饰 ─────────────────────────────────────────────── */
+.back {
+  padding: 0 0.6rem;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--paper) 80%, transparent);
+  border: 1px solid var(--line);
+  border-radius: 2px;
+}
+
+.back:focus-visible,
+.opt:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+
+/* ── 数值形态:地板线,光从右边的门缝贴着地面照进来(细线稿)──────────────── */
+.floor {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  padding: 0.55rem 0.9rem 0.6rem;
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  column-gap: 0.7rem;
+  row-gap: 0;
+  align-items: end;
+}
+
+.sName,
+.sBand,
+.sNum,
+.track {
+  padding: 0.5rem 0 0.45rem;
+}
+
+.sName {
+  font-size: 0.78rem;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+}
+
+.sBand {
+  font-size: 0.86rem;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-width: 4.6em;
+}
+
+/* 小方块:neutral / 无 severity 时不显示,但占位保留(档名左缘对齐)。 */
+.sBand i {
+  width: 5px;
+  height: 5px;
+  flex: none;
+  visibility: hidden;
+}
+
+.sBand.caution i {
+  visibility: visible;
+  border: 1px solid var(--muted);
+}
+
+.sBand.danger i {
+  visibility: visible;
+  background: var(--alarm);
+}
+
+.sBand.danger {
+  color: var(--alarm);
+}
+
+.sNum {
+  font-size: 0.72rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  min-width: 1.6em;
+  text-align: right;
+}
+
+.track {
+  position: relative;
+  align-self: stretch;
+}
+
+.ground {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0.62rem;
+  height: 1px;
+  background: var(--seam);
+}
+
+.joint {
+  position: absolute;
+  bottom: calc(0.62rem - 3px);
+  width: 1px;
+  height: 3px;
+  background: var(--seam);
+}
+
+/* 光带的横向裁切框:贴在地板线上,4px 高、整格宽。 */
+.beamClip {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(0.62rem + 1px);
+  height: 4px;
+  overflow: hidden;
+}
+
+/* 光带:整条宽 100%,左端斜边是固定的 clip-path;长短由内联 translateX 给(只动 transform)。
+ * 刻意不写 transition:伸缩只是数值逐帧变化的结果。 */
+.beam {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--light);
+  clip-path: polygon(5px 0, 100% 0, 100% 100%, 0 100%);
+}
+
+/* 门缝:最右一道短竖线。 */
+.gap {
+  position: absolute;
+  right: 0;
+  bottom: 0.62rem;
+  width: 2px;
+  height: 13px;
+  background: var(--light);
+}
+
+.track.caution .beam {
+  background: var(--light-dim);
+}
+
+.track.danger .beam {
+  visibility: hidden;
+}
+
+.track.danger .gap {
+  background: var(--seam);
+}
+
+/* 入场(一级记忆点「门缝光」):一片纸色遮片盖住光带,从门那头往里退开;只动 transform。
+ * 900ms = AnimalAmbient 的 INTRO_SPREAD_MS。 */
+.veil {
+  position: absolute;
+  left: 0;
+  right: 2px;
+  bottom: calc(0.62rem + 1px);
+  height: 5px;
+  background: var(--paper);
+  transform-origin: left center;
+  transform: scaleX(0);
+  transition: transform 900ms ease-out;
+}
+
+/* 暗:遮片盖满(无过渡,立刻盖上),门缝为灰。class 由 AnimalAmbient 挂在主题根上。 */
+.closed .veil {
+  transform: scaleX(1);
+  transition: none;
+}
+
+.closed .gap {
+  background: var(--seam);
+}
+
+/* ── 决策圈:一块面板里几行,之间只隔一道细线 ─────────────────────────────── */
+.opts {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  display: flex;
+  flex-direction: column;
+}
+
+.opt {
+  display: grid;
+  grid-template-columns: 1.2rem 1fr;
+  column-gap: 0.5rem;
+  align-items: baseline;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: var(--text);
+  cursor: pointer;
+  padding: 0.8rem 0.95rem;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color 0.4s ease-out;
+}
+
+/* 带小签的行多一栏。 */
+.optTagged {
+  grid-template-columns: 1.2rem 1fr auto;
+}
+
+.opt + .opt {
+  border-top: 1px solid var(--line);
+}
+
+.opt:active:not(:disabled) {
+  background: var(--press);
+}
+
+.opt:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.optNo {
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+
+.optBody {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.optText {
+  min-width: 0;
+}
+
+.optHint {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+/* 小签:--muted 细框、无底、方角,与本皮肤的「已验证」签同一种样式;所有 tag 同一种。 */
+.optTag {
+  font-size: 0.68rem;
+  font-weight: 400;
+  line-height: 1.5;
+  padding: 0.05rem 0.3rem;
+  border: 1px solid currentColor;
+  white-space: nowrap;
+  color: var(--muted);
+}
+
+/* debug(仅 ?debug=1):重播入场。 */
+.debugBtn {
+  align-self: flex-start;
+  font-size: 0.68rem;
+  color: var(--muted);
+  background: transparent;
+  border: 1px dashed var(--muted);
+  border-radius: 2px;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+/* ── 减弱动效 ─────────────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  /* 入场不播(JS 侧不挂 closed);遮片的过渡一并关掉。 */
+  .veil {
+    transition: none;
+  }
+
+  .opt {
+    transition: none;
+  }
+}

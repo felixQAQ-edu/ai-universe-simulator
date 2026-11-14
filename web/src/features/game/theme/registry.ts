@@ -15,7 +15,14 @@ import styles from '../game.module.css';
  * 已登记新皮肤的世界 id。刀 1 规则怪谈(试验田)证明基建可用,刀 2 加修仙;刀 3/4 各自再加一条。
  * 未登记世界 → `skin: null` → 走旧实现。
  */
-export type SkinId = 'rules_creepy' | 'cultivation' | 'apocalypse' | 'cthulhu' | 'cyberpunk' | 'time_travel';
+export type SkinId =
+  | 'rules_creepy'
+  | 'cultivation'
+  | 'apocalypse'
+  | 'cthulhu'
+  | 'cyberpunk'
+  | 'time_travel'
+  | 'animal_life';
 
 /** 一个世界(单体或融合组合)的视觉登记。 */
 export interface WorldTheme {
@@ -88,8 +95,8 @@ const WORLDS: Readonly<Record<string, WorldEntry>> = {
     cardClass: styles.cardLifeSim,
     skin: null,
   },
-  // 《动物人生》(ADR-021):同《寻常》,顶图 + 浮世卡面,**皮肤不登记**(局内走旧实现),无记忆点。
-  // 2026-11-12 起卡面带一个持续环境动效(门缝底下的光与脚步,见 `.cardAnimalLife` 与 ADR-021 约束 5 补充段)。
+  // 《动物人生》(ADR-021):顶图 + 浮世卡面;2026-11-14 起登记局内皮肤(地板线上的门缝光,见 ADR-021「局内皮肤 + 入场记忆点」一节)。
+  // 卡面自 2026-11-12 起带一个持续环境动效(门缝底下的光与脚步,见 `.cardAnimalLife` 与 ADR-021 约束 5 补充段);局内没有持续动效。
   animal_life: {
     sceneUrl: '/scenes/animal_life.webp',
     // 取景(原图 1672×941,实测校准,2026-11-09):碗在原图 x 1075–1254、门缝在 x 1198–1255(右侧约 64%–75%)。
@@ -99,7 +106,7 @@ const WORLDS: Readonly<Record<string, WorldEntry>> = {
     //   40% → 54.2% 越过 53% 的标准,下限约 47%(46% → 53.04%)。
     scenePosition: '78% 50%',
     cardClass: styles.cardAnimalLife,
-    skin: null,
+    skin: 'animal_life', // 一级记忆点「门缝光」是入场序列,不挂任何轴(故无 signatureAxisKey)
   },
   // 《派单》(ADR-036):G-1 补顶图 + 卡面;G-2 登记局内皮肤「夜班」(义眼读数 / 接单卡 / 积水反光 / 义眼投影浮字)。
   cyberpunk: {
@@ -111,7 +118,7 @@ const WORLDS: Readonly<Record<string, WorldEntry>> = {
     cardClass: styles.cardPaidan,
     skin: 'cyberpunk', // G-2:一级记忆点「已为你优化时限。」挂 profile 向上跨档
   },
-  // 《七日开张》(ADR-038 Slice G-1):顶图 + 浮世卡面(卡面带一缕热气)。**皮肤不登记**(局内走旧实现),无记忆点。
+  // 《七日开张》(ADR-038):Slice G-1 补顶图 + 浮世卡面(卡面带一缕热气);Slice G-2 登记局内皮肤(九档算盘 + 灯笼)。
   time_travel: {
     sceneUrl: '/scenes/time_travel.webp',
     // 取景(原图 1672×941,未处理,2026-11-12 实测):焦点物件 = 蒸笼,横向在 x 718–900(图宽 42.9%–53.8%),

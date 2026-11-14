@@ -1,4 +1,8 @@
 import { CTHU, WASTE, XIAN } from './motion';
+import { AnimalActions } from './animal/AnimalActions';
+import { AnimalAmbient } from './animal/AnimalAmbient';
+import { AnimalStats } from './animal/AnimalStats';
+import animal from './animal/animal.module.css';
 import type { WorldSkin } from './contract';
 import type { SkinId } from './registry';
 import { CthuActions } from './cthu/CthuActions';
@@ -174,5 +178,24 @@ export const SKINS: Partial<Record<SkinId, WorldSkin>> = {
     Ambient: QiriAmbient,
     Stats: QiriStats,
     Actions: QiriActions,
+  },
+  animal_life: {
+    id: 'animal_life',
+    // 《动物人生》(ADR-021 局内皮肤一节):一级记忆点「门缝光」是**入场序列**(进局时光照进来一次),
+    // 同规则怪谈的托管方式 —— 新开局与续局都播;新开局正文等它走完再逐字(ADR-018 §4.7)。
+    hasIntro: true,
+    // 时间感(Felix 定):500ms,power3.out = 演示里的 1 − (1 − t)³,不回弹;光带跟着同一个显示值走。没有仪式延迟。
+    valueRoll: { durationMs: 500, ease: 'power3.out' },
+    // **不配 signatureAxisKey**:记忆点不挂任何轴,收到的 signatureTick 恒为 0。
+    screenClass: animal.screen,
+    // 局内没有持续或低频的 CSS 循环动效,停表时无事可停。
+    pausedClass: '',
+    // 局内不加持续环境动效(顶图不挂动效)。
+    bannerImgClass: '',
+    // 返回键:细框方角,无装饰。按压沿用通用层的透明度反馈(不登记 backPressDurMs)。
+    backClass: animal.back,
+    Ambient: AnimalAmbient,
+    Stats: AnimalStats,
+    Actions: AnimalActions,
   },
 };

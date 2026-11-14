@@ -90,14 +90,16 @@ describe('resolveWorldTheme · 皮肤登记(feature gate,ADR-018 §4.5)', () => 
     expect(t.skin).toBeNull();
   });
 
-  // 《动物人生》同《寻常》:只有顶图 + 卡面(卡面自 2026-11-12 起带环境动效),皮肤刻意不登记 → 局内仍走旧实现。
-  it('《动物人生》animal_life 有图有卡、但不登记皮肤', () => {
+  // 《动物人生》:顶图 + 卡面(卡面自 2026-11-12 起带环境动效);2026-11-14 起登记局内皮肤(ADR-021 局内皮肤一节)。
+  it('《动物人生》animal_life 有图有卡,登记了自己的皮肤,取景点照旧', () => {
     const t = resolveWorldTheme('animal_life');
     expect(t.key).toBe('animal_life');
     expect(t.sceneUrl).toBe('/scenes/animal_life.webp');
     expect(t.cardClass).toBe(styles.cardAnimalLife);
     expect(t.cardClass).toBeTruthy();
-    expect(t.skin).toBeNull();
+    expect(t.skin).toBe('animal_life');
+    expect(t.scenePosition).toBe('78% 50%');
+    expect(cardTheme('animal_life').skin).toBe('animal_life'); // 卡片本身不消费 skin
   });
 
   // 《派单》:G-1 只补顶图 + 卡面;G-2 登记局内皮肤「夜班」。
