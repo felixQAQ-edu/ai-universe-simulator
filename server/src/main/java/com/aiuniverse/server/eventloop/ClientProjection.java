@@ -1,7 +1,9 @@
 package com.aiuniverse.server.eventloop;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.function.IntFunction;
 
 import com.aiuniverse.server.engine.Engine;
@@ -12,7 +14,7 @@ import tools.jackson.databind.node.JsonNodeFactory;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * 下发给前端的两项<b>展示层派生</b>(ADR-039):时段标签 {@code timeLabel} 与选项 {@code tag}。
+ * 下发给前端的<b>展示层派生</b>:时段标签 {@code timeLabel} 与选项 {@code tag}(ADR-039)、被标记的回合 {@code markedTurns}(ADR-040)。
  * 三处下发共用这里:{@code GameInitService.init} / {@code GameInitService.resume} / {@code EventLoopService.buildDelta}。
  *
  * <p><b>只属于视图 3</b>(CONTEXT §三.9)。两项都由已落盘的东西现算({@code state.turn}、{@code world.archetypes}、
@@ -39,6 +41,13 @@ public final class ClientProjection {
 	 */
 	static final Map<String, Map<String, String>> ACTION_TAGS = Map.of(
 			"time_travel", qiriTags());
+
+	/**
+	 * archetype →「issues → 被标记的回合号(升序去重)」(ADR-040)。标记由服务端在落账那一刻判定、记成引擎 issue;
+	 * 这里只解析,不读数值、不重新判档。一个世界一种标记。
+	 */
+	static final Map<String, Function<List<String>, List<Integer>>> MARKED_TURNS = Map.of(
+			XunTiesMarker.ARCHETYPE, XunTiesMarker::turns);
 
 	private static Map<String, String> qiriTags() {
 		Map<String, String> m = new LinkedHashMap<>();
@@ -117,6 +126,21 @@ public final class ClientProjection {
 			}
 		}
 		return out;
+	}
+
+	/**
+	 * 本局被标记过的回合号,升序;没有则返回 {@code null}(调用方据此<b>不写这个键</b>)。
+	 * 未登记的世界、融合局、清单为空 → {@code null}。与 {@link #timeLabel} 不同,<b>已结束的局照常给</b>:
+	 * 它说的是已经发生过的回合,结局画面上依然成立。回合号 n 即第 n 回合(n ≤ {@code state.turn})。
+	 */
+	public static List<Integer> markedTurns(Engine engine) {
+		String archetype = singleArchetype(engine);
+		Function<List<String>, List<Integer>> fn = archetype == null ? null : MARKED_TURNS.get(archetype);
+		if (fn == null) {
+			return null;
+		}
+		List<Integer> turns = fn.apply(engine.issues());
+		return turns.isEmpty() ? null : List.copyOf(turns);
 	}
 
 	/** 单体局返回它的 archetype;融合局(或 archetypes 异常)返回 null。 */

@@ -1,5 +1,7 @@
 package com.aiuniverse.server.worldgen;
 
+import java.util.List;
+
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 import tools.jackson.databind.JsonNode;
@@ -19,8 +21,11 @@ import tools.jackson.databind.JsonNode;
  * @param timeLabel        本局此刻的时段标签(ADR-039,展示文字;如《七日开张》「第三日 · 晚市」)。未登记的世界、融合局、
  *                         已结束的局为 {@code null},<b>此时这个键不出现在响应里</b>(不写成 null):其他世界的响应因此
  *                         逐字节不变,由 {@code ClientProjectionParityTest} 守。以后再加可空分量,照这个做法标注
+ * @param markedTurns      被服务端标记过的回合号,升序(ADR-040,展示数据;目前只有《寻常》牵挂升档)。未登记的世界、融合局、
+ *                         清单为空时为 {@code null},<b>键不出现</b>(同 {@code timeLabel});已结束的局照常给
  */
 public record InitResponse(String saveId, JsonNode world, String openingNarrative,
 		JsonNode availableActions, JsonNode attributes,
-		@JsonInclude(JsonInclude.Include.NON_NULL) String timeLabel) {
+		@JsonInclude(JsonInclude.Include.NON_NULL) String timeLabel,
+		@JsonInclude(JsonInclude.Include.NON_NULL) List<Integer> markedTurns) {
 }

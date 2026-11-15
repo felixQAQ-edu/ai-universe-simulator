@@ -92,7 +92,8 @@ public class GameInitService {
 		//    只有下发的这一份是投影后的副本。
 		ObjectNode clientWorld = session.engine().toClientState();
 		return new InitResponse(saveId, clientWorld, opening, ClientProjection.actions(session.engine(), actions),
-				attributeMeta(axes), ClientProjection.timeLabel(session.engine()));
+				attributeMeta(axes), ClientProjection.timeLabel(session.engine()),
+				ClientProjection.markedTurns(session.engine()));
 	}
 
 	/**
@@ -134,7 +135,7 @@ public class GameInitService {
 		// 决策圈与时段标签与 init / 回合 delta 同一个投影(ADR-039);都是现算的,旧存档回载后也有。
 		return new InitResponse(saveId, clientWorld, "",
 				ClientProjection.actions(session.engine(), session.currentActions()), attributeMeta(axes),
-				ClientProjection.timeLabel(session.engine()));
+				ClientProjection.timeLabel(session.engine()), ClientProjection.markedTurns(session.engine()));
 	}
 
 	/** 单个 archetype 入参校验(ADR-008 决策 4):非已知枚举 → 非法;已知但未激活 → 未开放。两者均 → 400。 */

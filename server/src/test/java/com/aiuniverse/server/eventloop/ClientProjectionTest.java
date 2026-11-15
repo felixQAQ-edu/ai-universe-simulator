@@ -320,18 +320,19 @@ class ClientProjectionTest {
 	void initResponseSerialization() {
 		Engine e = qiri(0);
 		InitResponse withLabel = new InitResponse("s", e.toClientState(), "开场", ClientProjection.actions(e, prefixed()),
-				mapper.createArrayNode(), ClientProjection.timeLabel(e));
+				mapper.createArrayNode(), ClientProjection.timeLabel(e), null);
 		assertThat(mapper.writeValueAsString(withLabel)).contains("\"timeLabel\":\"第一日 · 早市\"").contains("\"tag\":\"怪点子\"");
-		InitResponse without = new InitResponse("s", e.toClientState(), "开场", prefixed(), mapper.createArrayNode(), null);
+		InitResponse without = new InitResponse("s", e.toClientState(), "开场", prefixed(), mapper.createArrayNode(), null, null);
 		assertThat(mapper.writeValueAsString(without)).doesNotContain("timeLabel");
 	}
 
 	// ── 守卫 ─────────────────────────────────────────────────────────
 
-	/** delta 的顶层键由数值轴与结构键共用:任何轴的 key 都不得与结构键重名(含新加的 timeLabel)。 */
+	/** delta 的顶层键由数值轴与结构键共用:任何轴的 key 都不得与结构键重名(含 timeLabel、ADR-040 的 markedTurns)。 */
 	@Test
 	void noAxisKeyCollidesWithDeltaStructuralKeys() {
-		Set<String> structural = Set.of("turn", "status", "discoveredRules", "availableActions", "timeLabel");
+		Set<String> structural = Set.of("turn", "status", "discoveredRules", "availableActions", "timeLabel",
+				"markedTurns");
 		for (ArchetypeMeta m : registry.activeMetas()) {
 			for (AttributeAxis a : m.attributes()) {
 				assertThat(structural).as(m.id()).doesNotContain(a.key());

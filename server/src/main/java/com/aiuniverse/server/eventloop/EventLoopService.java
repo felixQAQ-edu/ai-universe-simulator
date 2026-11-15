@@ -603,6 +603,12 @@ public class EventLoopService implements TurnExecutor {
 		if (timeLabel != null) {
 			delta.put("timeLabel", timeLabel);
 		}
+		// 被标记的回合(ADR-040):有才写这个键(未登记的世界 / 融合局 / 空清单不写,delta 逐字节不变);已结束的局照常写。
+		List<Integer> markedTurns = ClientProjection.markedTurns(engine);
+		if (markedTurns != null) {
+			ArrayNode marked = delta.putArray("markedTurns");
+			markedTurns.forEach(marked::add);
+		}
 		return delta;
 	}
 
