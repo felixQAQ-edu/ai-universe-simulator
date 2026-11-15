@@ -883,3 +883,353 @@ registry 与提示词各改了几处、有没有出现「族级只剩一句空�
   §1 已在事实上扩到 per-archetype,**是否改写 CONTEXT 待验通后判,本刀不动**)
 - **源文件(后续刀次落点)**:`server/.../archetype/ArchetypeRegistry.java`、
   `server/.../worldgen/WorldGenPromptBuilder.java`、`server/.../eventloop/TurnPromptBuilder.java`
+
+## 《寻常》局内皮肤 + 记忆点「留下的那一年」(草案,2026-11-15):解除裁定一
+
+**状态:待 Felix 审定。** 本节只定方向,`web/src` 与后端零改动,审过再实现。上文原文一字不动。
+写法照 [ADR-021](ADR-021-lifetime-family-layer-and-animal-life.md)「局内皮肤 + 入场记忆点」一节(那节解除的是 ADR-021 自己的约束条件第 5 条)。
+
+**本节解除的约束**:§9 裁定一「**第一版不做专属皮肤**」(本 ADR §9 首段)。**本节审定之日起,裁定一解除**:《寻常》登记自己的局内皮肤与一级记忆点。
+出处:Felix 2026-11-11 定「每个世界都要有自己的局内界面」(ADR-021 该节首次入档);2026-11-15 定稿本皮肤的两份样张。
+裁定一下面的补充段与已知代价 4,逐段裁定如下(原文都不改;审定后在裁定一下面加一个指向本节的补充块,草案阶段不加):
+
+| 位置 | 原句(摘) | 裁定 |
+|---|---|---|
+| 裁定一「已兑现(2026-11-09)」段首句 | 「视觉这一步现在补上了,**只补到静态为止**」 | **不作废**。它记的是 2026-11-09 那一刀的范围,作为那天的记录仍然真实;只是不再描述现状 |
+| 同段「仍未做、且不属于这一步」 | 「皮肤(`skin` 仍为 `null`,局内走旧实现)、任何动效与记忆点、字体(仍 `system-ui`)」 | **作废**。三项都由本节补上:皮肤、局内动效与一级记忆点、标题与档名的宋体 |
+| 「补充(2026-11-12)」段「不变的部分」 | 「皮肤仍未登记(`skin: null`,局内走旧实现)、无记忆点、字体不变 —— 裁定一的本体『不做专属皮肤』仍然成立」 | **作废**(整句)。同段前半「选择屏卡面加了一个持续的环境动效」不动,仍然成立 |
+| 已知代价 4 | 「第一版无专属皮肤,与四个已登记世界并排看会显素」 | **作废**。其缓解方式里「若玩法验通,补皮肤是一条独立的、有依据的刀」就是本节。另:该条「中性卡 + 无顶图 + system-ui」三项里前两项早在 2026-11-09 就不成立了(已兑现段 ①②),当时没有回改,这里一并记明 |
+
+**为什么写在本 ADR 而不是新开一份**:解除的是本 ADR 自己立的裁定;世界的局内皮肤写在该世界的 ADR 里已有三次先例
+(ADR-036、ADR-038 的 Slice G-2,ADR-021 该节)。**与 ADR-021 那节不同,本节要动跨世界的契约**(`StatsProps` 一个可选字段、`WorldSkin` 一个可选开关、
+前端 API 契约一个可选键、通用 CSS 两个令牌,见决策 2)—— 形状与 ADR-038 Slice G-2 决策 6(`timeLabel`)相同:全部是「不登记就不出现」的可选项,
+其余世界的 props 逐键不变、DOM 与计算样式不变(验证 B / C)。没有需要独立编号的决策;Felix 若认为契约改动该另立 ADR,改走新编号(待审 1)。
+
+**真理源**:Felix 2026-11-15 定稿的两份样张,随本分支进来(本分支 commit `d19757d`,逐字节拷贝,哈希已核与原件一致)。
+CSS 数值、结构、动效参数以它们为准;样张里的正文、选项、规矩条文是示意文本,演示里的初值(第 9 回合、气力 92…)与按钮增减也是示意,不进产品。
+
+| 文件(`docs/xun-g2-samples/`) | 用途 | 字节 | sha256 |
+|---|---|---|---|
+| `xun-ingame.html` | 静态样张(第三版;第 110 行是 151,969 字的 base64 webp 顶图) | 167,794 | `45247d5c71260398f89a61a1584a0b7b1e36661b042e44825b2281d2a40fbc58` |
+| `xun-motion.html` | 动效演示(默认选项与时长即定稿值) | 21,304 | `8b0544b12c48523b0d067919dd99894475161e9292f15e0184adb60ba4659077` |
+
+**风格硬线**(Felix 2026-11-15):冷灰、平面、细线、方角。不用纹理、渐变质感、投影、圆润可爱的造型。
+`--worn`(`#86514a`)是唯一的暖色,**只用在危险档**。样张里没有的装饰一律不加。
+两处看起来像例外、实际不是,先说清:① 带缺口的线(刻痕底线、残线、正文上下线)在样张里用 `linear-gradient` 画,那是**平涂的断线**,不是渐变质感
+(同 ADR-038 G-2 决策 4 的说法);② 顶图上回合行的 `text-shadow: 0 0 2px bg, 0 0 5px bg` 是**底色描边**、保证压在图上可读,不是投影(动物人生、七日开张同款)。
+
+### 勘察结论(只读 `main` `a8c25e8`)
+
+**1. 现状:皮肤未登记,两条测试钉着 null。** `registry.ts:87–96` `life_sim` 为 `skin: null`,无 `signatureAxisKey`;
+`registry.test.ts:86` 断言「有图有卡、但不登记皮肤」,`:154` 断言 `['life_sim', 'apocalypse']` 的 `skin` 为 null。
+后者是「融合局取 host 皮肤」规则下的推论:登记后它会变成《寻常》的皮肤。服务端 `FUSION_COMBOS` 没有这个组合(init 400),
+实际到不了;实现时把该断言改为新值,不另加分支。
+
+**2. severity 事实(服务端派生,`AttributeAxis.bandRanges` 四分支)。** 四根轴里**只有气力**会进注意 / 危险:
+气力 = 致命 depletion,0–20「衰弱」danger、21–50「耗损」caution、51–100「康健」neutral;热望、路口 = `resource`(非致命 depletion)全档 neutral;
+牵挂 = 累积、未标 `perilAtHigh`,全档 neutral。所以 `--worn` 在产品里只会出现在气力那一行、气力 ≤ 20 时。
+演示里的 `severity()` 是「只有 lethal 轴、最低档 danger、次档 caution」的替身(`xun-motion.html:198`),与服务端规则一致;实现里**不搬**这段,只读 `AxisView.severity`。
+
+**3. (a) `markedTurns` 怎么到皮肤 —— 现在到不了。**
+- 服务端:`init` / `state` 响应顶层与回合 `delta` 顶层(ADR-040 决策 3,`ClientProjection.markedTurns`,`ClientProjection.java:136`);
+  升序整数数组,空清单 / 未登记世界 / 融合局不写键,已结束的局照常给。**清单只增不减**,所以「delta 里没有这个键」恒等于「本局还没有被标记的回合」。
+- `api/contract.ts`:`InitResult`(:135–150)与 `TurnDelta`(:166–174)**都没有这个字段**。
+- `h5GameApi.ts` `parseDelta`(:170–192)只收「不在 `DELTA_STRUCTURAL` 里的**数字**键」进 `attributes`,数组键**被静默丢掉**
+  (没混进 `attributes`,这点是好的;但也没带出来)。`initGame` / `resumeGame` 把响应体整个 `as InitResult` 透传(:68 / :91),
+  运行时键其实在,只是类型上不存在、store 不读。
+- `gameStore`:`timeLabel` 在四处写入(`state/gameStore.ts:294` 开局、`:356` / `:398` 续局两条路径、`:456` delta),`markedTurns` 无。
+- 结论:要接,形状照 ADR-038 G-2 决策 6 / ADR-039 的 `timeLabel`(决策 2)。
+
+**4. (b) 刻痕行放 `Stats` 还是 `Ambient` —— 放 `Stats`,但 `StatsProps` 没有回合数。**
+- 刻痕行在样张里位于顶图与四行之间、与四行同属数值块(`xun-motion.html` `.years` 紧接 `.words`);入场要求「刻痕先走完,四根条再画」,
+  两段时间线由同一个组件持有才不必跨组件对时。
+- `Ambient` 在 `<main>` 里是第一个子节点、排在 `SceneBanner` 之前(`GameScreen.tsx` PlayingScreen 返回体),现有皮肤都用它画 `position: fixed` 的底或驱动根 class;
+  让它画一条要落在数值块里的刻痕,只能绝对定位并量数值块的位置 —— 即 `AmbientProps.rootRef` 头注释禁止的「捅穿组件边界」。
+- `AmbientProps.turn`(contract.ts:86)有回合数;**`StatsProps`(:188)没有**。`markedTurns` 只在非空时才有,不能顺带捎回合数(新开局前若干回合清单为空,刻痕却每回合都要长)。
+  → 决策 2c:`StatsProps` 加一个只给登记了的皮肤的可选字段。
+
+**5. (c) 残痕怎么知道上一个值 —— 皮肤只看得到滚动中的显示值,够用。**
+- `AxisView.value` 是 `useAnimatedValues` 插值中的显示值、已取整(`StatsPanel.tsx` `toAxisView(axis, shown, …)`);皮肤拿不到「起点 / 终点」。
+  契约 `ValueRoll` 头注释(contract.ts:208):「数值滚动的时间感由皮肤给,**同步逻辑不在皮肤**」。
+- 样张的残痕:**滚动开始那一刻**新建一段 `left = to%`、`width = (from − to)%` 的 `--muted` 2px 实线,插在实线**下面**;
+  建好后停 `ghostHold` 300ms(**从滚动开始算,不是从滚动结束算**),再用 1400ms 淡到 0,结束后移除(`xun-motion.html` `ghost()` / `roll()`)。
+  默认 700ms 的滚动,残痕在第 300ms 开始淡、第 1700ms 消失。上涨不留残痕。
+- 皮肤侧可以不知道终点:实线是不透明的 2px、压在残痕上面,所以把残痕画成 `0 → from`(而不是 `to → from`),被实线盖住的部分看不见,
+  露出来的恰是「实线退回去后空出的那一截」—— 与样张逐像素等价。`from` = 「数值开始下降前最后一次渲染的显示值」,皮肤用一个 ref 记住上一帧的 `value`,
+  第一次看到 `value < 上一帧` 时取上一帧值作 `from`、起残痕。
+  这与 `QiriStats` `Bead` 记 `prev.current`(QiriStats.tsx:88–95)同一种做法:**记的是派生出来的上一帧画面,不插值、不另起驱动量**,
+  不违反「同步逻辑不在皮肤」。淡出的定时器只读皮肤自己登记的常数(300 / 1400),不读滚动进度。
+- 档名换档:样张每帧都把 `severity` class 直接换(条色、小方块同帧变),**只有档名文字**做 350ms 淡出 → 换字 → 350ms 淡入(`setBand()`,`band` 700 的一半)。
+  所以字比数字晚最多 350ms 换成新档名 —— 这是样张定的手感,不是同步错误;`a11yText` 仍由通用层同帧给出新档名(决策 3)。
+
+**6. (d) `hasIntro` 与开场逐字 —— 两者在时间上碰不到,取 `hasIntro: false`。**
+- `GameScreen.tsx:113` `isOpening = turn === 0`;`:139` 只有 `isOpening && skin.hasIntro` 才等 `onIntroDone`;`:134` 兜底 2.5s。
+  `onIntroDone` 只在 `AmbientProps` 上(:77),`Stats` 收不到。
+- 新开局(turn 0):0 条刻痕,入场只剩四根条:`120 + 3 × 90 + 1100 = 1490ms`。此时开场正文在逐字 —— 逐字在正文区,四根条在数值区,不是同一块。
+- 续局(turn > 0):`isOpening` 为 false,正文直接整段显示、不逐字,入场再长也不和逐字串行。
+- 所以没有需要串行的东西;取 `hasIntro: true` 反而要把 `onIntroDone` 接进 `Stats`(契约改动)、换来「开场正文等 1.5s 才开始打字」。
+  ADR-018 §4.7 的「先看见环境,再进入叙事」管的是氛围层入场序列,本皮肤没有氛围层入场。
+
+**7. (e) 动效预算与记忆点唯一 —— 逐条见决策 5。** 一处要 Felix 判:每回合落地时,数值滚动(连实线、残痕、档名)与「新刻痕淡入、旧刻痕降一级」**同时发生**,
+驱动量不同(一个是轴值、一个是回合数),但是同一次玩家动作的同一个回应。
+
+**8. (f) `signatureAxisKey` —— 不需要,前提成立。**
+`useSignalCrossing`(useSignalCrossing.ts:54–59)按 `signatureAxisKey` 在**前端**算档序号 —— 它用的是未取整的原值(ADR-040 挂账一),
+而且一登记就会喂 `ceremonyDelayMs`、`signatureSeverity` 等通用路径。本记忆点的信号是服务端判定、已落盘的 `markedTurns`(ADR-040),
+前端不再判一次档;登记签名轴反而会出现「两套判定,口径不同」。不登记,`signatureTick` 恒为 0(契约要求每套皮肤正面回答「我盯不盯轴」:不盯)。
+
+**9. (g) 其他世界不变怎么验 —— 照 ADR-021 / ADR-038 G-2 的验证 B / C。** `git worktree` 起 `main` 第二个 dev server,同一份桩数据,
+outerHTML 归一化后逐字节对拍;共享 CSS 的新令牌另做计算样式对拍(DOM 对拍看不出 CSS)。新增的 `StatsProps` 字段另由单测断言「其余七套皮肤收到的 props 键集合不变」。
+
+**10. 通用部件与样张的差,哪些有令牌、哪些没有。**
+
+| 部件 | 样张 | 通用现值 | 有无令牌 |
+|---|---|---|---|
+| 标题 `.title` | 宋体、500、1.6rem、`letter-spacing: 0.3em`、`margin 0.3rem 0 0.15rem` | 继承字体、bold、1.5rem、无字距、`0.25rem 0 0.1rem` | 字体 / 字重**有**(`--title-font` / `--title-weight`);字号、字距、外边距**无** |
+| 回合行 `.phase` | `--text` + 底色描边 | `var(--muted)`、无描边 | **有**(`--phase-color` / `--phase-shadow`) |
+| 顶图 | `saturate(0.7)`、取景 `100% 50%`、高 320px | 无滤镜;取景已登记;`clamp(300px, 42vh, 380px)` | 滤镜走 `bannerImgClass`(皮肤给 class,静态,不是动效);高度见决策 4 |
+| 正文 | 无框;上下各一条断线 | 卡片底、框、圆角 | **有**(`--prose-bg` / `--prose-border` / `--prose-pad` / `--panel-radius`) |
+| 返回键 | 字 + 下划线、方角、`--text` | 框、8px 圆角、`--muted` | 走 `backClass` |
+| 规矩面板 | 纸色、1px 线、2px 圆角;已懂的那条加粗、左缘 `--muted` | — | **有**(`--panel-radius` / `--rule-*` / `--accent*`) |
+| 提示条 | 样张没有 | 深色模式下回落深底(`game.module.css` `.notice`) | **有**(`--notice-bg` / `--notice-fg`) |
+
+**11. 样张之间、样张与简报之间的差(实现以哪个为准,在决策里逐条定)。**
+- 刻痕行高:静态样张 `.years` 13px,演示 15px。12px 的长刻痕 + 底部 1px 偏移 + 1px 底线要 14px,13px 放不下 → 以**演示 15px** 为准。
+- 刻痕间距:静态样张固定 6px;演示 `min(6, (宽 − 2) / n)`(太多时等比压缩)→ 以**演示**为准(简报同)。
+- 入场时每条刻痕自己用 **240ms** 淡入(`enter()` 计数模式);刻痕全部出完到第一根条起画之间有 **120ms** 空档;
+  长刻痕在新刻痕出现后 **`0.6 × 900 = 540ms`** 才开始长(`apply()`)。三个数简报没写,演示里有 → 照演示。
+- 演示里刻痕位置、长刻痕、实线宽度分别动的是 `left`、`height`、`width` —— 都是布局属性(AGENTS.md §6 要避免)。实现改用等价的 `transform` / 不做过渡,见决策 3 / 5。
+- 字体链接:静态样张的 Google Fonts `text=` 带了数字和四个轴名(56 个码位),但两份样张里数字与轴名都**没用宋体**(`.wName` / `.wNum` 无 `font-family`);
+  演示的 `text=` 恰是「寻常」+ 全部档名(32 个码位)。以演示与简报为准。
+- 演示的入场从 0 开始**连数字一起滚**,所以气力从 0 滚到 92 的途中会先经过「衰弱 · 危险」再到「康健」(`enter()` 的 `paint(k, 0)` + `setBand(k, 0)`)。见决策 3 入场一条。
+
+**12. 字体:来源已核,源文件 sha256 本刀没有算。**
+简报要求把 OFL 来源和 sha256 写进 ADR。来源已核(GitHub API 元数据,没有下载文件):
+`notofonts/noto-cjk`,`Serif/SubsetOTF/SC/NotoSerifSC-Medium.otf`,11,734,356 B,git blob `490a57d8e5e94cb01402fed126dc009561baf585`,
+最后一次改动该文件的提交 `9b0f1436e455d902de067a2501422e5dc71ad16b`(2024-07-30);授权 `Serif/LICENSE`(SIL OFL 1.1)。
+**sha256 要下载这 11.7MB 的文件才能算**,下载需要 Felix 点头,本刀没做 —— 记为待审 9,实现刀(或 Felix 许可后补一个 commit)填上。
+
+**13. 不搬的东西。** 演示的控制台(按钮、滑杆、`opt`)、`START` 初值、`rnd()` 增减、`b-enter` 那段「回放入场时 300ms 后再把长刻痕补长」(那是演示自己的重播逻辑);
+静态样张的示意正文、选项、规矩条文;两份样张里 `.xun` 的 `border-radius: 18px` 与外框(那是样张把手机屏框出来的画框,不是界面)。
+
+### 决策
+
+**1. 皮肤登记**:`theme/xun/` 下 `XunAmbient`、`XunStats`、`XunActions`、`xun.module.css`、`ticks.ts`(纯函数)、`xunSkin.test.tsx`、`fonts/`;
+`skins.tsx` 加一条;`SkinId` 加 `'life_sim'`;`WORLDS.life_sim.skin` 由 `null` 改为 `'life_sim'`(取景 `'100% 50%'` 不动)。不开 `Interlude` / `Prose` 槽。
+
+```
+life_sim: {
+  id: 'life_sim',
+  hasIntro: false,                                   // 勘察 6:新局入场只有四根条,与开场逐字不在同一块;续局不逐字
+  valueRoll: { durationMs: 700, ease: 'power2.out' }, // = 演示的 1 − (1 − x)³(GSAP power2 = cubic),待审 4
+  // 不配 signatureAxisKey:记忆点读服务端的 markedTurns(勘察 8)
+  statsTimeline: true,                               // 决策 2c:要回合数与 markedTurns
+  screenClass, pausedClass: '',                      // 没有持续动效,停表无事可停
+  bannerImgClass: xun.bannerImg,                     // saturate(0.7),静态
+  backClass: xun.back,
+  Ambient: XunAmbient, Stats: XunStats, Actions: XunActions,
+}
+```
+
+**2. 契约与通用层改动(其余七套皮肤的调用、DOM 与计算样式不变)**
+
+- **2a · API 契约**:`InitResult` 与 `TurnDelta` 各加可选 `markedTurns?: number[]`。`parseDelta` 把 `'markedTurns'` 加进 `DELTA_STRUCTURAL`,
+  有且是整数数组才带上这个键,否则不带(不写 `undefined` 键,老响应解析结果不变 —— 同 `timeLabel` 那一行)。`initGame` / `resumeGame` 透传不改。
+- **2b · store**:`gameStore` 加 `markedTurns: readonly number[]`(初值 `[]`),与 `timeLabel` 同四处写入:开局 / 两条续局路径 = `res.markedTurns ?? []`,
+  delta = `delta.markedTurns ?? []`(勘察 3:清单只增不减,没有键 = 空)。`reset` 清空。
+- **2c · `StatsProps` 加可选 `timeline?: { turn: number; markedTurns: readonly number[] }`,只给声明了 `WorldSkin.statsTimeline: true` 的皮肤**。
+  `PlayingScreen` 把 store 的 `turn` 与 `markedTurns` 交给 `StatsPanel`;`StatsPanel` 只在 `bundle.skin.statsTimeline` 为真时才把这个键放进形态组件的 props。
+  其余七套皮肤不声明 → 收到的 props 与今天逐键相同;`LegacyStats` 不收。三种接法:
+
+  | | 做法 | 好处 | 代价 |
+  |---|---|---|---|
+  | **甲(推荐)** | `WorldSkin` 加可选开关 `statsTimeline?: true`,`StatsProps` 加可选 `timeline` | 不声明的皮肤 props 逐键不变(G-2 决策 6 的标准);刻痕与四根条在同一组件,入场先后由它一个人排 | 契约多两个可选项;开关是「这套皮肤要不要回合数」的声明,不是世界判定 |
+  | 乙 | `StatsProps` 加必传 `turn`(+ 非空才传的 `markedTurns`) | 少一个开关 | 七套皮肤 props 都多一个键(DOM 不变,但「逐键不变」那条线破了;下一个想要回合数的世界会照抄) |
+  | 丙 | 刻痕交 `Ambient` 画(它有 `turn`) | 契约只加 `markedTurns` | 勘察 4:要绝对定位并量数值块 = 捅穿组件边界;入场先后跨两个组件对时。不采用 |
+
+- **2d · 通用 CSS 加两个带回落值的令牌**(同 `--title-font` 先例,回落值 = 现值):`.title` 的 `font-size: var(--title-size, 1.5rem)`、
+  `letter-spacing: var(--title-tracking, normal)`。外边距差 0.05rem(勘察 10),**不加令牌、用通用值**(待审 6)。
+  ⚠️ 这是对共享文件的改动,不只动本世界 → 验证 C 对拍计算样式。
+
+**3. 数值形态:四行 + 刻痕(`XunStats`)**
+
+结构(自上而下,照演示):
+
+```
+.xunPanel
+  .years            刻痕行(aria-hidden),高 15px;::after 底部 1px 断线(--worn-line)
+    i × turn        每回合一条,1px × 7px,bottom: 1px;markedTurns 里的那几条 12px(.kept)
+  .words            gap 0.5rem,padding-top 0.85rem
+    .word × 4       grid 2.4rem | 1fr | 4.9rem | 1.5rem,column-gap 1rem;aria-label = axis.a11yText
+      .wName        displayName,0.72rem,letter-spacing 0.18em,--muted
+      .bar          高 6px,aria-hidden
+        .barRest    1px 断线(四个固定缺口:21–22.5% / 46–52% / 67–68% / 82–89%),--line
+        .barGhost   残痕(只在下降后存在),2px,--muted
+        .barFill    实线 2px,--text;danger 时 --worn
+      .wBand        档名(宋体 500,0.95rem);左 -0.6rem 一个 5px 小方块:caution 空心(1px --muted)/ danger 实心 --worn;danger 时字也 --worn
+      .wNum         数字,0.72rem,--muted,右对齐,tabular-nums
+```
+
+- **主题层不认轴**(ADR-018 §4.2):四行按 `axes` 顺序排,不按 key 判断哪根是气力;颜色只读 `severity`。`severity` 为 null 或 neutral → 不画小方块、不变色。
+- **单一驱动量**(§4.2.1):数字、实线长度、档名、条色都从 `AxisView.value` / `percent` / `bandLabel` / `severity` 派生,本组件不自己滚。
+  实线用 `transform: scaleX(percent / 100)`(`transform-origin: left`,元素本身全宽),不写 `width`。
+- **残线不裁切**:演示用 `clip-path: inset(0 0 0 p%)` 把残线在实线左边那段裁掉。实线 2px、残线 1px、两者垂直居中,实线完全盖住残线,裁不裁看起来一样;
+  不裁就省掉每帧一次 `clip-path` 重绘。验证 E 截图放大逐像素核;若有可见差(如亚像素渗色),改回裁切(待审 7)。
+- **残痕**(勘察 5):记上一帧 `value`;本帧 `value < 上一帧` 且当前没有残痕 → 以上一帧值为 `from`,建一段 `0 → from%` 的 `--muted` 2px 线压在实线下面;
+  建好后 300ms 开始 `opacity` 1 → 0、历时 1400ms、`ease-in`,结束移除。下降途中又来一次下降(两回合相隔不可能 < 1.7s,但调试面板能做到)→ 旧残痕直接移除、按当前帧重建。
+  上涨 → 有残痕就直接移除,不新建。定时器登记到 `runtime`(换回合 / 卸载由同一个 teardown 收走)。
+- **档名换档**:`bandLabel` 变了 → 文字 `opacity` 350ms 淡到 0(`ease-in-out`)→ 换字 → 350ms 淡回。首帧与 reduced-motion 直接换。
+  小方块与条色**同帧**按 `severity` 换(样张如此,勘察 5)。读屏按 `aria-label`(通用层同帧给新档名),不读淡入淡出中的那段字。
+- **刻痕**(纯函数 `ticks.ts`,只吃 `timeline`):
+  - 第 i 条(从 0 起)= 第 `i + 1` 回合;`kept = markedTurns.includes(i + 1)`。
+  - 不透明度:`kept` → 1;否则 `age = turn − 1 − i`,`age < 3 ? 1 : max(0.22, 1 − (age − 2) × 0.07)`(样张 `tickOpacity`)。所有刻痕 `transition: opacity 900ms ease-out`,
+    所以回合 +1 时旧刻痕自动各降一级。
+  - 位置:纯 CSS `left: calc(var(--i) * min(6px, (100% - 2px) / var(--n)))`,不量宽度、不挂 `ResizeObserver`。**位置不做过渡**:
+    只有压缩以后位置才会随回合变,而此时每回合每条只挪 `(W − 2)/n − (W − 2)/(n + 1)`,375 宽(面板约 343px)在 n = 57 时约 0.1px,看不出;演示的 `left` 过渡省掉。
+  - 高度:7px 与 12px 不用 `height` 过渡,改为元素本身 12px、短刻痕 `transform: scaleY(7 / 12)`(`transform-origin: bottom`),长刻痕 `scaleY(1)`。
+- **新刻痕**:`turn` 比上一次渲染大 1 时,新那一条用 900ms 从 0 淡入(`ease-out`);首帧(新开局、续局、换局)不算。
+- **入场**(组件挂载时一次;新开局与续局都播,同演示 `enter()`):
+  - 刻痕从左到右逐条出现:第 j 条在 `j × 28ms` 起、240ms 淡到它该有的不透明度。长刻痕**一开始就是长的**(首次装载 / 续局不播长出来)。
+  - 刻痕出完后 120ms,四根条依次画:第 k 行在 `tickDone + 120 + k × 90ms` 起,实线 `scaleX` 从 0 到当前值,历时 1100ms(`power2.out`)。
+  - **与演示的差(待审 3)**:演示入场时连数字一起从 0 滚,于是气力会先闪过「衰弱 · 危险」。皮肤不能自己滚数字(契约),
+    通用层的 `useAnimatedValues` 首帧直接落位 —— 所以实现里**只有线在画,数字、档名、条色从第一帧就是当前值**。
+    这同时去掉了入场时那一闪的假危险态。若 Felix 要数字也从 0 滚,得改通用层(给 `ValueRoll` 加「首帧从 0 起滚、按行错开」),那是另一刀。
+  - 入场中又来一次回合落地(玩家在入场没走完时就选了项、且生成在几秒内回来,极少)→ 入场直接跳到终态,再按普通回合处理。
+- **reduced-motion**:刻痕、四根条、残痕、档名、长刻痕一律直接到结果;通用层数字本来就同帧落位。
+- **调试**:`?debug=1` 下 `XunStats` 右上给两个小按钮「重播:入场」「重播:留下的那一年」(同 `PaidanAmbient` 的重播钮,但放在 `Stats` —— 这两段都在本组件里),
+  不需要真 key 就能看。数值滚动与残痕用现有 `DebugPanel` 改值观看(待审 5)。
+
+**4. 其余部件**
+
+- **色板**(样张 `.xun` 逐值):`--bg #e8eaeb`、`--paper #eff0f1`、`--text #343b40`、`--muted #5a6369`、`--line #c3c8cb`、`--faint #d6dadc`、`--worn #86514a`;
+  `--worn-line` 断线(`--line` 色,缺口在 31–33.5% / 78–79.5%)。本世界固定浅色(ADR-018 §4.6),主题根写死 `--notice-bg: var(--paper)`、`--notice-fg: var(--text)`(9.97:1)。
+- **顶图**:取景沿用注册表 `'100% 50%'`;`bannerImgClass` 给 `filter: saturate(0.7)`。高度用通用的 `clamp(300px, 42vh, 380px)`,不改成样张的 320px
+  (320 在区间内,样张是一台 375 宽机器的截面;对比度照 ADR-038 在四种横幅下测)。遮罩渐变用通用的(样张 `.scrim` 与通用 `.bannerScrim` 停靠点相同)。
+- **回合行**:`--phase-color: var(--text)`、`--phase-shadow: 0 0 2px var(--bg), 0 0 5px var(--bg)`。文案「第 N 回合 · 危险度 X」是通用 `SceneBanner` 的输出,不改。
+- **标题**:`--title-font: var(--xun-song)`、`--title-weight: 500`、`--title-size: 1.6rem`、`--title-tracking: 0.3em`(决策 2d)。
+- **介绍行**:通用 `.tone`(0.8rem、`--muted`)与样张相同,不动。
+- **正文**:无框,上下各一条断线。不开 `Prose` 槽:`--prose-bg: var(--worn-line) top / 100% 1px no-repeat, var(--worn-line) bottom / 100% 1px no-repeat`、
+  `--prose-border: 0`、`--prose-pad: 1rem 0.1rem`。
+  `--panel-radius` 规矩面板要 2px,正文共用这个令牌也就是 2px:正文没有底色和框,圆角只会把上下两条 1px 断线的两端各削掉不到 1px,看不出;不为它另开令牌。
+  字号与行高:样张 0.95rem / 1.9,通用 `.prose` 是 `font-size: 1rem` / `line-height: 1.85`(`game.module.css:237–238`)且**没有令牌**。
+  拟照决策 2d 再加两个带回落值的令牌 `--prose-size` / `--prose-lh`(回落 = 现值),或者用通用值不动 —— 待审 6。
+  正文不加任何动画(AGENTS.md §4);光标 `--caret-play: paused`。
+- **决策圈 `XunActions`**:一行一个选项、行间 1px `--faint` 线,没有框;两栏网格 `编号 | 正文 + hint`(1.1rem 1fr,gap 0.5rem,padding 0.8rem 0.1rem);
+  编号 0.68rem `--muted`,hint 0.78rem `--muted`;按下 = 文字 `:active` 变 `--muted`、`transition: color 600ms ease-out`;键盘焦点 1px `--text` 实线、偏移 2px。
+  语义与通用 `DecisionCircle` 一致(只回传 id、hint 是叙事元数据,ADR-011);选项若带 ADR-039 的 `tag`(本世界没登记,不会有)不渲染。
+- **返回键**(`backClass`):字 + 1px `--line` 下划线、无框、方角、`--text`、0.72rem、底 `color-mix(in srgb, var(--bg) 75%, transparent)`,热区 ≥ 44px。
+  按下的样子样张没画,拟与选项同:`:active` 变 `--muted`、600ms(待审 8)。
+- **规矩面板**:通用结构,只吃色板:`--panel-radius: 2px`、已懂的那条 `--rule-idle` / `--accent` 系按样张(`--text`、600、底 `rgba(90, 99, 105, 0.1)`、左缘 `--muted`);
+  标签 1px `currentColor` 细框、`--muted`、方角。「刚被坐实」的通用脉冲照旧(通用层既有的用户触发反馈,不是本刀新增)。
+- **氛围层 `XunAmbient`**:只渲染一块 `position: fixed` 的 `--bg` 底(桌面 640 列两侧也是这个底色,同 `PaidanAmbient` / `QiriAmbient`),不调 `onIntroDone`(`hasIntro: false`)。**没有任何持续动画。**
+
+**5. 记忆点「留下的那一年」与动效预算(AGENTS.md Motion Constraints 逐条)**
+
+- **信号**:`timeline.markedTurns` 比上一次渲染**多了 `timeline.turn` 这一项**(刚落地的那一回合被服务端标记),且 `turn` 比上一次大。
+  皮肤只比对服务端给的清单,不读牵挂的数值、不判档(ADR-018 §4.2;勘察 8)。首帧、续局、换局都不算(首帧没有「上一次」)。
+- **形态**:那一条刻痕在新刻痕出现后 540ms 开始长,`scaleY(7/12) → scaleY(1)` 历时 600ms,并钉在不透明度 1,从此不随时间变淡。没有光、没有文字、没有声音。
+- **409 `turn_stale` 后拉 `/state` 补上的那一回合**(ADR-027 刀 2):store 走续局路径,`turn` 与 `markedTurns` 同帧变,本组件仍挂着 → 也会播一次。
+  那一回合确实刚落地、玩家刚看到,播是对的;记在这里免得以后当成 bug。
+- **§1 一个世界一个一级记忆点**:《寻常》此前没有一级记忆点(AGENTS.md §1 表里无本世界)。本节新增一个:**留下的那一年** —— 牵挂往上走一档的那一回合,它的刻痕长出来、不再褪。
+  入场的刻痕计数与画线**不是**记忆点(每次进局都有,是状态呈现);残痕也不是(每次下降都有)。
+- **§2 预算**:
+  - 持续环境:**无**(`bannerImgClass` 只是静态滤镜;卡面浮尘在选择屏,不同屏)。
+  - 低频偶发:**一个槽,两种表现**(§2.1):入场序列与记忆点。**互斥由代码保证**:记忆点只在 `turn` 增大的那次渲染判定,入场只在挂载时排;
+    入场没走完时来了回合落地 → 入场先跳到终态(决策 3),再判记忆点。`XunStats` 头注释写明共用一个槽与这道闸(§2.1 第 2 条)。
+    ⚠️ 把入场算进低频槽是本 ADR 的归类(入场既不是持续、也不是对某个按压的回应);若 Felix 认为入场该算用户触发,则用户触发槽在挂载时只有它,也不超。
+  - 用户触发:**一个槽**:回合落地的回应 = 数值滚动(数字 + 实线,同一驱动量)+ 残痕 + 档名换字 + 新刻痕淡入与旧刻痕降一级;选项 / 返回键按压在点击时、落地前(中间隔着整段生成),不同时。
+    ⚠️ 这一槽里**同时在跑**的有两个驱动量(轴值与回合数),勘察 7 那一问:本 ADR 主张把它们算作「同一次玩家动作的同一个回应」—— 演示里两者本就同一帧起步、
+    时长同量级(700 / 900ms),读起来是一件事;七日开张「珠子与数值滚动同一个驱动量,算一个」是更严的先例,这里比它宽。**待审 2**。
+- **§3 替代谁**:局内三个槽都是本世界首个,**「新世界首个,无可替代」**(同 ADR-038 G-2 决策 4、ADR-021 该节)。
+- **§4 正文禁区**:正文不动。刻痕与四根条在正文上方的数值块里,不进正文区。
+- **§5 清理**:所有定时器、Web Animations 登记到 `runtime`;重复输入不堆叠(残痕 / 档名 / 记忆点都是「有在途的先收掉再起」);reduced-motion 见决策 3。
+- **§6 性能**:被动画的属性只有 `opacity`(刻痕、残痕、档名)与 `transform`(实线 `scaleX`、长刻痕 `scaleY`);数字是通用层的 React 重渲,不是 CSS 动画。
+  演示里的 `left` / `height` / `width` 过渡全部换掉(勘察 11)。刻痕多到上百条时,每回合有上百个 `opacity` 过渡同时起 —— 低端 Android 交真机(已知代价 6)。
+- **§7 库**:不引任何库,不用 GSAP 时间线(都是短的单元素过渡与 `element.animate`);通用层数值滚动照旧用 GSAP。字体不算库(ADR-038 G-2 待审 9 已定)。
+
+**6. 字体(项目里第二份网页字体)**
+
+- **来源**:Noto Serif SC Medium(500),`notofonts/noto-cjk`,`Serif/SubsetOTF/SC/NotoSerifSC-Medium.otf`,SIL OFL 1.1(`Serif/LICENSE`);详见勘察 12。
+  **源文件 sha256 待补**(待审 9)。
+- **重裁**(实现刀做):下载、核 sha256;
+  ```
+  pyftsubset NotoSerifSC-Medium.otf --text='寻常康健耗损衰弱炽热转淡熄了岔口尚多路已收窄只剩一条轻身有所系深' \
+    --flavor=woff2 --output-file=xun-song.woff2
+  ```
+  核对输出 cmap = 这 32 个码位(= 演示字体链接的 `text=`,已逐字核过集合相等)。记字节数与 sha256。
+- **字从哪来**:世界标题 `fixedWorldTitle`「寻常」(`ArchetypeRegistry` life_sim 条末);档名 = 四根轴 `withBands` 的十二个 label(气力 康健 / 耗损 / 衰弱、热望 炽热 / 转淡 / 熄了、
+  路口 岔口尚多 / 路已收窄 / 只剩一条、牵挂 轻身 / 有所系 / 深系)。数字、轴名、正文都不用宋体。
+- **落点**:`web/src/features/game/theme/xun/fonts/xun-song.woff2` + `OFL.txt` + `README.md`(来源、提交、sha256、裁剪命令);`xun.module.css` 相对 `url()` 引,Vite 打指纹。
+- **声明**:`@font-face { font-family: 'XunSong'; src: url(./fonts/xun-song.woff2) format('woff2'); font-display: swap; font-weight: 500; }`;
+  `--xun-song: 'XunSong', 'Noto Serif SC', 'Songti SC', 'Source Han Serif SC', STSong, serif`(样张原栈前加子集名);`font-synthesis: none`。
+- **字符集写死**:`xun/subset.ts` 一个常量,与 `README.md` 裁剪命令同一串;测试列出「寻常」+ 十二个档名(**手抄自 Java 注册表**),断言每个字都在常量里。
+
+### 已知代价
+
+1. **档名改了不会自动重裁**:档名在 Java(`ArchetypeRegistry`),前端测试是手抄的;服务端改了档名,前端测试不会红,新字回落系统宋体(一个词两种字形;Android 无系统宋体时落到 `serif`)。
+   缓解:本条记录 + 字符集守卫测试;不在 Java 侧加守卫(本刀不动后端)。
+2. **契约多了三个可选项**(`WorldSkin.statsTimeline`、`StatsProps.timeline`、API 的 `markedTurns`)与两个 CSS 令牌。其余世界靠「不声明就不出现 / 回落值 = 现值」不受影响,
+   DOM 对拍看不出 CSS → 验证 C 另做计算样式对拍。
+3. **记忆点第一次放进 `Stats`**:七套皮肤里此前一级记忆点都由 `Ambient`(或 `Interlude` / `Prose`)托管。这次信号(`markedTurns`)与作用点(刻痕)都在数值块,
+   放 `Ambient` 只能写根 class 再让 CSS 找「第 n 条」—— 要么数据进不来,要么又捅边界。调试重播钮也因此在 `Stats`。
+4. **档名比数字晚最多 350ms**(样张定的手感,勘察 5)。截图与读屏不受影响(读屏按 `aria-label`)。
+5. **入场时数字不从 0 滚**(决策 3,与演示不同,待审 3)。
+6. **一局后段刻痕上百条**:每回合上百个 `opacity` 过渡同时起;压缩后 1px 刻痕间距不到 2px,看上去会连成一片灰。低端 Android 帧率与长局的样子本地验不了,交真机。
+7. **刻痕对读屏无声**(整行 `aria-hidden`):回合数顶部回合行已有;牵挂升档可从牵挂那一行的档名读到。同灯笼、钟鸣。
+8. **卡面与局内两套色**:选择屏卡面 `cardLifeSim` 是 2026-11-09 定的灰蓝旧布底 + 旧靛青左缘,局内是本节的冷灰;ADR-017 §5《寻常》一行写的是「灰蓝 + 旧靛青 + 暖木 / 旧布、木纹」,
+   与本节「冷灰、无纹理、唯一暖色只在危险档」不一致。本刀不改卡面;ADR-017 §5 那一行在实现刀回写时加补充(原文不改),措辞待审 10。
+9. **移植债多一项**:小程序要 `wx.loadFontFace`(ADR-017 §4 那一篮子)。
+10. **字体加载闪一下**(`font-display: swap`):首帧标题与档名可能先用系统宋体。接受。
+
+### 验证方案(实现时照做,写进报告;不达标停下汇报,不自行调色)
+
+- **A · 单测**:
+  - `ticks.ts`:不透明度(age 0–2 为 1、age 3 为 0.93、地板 0.22、kept 恒 1)、第 i 条对第 i+1 回合、空清单、turn 0 零条。
+  - 皮肤测试照 `animalSkin.test.tsx` / `qiriSkin.test.tsx`:登记(`life_sim` → 新皮肤、无 `signatureAxisKey`、`hasIntro === false`、`statsTimeline === true`);
+    结构(刻痕行 / 四行 / 每行四格);severity 四种取值(只有 danger 变 `--worn`、caution 空心方块、neutral 与 null 无方块);
+    残痕(下降建、上涨不建、300 + 1400 后移除、卸载不残留);档名换档(淡出 → 换字 → 淡入;首帧直接换);
+    记忆点(清单多了刚落地那回合 → 长;首帧带着清单 → 直接长、不播;清单没变 → 不长;入场途中来了回合 → 入场跳终态);reduced-motion 全部直接到结果。
+  - 契约:`parseDelta` 带 / 不带 / 非数组 / 含非整数四种(不带时解析结果里没有这个键);store 四处写入;
+    `StatsPanel` 只给 `statsTimeline` 的皮肤传 `timeline`,**其余七套皮肤收到的 props 键集合与改动前相同**。
+  - 字符集守卫:「寻常」+ 十二个档名 ⊆ 子集常量。
+  - `registry.test.ts:86` / `:154` 改为新值。
+- **B · DOM 对拍**(ADR-018 §4.5.1):`git worktree` 起 `main` 第二个 dev server,同一份桩数据;其余七套皮肤世界、三个融合组合、选择屏的 `<main>` outerHTML
+  归一化后**逐字节相等**;《寻常》两边**不等**(正对照)。
+- **C · 计算样式对拍**:同两个 dev server,对其余世界的 `.title` 读 `font-size` / `letter-spacing` / `font-family` / `font-weight` 的计算值,两边相等
+(待审 6 若加正文令牌,`.prose` 的 `font-size` / `line-height` 一并对拍)。
+- **D · 对比度**(照 ADR-038 G-2 审定 10 的方法:真实 DOM,375 宽,文字设透明,文字盒四边各内缩 4px,逐像素取最暗底色;两种数值状态取最低值):
+  全部文字类 ≥ 4.5:1。清单:返回键、回合行、标题、介绍行、轴名、档名(常态 / 危险)、数字、正文、选项文字、选项编号、选项提示、规矩标题、规矩(未懂 / 已懂)、规矩标签、提示条。
+  顶图上的回合行、标题、介绍行在 **375×300 / 375×380 / 640×300 / 640×380** 四种横幅下各测一次(顶图在 `saturate(0.7)` 之后测)。
+  色板静态算值已核(简报):text/bg 9.43、muted/bg 5.08、worn/bg 5.29、muted/paper 5.38;本刀另算 text/paper 9.97(提示条)、worn/paper 5.59。
+- **E · 截图**:局中(样张那组数)、都好、都糟(气力 ≤ 20 危险态)、长局(n ≥ 60,看压缩)、有两条长刻痕;实线是否盖住残线逐像素放大看(待审 7)。
+- **F · 动效取证**(同 ADR-021 / ADR-038 G-1 的方法):`document.getAnimations()` 读关键帧属性 + 暂停逐帧读计算样式,列出**被动画的属性清单**
+  (预期只有 `opacity` 与 `transform`;数字不是 CSS 动画);入场时序实测(28ms 间隔、120ms 空档、90ms 错开、1100ms);记忆点 540ms 起长、600ms;
+  残痕 300ms 起淡、1400ms;档名 350 + 350;reduced-motion 下全部为零。
+- **G · 全绿**:`cd web && npm test && npm run lint && npm run build`,报具体数字;后端不动,不跑。
+
+**必须 Felix 亲眼看**:真机上入场的节奏、残痕够不够看得出、长刻痕够不够明显、长局刻痕压缩后的样子、宋体在 Android 上的样子。
+
+### 实现切分(审过再开工;每刀 atomic commit)
+
+1. **字体**:下载、核 sha256、重裁子集 + `OFL.txt` + `README.md`。纯资源,不接线。
+2. **通用层**:API 契约 `markedTurns` + `parseDelta` + store 四处 + `WorldSkin.statsTimeline` / `StatsProps.timeline` + `PlayingScreen` / `StatsPanel` 接线 + `game.module.css` 两个令牌。
+   其余世界 props / DOM / 计算样式不变(验证 A 契约项、B、C)。
+3. **皮肤**:`theme/xun/` 全套 + `skins.tsx` + `registry.ts` 登记 + 测试。
+4. **文档回写**:本节实施记录;裁定一下面加指向本节的补充块;ADR-017 §5《寻常》一行加补充、§9 ① 表补一行;
+   AGENTS.md §1 一级记忆点表补 `| 人生模拟《寻常》\`life_sim\` | **留下的那一年** the year that stayed |`(措辞待审 10);CONTEXT(若有约定层变化)/ ROADMAP。
+
+### 待 Felix 审定清单
+
+1. 写在本 ADR(而不是新编号)?本节要动跨世界契约(决策 2),形状同 ADR-038 G-2 决策 6。(推荐:写在本 ADR)
+2. 用户触发槽:回合落地时数值滚动(含残痕、档名)与刻痕推进同时跑,算**一个**用户触发槽?(推荐:算一个;否则得把刻痕推进延到数值滚完之后,约 700ms)
+3. 入场只画线、数字与档名第一帧就是当前值(不搬演示里「连数字一起从 0 滚」)?(推荐:是;要数字一起滚得另开一刀改通用层)
+4. 数值滚动缓动用 `power2.out`(= 演示的 `1 − (1 − x)³`)?附带发现:ADR-038 G-2 决策 1 写「`power3.out` = 演示的 `1 − (1 − t)³`」,
+   按 GSAP 的命名 `power3` 是四次方(quart)、`power2` 才是三次方(cubic),那一句可能写错了;七日开张、动物人生现用的都是 `power3.out`。**本刀不改它们**,只请 Felix 判要不要另记一笔。
+5. 调试重播钮放在 `XunStats`(两段动效都在这个组件里),而不是 `Ambient`?(推荐:是)
+6. 共享 CSS 令牌:标题加 `--title-size` / `--title-tracking`(推荐:加);标题外边距的 0.05rem 差不加令牌、用通用值(推荐:不加);
+   正文字号 / 行高(0.95rem / 1.9 对通用 1rem / 1.85)加 `--prose-size` / `--prose-lh` 还是用通用值?(推荐:加,正文是这一屏读得最多的字;加了则决策 2d 是四个令牌)
+7. 残线不裁切(实线盖住即可),截图逐像素核,有差再改回裁切?(推荐:是)
+8. 返回键按下:变 `--muted`、600ms,与选项同?(样张没画)
+9. **字体源文件 sha256**:要下载 `NotoSerifSC-Medium.otf`(11,734,356 B,`github.com/notofonts/noto-cjk`)才能算。许可我在实现刀第一步下载并填进本节,还是 Felix 给出?
+10. 措辞:AGENTS.md §1 / ADR-017 §9 ①「**留下的那一年** the year that stayed」;ADR-017 §5《寻常》一行的补充:「冷灰平面;局内:牵挂升档那一回合的刻痕长出来、不再褪(一级记忆点);局内无持续动效」?
+11. `markedTurns` 在 409 后经 `/state` 补上那一回合时也播记忆点(决策 5)?(推荐:播)
