@@ -178,7 +178,7 @@ API key 只进环境变量,**绝不写进 yaml / 代码 / 提交**。
 - [ADR-037](docs/adr/ADR-037-world-tone-and-common-topic-boundary.md) — world.tone 统一定义 + 公共题材边界进骨架 + 《寻常》登记固定世界名(已实施)
 - [ADR-038](docs/adr/ADR-038-time-travel-world-qiri-kaizhang.md) — 新世界《七日开张》(穿越古代,浮世,单体)(已部署)
 - [ADR-039](docs/adr/ADR-039-client-view-time-label-and-action-tag.md) — 展示层 DTO 增量:时段标签与选项 tag 由服务端下发(已实施,未部署)
-- [ADR-040](docs/adr/ADR-040-xun-kept-turns-client-projection.md) — 视图 3 增量:《寻常》牵挂升档的回合清单由服务端记录并下发(已实施,未合并,未部署)
+- [ADR-040](docs/adr/ADR-040-xun-kept-turns-client-projection.md) — 视图 3 增量:《寻常》牵挂升档的回合清单由服务端记录并下发(已实施,未部署)
 
 ## 文档
 
