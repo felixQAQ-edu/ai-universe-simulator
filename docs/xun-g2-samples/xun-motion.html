@@ -1,0 +1,329 @@
+<title>寻常动效样张</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500&text=%E5%AF%BB%E5%B8%B8%E5%BA%B7%E5%81%A5%E8%80%97%E6%8D%9F%E8%A1%B0%E5%BC%B1%E7%82%BD%E7%83%AD%E8%BD%AC%E6%B7%A1%E7%86%84%E4%BA%86%E5%B2%94%E5%8F%A3%E5%B0%9A%E5%A4%9A%E8%B7%AF%E5%B7%B2%E6%94%B6%E7%AA%84%E5%8F%AA%E5%89%A9%E4%B8%80%E6%9D%A1%E8%BD%BB%E8%BA%AB%E6%9C%89%E6%89%80%E7%B3%BB%E6%B7%B1&display=swap">
+<style>
+:root {
+  --shell: #f1eff4; --panel: #ffffff; --ink: #1c1822; --ink-soft: #6b6375; --rule: #dcd9e2; --mark: #55626a;
+  --font: system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --shell: #0c0a10; --panel: #1b1722; --ink: #ece9f1; --ink-soft: #9a93a6; --rule: #2f2a39; --mark: #a9b7bf; color-scheme: dark; }
+}
+:root[data-theme="dark"] { --shell: #0c0a10; --panel: #1b1722; --ink: #ece9f1; --ink-soft: #9a93a6; --rule: #2f2a39; --mark: #a9b7bf; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { background: var(--shell); color: var(--ink); font-family: var(--font); line-height: 1.5; padding-block: 1.5rem 3rem;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.wrap { max-width: 980px; margin: 0 auto; display: flex; flex-direction: column; gap: 1.25rem; }
+.head h1 { margin: 0; font-size: 1.35rem; }
+.head p { margin: 0.35rem 0 0; color: var(--ink-soft); font-size: 0.9rem; max-width: 62ch; }
+.bench { display: flex; flex-wrap: wrap; gap: 1.5rem; align-items: flex-start; }
+.stageCol { flex: 0 1 375px; min-width: 0; }
+.notes { flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 1rem; }
+.box { background: var(--panel); border: 1px solid var(--rule); border-radius: 12px; padding: 0.9rem 1rem; }
+.box h2 { margin: 0 0 0.6rem; font-size: 0.95rem; }
+.box ul { margin: 0; padding-left: 1.2rem; display: flex; flex-direction: column; gap: 0.45rem; font-size: 0.86rem; }
+.btns { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.btns button, .seg button { font: inherit; font-size: 0.82rem; padding: 0.4rem 0.75rem; background: transparent; color: var(--ink); border: 1px solid var(--rule); border-radius: 8px; cursor: pointer; }
+.btns button:hover { border-color: var(--mark); }
+.btns button:focus-visible, .seg button:focus-visible, input:focus-visible { outline: 2px solid var(--mark); outline-offset: 2px; }
+.knobs { display: flex; flex-direction: column; gap: 0.65rem; }
+.knob { display: grid; grid-template-columns: 7.5rem 1fr 4.2rem; gap: 0.6rem; align-items: center; font-size: 0.82rem; }
+.knob input[type=range] { width: 100%; min-width: 0; accent-color: var(--mark); }
+.knob output { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink-soft); }
+.knob .what { grid-column: 1 / -1; margin-top: -0.4rem; font-size: 0.75rem; color: var(--ink-soft); }
+.seg { display: inline-flex; }
+.seg button { border-radius: 0; }
+.seg button + button { border-left: 0; }
+.seg button:first-child { border-radius: 8px 0 0 8px; }
+.seg button:last-child { border-radius: 0 8px 8px 0; }
+.seg button[aria-pressed="true"] { background: var(--mark); color: var(--panel); border-color: var(--mark); }
+.optRow { display: grid; grid-template-columns: 7.5rem 1fr; gap: 0.6rem; align-items: center; font-size: 0.82rem; }
+.optRow .what { grid-column: 1 / -1; font-size: 0.75rem; color: var(--ink-soft); margin-top: -0.3rem; }
+.log { font-size: 0.78rem; color: var(--ink-soft); min-height: 1.2em; }
+
+/* ════ 《寻常》局内(只放和动效有关的部分) ════ */
+.xun {
+  --bg: #e8eaeb; --text: #343b40; --muted: #5a6369; --line: #c3c8cb; --faint: #d6dadc; --worn: #86514a;
+  --song: 'Noto Serif SC', 'Songti SC', 'Source Han Serif SC', STSong, serif;
+  --worn-line: linear-gradient(90deg, var(--line) 0 31%, transparent 31% 33.5%, var(--line) 33.5% 78%, transparent 78% 79.5%, var(--line) 79.5%);
+  width: 375px; max-width: 100%; color: var(--text); background: var(--bg); border-radius: 18px; border: 1px solid var(--rule);
+  padding: 1.4rem 1rem 1.6rem; display: flex; flex-direction: column; gap: 1.1rem;
+}
+.title { margin: 0; font-family: var(--song); font-size: 1.6rem; line-height: 1.25; font-weight: 500; letter-spacing: 0.3em; }
+.phase { margin: 0; font-size: 0.7rem; color: var(--muted); }
+.years { position: relative; height: 15px; }
+.years::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: var(--worn-line); }
+.years i { position: absolute; bottom: 1px; width: 1px; height: 7px; background: var(--text); opacity: 0; transition-property: opacity, height; transition-timing-function: ease-out; }
+.years i.kept { height: 12px; }
+.words { display: flex; flex-direction: column; gap: 0.5rem; padding-top: 0.85rem; }
+.word { display: grid; grid-template-columns: 2.4rem 1fr 4.9rem 1.5rem; column-gap: 1rem; align-items: center; min-width: 0; }
+.wName { font-size: 0.72rem; letter-spacing: 0.18em; color: var(--muted); white-space: nowrap; }
+.wNum { font-size: 0.72rem; color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+.bar { position: relative; height: 6px; }
+.bar i { position: absolute; top: 50%; display: block; }
+.barRest { left: 0; right: 0; height: 1px; margin-top: -0.5px;
+  background: linear-gradient(90deg, var(--line) 0 21%, transparent 21% 22.5%, var(--line) 22.5% 46%, transparent 46% 52%,
+    var(--line) 52% 67%, transparent 67% 68%, var(--line) 68% 82%, transparent 82% 89%, var(--line) 89% 100%); }
+.barFill { left: 0; height: 2px; margin-top: -1px; background: var(--text); }
+.barGhost { height: 2px; margin-top: -1px; background: var(--muted); transition-property: opacity; transition-timing-function: ease-in; }
+.word.danger .barFill { background: var(--worn); }
+.wBand { position: relative; font-family: var(--song); font-weight: 500; font-size: 0.95rem; line-height: 1.3; white-space: nowrap; }
+.wBand span { transition-property: opacity; transition-timing-function: ease-in-out; }
+.wBand b { position: absolute; left: -0.6rem; top: 50%; margin-top: -2.5px; width: 5px; height: 5px; display: none; font-weight: 400; }
+.word.caution .wBand b { display: block; border: 1px solid var(--muted); }
+.word.danger .wBand b { display: block; background: var(--worn); }
+.word.danger .wBand { color: var(--worn); }
+.prose { padding: 1rem 0.1rem; font-size: 0.95rem; line-height: 1.9; margin: 0;
+  background: var(--worn-line) top / 100% 1px no-repeat, var(--worn-line) bottom / 100% 1px no-repeat; }
+</style>
+
+<div class="wrap">
+  <header class="head">
+    <h1>寻常动效样张</h1>
+    <p>Felix 2026-11-15 定稿:默认选项与时长即定稿值。只放和动效有关的部分:刻痕、四根条、一段示意正文。右边的按钮推进状态,滑杆调时长。手机上把系统「减少动态效果」打开,所有动效都会变成直接跳到结果。</p>
+  </header>
+  <div class="bench">
+    <div class="stageCol">
+      <section class="xun" aria-label="《寻常》局内">
+        <div>
+          <p class="phase" id="phase"></p>
+          <h2 class="title">寻常</h2>
+        </div>
+        <div>
+          <div class="years" id="years" aria-hidden="true"></div>
+          <div class="words" id="words"></div>
+        </div>
+        <p class="prose">(示意文本)调令下来那天,你在食堂多坐了十分钟。窗外的梧桐刚抽了新叶。</p>
+      </section>
+    </div>
+
+    <aside class="notes">
+      <div class="box">
+        <h2>推一下</h2>
+        <div class="btns">
+          <button type="button" id="b-turn">过一回合</button>
+          <button type="button" id="b-drop">气力掉一截</button>
+          <button type="button" id="b-ties">牵挂升一档</button>
+          <button type="button" id="b-wear">热望、路口一起掉</button>
+          <button type="button" id="b-enter">重新进场</button>
+          <button type="button" id="b-reset">回到第 9 回合</button>
+        </div>
+        <p class="log" id="log" aria-live="polite"></p>
+      </div>
+      <div class="box">
+        <h2>进场 · 记忆点</h2>
+        <div class="knobs">
+          <div class="optRow"><span>进场条怎么来</span>
+            <div class="seg" role="group" aria-label="进场条怎么来">
+              <button type="button" data-entry="wear" aria-pressed="false">从满磨到现在</button>
+              <button type="button" data-entry="draw" aria-pressed="true">从零铺开</button>
+            </div>
+            <span class="what">「从满磨到现在」:进场时每根条先是满的,再退到当前值,退下的那段留褪痕。「从零铺开」:条从左往右长出来。</span>
+          </div>
+          <div class="optRow"><span>刻痕进场</span>
+            <div class="seg" role="group" aria-label="刻痕进场">
+              <button type="button" data-ticks="count" aria-pressed="true">一道道数出来</button>
+              <button type="button" data-ticks="fade" aria-pressed="false">一起淡入</button>
+            </div>
+          </div>
+          <div class="optRow"><span>牵挂升档</span>
+            <div class="seg" role="group" aria-label="牵挂升档">
+              <button type="button" data-kept="on" aria-pressed="true">留一道长刻痕</button>
+              <button type="button" data-kept="off" aria-pressed="false">不留</button>
+            </div>
+            <span class="what">牵挂往上走一档时,这一回合的刻痕长高、不再随年月变淡:被记住的那一年。</span>
+          </div>
+        </div>
+      </div>
+      <div class="box">
+        <h2>时长</h2>
+        <div class="knobs" id="knobs"></div>
+      </div>
+      <div class="box">
+        <h2>这一版的动效</h2>
+        <ul>
+          <li><b>数值变化</b>:数字滚,实线跟着数字一起走,用的是同一个值。</li>
+          <li><b>褪痕</b>:往下掉时,失去的那一截不马上消失,先留成一段灰色的实线,再慢慢淡掉,露出底下的残痕。往上涨没有褪痕。</li>
+          <li><b>档名换字</b>:旧字淡出,新字淡入,不滑动、不弹。</li>
+          <li><b>刻痕</b>:每过一回合新添一道,从无到有淡入;前面的刻痕一起往淡里退一格。</li>
+          <li>没有回弹、没有闪烁、没有位移,全部只动透明度和长度。</li>
+        </ul>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script>
+(function () {
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // ── 可调时长 ──
+  var K = {
+    roll:   { label: '数字滚动', v: 700, min: 200, max: 1600, step: 50, what: '数字和实线从旧值走到新值。' },
+    ghost:  { label: '褪痕淡掉', v: 1400, min: 300, max: 3000, step: 100, what: '失去的那一截从实线淡成残痕。' },
+    ghostHold: { label: '褪痕先停', v: 300, min: 0, max: 1500, step: 50, what: '褪痕开始淡之前先停多久。' },
+    band:   { label: '档名换字', v: 700, min: 200, max: 1600, step: 50, what: '旧字淡出 + 新字淡入的总时长。' },
+    tick:   { label: '刻痕淡入', v: 900, min: 200, max: 2000, step: 50, what: '新刻痕出现、旧刻痕变淡。' },
+    count:  { label: '进场每道刻痕', v: 28, min: 8, max: 80, step: 2, what: '「一道道数出来」时相邻两道的间隔。' },
+    enter:  { label: '进场条', v: 1100, min: 300, max: 2500, step: 50, what: '进场时条走到当前值的时长。' },
+    kept:   { label: '长刻痕长高', v: 600, min: 200, max: 1600, step: 50, what: '牵挂升档那道刻痕长高的时长。' }
+  };
+  var opt = { entry: 'draw', ticks: 'count', kept: 'on' }; // Felix 2026-11-15 定稿:从零铺开 / 一道道数出来 / 留长刻痕;时长全用默认值
+  var knobs = document.getElementById('knobs');
+  Object.keys(K).forEach(function (k) {
+    var row = document.createElement('label'); row.className = 'knob';
+    var name = document.createElement('span'); name.textContent = K[k].label;
+    var r = document.createElement('input'); r.type = 'range'; r.min = K[k].min; r.max = K[k].max; r.step = K[k].step; r.value = K[k].v;
+    var o = document.createElement('output'); o.textContent = K[k].v + 'ms';
+    var w = document.createElement('span'); w.className = 'what'; w.textContent = K[k].what;
+    r.addEventListener('input', function () { K[k].v = +r.value; o.textContent = r.value + 'ms'; });
+    row.appendChild(name); row.appendChild(r); row.appendChild(o); row.appendChild(w); knobs.appendChild(row);
+  });
+  function ms(k) { return reduce ? 0 : K[k].v; }
+  document.querySelectorAll('[data-entry],[data-ticks],[data-kept]').forEach(function (b) {
+    var key = b.dataset.entry ? 'entry' : b.dataset.ticks ? 'ticks' : 'kept';
+    b.addEventListener('click', function () {
+      opt[key] = b.dataset[key];
+      b.parentNode.querySelectorAll('button').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); });
+    });
+  });
+
+  // ── 轴:名称与档位取自 ArchetypeRegistry;严重度按服务端现行规则,只有气力(致命消耗轴)会进注意/危险 ──
+  var AX = [
+    { key: 'vigor', name: '气力', bands: [[20, '衰弱'], [50, '耗损'], [100, '康健']], lethal: true },
+    { key: 'longing', name: '热望', bands: [[20, '熄了'], [50, '转淡'], [100, '炽热']] },
+    { key: 'crossroads', name: '路口', bands: [[20, '只剩一条'], [50, '路已收窄'], [100, '岔口尚多']] },
+    { key: 'ties', name: '牵挂', bands: [[30, '轻身'], [60, '有所系'], [100, '深系']] }
+  ];
+  function bandIdx(a, v) { for (var i = 0; i < a.bands.length; i++) if (v <= a.bands[i][0]) return i; return a.bands.length - 1; }
+  function severity(a, v) { if (!a.lethal) return ''; var i = bandIdx(a, v); return i === 0 ? 'danger' : i === 1 ? 'caution' : ''; }
+
+  var START = { turn: 9, vals: { vigor: 92, longing: 81, crossroads: 88, ties: 22 } };
+  var S = { turn: 0, vals: {}, shown: {}, kept: [] };
+  var yearsEl = document.getElementById('years'), wordsEl = document.getElementById('words');
+  var rows = {};
+
+  function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+
+  // ── 四行 ──
+  AX.forEach(function (a) {
+    var w = el('div', 'word');
+    w.appendChild(el('span', 'wName', a.name));
+    var bar = el('div', 'bar'); bar.setAttribute('aria-hidden', 'true');
+    var rest = el('i', 'barRest'), fill = el('i', 'barFill');
+    bar.appendChild(rest); bar.appendChild(fill); w.appendChild(bar);
+    var band = el('span', 'wBand'); band.appendChild(el('b')); var bt = el('span'); band.appendChild(bt); w.appendChild(band);
+    var num = el('span', 'wNum'); w.appendChild(num);
+    wordsEl.appendChild(w);
+    rows[a.key] = { a: a, w: w, bar: bar, rest: rest, fill: fill, bt: bt, num: num, band: -1, raf: 0 };
+  });
+
+  function paint(k, v) { // 同一个值驱动数字、实线、残痕
+    var r = rows[k]; var p = Math.max(0, Math.min(100, v));
+    r.fill.style.width = p + '%'; r.rest.style.clipPath = 'inset(0 0 0 ' + p + '%)';
+    r.num.textContent = Math.round(v);
+  }
+  function setBand(k, v, instant) {
+    var r = rows[k], i = bandIdx(r.a, v);
+    var sev = severity(r.a, v);
+    r.w.className = 'word ' + sev;
+    r.w.setAttribute('aria-label', [r.a.name, Math.round(v), r.a.bands[i][1], sev === 'danger' ? '危险' : sev === 'caution' ? '注意' : ''].filter(Boolean).join(' · '));
+    if (i === r.band) return;
+    var prev = r.band; r.band = i;
+    if (instant || prev < 0 || !ms('band')) { r.bt.style.transitionDuration = '0ms'; r.bt.style.opacity = 1; r.bt.textContent = r.a.bands[i][1]; return; }
+    var half = ms('band') / 2;
+    r.bt.style.transitionDuration = half + 'ms'; r.bt.style.opacity = 0;
+    setTimeout(function () { r.bt.textContent = r.a.bands[r.band][1]; r.bt.style.opacity = 1; }, half);
+  }
+  function ghost(k, from, to, hold, dur) { // 失去的那一截:先是实的,停一下,再淡成残痕
+    if (!dur) return;
+    var r = rows[k]; var g = el('i', 'barGhost');
+    g.style.left = to + '%'; g.style.width = (from - to) + '%'; g.style.opacity = 1; g.style.transitionDuration = dur + 'ms';
+    r.bar.insertBefore(g, r.fill);
+    setTimeout(function () { requestAnimationFrame(function () { g.style.opacity = 0; }); }, hold);
+    setTimeout(function () { g.remove(); }, hold + dur + 50);
+  }
+  function roll(k, to, dur, withGhost) {
+    var r = rows[k]; var from = S.shown[k]; cancelAnimationFrame(r.raf);
+    if (withGhost && to < from) ghost(k, from, to, ms('ghostHold'), ms('ghost'));
+    if (!dur) { S.shown[k] = to; paint(k, to); setBand(k, to); return; }
+    var t0 = performance.now();
+    (function step(t) {
+      var x = Math.min(1, (t - t0) / dur); var e = 1 - Math.pow(1 - x, 3);
+      var v = from + (to - from) * e; S.shown[k] = v; paint(k, v); setBand(k, v);
+      if (x < 1) r.raf = requestAnimationFrame(step);
+    })(t0);
+  }
+
+  // ── 刻痕 ──
+  function tickOpacity(age) { return age < 3 ? 1 : Math.max(0.22, 1 - (age - 2) * 0.07); }
+  function spacing(n) { return Math.min(6, (yearsEl.clientWidth - 2) / Math.max(1, n)); }
+  function layoutTicks(dur) {
+    var ticks = yearsEl.children, n = ticks.length, sp = spacing(n);
+    for (var i = 0; i < n; i++) {
+      var t = ticks[i]; t.style.transitionDuration = dur + 'ms'; t.style.left = (i * sp) + 'px';
+      t.style.opacity = S.kept.indexOf(i) >= 0 ? 1 : tickOpacity(n - 1 - i);
+    }
+  }
+  function addTick() {
+    var t = el('i'); t.style.transitionDuration = '0ms'; yearsEl.appendChild(t);
+    t.style.left = ((yearsEl.children.length - 1) * spacing(yearsEl.children.length)) + 'px';
+    void t.offsetWidth; layoutTicks(ms('tick'));
+  }
+
+  function phase() { document.getElementById('phase').textContent = '第 ' + S.turn + ' 回合'; }
+  function log(s) { document.getElementById('log').textContent = s; }
+
+  // ── 进场 ──
+  function enter() {
+    S.turn = START.turn; S.kept = []; phase();
+    yearsEl.textContent = '';
+    for (var i = 0; i < S.turn; i++) { var t = el('i'); t.style.left = (i * spacing(S.turn)) + 'px'; t.style.transitionDuration = '0ms'; t.style.opacity = 0; yearsEl.appendChild(t); }
+    var ticks = yearsEl.children;
+    var tickDone = 0;
+    if (opt.ticks === 'count' && !reduce) {
+      for (var j = 0; j < ticks.length; j++) (function (j) {
+        setTimeout(function () { ticks[j].style.transitionDuration = '240ms'; ticks[j].style.opacity = tickOpacity(ticks.length - 1 - j); }, j * ms('count'));
+      })(j);
+      tickDone = ticks.length * ms('count');
+    } else { void yearsEl.offsetWidth; layoutTicks(reduce ? 0 : 600); tickDone = 0; }
+    AX.forEach(function (a, idx) {
+      var k = a.key, v = START.vals[k]; S.vals[k] = v; rows[k].band = -1;
+      var from = opt.entry === 'wear' ? 100 : 0;
+      S.shown[k] = from; paint(k, from); setBand(k, from, true);
+      setTimeout(function () { roll(k, v, ms('enter'), opt.entry === 'wear'); }, reduce ? 0 : tickDone + 120 + idx * 90);
+    });
+    log('');
+  }
+
+  // ── 推进 ──
+  function apply(changes, note) {
+    S.turn += 1; phase(); addTick();
+    var tiesBefore = bandIdx(AX[3], S.vals.ties);
+    Object.keys(changes).forEach(function (k) {
+      var v = Math.max(0, Math.min(100, S.vals[k] + changes[k])); S.vals[k] = v; roll(k, v, ms('roll'), true);
+    });
+    if (opt.kept === 'on' && bandIdx(AX[3], S.vals.ties) > tiesBefore) {
+      var idx = yearsEl.children.length - 1; S.kept.push(idx);
+      var t = yearsEl.children[idx];
+      setTimeout(function () { t.style.transitionDuration = ms('kept') + 'ms'; t.classList.add('kept'); t.style.opacity = 1; }, ms('tick') * 0.6);
+      note += ' · 牵挂升档,这一回合的刻痕留下了';
+    }
+    log('第 ' + S.turn + ' 回合:' + note);
+  }
+  function rnd(a, b) { return Math.round(a + Math.random() * (b - a)); }
+  document.getElementById('b-turn').onclick = function () { apply({ vigor: -rnd(1, 4), longing: -rnd(0, 4), crossroads: -rnd(0, 3), ties: rnd(0, 3) }, '平常的一回合'); };
+  document.getElementById('b-drop').onclick = function () { apply({ vigor: -rnd(14, 22) }, '气力掉了一截'); };
+  document.getElementById('b-ties').onclick = function () {
+    var v = S.vals.ties, i = bandIdx(AX[3], v); var target = i === 0 ? 31 : i === 1 ? 61 : Math.min(100, v + 6);
+    apply({ ties: target - v + rnd(0, 4) }, i < 2 ? '牵挂往上走了一档' : '牵挂已是最高档,只涨数');
+  };
+  document.getElementById('b-wear').onclick = function () { apply({ longing: -rnd(12, 20), crossroads: -rnd(10, 18) }, '热望、路口一起掉'); };
+  document.getElementById('b-enter').onclick = function () {
+    var keep = { vals: JSON.parse(JSON.stringify(S.vals)) }; START.vals = keep.vals; START.turn = S.turn; var kept = S.kept.slice();
+    enter(); S.kept = kept;
+    setTimeout(function () { kept.forEach(function (i) { var t = yearsEl.children[i]; if (t) { t.classList.add('kept'); } }); layoutTicks(400); }, reduce ? 0 : yearsEl.children.length * (opt.ticks === 'count' ? ms('count') : 0) + 300);
+  };
+  document.getElementById('b-reset').onclick = function () { START = { turn: 9, vals: { vigor: 92, longing: 81, crossroads: 88, ties: 22 } }; enter(); };
+  enter();
+})();
+</script>
