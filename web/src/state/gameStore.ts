@@ -81,6 +81,11 @@ export interface GameState {
    * 说的是玩家正要打的那一回合。**通用层只存不显示**;显示归登记了它的世界的皮肤。
    */
   timeLabel: string | null;
+  /**
+   * 被服务端标记过的回合号(ADR-040),升序。没有 = 空数组。**通用层只存不显示**;
+   * 只交给声明了 `statsTimeline` 的皮肤(ADR-020《寻常》局内皮肤一节决策 2)。
+   */
+  markedTurns: readonly number[];
   ending: EndingPayload | null;
   /** 不可恢复失败信息(init 阶段)。 */
   errorMessage: string | null;
@@ -139,6 +144,7 @@ const INITIAL = {
   discoveredRuleIds: [] as number[],
   availableActions: [] as ClientAction[],
   timeLabel: null as string | null,
+  markedTurns: [] as readonly number[],
   ending: null,
   errorMessage: null,
   errorCode: null,
@@ -292,6 +298,7 @@ export function createGameStore(api: GameApi, opts: GameStoreOptions = {}) {
         discoveredRuleIds: res.world.rules.filter((r) => r.discovered).map((r) => r.id),
         availableActions: res.availableActions,
         timeLabel: res.timeLabel ?? null,
+        markedTurns: res.markedTurns ?? [],
         ending: reached
           ? { id: reached.id, title: reached.title, description: reached.description ?? '' }
           : null,
@@ -354,6 +361,7 @@ export function createGameStore(api: GameApi, opts: GameStoreOptions = {}) {
             discoveredRuleIds: res.world.rules.filter((r) => r.discovered).map((r) => r.id),
             availableActions: res.availableActions,
             timeLabel: res.timeLabel ?? null,
+            markedTurns: res.markedTurns ?? [],
             ending: null,
             errorMessage: null,
             notice: null,
@@ -396,6 +404,7 @@ export function createGameStore(api: GameApi, opts: GameStoreOptions = {}) {
             discoveredRuleIds: res.world.rules.filter((r) => r.discovered).map((r) => r.id),
             availableActions: res.availableActions,
             timeLabel: res.timeLabel ?? null,
+            markedTurns: res.markedTurns ?? [],
             ending: reached
               ? { id: reached.id, title: reached.title, description: reached.description ?? '' }
               : null,
@@ -454,6 +463,8 @@ export function createGameStore(api: GameApi, opts: GameStoreOptions = {}) {
             discoveredRuleIds: discoveredIds(delta.discoveredRules),
             availableActions: delta.availableActions,
             timeLabel: delta.timeLabel ?? null,
+            // 清单只增不减(ADR-040):delta 里没有这个键 = 本局还没有被标记的回合。
+            markedTurns: delta.markedTurns ?? [],
           });
         });
 

@@ -147,6 +147,11 @@ export interface InitResult {
    * 没登记的世界、融合局、已结束的局没有这个键。
    */
   timeLabel?: string;
+  /**
+   * 被服务端标记过的回合号(ADR-040;《寻常》= 牵挂往上走一档的那几回合),升序整数。
+   * 空清单、未登记的世界、融合局没有这个键;**已结束的局照常给**。清单只增不减。前端原样使用,不判档。
+   */
+  markedTurns?: number[];
 }
 
 /** 回合 delta 里随发现规则下发的轻量条目(消毒后只有 id + content)。 */
@@ -171,6 +176,8 @@ export interface TurnDelta {
   availableActions: ClientAction[];
   /** 落地后的时段标签(ADR-039,同 {@link InitResult.timeLabel});没有这个键 = 本回合之后没有标签。 */
   timeLabel?: string;
+  /** 落地后的完整标记清单(ADR-040,同 {@link InitResult.markedTurns});没有这个键 = 本局还没有被标记的回合。 */
+  markedTurns?: number[];
 }
 
 /** 结局画面数据(ADR-006 §4.2 `ending` 事件,已消毒)。 */

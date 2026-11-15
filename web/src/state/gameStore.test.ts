@@ -496,3 +496,59 @@ describe('时段标签与选项 tag(ADR-039)', () => {
     expect(store.getState().timeLabel).toBeNull();
   });
 });
+
+// ADR-040 / ADR-020《寻常》局内皮肤一节决策 2b:标记回合是服务端给的清单。store 只存、不判档;没有键 = 空数组。
+describe('标记回合 markedTurns(ADR-040)', () => {
+  function apiWith(init: InitResult) {
+    const made = makeApi('ok');
+    made.api.initGame = async () => init;
+    made.api.resumeGame = async () => init;
+    return made;
+  }
+
+  it('没下发清单的世界:空数组', async () => {
+    const { api } = makeApi('ok');
+    const store = createGameStore(api);
+    await store.getState().startGame('rules_creepy');
+    expect(store.getState().markedTurns).toEqual([]);
+  });
+
+  it('init 不带 → 空;delta 带上 → 原样;下一个 delta 照旧带;reset 清空', async () => {
+    const { api, stream } = makeApi('ok');
+    const store = createGameStore(api);
+    await store.getState().startGame('life_sim');
+    expect(store.getState().markedTurns).toEqual([]);
+
+    store.getState().chooseAction('A');
+    stream().fireDelta({
+      turn: 1,
+      status: 'ongoing',
+      attributes: { hp: 100, san: 100 },
+      discoveredRules: [],
+      availableActions: [{ id: 'A', text: '继续', hint: '' }],
+      markedTurns: [1],
+    });
+    expect(store.getState().markedTurns).toEqual([1]);
+    stream().fireClose();
+
+    store.getState().chooseAction('A');
+    stream().fireDelta({
+      turn: 2,
+      status: 'ongoing',
+      attributes: { hp: 100, san: 100 },
+      discoveredRules: [],
+      availableActions: [{ id: 'A', text: '继续', hint: '' }],
+      markedTurns: [1],
+    });
+    expect(store.getState().markedTurns).toEqual([1]);
+    store.getState().reset();
+    expect(store.getState().markedTurns).toEqual([]);
+  });
+
+  it('续局带清单 → 进 store(已结束的局也带)', async () => {
+    const { api } = apiWith({ ...INIT_RESULT, markedTurns: [3, 9] });
+    const store = createGameStore(api);
+    await store.getState().resumeGame('s1');
+    expect(store.getState().markedTurns).toEqual([3, 9]);
+  });
+});

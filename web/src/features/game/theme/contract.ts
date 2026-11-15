@@ -202,6 +202,21 @@ export interface StatsProps {
    * 它说的是「玩家正要打的那一回合」,回合落地后比正文早一格(ADR-039 已知代价 2)。
    */
   timeLabel?: string;
+  /**
+   * 回合数与被标记的回合(ADR-020《寻常》局内皮肤一节决策 2c)。**只给声明了 {@link WorldSkin.statsTimeline}
+   * 的皮肤**:其余皮肤收到的 props 里没有这个键(调用逐键不变,同 `timeLabel` 的「不登记就不出现」)。
+   *
+   * - `turn`:已落地的回合数(= `state.turn`);新开局为 0。
+   * - `markedTurns`:服务端标记过的回合号(ADR-040),升序,只增不减;没有 = 空数组。
+   *   **原样使用、不判档** —— 「哪一回合值得标」是服务端判的,皮肤只比对清单有没有多出刚落地的那一回合。
+   */
+  timeline?: StatsTimeline;
+}
+
+/** {@link StatsProps.timeline} 的形状。 */
+export interface StatsTimeline {
+  turn: number;
+  markedTurns: readonly number[];
 }
 
 /**
@@ -253,6 +268,13 @@ export interface WorldSkin {
    * 它只是「按这个 key 算个档序号交出去」;缺省 = 本世界没有轴驱动的记忆点。
    */
   signatureAxisKey?: string;
+  /**
+   * 数值形态要不要回合数(ADR-020《寻常》局内皮肤一节决策 2c)。true → 通用层把 {@link StatsProps.timeline}
+   * 交给 `Stats`;缺省 → 不交,`Stats` 的 props 与加这个开关之前逐键相同。
+   *
+   * 这是「这套皮肤的数值形态要画回合」的声明,**不是世界判定**:通用层不因它分派任何语义。
+   */
+  statsTimeline?: true;
   /** 主题根 class:色板 token + `--t-dur`/`--t-ease`(成对)+ reduced-motion 覆盖。 */
   screenClass: string;
   /** 停表时挂在主题根上的 class(低频 CSS 动效在其下 `animation-play-state: paused`)。 */

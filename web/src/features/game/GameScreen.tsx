@@ -105,6 +105,7 @@ function PlayingScreen() {
   const ending = useGameStore((s) => s.ending);
   const notice = useGameStore((s) => s.notice);
   const timeLabel = useGameStore((s) => s.timeLabel);
+  const markedTurns = useGameStore((s) => s.markedTurns);
   const chooseAction = useGameStore((s) => s.chooseAction);
   const reset = useGameStore((s) => s.reset);
 
@@ -142,6 +143,8 @@ function PlayingScreen() {
   // runtime 的 key 含皮肤与回合:两者任一变化即走**同一个** teardown(§4.4)。
   const runtime = useSkinRuntime(theme.skin ?? '', turn);
   const bundle = useMemo(() => (skin ? { skin, runtime } : null), [skin, runtime]);
+  // 回合数 + 标记回合(ADR-020《寻常》局内皮肤一节决策 2c):StatsPanel 只交给声明了 statsTimeline 的皮肤。
+  const timeline = useMemo(() => ({ turn, markedTurns }), [turn, markedTurns]);
 
   // 皮肤挂在主题根上的瞬时状态 class(前一拍 / 余韵)。含义由皮肤定义,这里只负责拼字符串。
   // 状态连同「它属于哪个皮肤+回合」一起存 —— 换 turn / 换皮肤即自动作废(渲染期比对,不用 effect
@@ -209,6 +212,7 @@ function PlayingScreen() {
           signatureTick={signature.tick}
           rootRef={rootRef}
           timeLabel={timeLabel}
+          timeline={timeline}
         />
 
         {ProseForm ? (

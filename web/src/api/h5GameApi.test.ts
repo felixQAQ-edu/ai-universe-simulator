@@ -319,6 +319,44 @@ describe('openTurnStream', () => {
     expect(state.availableActions[0].tag).toBe('怪点子');
   });
 
+  it('ADR-040:delta 的 markedTurns 是结构键;只认整数数组,别的形状不带这个键', async () => {
+    const parse = async (marked: string | null) => {
+      const extra = marked === null ? '' : `,"markedTurns":${marked}`;
+      const wire = `event: delta\ndata: {"turn":2,"status":"ongoing","ties":33,"discoveredRules":[],"availableActions":[]${extra}}\n\n`;
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(sseResponse(wire, 6)));
+      let delta: TurnDelta | null = null;
+      await new Promise<void>((resolve) => {
+        const stream = api.openTurnStream('s1', 1, 'A');
+        stream.onDelta((d) => (delta = d));
+        stream.onClose(() => resolve());
+      });
+      return delta!;
+    };
+    const d = await parse('[2,5]');
+    expect(d.markedTurns).toEqual([2, 5]);
+    expect(d.attributes).toEqual({ ties: 33 });
+    for (const bad of [null, '"2"', '[2.5]', '[2,"5"]', '{}']) {
+      const got = await parse(bad);
+      expect(got).not.toHaveProperty('markedTurns');
+      expect(got.attributes).toEqual({ ties: 33 });
+    }
+  });
+
+  it('ADR-040:init / state 响应里的 markedTurns 原样带出', async () => {
+    const payload = {
+      saveId: 's1',
+      world: { schemaVersion: '0.4', world: { title: '寻常' }, rules: [], character: {} },
+      openingNarrative: '',
+      availableActions: [],
+      attributes: [],
+      markedTurns: [4],
+    };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(200, payload)));
+    expect((await api.initGame('life_sim')).markedTurns).toEqual([4]);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(200, payload)));
+    expect((await api.resumeGame('s1')).markedTurns).toEqual([4]);
+  });
+
   // 载荷原为 illegal_action;ADR-022 刀 2 后该 code 不再走 SSE(守卫 1 前移到 controller),
   // 故换成仍活的 busy —— 断言意图(SSE error 帧 → onError)一个字未变。
   it('error 事件 → onError', async () => {

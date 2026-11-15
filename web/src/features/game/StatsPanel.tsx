@@ -1,7 +1,7 @@
 import type { RefObject } from 'react';
 import type { AttributeAxisMeta } from '../../api';
 import { resolveBandLabel, resolveSeverity } from './bands';
-import { severityWord, useSkin, type AxisView } from './theme/contract';
+import { severityWord, useSkin, type AxisView, type StatsTimeline } from './theme/contract';
 import { useAnimatedValues } from './theme/useAnimatedValues';
 import styles from './game.module.css';
 
@@ -18,6 +18,7 @@ export function StatsPanel({
   signatureTick = 0,
   rootRef = NULL_ROOT,
   timeLabel = null,
+  timeline = null,
 }: {
   axes: AttributeAxisMeta[];
   values: Record<string, number>;
@@ -30,6 +31,8 @@ export function StatsPanel({
   signatureTick?: number;
   /** 时段标签(见 `StatsProps.timeLabel`);null / 缺省 = 本局没有标签,不往形态组件传这个键。 */
   timeLabel?: string | null;
+  /** 回合数与标记回合(见 `StatsProps.timeline`);只交给声明了 `statsTimeline` 的皮肤。 */
+  timeline?: StatsTimeline | null;
 }) {
   const bundle = useSkin();
   // 数值滚动的**单一驱动量**:档名与 severity 一律按此刻屏幕上的数去查,
@@ -48,6 +51,7 @@ export function StatsPanel({
       runtime={bundle.runtime}
       rootRef={rootRef}
       {...(timeLabel ? { timeLabel } : {})}
+      {...(timeline && bundle.skin.statsTimeline ? { timeline } : {})}
     />
   );
 }

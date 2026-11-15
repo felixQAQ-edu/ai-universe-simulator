@@ -173,3 +173,34 @@ describe('StatsPanel · timeLabel 只在非空时下传', () => {
     expect(seenProps('第四日 · 午市').timeLabel).toBe('第四日 · 午市');
   });
 });
+
+// ADR-020《寻常》局内皮肤一节决策 2c:timeline 只交给声明了 statsTimeline 的皮肤 —— 其余皮肤的 props 逐键不变。
+describe('StatsPanel · timeline 只给声明了 statsTimeline 的皮肤', () => {
+  const axes: AttributeAxisMeta[] = [{ key: 'hp', displayName: '体力' }];
+  const timeline = { turn: 7, markedTurns: [3] };
+  function seenProps(base: WorldSkin) {
+    const seen: StatsProps[] = [];
+    const Spy = (props: StatsProps) => {
+      seen.push(props);
+      return null;
+    };
+    render(
+      <SkinContext.Provider value={{ skin: { ...base, Stats: Spy }, runtime: new SkinRuntime() }}>
+        <StatsPanel axes={axes} values={{ hp: 50 }} timeline={timeline} />
+      </SkinContext.Provider>,
+    );
+    return seen[seen.length - 1];
+  }
+
+  it('未声明的皮肤:即使传了 timeline,props 也只有 axes / rootRef / runtime', () => {
+    for (const skin of Object.values(SKINS)) {
+      if (skin!.statsTimeline) continue;
+      expect(Object.keys(seenProps(skin!)).sort(), skin!.id).toEqual(['axes', 'rootRef', 'runtime']);
+    }
+  });
+
+  it('声明了的皮肤:原样收到 timeline', () => {
+    const props = seenProps({ ...SKINS.cyberpunk!, statsTimeline: true });
+    expect(props.timeline).toEqual(timeline);
+  });
+});

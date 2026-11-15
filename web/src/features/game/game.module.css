@@ -113,7 +113,9 @@
 
 .title {
   margin: 0.25rem 0 0.1rem;
-  font-size: 1.5rem;
+  /* 主题令牌(ADR-020《寻常》局内皮肤一节决策 2d):回落值 = 旧值。 */
+  font-size: var(--title-size, 1.5rem);
+  letter-spacing: var(--title-tracking, inherit); /* 旧规则没写字距 = 继承,回落也得是继承 */
   line-height: 1.25;
   /* 主题令牌(ADR-038 G-2 决策 6):回落值 = 旧值(继承的字体;<h1> 的 UA 默认粗体)。 */
   font-family: var(--title-font, inherit);
@@ -234,8 +236,9 @@
   min-height: 8rem;
   white-space: pre-wrap;
   word-break: break-word;
-  line-height: 1.85;
-  font-size: 1rem;
+  /* 主题令牌(ADR-020《寻常》局内皮肤一节决策 2d):回落值 = 旧值。 */
+  line-height: var(--prose-lh, 1.85);
+  font-size: var(--prose-size, 1rem);
 }
 
 .caret {
