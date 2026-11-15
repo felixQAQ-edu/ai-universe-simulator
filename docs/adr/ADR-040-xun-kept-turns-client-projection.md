@@ -1,7 +1,8 @@
 # ADR-040 · 视图 3 增量:《寻常》牵挂升档的回合清单由服务端记录并下发
 
 - **日期**:2026-11-15
-- **状态**:**已接受**(定稿 2026-11-15:待审六项由 Felix 2026-11-15 全部按草案提议定下,见文末「Felix 审定结果」。实现按「落地切分」进行)
+- **状态**:**已实施**(2026-11-15:刀 1–3 见文末「实施记录」,分支 `feat/adr-040-xun-kept-turns`;**未合并、未部署**;前端未接;未跑真 key)
+  ⚠️ 定稿时的状态行,原文保留:**已接受**(定稿 2026-11-15:待审六项由 Felix 2026-11-15 全部按草案提议定下,见文末「Felix 审定结果」。实现按「落地切分」进行)
   ⚠️ 草案时的原状态行,原文保留:提议(草案;只写 ADR、不动代码。方向由 Felix 2026-11-15 裁定:走后端记录。ties 的档口径由 Felix 2026-11-15 裁定为服务端口径;
   键名、已结束的局、空清单三项是本 ADR 提议的口径,待 Felix 审定,见文末「待 Felix 审定清单」)
 - **决策者**:Felix
@@ -400,6 +401,51 @@ public static List<Integer> markedTurns(Engine engine)   // 可能返回 null
 4. `recordIssue` javadoc:按决策 6 的四条改写。
 5. 前缀:「T{n} 牵挂升档」。
 6. 落点:`XunTiesMarker` + `AttributeAxis.bandIndex`。
+
+## 实施记录(2026-11-15,基于 `docs/adr-040-xun-kept-turns` `d8d7f49`,即 `main` `bb88938` + 本 ADR 两个 docs commit)
+
+| 刀 | commit | 内容 |
+|---|---|---|
+| 草案 | `e90df77` | 只落字 |
+| 定稿 | `d8d7f49` | 状态改已接受,回填六项审定 |
+| 1 | `b9be285` | `AttributeAxis.bandIndex`;`XunTiesMarker`;`landSettled` 接入;`Engine.recordIssue` javadoc 改写;判定 / 回放测试 |
+| 2 | `4b6dd95` | `ClientProjection.MARKED_TURNS` + `markedTurns`;`InitResponse.markedTurns`(`NON_NULL`);`init` / `resume` / `buildDelta` 三处接入;投影测试 |
+| 3 | 本 commit | 本节、CONTEXT v3.0(§三.9 补充块)、ROADMAP v20.3、README 状态 |
+
+**与决策的出入(如实记)**
+
+1. 决策 2 写「放置:新建 `eventloop/XunTiesMarker`」,实现照此;另加了 `tiesAxis(Engine, ArchetypeRegistry)`,把「是不是单体《寻常》」与「从 registry 取 ties 轴」收在一处,
+   `landSettled` 只多三行(取轴、取 `tiesBefore`、标记)。`mark` 接收轴作参数,所以测试能传一份档表不同的轴(变异 C-2 靠它)。
+2. 决策 3 写 `MARKED_TURNS: Map<String, Function<List<String>, List<Integer>>>`,实现照此;`markedTurns` 返回 `List.copyOf`。
+3. **既有回放场景顺带覆盖了标记**:`TraceScenarios` 里原有的 `lifetime_exit_action`、`lifetime_clamp` 两个寻常场景的 ties 都是 30 → 35(轻身 → 有所系),
+   刀 1 之后它们也会记一行「牵挂升档」。两者的断言是 `anyMatch`,未改、仍绿;变异 E 时它们和新加的 `lifetime_ties_up` 一起变红(见读数)。
+4. 验证 D「续局」测的是 `SessionDocument.encode` → `decode` 后的会话经 `ClientProjection` 现算得出,并断言文档里没有 `markedTurns` 字样;
+   **没有**走 `FileSessionStore` 落盘再回载再 `resume` 的整条路(同 ADR-039 实施记录第 4 条)。`resume` 本身在接线测试里用内存会话验过。
+5. `ClientProjectionTest`(ADR-039 的测试文件)改了两处:两处 `new InitResponse(…)` 加第 7 个参数 `null`(多了一个分量,不改编不过),
+   结构键守卫的集合加 `markedTurns`(验证 A 的守卫项)。断言本身未改。`ClientProjectionParityTest.java` 与 `golden/adr039-client-projection/` 未改。
+
+**读数**
+
+- 服务端 `mvn test`:132 个套件、1085 条,0 失败 0 错误 0 跳过(跑前清了 `surefire-reports`,只算当次产出的报告)。刀 1 之后为 131 套件 1079 条全绿。
+- 前端 `npm test`:41 个文件、599 条全绿;`eslint .`、`tsc -b && vite build` 通过(前端未改,作零回归证明)。
+- 基线:`git diff --stat bb88938 -- server/src/test/resources/golden server/src/test/java/com/aiuniverse/server/eventloop/{ClientProjectionParityTest,PaidanPromptSnapshotTest,QiriTurnTest,SingleTurnClockSeamTest}.java` 为空。
+  ADR-039 基线里的 `life_sim` 夹具各轴 60 → 55(落账前后都在「有所系」),不写键,三处响应逐字节不变。
+- 验证 B:`XunTiesMarkerTest.theMarkerLineDoesNotChangeTheTurnPrompt` —— 同一局寻常,有无「T14 牵挂升档 28→33」这一行,
+  `renderTurnPrompt` 与 `buildTurnPrompt` 的输出都全等。
+- 变异核对(各做一次,读数如下,均已改回,改回后全量 1085 条全绿):
+
+  | 变异 | 改法 | 结果 |
+  |---|---|---|
+  | C-1 去掉取整 | `XunTiesMarker.mark` 里 `Math.round(v)` 改为 `(int) v`(截断) | `XunTiesMarkerTest` 12 条中 1 条红:`roundingFollowsTheServerReading`(`:58`,29 → 30.6 不再记) |
+  | C-2 写死 31 / 61 | `bandIndex` 换成 `round(v) >= 61 ? 2 : >= 31 ? 1 : 0` | 12 条中 1 条红:`bandTableComesFromTheAxisNotFromLiterals`(`:74`,另一份 0 / 40 / 70 档表下 30 → 35 被误记) |
+  | E 标记挪出 `landSettled` | 删掉 `landSettled` 里的标记调用,改在 `settle` 的落地钩子里做(只在线上路径) | `TraceReplayTest` 37 条中 3 条红:`lifetime_exit_action T8→9`、`lifetime_clamp T44→45`、`lifetime_ties_up T13→14` 回放差异;`XunTiesMarkerTest` 6 条红(它们直接调 `landSettled`) |
+
+**没做 / 没验**
+
+- 前端未接(约束 5):`markedTurns` 目前没有消费方,浏览器里看不到任何变化。
+- 没跑真 key;没有经真实后端在浏览器里走寻常局。
+- 没部署。刀 2 可以先于前端上线(勘察 8),但仍等 Felix 定。
+- 挂账两项未修。
 
 ## 实际效果(事后补充)
 
