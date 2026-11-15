@@ -87,6 +87,8 @@ class TraceReplayTest {
 				.map(n -> n.asString()).toList()).contains(LifeStageTable.EXIT_ACTION_ID);
 		assertThat(RUNS.get("lifetime_clamp").session().engine().issues())
 				.anyMatch(i -> i.contains("收束下限钳制 5->15"));
+		// ADR-040:《寻常》牵挂升档标记在轨迹的落账里被重做。
+		assertThat(RUNS.get("lifetime_ties_up").session().engine().issues()).contains("T14 牵挂升档 28→33");
 		assertThat(RUNS.get("normal_with_leak").last().parsed().path("narrative").asString()).contains("hiddenLogic");
 		// ADR-038:《七日开张》两类服务端改写都在轨迹的落账里被重做。
 		assertThat(RUNS.get("qiri_cover_drop").session().engine().issues()).contains("T6 底细跌破 20 25→15");

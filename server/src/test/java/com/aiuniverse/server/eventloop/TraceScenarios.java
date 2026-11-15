@@ -61,6 +61,7 @@ final class TraceScenarios {
 		out.put("box_scene_leave_degraded", boxSceneLeaveDegraded());
 		out.put("lifetime_exit_action", lifetimeExitAction());
 		out.put("lifetime_clamp", lifetimeClamp());
+		out.put("lifetime_ties_up", lifetimeTiesUp());
 		out.put("qiri_cover_drop", qiriCoverDrop());
 		out.put("qiri_ending_check", qiriEndingCheck());
 		out.put("qiri_action_guard", qiriActionGuard());
@@ -137,6 +138,21 @@ final class TraceScenarios {
 		int finalFrom = LifeStageTables.of("life_sim").finalStageFromTurn();
 		return run(session("life_sim", finalFrom, false), List.of("A"),
 				wire("手有点抖。", "\"vigor\":5,\"longing\":40,\"crossroads\":30,\"ties\":35", "null", "A", "B"));
+	}
+
+	/** 《寻常》(ADR-040):牵挂 28 → 33 从「轻身」升到「有所系」,服务端记「牵挂升档」issue(回放经落账入口重做标记)。 */
+	Run lifetimeTiesUp() {
+		ObjectNode w = world("life_sim");
+		((ObjectNode) w.path("character").path("attributes")).put("ties", 28);
+		Engine engine = new Engine(w, mapper);
+		for (int i = 0; i < 13; i++) {
+			engine.applyNoOp("日子", "A");
+		}
+		ArrayNode acts = mapper.createArrayNode();
+		acts.addObject().put("id", "A").put("text", "趴着");
+		acts.addObject().put("id", "B").put("text", "闻闻");
+		return run(new GameSession("save-replay-life_sim", engine, acts), List.of("A"),
+				wire("那年冬天来得早。", "\"vigor\":68,\"longing\":48,\"crossroads\":38,\"ties\":33", "null", "A", "B"));
 	}
 
 	/** 《七日开张》(ADR-038 Slice C):底细 45 → 15 跌破 20,服务端记「底细跌破 20」issue(回放经落账入口重做标记)。 */

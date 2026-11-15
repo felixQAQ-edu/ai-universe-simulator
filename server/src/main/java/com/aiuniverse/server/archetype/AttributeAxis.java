@@ -210,6 +210,27 @@ public record AttributeAxis(String key, String displayName, int min, int max, St
 	}
 
 	/**
+	 * 纯函数:当前数值所处档的<b>序号</b>(ADR-040 决策 1)—— 档按 {@code threshold} 升序排列后,
+	 * {@link #resolveBand(int)} 命中那一档的位置(0 = 值域最低的那一档)。两种 axisRole 下 threshold 升序都等于值域升序
+	 * (同 {@link #bandRanges()} 的排序),所以序号变大 ⇔ 往值高的那一档走。无档 → -1。
+	 *
+	 * <p><b>取整由调用方做</b>,同 {@code resolveBand}(提示词注入当前档、ADR-040 升档判定都先 {@code Math.round})。
+	 */
+	public int bandIndex(int value) {
+		Band band = resolveBand(value);
+		if (band == null) {
+			return -1;
+		}
+		int index = 0;
+		for (Band b : bands) {
+			if (b.threshold() < band.threshold()) {
+				index++;
+			}
+		}
+		return index;
+	}
+
+	/**
 	 * 行为档的显式值区间投影(下发前端,axisRole 无关)。据 axisRole 把 {@link Band#threshold} 翻成 inclusive
 	 * {@code [min,max]} 闭区间(depletion threshold=上界 → 区间向下展到上一档+1 / 最低档展到 min;accumulation
 	 * threshold=下界 → 区间向上展到下一档-1 / 最高档展到 max),按 min 升序。无档 → 空表。

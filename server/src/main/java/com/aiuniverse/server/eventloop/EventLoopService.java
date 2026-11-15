@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import com.aiuniverse.server.archetype.ArchetypeRegistry;
+import com.aiuniverse.server.archetype.AttributeAxis;
 import com.aiuniverse.server.archetype.LifetimeFamily;
 import com.aiuniverse.server.engine.Engine;
 import com.aiuniverse.server.engine.GameSchemas;
@@ -423,9 +424,12 @@ public class EventLoopService implements TurnExecutor {
 		checkQiriEnding(session, parsed);
 		Double profileBefore = paidanProfile(engine);
 		Double coverBefore = qiriCover(engine);
+		AttributeAxis tiesAxis = XunTiesMarker.tiesAxis(engine, registry);
+		Double tiesBefore = tiesAxis == null ? null : engine.attributes().get(XunTiesMarker.AXIS);
 		List<String> leak = engine.apply(parsed, actionId);
 		markPaidanProfileCrossing(engine, profileBefore);
 		markQiriCoverDrop(engine, coverBefore);
+		XunTiesMarker.mark(engine, tiesAxis, tiesBefore); // ADR-040:《寻常》牵挂升档,下发时由 ClientProjection 读
 		// ADR-028 §已决 A 第 7 条:局面 / 处境写入与落地同一时刻 —— 紧跟 apply,排在任何 sink 写之前
 		// (已落地未送达 → ADR-027 补写盘带走的快照里已是新状态;未落地 → 这里根本没跑到,什么都没写)。
 		if (scene != null) {
