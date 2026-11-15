@@ -82,12 +82,12 @@ describe('resolveWorldTheme · 皮肤登记(feature gate,ADR-018 §4.5)', () => 
     expect(resolveWorldTheme(UNREGISTERED)).toEqual(NEUTRAL_THEME);
   });
 
-  // 《寻常》只有顶图 + 卡面(卡面自 2026-11-12 起带环境动效,纯 CSS,这里测不到),皮肤刻意不登记 → 局内仍走旧实现。
-  it('《寻常》life_sim 有图有卡、但不登记皮肤', () => {
+  // 《寻常》:顶图 + 卡面(卡面自 2026-11-12 起带环境动效);2026-11-15 起登记局内皮肤(ADR-020「《寻常》局内皮肤」一节)。
+  it('《寻常》life_sim 有图有卡,登记了自己的皮肤', () => {
     const t = resolveWorldTheme('life_sim');
     expect(t.sceneUrl).toBe('/scenes/life_sim.webp');
     expect(t.cardClass).toBe(styles.cardLifeSim);
-    expect(t.skin).toBeNull();
+    expect(t.skin).toBe('life_sim');
   });
 
   // 《动物人生》:顶图 + 卡面(卡面自 2026-11-12 起带环境动效);2026-11-14 起登记局内皮肤(ADR-021 局内皮肤一节)。
@@ -150,8 +150,14 @@ describe('resolveWorldTheme · 皮肤登记(feature gate,ADR-018 §4.5)', () => 
   // 刀 4 之后**四个基础世界全部登记**,故「host 未登记 → 融合局走旧实现」这条降级路径
   // 在基础世界里已无样本可举 —— 改用未开放世界作 host 来守它(路径本身仍须成立:
   // 未来上新世界时,未登记的 host 必须整齐降级,而不是错拿别人的皮肤)。
+  // 《寻常》登记皮肤之后(ADR-020 该节),七个单体世界全部登记,host 样本只剩不存在的 id。
   it('host 未登记皮肤的融合局仍走旧实现(降级路径本身仍成立)', () => {
-    expect(resolveWorldTheme(['life_sim', 'apocalypse']).skin).toBeNull();
+    expect(resolveWorldTheme([UNREGISTERED, 'apocalypse']).skin).toBeNull();
+  });
+
+  // 《寻常》作 host 的组合服务端没有登记(init 400),到不了;按「融合局取 host 皮肤」规则推论是《寻常》的皮肤。
+  it('《寻常》作 host 的未登记组合 → 回落《寻常》单体登记', () => {
+    expect(resolveWorldTheme(['life_sim', 'apocalypse']).skin).toBe('life_sim');
   });
 
   // 克苏鲁作 host 的组合尚未登记任何一组;真出现时按 Q2 纯 host 呈现 = 克苏鲁皮肤。
@@ -219,7 +225,7 @@ describe('resolveWorldTheme · 加《动物人生》后其余世界零回归', (
       key: 'cultivation', sceneUrl: '/scenes/cultivation.webp', cardClass: styles.cardCultivation, skin: 'cultivation',
     });
     expect(resolveWorldTheme('life_sim')).toStrictEqual({
-      key: 'life_sim', sceneUrl: '/scenes/life_sim.webp', scenePosition: '100% 50%', cardClass: styles.cardLifeSim, skin: null,
+      key: 'life_sim', sceneUrl: '/scenes/life_sim.webp', scenePosition: '100% 50%', cardClass: styles.cardLifeSim, skin: 'life_sim',
     });
     expect(resolveWorldTheme(['cultivation', 'rules_creepy'])).toStrictEqual({
       key: 'cultivation×rules_creepy', sceneUrl: '/scenes/fusion-shihai.webp', cardClass: styles.cardFusion, skin: 'cultivation',

@@ -22,7 +22,8 @@ export type SkinId =
   | 'cthulhu'
   | 'cyberpunk'
   | 'time_travel'
-  | 'animal_life';
+  | 'animal_life'
+  | 'life_sim';
 
 /** 一个世界(单体或融合组合)的视觉登记。 */
 export interface WorldTheme {
@@ -81,9 +82,9 @@ const WORLDS: Readonly<Record<string, WorldEntry>> = {
     cardClass: styles.cardCultivation,
     skin: 'cultivation', // 刀 2:一级记忆点「一声钟鸣」挂 realm 向上跨档
   },
-  // 《寻常》(ADR-020):顶图 + 浮世卡面。**皮肤不登记**(`skin: null` = 局内走旧实现),无记忆点。
-  // 同 ADR-020 裁定一的顺序:先验玩法再投视觉。2026-11-09 那一刀只补到静态;2026-11-12 起卡面带一个持续环境动效
-  // (窗光里的浮尘,见 game.module.css `.cardLifeSim` 与 ADR-020 裁定一补充段)。局内仍无动效。
+  // 《寻常》(ADR-020):顶图 + 浮世卡面;2026-11-15 起登记局内皮肤(冷灰、刻痕与四行,见 ADR-020「《寻常》局内皮肤」一节,
+  // 该节解除了裁定一「第一版不做专属皮肤」)。卡面自 2026-11-12 起带一个持续环境动效(窗光里的浮尘,见 `.cardLifeSim`);
+  // 局内没有持续动效。
   life_sim: {
     sceneUrl: '/scenes/life_sim.webp',
     // 取景(原图 1774×1040,实测校准,2026-11-09):
@@ -93,7 +94,7 @@ const WORLDS: Readonly<Record<string, WorldEntry>> = {
     //   40% → 54.1% 越过 53% 的标准,下限约 44%。
     scenePosition: '100% 50%',
     cardClass: styles.cardLifeSim,
-    skin: null,
+    skin: 'life_sim', // 一级记忆点「留下的那一年」读服务端的 markedTurns,不挂签名轴(故无 signatureAxisKey)
   },
   // 《动物人生》(ADR-021):顶图 + 浮世卡面;2026-11-14 起登记局内皮肤(地板线上的门缝光,见 ADR-021「局内皮肤 + 入场记忆点」一节)。
   // 卡面自 2026-11-12 起带一个持续环境动效(门缝底下的光与脚步,见 `.cardAnimalLife` 与 ADR-021 约束 5 补充段);局内没有持续动效。

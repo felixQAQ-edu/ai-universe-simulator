@@ -1,0 +1,369 @@
+/* ═══ 《寻常》· 局内皮肤(ADR-020「《寻常》局内皮肤 + 记忆点『留下的那一年』」一节)═══════════════
+ *
+ * 风格硬线(Felix 2026-11-15):冷灰、平面、细线、方角。不用纹理、渐变质感、投影、圆润造型。
+ * --worn 是唯一的暖色,只用在危险档。样张里没有的装饰一律不加。
+ * 色板、字号、间距照 docs/xun-g2-samples/xun-ingame.html 的 .xun 逐值移植;动效参数照 xun-motion.html。
+ * 带缺口的线用 linear-gradient 画:那是平涂的断线,不是渐变质感。
+ *
+ * 动效预算(AGENTS.md Motion Constraints §2;槽位说明见 XunStats.tsx 头注释):
+ *   持续     = 无(顶图只有静态的去饱和)
+ *   低频偶发 = 一个槽:入场序列 / 一级记忆点「留下的那一年」(互斥由代码保证)
+ *   用户触发 = 一个槽:回合落地的回应(数值滚动、残痕、档名换字、刻痕推进);选项 / 返回键按压在落地之前
+ * 正文不参与任何动效(§4)。减弱动效下一切直接到结果。
+ */
+
+/* 项目里第二份网页字体(决策 6)。来源、授权、裁剪命令见 fonts/README.md。
+ * 只带 32 个码位(「寻常」+ 十二个档名);只有一个字重 500,不做模拟加粗。浏览器只在页面真用到这个族名时才下载。 */
+@font-face {
+  font-family: 'XunSong';
+  src: url('./fonts/xun-song.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ── 主题根:色板 token ─────────────────────────────────────────────────── */
+.screen {
+  /* 世界决定明暗(ADR-018 §4.6):本世界固定浅色。 */
+  --bg: #e8eaeb;
+  --paper: #eff0f1;
+  --text: #343b40;
+  --muted: #5a6369;
+  --line: #c3c8cb;
+  --faint: #d6dadc;
+  --worn: #86514a;
+  --xun-song: 'XunSong', 'Noto Serif SC', 'Songti SC', 'Source Han Serif SC', STSong, serif;
+  /* 磨损的细线:一道线中间断两处。 */
+  --worn-line: linear-gradient(
+    90deg,
+    var(--line) 0 31%,
+    transparent 31% 33.5%,
+    var(--line) 33.5% 78%,
+    transparent 78% 79.5%,
+    var(--line) 79.5%
+  );
+
+  /* 通用层读的 token。 */
+  --card: var(--paper);
+  --chip: var(--bg);
+  /* 规矩面板「已懂的那条」:样张 .rule.found(左缘 --muted、底 rgba(90,99,105,0.1))。 */
+  --accent: var(--muted);
+  --accent-soft: rgba(90, 99, 105, 0.1);
+  /* 提示条:样张没有;写死以防系统深色模式的回落值漏进来。 */
+  --notice-bg: var(--paper);
+  --notice-fg: var(--text);
+
+  --panel-radius: 2px;
+
+  /* 正文:不装框,上下各一道断线。 */
+  --prose-bg: var(--worn-line) top / 100% 1px no-repeat, var(--worn-line) bottom / 100% 1px no-repeat;
+  --prose-border: 0;
+  --prose-shadow: none;
+  --prose-pad: 1rem 0.1rem;
+  --prose-size: 0.95rem;
+  --prose-lh: 1.9;
+  /* 光标不闪:正文区不留循环动画(AGENTS.md §4)。 */
+  --caret-play: paused;
+
+  /* 世界标题:宋体 500,字距拉开(决策 2d 的令牌)。 */
+  --title-font: var(--xun-song);
+  --title-weight: 500;
+  --title-size: 1.6rem;
+  --title-tracking: 0.3em;
+  /* 顶图上的回合行:正文色 + 底色描边(样张 .phase)。描边保证压在图上可读,不是投影。 */
+  --phase-color: var(--text);
+  --phase-shadow: 0 0 2px var(--bg), 0 0 5px var(--bg);
+
+  /* 规矩面板:通用结构,只吃色板与方角(样张「基础款」)。 */
+  --rule-idle: var(--muted);
+  --rule-radius: 0;
+  --rule-tag-bg: transparent;
+  --rule-tag-fg: var(--muted);
+  --rule-tag-border: 1px solid currentColor;
+  --rule-tag-radius: 0;
+  --rule-tag-weight: 400;
+
+  /* 时间感(成对,ADR-018 §4.3):按压 600ms 缓出(样张 .opt)。 */
+  --t-dur: 0.6s;
+  --t-ease: ease-out;
+
+  color: var(--text);
+  font-synthesis: none;
+}
+
+/* 内容在氛围底之上。 */
+.screen > *:not(.ambient) {
+  position: relative;
+  z-index: 1;
+}
+
+/* 氛围底(fixed 铺满视口:桌面端 .screen 只有 640px,两侧也是这个世界的底色)。没有任何动画。 */
+.ambient {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: var(--bg);
+}
+
+/* 顶图:压掉三成饱和度(静态,不是动效)。取景沿用注册表的 '100% 50%'。 */
+.bannerImg {
+  filter: saturate(0.7);
+}
+
+/* ── 返回键:只有字和一道下划线 ─────────────────────────────────────────── */
+.back {
+  padding: 0 0.5rem;
+  color: var(--text);
+  background: color-mix(in srgb, var(--bg) 75%, transparent);
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  /* 按下同选项:字变淡,600ms(审定 8)。覆盖通用层的透明度反馈。 */
+  transition: color var(--t-dur) var(--t-ease);
+}
+
+.back:active {
+  opacity: 1;
+  color: var(--muted);
+}
+
+.back:focus-visible,
+.opt:focus-visible {
+  outline: 1px solid var(--text);
+  outline-offset: 2px;
+}
+
+/* ── 数值形态:一行刻痕 + 四行 ─────────────────────────────────────────── */
+/* 面板不装框(样张)。 */
+.panel {
+  display: flex;
+  flex-direction: column;
+}
+
+/* 刻痕行:高 15px(演示值;12px 的长刻痕 + 1px 偏移 + 1px 底线放得下)。 */
+.years {
+  position: relative;
+  height: 15px;
+}
+
+.years::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: var(--worn-line);
+}
+
+/* 每回合一道。元素本身 12px,短刻痕按比例压成 7px:长出来只动 transform(§6)。
+ * 位置纯 CSS:间距 6px,太多时等比压到放得下(min(6px, (宽 − 2px) / n));位置不做过渡(压缩后每回合只挪约 0.1px)。
+ * 不透明度由 ticks.ts 算好写进 style;回合 +1 时旧刻痕降一级走这条 900ms 过渡。 */
+.tick {
+  position: absolute;
+  bottom: 1px;
+  left: calc(var(--i) * min(6px, (100% - 2px) / var(--n)));
+  width: 1px;
+  height: 12px;
+  background: var(--text);
+  transform: scaleY(calc(7 / 12));
+  transform-origin: bottom;
+  transition: opacity 900ms ease-out;
+}
+
+.kept {
+  transform: scaleY(1);
+}
+
+.words {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding-top: 0.85rem;
+}
+
+.word {
+  display: grid;
+  grid-template-columns: 2.4rem 1fr 4.9rem 1.5rem;
+  column-gap: 1rem;
+  align-items: center;
+  min-width: 0;
+}
+
+.wName {
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.wNum {
+  font-size: 0.72rem;
+  color: var(--muted);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.bar {
+  position: relative;
+  display: block;
+  height: 6px;
+}
+
+.bar i {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  display: block;
+  transform-origin: left;
+}
+
+/* 残线:整条宽度上四处固定位置的缺口。不裁切(审定 7):实线 2px 完全盖住它。 */
+.barRest {
+  height: 1px;
+  margin-top: -0.5px;
+  background: linear-gradient(
+    90deg,
+    var(--line) 0 21%,
+    transparent 21% 22.5%,
+    var(--line) 22.5% 46%,
+    transparent 46% 52%,
+    var(--line) 52% 67%,
+    transparent 67% 68%,
+    var(--line) 68% 82%,
+    transparent 82% 89%,
+    var(--line) 89% 100%
+  );
+}
+
+/* 残痕:只在数值下降后由 Web Animations 显出来(静态不可见)。 */
+.barGhost {
+  height: 2px;
+  margin-top: -1px;
+  background: var(--muted);
+  opacity: 0;
+}
+
+/* 实线:全宽元素,长度 = transform: scaleX(value / 100)(XunStats 写)。 */
+.barFill {
+  height: 2px;
+  margin-top: -1px;
+  background: var(--text);
+}
+
+.danger .barFill {
+  background: var(--worn);
+}
+
+.wBand {
+  position: relative;
+  font-family: var(--xun-song);
+  font-weight: 500;
+  font-size: 0.95rem;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+/* 记号挂在字外面,档名左边对齐不被推开。caution 空心、danger 实心旧砖色;neutral / null 不画。 */
+.wBand b {
+  position: absolute;
+  left: -0.6rem;
+  top: 50%;
+  margin-top: -2.5px;
+  width: 5px;
+  height: 5px;
+  display: none;
+  box-sizing: border-box;
+}
+
+.caution .wBand b {
+  display: block;
+  border: 1px solid var(--muted);
+}
+
+.danger .wBand b {
+  display: block;
+  background: var(--worn);
+}
+
+.danger .wBand {
+  color: var(--worn);
+}
+
+/* ── 决策圈:几行字,行间一道很淡的线 ─────────────────────────────────── */
+.opts {
+  display: flex;
+  flex-direction: column;
+}
+
+.opt {
+  display: grid;
+  grid-template-columns: 1.1rem 1fr;
+  column-gap: 0.5rem;
+  align-items: baseline;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: var(--text);
+  cursor: pointer;
+  padding: 0.8rem 0.1rem;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--faint);
+  border-radius: 0;
+  -webkit-tap-highlight-color: transparent;
+  transition: color var(--t-dur) var(--t-ease);
+}
+
+.opt:active:not(:disabled) {
+  color: var(--muted);
+}
+
+.opt:disabled {
+  cursor: default;
+}
+
+.optNo {
+  font-size: 0.68rem;
+  color: var(--muted);
+}
+
+.optBody {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.optHint {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+/* ── 调试(?debug=1)────────────────────────────────────────────────────── */
+.debugRow {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+}
+
+.debugBtn {
+  font-size: 0.68rem;
+  color: var(--muted);
+  background: transparent;
+  border: 1px dashed var(--muted);
+  border-radius: 0;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+/* ── 减弱动效 ─────────────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .tick,
+  .opt,
+  .back {
+    transition: none;
+  }
+}

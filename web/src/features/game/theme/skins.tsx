@@ -31,6 +31,10 @@ import { XianActions } from './xian/XianActions';
 import { XianAmbient } from './xian/XianAmbient';
 import { XianStats } from './xian/XianStats';
 import xian from './xian/xian.module.css';
+import { XunActions } from './xun/XunActions';
+import { XunAmbient } from './xun/XunAmbient';
+import { XunStats } from './xun/XunStats';
+import xun from './xun/xun.module.css';
 
 // 皮肤表(ADR-018 §4.5 feature gate 的另一半):skinId → 一套形态组件 + class 令牌。
 //
@@ -197,5 +201,26 @@ export const SKINS: Partial<Record<SkinId, WorldSkin>> = {
     Ambient: AnimalAmbient,
     Stats: AnimalStats,
     Actions: AnimalActions,
+  },
+  life_sim: {
+    id: 'life_sim',
+    // 《寻常》(ADR-020「《寻常》局内皮肤」一节):入场只有数值块里的刻痕与四根条,与开场逐字不在同一块;
+    // 续局不逐字 —— 两者碰不到,故不占开场(勘察 6)。
+    hasIntro: false,
+    // 时间感(Felix 定):700ms,power2.out = 演示里的 1 − (1 − x)³(GSAP 的 power2 是三次方)。没有仪式延迟。
+    valueRoll: { durationMs: 700, ease: 'power2.out' },
+    // **不配 signatureAxisKey**:一级记忆点「留下的那一年」读服务端判定的 markedTurns(ADR-040),前端不再判一次档。
+    // 数值形态要画回合:通用层据此把 { turn, markedTurns } 交给 XunStats(决策 2c)。
+    statsTimeline: true,
+    screenClass: xun.screen,
+    // 局内没有持续或低频的 CSS 循环动效,停表时无事可停。
+    pausedClass: '',
+    // 顶图压掉三成饱和度(静态滤镜,不是动效)。
+    bannerImgClass: xun.bannerImg,
+    // 返回键:只有字和一道下划线;按下同选项(变淡,600ms)。
+    backClass: xun.back,
+    Ambient: XunAmbient,
+    Stats: XunStats,
+    Actions: XunActions,
   },
 };
