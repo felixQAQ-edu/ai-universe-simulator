@@ -29,3 +29,4 @@ export { createH5GameApi, gameApi } from './h5GameApi';
 export { createH5HistoryApi, historyApi } from './h5HistoryApi';
 export type { NavHistory, NavTag } from './navHistory';
 export { createBrowserNavHistory, navHistory } from './navHistory';
+export { onPageHidden } from './pageLifecycle';

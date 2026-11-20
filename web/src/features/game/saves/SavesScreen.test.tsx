@@ -88,7 +88,7 @@ describe('结构与文案(决策 2 / 4 / 8)', () => {
 
   it('暂时无法找回的行:留在原位,显示「暂时无法找回 · 点此重试」;副标题写「本设备上次游玩」', () => {
     renderSaves([sum(1), sum(2, { availability: 'unavailable' }), sum(3)]);
-    const rows = within(screen.getByRole('region', { name: '进行中3' })).getAllByRole('button');
+    const rows = within(screen.getByRole('region', { name: '进行中3' })).getAllByRole('listitem');
     expect(rows.map((b) => b.textContent?.slice(0, 3))).toEqual(['世界1', '世界2', '世界3']);
     expect(rows[1]).toHaveTextContent('暂时无法找回 · 点此重试');
     expect(rows[1]).toHaveTextContent('本设备上次游玩');
@@ -135,7 +135,7 @@ describe('点开一行(决策 5 / 审定 5)', () => {
     });
     useGameStore.setState({ resumeGame: resume });
     renderSaves([sum(1), sum(2)]);
-    await userEvent.click(screen.getByRole('button', { name: /世界2/ }));
+    await userEvent.click(screen.getByRole('button', { name: /^世界2/ }));
     expect(resume).toHaveBeenCalledWith('s2');
     expect(useSavesView.getState().open).toBe(false);
   });
@@ -146,7 +146,7 @@ describe('点开一行(决策 5 / 审定 5)', () => {
     });
     useGameStore.setState({ resumeGame: resume });
     renderSaves([sum(1)]);
-    await userEvent.click(screen.getByRole('button', { name: /世界1/ }));
+    await userEvent.click(screen.getByRole('button', { name: /^世界1/ }));
     expect(useSavesView.getState().open).toBe(true);
     expect(screen.getByText('存档暂时没能载入,稍后再试')).toBeInTheDocument();
   });
@@ -225,7 +225,7 @@ describe('进出与焦点(决策 5,经真实浏览器历史)', () => {
     useGameStore.setState({ saves: [sum(1)], resumeGame: resume });
     render(<GameScreen />);
     act(() => screens.openSaves('fushi'));
-    await userEvent.click(screen.getByRole('button', { name: /世界1/ }));
+    await userEvent.click(screen.getByRole('button', { name: /^世界1/ }));
     await waitFor(() => expect(window.history.state).toBeNull());
     expect(useSavesView.getState().open).toBe(false);
     expect(useGameStore.getState().status).toBe('awaiting');

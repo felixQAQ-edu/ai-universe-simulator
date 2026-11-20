@@ -123,7 +123,7 @@ describe('选择屏入口(口径 A/B/C/D)', () => {
     const entry = screen.getByRole('button', { name: entryName });
     expect(entry).toHaveTextContent('回看上局');
     expect(entry).toHaveTextContent('看看最近这一局已经发生过什么');
-    const row = screen.getByRole('button', { name: /雨夜便利店/ });
+    const row = screen.getByRole('button', { name: /^雨夜便利店/ });
     // 放在存档行上面:DOM 顺序 entry → row。
     expect(entry.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     await settle();
@@ -145,7 +145,7 @@ describe('选择屏入口(口径 A/B/C/D)', () => {
     expect(screen.getByRole('button', { name: /继续.*雨夜便利店/ })).toBeInTheDocument();
     await enterSaves();
     expect(screen.queryByRole('button', { name: entryName })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /雨夜便利店/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^雨夜便利店/ })).toBeInTheDocument();
     expect(screen.queryByText(/HTTP|501|404|503|history|请求失败|错误/)).not.toBeInTheDocument();
     await backToLobby();
   });
@@ -181,7 +181,7 @@ describe('能力位 capabilities.history(2026-10-09)', () => {
     await settle();
     expect(historyCalls).toEqual([]); // 存档页同样不探
     expect(screen.queryByRole('button', { name: entryName })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /雨夜便利店/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^雨夜便利店/ })).toBeInTheDocument();
     await backToLobby();
   });
 

@@ -280,6 +280,11 @@ describe('源码级边界:删除指针只有一条调用链(ADR-042 决策 2)', 
   });
 
   it('commitSaveRemoval 只出现在 gameStore.ts(定义)与存档页撤销窗口(到点那一处)', () => {
-    expect(filesWith('commitSaveRemoval')).toEqual(['/src/state/gameStore.ts']);
+    expect(src('/src/features/game/saves/useRemovalWindow.ts')).not.toBe(''); // 遍历到了
+    expect(filesWith('commitSaveRemoval')).toEqual([
+      '/src/features/game/saves/useRemovalWindow.ts',
+      '/src/state/gameStore.ts',
+    ]);
+    expect(count(src('/src/features/game/saves/useRemovalWindow.ts'), 'commitSaveRemoval')).toBe(1);
   });
 });

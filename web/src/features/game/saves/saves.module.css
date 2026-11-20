@@ -152,9 +152,115 @@
   color: var(--muted);
 }
 
+/* 「全部移除」:只在已结局组且显示着的行 > 0 时出现。 */
+.svClear {
+  font: inherit;
+  font-size: 0.75rem;
+  color: var(--muted);
+  background: none;
+  border: 0;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  padding: 0.5rem 0;
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.svRemove {
+  font: inherit;
+  font-size: 0.75rem;
+  color: var(--muted);
+  background: none;
+  border: 0;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 0.2rem 0 0.8rem;
+  cursor: pointer;
+}
+
+/* 撤销条开着时,列表底部让出它的高度,最后一两行不被盖住(已知代价 6)。
+ * main 元素 + 类:压过 game.module.css 的 .screen(两个模块的打包先后不保证)。 */
+main.svWithToast {
+  padding-bottom: calc(2rem + 6rem + env(safe-area-inset-bottom));
+}
+
+/* ── 撤销条(决策 8 / 审定 9:相对视口固定在底部,宽度跟 .screen 的 640px 列)──────────────
+ * 底座始终在 DOM 里(播报区须先于内容存在),没有待删时没有底色、不占位、不接指针。 */
+.svToast {
+  position: fixed;
+  left: max(calc(12px + env(safe-area-inset-left)), calc(50% - 320px + 12px));
+  right: max(calc(12px + env(safe-area-inset-right)), calc(50% - 320px + 12px));
+  bottom: calc(14px + env(safe-area-inset-bottom));
+  z-index: 5;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 0.8rem;
+  font-size: 0.85rem;
+  pointer-events: none;
+}
+
+.svToastOn {
+  padding: 0.7rem 0.9rem 0.8rem;
+  background: var(--text);
+  color: var(--bg);
+  border-radius: 2px;
+  overflow: hidden;
+  pointer-events: auto;
+}
+
+.svToastMsg {
+  margin: 0;
+}
+
+.svUndo {
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--bg);
+  background: none;
+  border: 0;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  min-height: 44px;
+  min-width: 44px;
+  cursor: pointer;
+}
+
+/* 5 秒线性走完(决策 8);暂停时停住(决策 3)。新增、不替代(审定 7)。 */
+.svToastLine {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  width: 100%;
+  background: var(--bg);
+  opacity: 0.55;
+  transform-origin: left center;
+  animation: svCountdown 5s linear forwards;
+}
+
+.svToastLine[data-paused] {
+  animation-play-state: paused;
+}
+
+@keyframes svCountdown {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .svHistory {
     animation: none;
+  }
+
+  /* 细线停在满长、不动;计时照常 5 秒(决策 9)。 */
+  .svToastLine {
+    animation: none;
+    transform: none;
   }
 }
 

@@ -17,3 +17,20 @@ export function formatLocalTime(ms: number): string {
   return `${d.getMonth() + 1}月${d.getDate()}日 ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+
+/**
+ * 撤销条那一句(ADR-042 决策 3 + 审定 1 / 2):恰好一次单删 → 《世界名》(空名 → 「这一局」);
+ * 恰好一次「全部移除」→ N 局已结局的存档;其余并批 → N 局存档。
+ */
+export function removalMessage(batch: {
+  entries: readonly SaveSummary[];
+  kind: 'one' | 'endedAll' | 'mixed';
+}): string {
+  const n = batch.entries.length;
+  if (batch.kind === 'one') {
+    const title = batch.entries[0]?.title;
+    return title ? `已从这台设备移除《${title}》` : '已从这台设备移除这一局';
+  }
+  if (batch.kind === 'endedAll') return `已从这台设备移除 ${n} 局已结局的存档`;
+  return `已从这台设备移除 ${n} 局存档`;
+}
