@@ -143,7 +143,8 @@ export const SKINS: Partial<Record<SkinId, WorldSkin>> = {
     id: 'cyberpunk',
     // 《派单》(ADR-036 Slice G-2):一级记忆点是**状态事件**(画像向上跨档时义眼浮字),不占开场。
     hasIntro: false,
-    // 时间感:利落、数字化,缓出(power3.out 与 CSS `--t-ease: cubic-bezier(0.215, 0.61, 0.355, 1)` 同源,§4.3 成对)。
+    // 时间感:利落、数字化,缓出。power3.out 是四次方缓出 1 − (1 − t)⁴;CSS `--t-ease: cubic-bezier(0.215, 0.61, 0.355, 1)`
+    // 是三次方缓出 —— 两者都是缓出,不是同一条曲线。手感 Felix 已真机认可,值不改(ADR-036 订正,2026-11-20)。
     valueRoll: {
       durationMs: 600,
       ease: 'power3.out',
@@ -166,7 +167,8 @@ export const SKINS: Partial<Record<SkinId, WorldSkin>> = {
     id: 'time_travel',
     // 《七日开张》(ADR-038 Slice G-2):一级记忆点是**状态事件**(熟客升档时亮一盏灯笼),不占开场。
     hasIntro: false,
-    // 时间感(Felix 定):数字滚 600ms,power3.out = 演示里的 1 − (1 − t)³;珠子跟着同一个显示值走。
+    // 时间感(Felix 定):数字滚 600ms,power3.out(四次方缓出 1 − (1 − t)⁴;演示里的 1 − (1 − t)³ 是 power2.out,
+    // 现值比演示略陡、手感 Felix 已真机认可,值不改,ADR-038 订正 2026-11-20);珠子跟着同一个显示值走。
     // 升档那一回合灯先亮,数字与珠子 600ms 后才动。
     valueRoll: { durationMs: 600, ease: 'power3.out', ceremonyDelayMs: 600 },
     // 「盯 regulars」是注册表的按 key 配置(ADR-018 §5 Q5 锁在注册表内);皮肤组件不读这个 key,也不读熟客的数值。
@@ -188,7 +190,8 @@ export const SKINS: Partial<Record<SkinId, WorldSkin>> = {
     // 《动物人生》(ADR-021 局内皮肤一节):一级记忆点「门缝光」是**入场序列**(进局时光照进来一次),
     // 同规则怪谈的托管方式 —— 新开局与续局都播;新开局正文等它走完再逐字(ADR-018 §4.7)。
     hasIntro: true,
-    // 时间感(Felix 定):500ms,power3.out = 演示里的 1 − (1 − t)³,不回弹;光带跟着同一个显示值走。没有仪式延迟。
+    // 时间感(Felix 定):500ms,power3.out(四次方缓出 1 − (1 − t)⁴;演示里的 1 − (1 − t)³ 是 power2.out,
+    // 现值比演示略陡、手感 Felix 已真机认可,值不改,ADR-021 订正 2026-11-20),不回弹;光带跟着同一个显示值走。没有仪式延迟。
     valueRoll: { durationMs: 500, ease: 'power3.out' },
     // **不配 signatureAxisKey**:记忆点不挂任何轴,收到的 signatureTick 恒为 0。
     screenClass: animal.screen,
