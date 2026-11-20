@@ -1330,7 +1330,7 @@ isTrue 检查放在 `WorldGenService.tryParse` 的通用校验之后,只对单�
 
 **仍不得部署**:Felix 在 dev server 上看过、调完参数并合并后,随 G 一起上。
 
-⚠️ **订正(2026-11-20,ADR-020「《寻常》局内皮肤」一节审定 4;上文原文一字不动)**:本节正文没有写缓动曲线;但实现 commit `a042cfa` 在 `skins.tsx` 给《派单》`valueRoll` 写的注释「power3.out 与 CSS `--t-ease: cubic-bezier(0.215, 0.61, 0.355, 1)` 同源,§4.3 成对」不对:按 GSAP 的命名 `power3` 是四次方,`power3.out` = `1 − (1 − t)⁴`;`cubic-bezier(0.215, 0.61, 0.355, 1)` 是三次方缓出。两者都是缓出,不是同一条曲线。数值滚动(GSAP)与按压反馈(CSS)的手感 Felix 已真机认可,**两处缓动值都不改**;只把 `skins.tsx` 那句注释改成如实描述。同一说法的另一半还在 `paidan.module.css` 的 `--t-ease` 注释里(「= GSAP power3.out」),不在审定 4 点名的三处之内,本次未改,另报。
+⚠️ **订正(2026-11-20,ADR-020「《寻常》局内皮肤」一节审定 4;上文原文一字不动)**:本节正文没有写缓动曲线;但实现 commit `a042cfa` 在 `skins.tsx` 给《派单》`valueRoll` 写的注释「power3.out 与 CSS `--t-ease: cubic-bezier(0.215, 0.61, 0.355, 1)` 同源,§4.3 成对」不对:按 GSAP 的命名 `power3` 是四次方,`power3.out` = `1 − (1 − t)⁴`;`cubic-bezier(0.215, 0.61, 0.355, 1)` 是三次方缓出。两者都是缓出,不是同一条曲线。数值滚动(GSAP)与按压反馈(CSS)的手感 Felix 已真机认可,**两处缓动值都不改**;只把 `skins.tsx` 那句注释改成如实描述。同一说法的另一半还在 `paidan.module.css` 的 `--t-ease` 注释里(「= GSAP power3.out」),不在审定 4 点名的三处之内,已在同分支 commit `da468c1` 同步改正注释(`--t-ease` 与 `--t-dur` 的值不动)。
 
 ## 实际效果(事后补充)
 
