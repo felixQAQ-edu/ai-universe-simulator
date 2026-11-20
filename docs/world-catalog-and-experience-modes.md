@@ -141,6 +141,8 @@
 > - **字段已加**:registry 每个单体世界(含未开放占位)必填 `experienceMode`,取值 `"fushi"`(浮世)/ `"shenjie"`(深界),
 >   只经 `GET /api/archetypes` 下发给大厅(CONTEXT §三.15 ADR-041 补充块);**融合世界不带这个字段**,一律进渗界。
 >   三区归属自此以 `ArchetypeRegistry`(单体)与 `FUSION_COMBOS`(融合)为准,下方「三区计数」是截至 `080494f` 的抄录,不再是唯一记录处。
+>
+> ⚠️ **补充(2026-11-21;上文原文与 ADR-041 补充块不动)**:三区大厅已于 2026-11-21 随 `2b11a2d` 部署(Felix 亲手部署;校勘已核 `/actuator/info`:`build.commit = 2b11a2d`、`build.time = 2026-11-20T14:24:31Z`)。
 
 ## 立字八 · 融合模式的前端单独设计
 
