@@ -204,3 +204,44 @@ describe('localStorage 写入失败:best-effort,当局照常(ADR-034 已知代�
     expect(store.getState().saves).toEqual([]);
   });
 });
+
+describe('撤销窗口走完后的删除(ADR-042 决策 2)', () => {
+  const s = (id: string, extra: Partial<Parameters<ReturnType<typeof createSavePointers>['write']>[0]> = {}) => ({
+    saveId: id, title: `世界${id}`, archetypes: ['rules_creepy'] as ['rules_creepy'], turn: 3,
+    ended: true, lastPlayedAt: 10, availability: 'available' as const, ...extra,
+  });
+
+  it('commitSaveRemoval:摘要没变的删掉、变过的留着,删完列表刷新', () => {
+    const p = createSavePointers();
+    p.write(s('a'));
+    p.write(s('b'));
+    p.write(s('keep'));
+    const { api } = scriptedApi();
+    const store = createGameStore(api);
+    const seen = store.getState().saves.filter((x) => x.saveId !== 'keep');
+    // 窗口那 5 秒里,别的页签续了 b(上次游玩时间变了)
+    p.patch('b', { lastPlayedAt: 99 });
+    store.getState().commitSaveRemoval(seen);
+    expect(raw('a')).toBeNull();
+    expect(raw('b')).not.toBeNull();
+    expect(raw('keep')).not.toBeNull();
+    expect(store.getState().saves.map((x) => x.saveId).sort()).toEqual(['b', 'keep']);
+  });
+
+  it('其余任何 store 动作都不删指针:开局、续局 404、回合 session_not_found、返回', async () => {
+    const p = createSavePointers();
+    p.write(s('old', { ended: false }));
+    const { api, initQueue, resumeQueue, stream } = scriptedApi();
+    initQueue.push({ res: result('n1') });
+    resumeQueue.push(new GameApiError('session_not_found', '存档不存在'));
+    const store = createGameStore(api);
+    await store.getState().startGame('rules_creepy');
+    store.getState().chooseAction('A');
+    stream().r.forEach((cb) => cb({ code: 'session_not_found', message: '找不到' }));
+    store.getState().reset();
+    await store.getState().resumeGame('old');
+    store.getState().reset();
+    expect(raw('old')).not.toBeNull();
+    expect(raw('n1')).not.toBeNull();
+  });
+});

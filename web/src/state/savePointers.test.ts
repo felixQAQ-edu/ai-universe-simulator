@@ -161,6 +161,59 @@ describe('旧单槽迁移(ADR-034 已决 7)', () => {
   });
 });
 
+describe('removeIfUnchanged:唯一的删除函数,比对后删(ADR-042 决策 2)', () => {
+  it('摘要七个字段全等 → 删掉这一条,别的不动', () => {
+    const p = createSavePointers();
+    p.write(sum('a'));
+    p.write(sum('b'));
+    expect(p.removeIfUnchanged(sum('a'))).toBe(true);
+    expect(saveKeys()).toEqual(['aiuniverse.save.b']);
+  });
+
+  it.each([
+    ['title', { title: '改过' }],
+    ['archetypes', { archetypes: ['cultivation'] }],
+    ['archetypes 顺序', { archetypes: ['rules_creepy', 'apocalypse'] }],
+    ['turn', { turn: 2 }],
+    ['ended', { ended: true }],
+    ['lastPlayedAt', { lastPlayedAt: 2 }],
+    ['availability', { availability: 'unavailable' }],
+  ] as Array<[string, Partial<SaveSummary>]>)('存储里的 %s 变了 → 不删', (_, change) => {
+    const p = createSavePointers();
+    p.write({ ...sum('a'), ...change });
+    expect(p.removeIfUnchanged(sum('a'))).toBe(false);
+    expect(saveKeys()).toEqual(['aiuniverse.save.a']);
+  });
+
+  it('融合有序对反过来也算变了', () => {
+    const p = createSavePointers();
+    p.write(sum('f', 1, { archetypes: ['cultivation', 'cthulhu'] }));
+    expect(p.removeIfUnchanged(sum('f', 1, { archetypes: ['cthulhu', 'cultivation'] }))).toBe(false);
+    expect(saveKeys()).toEqual(['aiuniverse.save.f']);
+  });
+
+  it('键不在 / 解析失败 → 不删、返回 false', () => {
+    const p = createSavePointers();
+    expect(p.removeIfUnchanged(sum('nope'))).toBe(false);
+    localStorage.setItem('aiuniverse.save.bad', '{not json');
+    expect(p.removeIfUnchanged(sum('bad'))).toBe(false);
+    expect(localStorage.getItem('aiuniverse.save.bad')).toBe('{not json');
+  });
+
+  it('storage 删不掉(抛错)→ 返回 false,不崩', () => {
+    const throwing: PointerStorage = {
+      ...failingStorage(() => false),
+      removeItem: () => {
+        throw new Error('SecurityError');
+      },
+    };
+    const p = createSavePointers(() => throwing);
+    p.write(sum('a'));
+    expect(p.removeIfUnchanged(sum('a'))).toBe(false);
+    expect(saveKeys()).toEqual(['aiuniverse.save.a']);
+  });
+});
+
 describe('源码级边界:只有存档指针模块碰存档相关的 localStorage 键', () => {
   // 用 Vite 原生 ?raw 读源码(ADR-022 刀 1 先例;node:fs 在 jsdom 下解析不出路径)。
   const sources = import.meta.glob('/src/**/*.{ts,tsx}', {
@@ -192,5 +245,41 @@ describe('源码级边界:只有存档指针模块碰存档相关的 localStorag
       .sort();
     // ADR-041 决策 2:大厅偏好(上次停的区 / 已发现 / 已开演)另有一个模块,键名不含存档前缀(见上一条)。
     expect(callers).toEqual(['/src/api/deviceId.ts', '/src/state/lobbyPrefs.ts', '/src/state/savePointers.ts']);
+  });
+});
+
+describe('源码级边界:删除指针只有一条调用链(ADR-042 决策 2)', () => {
+  const sources = import.meta.glob('/src/**/*.{ts,tsx}', {
+    query: '?raw',
+    import: 'default',
+    eager: true,
+  }) as Record<string, string>;
+  const prod = Object.entries(sources).filter(
+    ([path]) => !/\.test\.tsx?$/.test(path) && !path.startsWith('/src/test/'),
+  );
+  const src = (p: string) => prod.find(([q]) => q === p)?.[1] ?? '';
+  const count = (text: string, needle: string) => text.split(needle).length - 1;
+  const filesWith = (needle: string) =>
+    prod
+      .filter(([, s]) => s.includes(needle))
+      .map(([p]) => p)
+      .sort();
+
+  it('先证明遍历到了这几个文件(空集上的断言是假绿灯)', () => {
+    expect(src('/src/state/savePointers.ts')).toContain('removeIfUnchanged');
+    expect(src('/src/state/gameStore.ts')).toContain('commitSaveRemoval');
+  });
+
+  it('savePointers.ts 里 removeItem( 恰好两处:迁移清旧键 + removeIfUnchanged', () => {
+    expect(count(src('/src/state/savePointers.ts'), 'removeItem(')).toBe(2);
+  });
+
+  it('removeIfUnchanged 只出现在 savePointers.ts(定义)与 gameStore.ts(commitSaveRemoval 里一次)', () => {
+    expect(filesWith('removeIfUnchanged')).toEqual(['/src/state/gameStore.ts', '/src/state/savePointers.ts']);
+    expect(count(src('/src/state/gameStore.ts'), '.removeIfUnchanged(')).toBe(1);
+  });
+
+  it('commitSaveRemoval 只出现在 gameStore.ts(定义)与存档页撤销窗口(到点那一处)', () => {
+    expect(filesWith('commitSaveRemoval')).toEqual(['/src/state/gameStore.ts']);
   });
 });

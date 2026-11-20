@@ -1,8 +1,10 @@
 // 存档指针(ADR-034):本设备上开过的每一局,各一个 localStorage 键。
 //
-// **第一原则:任何路径都不得在玩家不知情的情况下丢弃一个指针。** saveId 是今天找回一局存档的唯一凭证 ——
-// 服务端不删档,但浏览器丢了指针,那一局就再也找不回来。所以本模块**没有删除条目的函数**:
-// 只有写入、更新、标记不可用;唯一的 removeItem 是迁移里「比对后清旧单槽键」(那时新键已经写好)。
+// **第一原则(ADR-034,经 ADR-042 改读):只在玩家明确点了「移除」、且那一次的撤销窗口完整走完时,才删除一个指针;
+// 其余任何路径都不得删除指针。** saveId 是今天找回一局存档的唯一凭证 —— 服务端不删档,但浏览器丢了指针,
+// 那一局就再也找不回来。所以本模块**只有一个删除条目的函数** `removeIfUnchanged`,只在存档页撤销窗口到点时
+// 经 gameStore 的提交动作调用(调用链由源码级断言锁死,见 savePointers.test.ts;注释里也别写出那两个函数名,断言按字面量数);其余只有写入、更新、标记不可用。
+// 另一处 removeItem 是迁移里「比对后清旧单槽键」(那时新键已经写好)。
 //
 // 存储形态(ADR-034 已决 2):`aiuniverse.save.<saveId>` 一键一局,列表 = 按前缀枚举后汇集。
 // 不用「一个数组存全部」:两个页签同时读 → 追加 → 写回会互相覆盖,而 localStorage 没有跨窗口锁。
@@ -53,6 +55,12 @@ export interface SavePointers {
   patch(saveId: string, patch: Partial<Omit<SaveSummary, 'saveId'>>): boolean;
   /** 旧单槽键 → 新键(ADR-034 已决 7)。幂等。 */
   migrateLegacy(): void;
+  /**
+   * **唯一的删除条目函数**(ADR-042 决策 2):当前键解析出的摘要七个字段与 `expected` 全等才删,否则什么都不做。
+   * 撤销窗口那 5 秒里,别的页签可能刚续了这一局(回合号 / 上次游玩时间变了)—— 那时删掉的就是玩家刚在玩的一局。
+   * 解析失败的键不删(ADR-034 已知代价 5)。删了返回 true。
+   */
+  removeIfUnchanged(expected: SaveSummary): boolean;
 }
 
 const keyOf = (saveId: string) => SAVE_KEY_PREFIX + saveId;
@@ -217,7 +225,34 @@ export function createSavePointers(
         /* 清不掉:下次加载再迁一次,幂等 */
       }
     },
+
+    removeIfUnchanged(expected) {
+      const st = storage();
+      if (!st) return false;
+      const cur = read(expected.saveId);
+      if (!cur || !sameSummary(cur, expected)) return false; // 变过 / 读不懂 / 不在:宁可多留一条
+      try {
+        st.removeItem(keyOf(expected.saveId));
+        return true;
+      } catch {
+        return false;
+      }
+    },
   };
+}
+
+/** 七个字段逐项相等(`archetypes` 按顺序比;融合是有序对)。 */
+function sameSummary(a: SaveSummary, b: SaveSummary): boolean {
+  return (
+    a.saveId === b.saveId &&
+    a.title === b.title &&
+    a.archetypes.length === b.archetypes.length &&
+    a.archetypes.every((x, i) => x === b.archetypes[i]) &&
+    a.turn === b.turn &&
+    a.ended === b.ended &&
+    a.lastPlayedAt === b.lastPlayedAt &&
+    a.availability === b.availability
+  );
 }
 
 /**

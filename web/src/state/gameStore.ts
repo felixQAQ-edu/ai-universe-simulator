@@ -119,6 +119,11 @@ export interface GameState {
   resumeGame: (saveId: string) => Promise<void>;
   /** 从存储重读列表(跨页签 storage 事件触发;只刷新显示,不写)。 */
   refreshSaves: () => void;
+  /**
+   * 撤销窗口走完后真正删除这一批指针(ADR-042 决策 2)。逐条「比对后删」,变过的那条不删;删完刷新列表。
+   * **只许存档页撤销窗口到点那一处调用**(源码级断言锁死)。
+   */
+  commitSaveRemoval: (entries: readonly SaveSummary[]) => void;
   chooseAction: (actionId: string) => void;
   /** 离开/重开时清理在途回合流,回到选择屏(保留已拉取的目录)。 */
   reset: () => void;
@@ -319,6 +324,11 @@ export function createGameStore(api: GameApi, opts: GameStoreOptions = {}) {
       saveNotice: null,
 
       refreshSaves,
+
+      commitSaveRemoval(entries) {
+        for (const e of entries) pointers.removeIfUnchanged(e);
+        refreshSaves();
+      },
 
       async loadArchetypes() {
         if (get().archetypesLoading || get().archetypes.length > 0) return;
