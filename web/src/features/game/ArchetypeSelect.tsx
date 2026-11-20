@@ -494,8 +494,8 @@ function LobbyAmbient() {
       <div className={lobbyStyles.fxFlash} />
       <div className={lobbyStyles.fxBolt}>
         <svg viewBox="0 0 52 104" fill="none">
-          <polyline points="38,0 30,30 40,34 22,70 31,74 16,104" stroke="#d6dbff" strokeWidth="1" />
-          <polyline points="30,30 20,44" stroke="#d6dbff" strokeWidth="0.7" />
+          <polyline points="38,0 30,30 40,34 22,70 31,74 16,104" stroke="#d6dbff" strokeWidth="1" vectorEffect="non-scaling-stroke" />
+          <polyline points="30,30 20,44" stroke="#d6dbff" strokeWidth="0.7" vectorEffect="non-scaling-stroke" />
         </svg>
       </div>
     </div>
