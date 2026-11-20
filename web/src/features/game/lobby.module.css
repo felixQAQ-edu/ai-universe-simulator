@@ -1,0 +1,150 @@
+/* 三区大厅(ADR-041):浮世 / 深界 / 渗界。数值照 docs/lobby-samples/ 两份定稿样张。
+ *
+ * 令牌挂在大厅根上(不挂 :root):游戏屏的令牌与计算样式不受影响(ADR-041 决策 4)。
+ * 底色照 ADR-018 §4.6 铺满视口(::before fixed),桌面端 640px 栏外不露系统底色。
+ * 区决定明暗(决策 11):不再跟随系统深浅色。 */
+
+.lobby {
+  position: relative;
+  isolation: isolate; /* 底色层 z-index:-1 留在本层叠上下文里,不沉到 body 底下 */
+  color: var(--text);
+  transition: color 0.4s ease;
+}
+
+.lobby::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: var(--bg);
+  transition: background-color 0.4s ease;
+}
+
+/* 内容在气氛层之上(气氛层 z-index 0,见刀 4)。 */
+.lobby > main {
+  position: relative;
+  z-index: 1;
+}
+
+/* 三区令牌(决策 4;渗界 --muted 按审定 11 由 #3d3944 改 #38343f)。
+ * --lobby-gap / --lobby-pad 只有选择屏的 .cardList / .selectHeader 读。 */
+.zoneFushi {
+  --bg: #f3efe7;
+  --text: #2a2521;
+  --muted: #6a6157;
+  --line: #ddd5c8;
+  --card: #fbf9f5;
+  --chip: #ece6dc;
+  --accent: #9a4f22;
+  --lobby-gap: 1.2rem;
+  --lobby-pad: 1.6rem;
+  color-scheme: light;
+}
+
+.zoneShen {
+  --bg: #111014;
+  --text: #ebe8ef;
+  --muted: #9e97a9;
+  --line: #2a2730;
+  --card: #19171d;
+  --chip: #211f26;
+  --accent: #e0935a;
+  --lobby-gap: 0.6rem;
+  --lobby-pad: 1rem;
+  color-scheme: dark;
+}
+
+.zoneRong {
+  --bg: #b9b5bf;
+  --text: #1a181e;
+  --muted: #38343f;
+  --line: #9d97a5;
+  --card: #c8c4cc;
+  --chip: #aca7b2;
+  --accent: #7a3f22;
+  --lobby-gap: 0.9rem;
+  --lobby-pad: 1.3rem;
+  color-scheme: light;
+}
+
+/* ── 分区标签(决策 3)──────────────────────────────────────────────────────
+ * 选中态是一道 2px 下划线,不只靠颜色。画在 ::after 上、未选中时 opacity 0:
+ * 强制颜色模式会把透明边框画成系统色(样张写法下所有标签都会带线),opacity 不受强制颜色影响。
+ * 按钮下内边距多留 2px = 样张 border-bottom 的位置,盒子尺寸与样张逐像素相同。 */
+.tabs {
+  display: flex;
+  gap: 1.6rem;
+  justify-content: center;
+  border-bottom: 1px solid var(--line);
+  margin-top: 0.2rem;
+}
+
+.tab {
+  position: relative;
+  font: inherit;
+  font-size: 0.95rem;
+  letter-spacing: 0.35em;
+  padding: 0.55rem 0 calc(0.5rem + 2px) 0.35em; /* 左 0.35em 抵掉末字后的字距,两字居中 */
+  margin-bottom: -1px; /* 下划线压住标签条的底线 */
+  background: none;
+  border: 0;
+  border-radius: 0;
+  color: var(--muted);
+  cursor: pointer;
+  min-height: 44px;
+  transition: color 0.4s ease;
+}
+
+.tab::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-block-end: 2px solid var(--text);
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+
+.tab[aria-selected='true'] {
+  color: var(--text);
+}
+
+.tab[aria-selected='true']::after {
+  opacity: 1;
+}
+
+.tab:focus-visible {
+  outline: 1px solid var(--text);
+  outline-offset: 2px;
+}
+
+/* 只渲染一个面板;面板内部的纵向节奏同 .screen(gap 1rem),与样张(元素直接挂在 .screen 下)一致。 */
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* 深界暗示句 / 渗界底句。 */
+.hint,
+.foot {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+  text-align: center;
+}
+
+.foot {
+  margin-top: 0.2rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lobby,
+  .lobby::before,
+  .tab,
+  .tab::after {
+    transition: none;
+  }
+}

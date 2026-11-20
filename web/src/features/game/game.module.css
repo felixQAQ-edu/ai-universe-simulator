@@ -493,7 +493,8 @@
 
 /* 选择屏(世界选择第一屏)----------------------------------------------- */
 .selectHeader {
-  padding: 1.6rem 0 0.6rem;
+  /* 页头上留白随区走(ADR-041 决策 4);下留白 0.6 → 0.4rem 照样张。不加过渡(切区直接跳)。 */
+  padding: var(--lobby-pad, 1.6rem) 0 0.4rem;
   text-align: center;
 }
 
@@ -506,7 +507,8 @@
   position: relative; /* 融合方向提示(.fusionNote)的定位锚点 */
   display: flex;
   flex-direction: column;
-  gap: 0.85rem; /* 改它要同步 .fusionNote 的半缝偏移 0.425rem */
+  /* 卡片间距随区走(ADR-041 决策 4:浮世 1.2 / 深界 0.6 / 渗界 0.9rem);.fusionNote 的半缝偏移读同一个值。 */
+  gap: var(--lobby-gap, 0.85rem);
 }
 
 /* ── 氛围卡片:每个世界一套专属主题,卡片自己就是那个世界的「预告片」──────────────
@@ -579,7 +581,7 @@
 
 /* ── 融合方向提示(ADR-019 实施记录):磁吸「将…揉入…」/ 拖反「反过来试试…」/ 不存在,同一位置体系 ──
  * 相对 .cardList 绝对定位,竖直居中在目标卡上沿或下沿外的卡间缝里(top 由 JS 写成卡沿,
- * 再用 ±半缝 0.425rem 推进缝中;data-side 选哪一侧)。缝 + 邻卡上下内边距 > 提示高度,
+ * 再用 ±半缝(卡片间距的一半)推进缝中;data-side 选哪一侧)。缝 + 邻卡上下内边距 > 提示高度,
  * 所以压到的只是邻卡的内边距,**不压任何一张卡的标题**。pointer-events: none:不挡手势。
  * 动效预算:它是**用户触发**槽里的提示,不是新效果 —— 替代页头那行静态 .fusionNote(本刀删去),
  * 淡入一次即止,不循环。 */
@@ -599,13 +601,13 @@
   line-height: 1.35;
   text-align: center;
   pointer-events: none;
-  transform: translate(-50%, calc(-50% - 0.425rem));
+  transform: translate(-50%, calc(-50% - var(--lobby-gap, 0.85rem) / 2));
   animation: fusionNoteIn 0.18s ease backwards;
   transition: opacity 0.16s ease, color 0.2s ease, border-color 0.2s ease;
 }
 
 .fusionNote[data-side='below'] {
-  transform: translate(-50%, calc(-50% + 0.425rem));
+  transform: translate(-50%, calc(-50% + var(--lobby-gap, 0.85rem) / 2));
 }
 
 /* 磁吸提示:吸附约 150ms 后才淡入(一掠而过的路过不出字);拒绝提示松手即出,不延迟。 */

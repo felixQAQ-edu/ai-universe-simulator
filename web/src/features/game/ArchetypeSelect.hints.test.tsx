@@ -6,6 +6,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useGameStore } from '../../state/gameStore';
+import { LOBBY_ZONE_KEY } from '../../state/lobbyPrefs';
 import { ArchetypeSelect } from './ArchetypeSelect';
 import styles from './game.module.css';
 
@@ -20,6 +21,8 @@ const topOf = (id: string) => ORDER.indexOf(id as (typeof ORDER)[number]) * 100;
 
 beforeEach(() => {
   localStorage.clear();
+  // 拖拽合成只在深界发生(ADR-041 决策 7):这些用例从深界开始(切区本身见 ArchetypeSelect.lobby.test)。
+  localStorage.setItem(LOBBY_ZONE_KEY, 'shen');
   useGameStore.setState({
     archetypes: ORDER.map((a) => ({ archetype: a, displayName: NAMES[a], tagline: null, vibeTag: null, experienceMode: 'shenjie' as const, active: true })),
     // 线上现役组合里与这三张有关的一条:《验讫》cultivation×cthulhu(克苏鲁拖到修仙上)。

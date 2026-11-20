@@ -35,11 +35,11 @@ afterEach(() => {
 });
 
 describe('「我的存档」区块', () => {
-  it('没有条目 → 整个区块不渲染,<main> 子元素与改动前一样只有 header + 卡片列表', () => {
+  it('没有条目 → 整个区块不渲染,<main> 子元素只有 header + 分区标签 + 分区面板(ADR-041)', () => {
     const { container } = render(<ArchetypeSelect />);
     expect(screen.queryByRole('region', { name: '我的存档' })).not.toBeInTheDocument();
     const main = container.querySelector('main')!;
-    expect(Array.from(main.children).map((c) => c.tagName)).toEqual(['HEADER', 'DIV']);
+    expect(Array.from(main.children).map((c) => c.tagName)).toEqual(['HEADER', 'DIV', 'DIV']);
   });
 
   it('超过 8 条 → 只展示最近 8 条 +「查看全部」;展开后全部可见,存储里一条没少', () => {

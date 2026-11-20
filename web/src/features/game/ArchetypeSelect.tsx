@@ -1,8 +1,18 @@
-import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+} from 'react';
 import { useGameStore } from '../../state/gameStore';
 import { useHistoryStore } from '../../state/historyStore';
 import { SAVE_LIST_VISIBLE, onSavePointersChanged, type SaveSummary } from '../../state/savePointers';
+import { lobbyPrefs, onLobbyPrefsChanged, type LobbyZone } from '../../state/lobbyPrefs';
 import { describeSave } from './saveText';
+import { discoveredFusions, hasUndiscovered, initialZone, zoneOfWorld } from './lobby';
 import type { ArchetypeSummary } from '../../api';
 import { classifyPair, fusionKey, isFusionAllowed, pairOf } from './fusion/drag';
 import { magnetHintText, rejectHintText } from './fusion/hints';
@@ -10,6 +20,7 @@ import { useFusionDrag, type HintSide } from './fusion/useFusionDrag';
 import { cardTheme } from './theme/registry';
 import { reducedMotion } from './theme/motion';
 import styles from './game.module.css';
+import lobbyStyles from './lobby.module.css';
 
 // 世界选择第一屏(产品门面,ADR-008 决策 4)。玩家进游戏 → 看见可玩世界 → 选一个 →
 // startGame(archetype) → 复用 Phase 1 已验证整局闭环。
@@ -32,6 +43,11 @@ import styles from './game.module.css';
 // 成品卡直接挂在已开放卡之后、获得焦点(浏览器把它滚进视野),播报区念一句。
 //
 // 卡片氛围 class 由**单一主题注册表**给出(ADR-018 §4.1);未登记世界 → '' 中性卡。
+//
+// ── 三区大厅(ADR-041)──────────────────────────────────────────────────────
+// 浮世 / 深界按后端 `experienceMode` 分卡;渗界只放已发现的融合世界(浏览器记录 ∪ 存档推导)。
+// 拖拽合成只在深界发生(浮世卡不注册拖拽)。刚合成的成品卡只在这一次停留深界期间挂在深界末尾,
+// 离开深界即清空 —— 之后只在渗界出现(决策 6「成品卡的去处」)。
 
 export function ArchetypeSelect() {
   const archetypes = useGameStore((s) => s.archetypes);
@@ -59,6 +75,14 @@ export function ArchetypeSelect() {
   const [focusReq, setFocusReq] = useState<{ key: string; n: number } | null>(null);
   /** 松手在非法目标上的那一句(不弹 Toast;下一次抓起或成功揉合即散)。 */
   const [rejectNote, setRejectNote] = useState<FusionHint | null>(null);
+
+  // ── 分区(ADR-041 决策 2)────────────────────────────────────────────────────
+  /** 浏览器记下的已发现组合(发现先后);别的页签改了也跟着刷新。 */
+  const [storedDiscovered, setStoredDiscovered] = useState<readonly string[]>(() => lobbyPrefs.readDiscovered());
+  useEffect(() => onLobbyPrefsChanged(() => setStoredDiscovered(lobbyPrefs.readDiscovered())), []);
+  /** 进门时读到的「上次停的区」;本次停留中玩家切过区则以 chosenZone 为准。 */
+  const [storedZone] = useState<LobbyZone | null>(() => lobbyPrefs.readZone());
+  const [chosenZone, setChosenZone] = useState<LobbyZone | null>(null);
   /** 屏幕阅读器播报区(aria-live=polite)。直接写 DOM,只在文本变化时写 —— 见 {@link announce}。 */
   const liveRef = useRef<HTMLParagraphElement>(null);
   /** 本次手势里最后写进播报区的文本(去重依据;抓起新的一张时清空)。 */
@@ -67,6 +91,14 @@ export function ArchetypeSelect() {
   useEffect(() => {
     void loadArchetypes();
   }, [loadArchetypes]);
+
+  const discovered = useMemo(
+    () => discoveredFusions({ stored: storedDiscovered, saves, fusions, hasCard: hasFusionCard }),
+    [storedDiscovered, saves, fusions],
+  );
+  const catalogLoaded = archetypes.length > 0;
+  // 目录到手前不知道哪些组合还合法:先按浏览器记录估「渗界在不在」,免得记的是渗界的老玩家进门先闪一下浮世。
+  const zone = initialZone(chosenZone ?? storedZone, catalogLoaded ? discovered.length : storedDiscovered.length);
 
   // 跨页签:别的页签开局 / 落回合时刷新列表显示(ADR-034 已决 8;只刷新,不写)。
   useEffect(() => onSavePointersChanged(refreshSaves), [refreshSaves]);
@@ -113,6 +145,9 @@ export function ArchetypeSelect() {
       const key = fusionKey(host, foreign);
       setRejectNote(null);
       setFused((f) => (f.includes(key) ? f : [...f, key]));
+      // 写入已发现(决策 2):存储写不进时本次停留仍按已发现处理(state 自己追加,不靠读回)。
+      lobbyPrefs.addDiscovered(key);
+      setStoredDiscovered((d) => (d.includes(key) ? d : [...d, key]));
       setFocusReq((r) => ({ key, n: (r?.n ?? 0) + 1 }));
       // 读屏播报(沿用同一个 aria-live 区与去重)。文案 Felix 2026-11-09 定稿;刻意不说「列表末尾」,
       // 以后调整插入位置时,播报不会指错路(ADR-019 订正 2026-11-09 §2)。
@@ -177,8 +212,41 @@ export function ArchetypeSelect() {
     if (magnetText) announce(magnetText);
   }, [magnetText, announce]);
 
-  const active = archetypes.filter((a) => a.active);
-  const locked = archetypes.filter((a) => !a.active);
+  const visibleZones: LobbyZone[] = discovered.length > 0 ? ['fushi', 'shen', 'rong'] : ['fushi', 'shen'];
+
+  /** 切区(决策 5):记住这一区;离开深界即清空本次合成的成品卡与拖拽提示。 */
+  const selectZone = (next: LobbyZone) => {
+    if (next === zone) return;
+    setChosenZone(next);
+    lobbyPrefs.writeZone(next);
+    if (next !== 'shen') {
+      setFused([]);
+      setFocusReq(null);
+      setRejectNote(null);
+      setShownHint(null);
+    }
+  };
+
+  // 标签键盘(决策 3 / 审定 7):←/→ 在可见标签间移焦点并循环,Home / End 到两端;
+  // Enter / Space 才切区(按钮原生把它们变成 click)。roving tabindex:只有选中的标签在 Tab 序列里。
+  const tabRefs = useRef<Partial<Record<LobbyZone, HTMLButtonElement | null>>>({});
+  const onTabKeyDown = (e: ReactKeyboardEvent<HTMLButtonElement>, from: LobbyZone) => {
+    const i = visibleZones.indexOf(from);
+    const n = visibleZones.length;
+    let to: number;
+    if (e.key === 'ArrowRight') to = (i + 1) % n;
+    else if (e.key === 'ArrowLeft') to = (i - 1 + n) % n;
+    else if (e.key === 'Home') to = 0;
+    else if (e.key === 'End') to = n - 1;
+    else return;
+    e.preventDefault();
+    tabRefs.current[visibleZones[to]]?.focus();
+  };
+
+  const inZone = (a: ArchetypeSummary) => zoneOfWorld(a.experienceMode) === zone;
+  const active = archetypes.filter((a) => a.active && inZone(a));
+  const locked = archetypes.filter((a) => !a.active && inZone(a));
+  const draggable = zone === 'shen';
 
   const dragStateOf = (id: string): CardDragState => {
     if (drag.view.draggingId === id) return 'dragging';
@@ -187,90 +255,153 @@ export function ArchetypeSelect() {
   };
 
   return (
-    <main className={styles.screen}>
-      <header className={styles.selectHeader}>
-        <p className={styles.phase}>AI Universe Simulator</p>
-        <h1 className={styles.title}>选择你的世界</h1>
-        <p className={styles.muted}>每一个世界都由 AI 即时生成,真假难辨,不可回头。</p>
-        {/* 三类方向提示的唯一播报区:始终在场(播报区须先于内容存在),只由 announce() 写。
-            放在 header 里而不是 <main> 下:<main> 的子元素结构有对拍(SaveList.test)。 */}
-        <p ref={liveRef} className={styles.srOnly} aria-live="polite" data-testid="fusion-live" />
-      </header>
+    <div className={`${lobbyStyles.lobby} ${ZONE_CLASS[zone]}`} data-zone={zone}>
+      <main className={styles.screen}>
+        <header className={styles.selectHeader}>
+          <p className={styles.phase}>AI Universe Simulator</p>
+          <h1 className={styles.title}>选择你的世界</h1>
+          {/* 副标题随区换句(决策 3);标题、存档、回看上局不随区变。 */}
+          <p className={styles.muted}>{ZONE_SUBTITLE[zone]}</p>
+          {/* 三类方向提示的唯一播报区:始终在场(播报区须先于内容存在),只由 announce() 写。
+              放在 header 里而不是 <main> 下:<main> 的子元素结构有对拍(SaveList.test)。 */}
+          <p ref={liveRef} className={styles.srOnly} aria-live="polite" data-testid="fusion-live" />
+        </header>
 
-      {/* 我的存档(ADR-034):放在原「继续上局」的位置;没有任何条目时整个区块不渲染(DOM 与改动前相同)。 */}
-      {saves.length > 0 && (
-        <SaveList
-          saves={saves}
-          notice={saveNotice}
-          nameOf={(a) => archetypes.find((x) => x.archetype === a)?.displayName ?? a}
-          onResume={(id) => void resumeGame(id)}
-        />
-      )}
-      {/* 回看上局:辅助入口,视觉权重低于存档条目;不预留空位,探测成功后淡入(无位移动画)。 */}
-      {latestSaveId && historyVisible && (
-        <button
-          type="button"
-          className={styles.historyEntry}
-          onClick={() => openHistory(latestSaveId)}
-        >
-          <span className={styles.historyEntryTitle}>回看上局</span>
-          <span className={styles.historyEntryHint}>看看这一局已经发生过什么</span>
-        </button>
-      )}
-
-      {loading && archetypes.length === 0 ? (
-        <div className={styles.centered}>
-          <div className={styles.spinner} />
-          <p className={styles.muted}>正在载入世界……</p>
-        </div>
-      ) : error && archetypes.length === 0 ? (
-        <div className={styles.centered}>
-          <p className={styles.muted}>{error}</p>
-          <button type="button" className={styles.primaryBtn} onClick={() => void loadArchetypes()}>
-            重试
+        {/* 我的存档(ADR-034):放在原「继续上局」的位置;没有任何条目时整个区块不渲染(DOM 与改动前相同)。 */}
+        {saves.length > 0 && (
+          <SaveList
+            saves={saves}
+            notice={saveNotice}
+            nameOf={(a) => archetypes.find((x) => x.archetype === a)?.displayName ?? a}
+            onResume={(id) => void resumeGame(id)}
+          />
+        )}
+        {/* 回看上局:辅助入口,视觉权重低于存档条目;不预留空位,探测成功后淡入(无位移动画)。 */}
+        {latestSaveId && historyVisible && (
+          <button
+            type="button"
+            className={styles.historyEntry}
+            onClick={() => openHistory(latestSaveId)}
+          >
+            <span className={styles.historyEntryTitle}>回看上局</span>
+            <span className={styles.historyEntryHint}>看看这一局已经发生过什么</span>
           </button>
-        </div>
-      ) : (
-        <div className={styles.cardList}>
-          {active.map((a) => (
-            <ArchetypeCard
-              key={a.archetype}
-              summary={a}
-              onChoose={() => startGame(a.archetype)}
-              drag={{
-                ref: drag.registerCard(a.archetype),
-                onPointerDown: (e) => drag.onPointerDown(a.archetype, e),
-                shouldSwallowClick: () => drag.shouldSwallowClick(a.archetype),
-                state: dragStateOf(a.archetype),
-              }}
-            />
-          ))}
-          {fused.map((key) => (
-            <FusionCard
-              key={key}
-              combo={key}
-              onChoose={() => startGame(pairOf(key))}
-              focusSignal={focusReq?.key === key ? focusReq.n : undefined}
-              fresh
-            />
-          ))}
-          {locked.map((a) => (
-            <ArchetypeCard key={a.archetype} summary={a} onChoose={() => startGame(a.archetype)} />
-          ))}
-          {/* 放在列表末尾:不打乱卡片的 nth-child 入场错峰。换目标即换 key → 重新淡入。 */}
-          {hint && (
-            <FusionHintView
-              key={hint.id}
-              hint={hint}
-              leaving={currentHint === null}
-              elementOf={drag.elementOf}
-            />
-          )}
-        </div>
-      )}
-    </main>
+        )}
+
+        {loading && archetypes.length === 0 ? (
+          <div className={styles.centered}>
+            <div className={styles.spinner} />
+            <p className={styles.muted}>正在载入世界……</p>
+          </div>
+        ) : error && archetypes.length === 0 ? (
+          <div className={styles.centered}>
+            <p className={styles.muted}>{error}</p>
+            <button type="button" className={styles.primaryBtn} onClick={() => void loadArchetypes()}>
+              重试
+            </button>
+          </div>
+        ) : (
+          <>
+            <div role="tablist" aria-label="分区" className={lobbyStyles.tabs}>
+              {visibleZones.map((z) => (
+                <button
+                  key={z}
+                  ref={(el) => {
+                    tabRefs.current[z] = el;
+                  }}
+                  type="button"
+                  role="tab"
+                  id={TAB_ID[z]}
+                  aria-selected={z === zone}
+                  tabIndex={z === zone ? 0 : -1}
+                  className={lobbyStyles.tab}
+                  onClick={() => selectZone(z)}
+                  onKeyDown={(e) => onTabKeyDown(e, z)}
+                >
+                  {ZONE_NAME[z]}
+                </button>
+              ))}
+            </div>
+            <div role="tabpanel" aria-labelledby={TAB_ID[zone]} className={lobbyStyles.panel}>
+              {zone === 'shen' && <p className={lobbyStyles.hint}>别把两个世界放得太近。</p>}
+              {/* key 随区换:切区整列重挂,卡片入场 cardEnter 重播(审定 3)。 */}
+              <div key={zone} className={styles.cardList}>
+                {zone === 'rong'
+                  ? discovered.map((key) => (
+                      <FusionCard key={key} combo={key} onChoose={() => startGame(pairOf(key))} />
+                    ))
+                  : active.map((a) => (
+                      <ArchetypeCard
+                        key={a.archetype}
+                        summary={a}
+                        onChoose={() => startGame(a.archetype)}
+                        drag={
+                          draggable
+                            ? {
+                                ref: drag.registerCard(a.archetype),
+                                onPointerDown: (e) => drag.onPointerDown(a.archetype, e),
+                                shouldSwallowClick: () => drag.shouldSwallowClick(a.archetype),
+                                state: dragStateOf(a.archetype),
+                              }
+                            : undefined
+                        }
+                      />
+                    ))}
+                {draggable &&
+                  fused.map((key) => (
+                    <FusionCard
+                      key={key}
+                      combo={key}
+                      onChoose={() => startGame(pairOf(key))}
+                      focusSignal={focusReq?.key === key ? focusReq.n : undefined}
+                      fresh
+                    />
+                  ))}
+                {zone !== 'rong' &&
+                  locked.map((a) => (
+                    <ArchetypeCard key={a.archetype} summary={a} onChoose={() => startGame(a.archetype)} />
+                  ))}
+                {/* 放在列表末尾:不打乱卡片的 nth-child 入场错峰。换目标即换 key → 重新淡入。 */}
+                {draggable && hint && (
+                  <FusionHintView
+                    key={hint.id}
+                    hint={hint}
+                    leaving={currentHint === null}
+                    elementOf={drag.elementOf}
+                  />
+                )}
+              </div>
+              {/* 渗界底句只在还有未发现的组合时显示(审定 6)。 */}
+              {zone === 'rong' && hasUndiscovered(fusions, discovered, hasFusionCard) && (
+                <p className={lobbyStyles.foot}>还有别的世界,正在深界里互相渗着。</p>
+              )}
+            </div>
+          </>
+        )}
+      </main>
+    </div>
   );
 }
+
+const ZONE_CLASS: Record<LobbyZone, string> = {
+  fushi: lobbyStyles.zoneFushi,
+  shen: lobbyStyles.zoneShen,
+  rong: lobbyStyles.zoneRong,
+};
+
+const ZONE_NAME: Record<LobbyZone, string> = { fushi: '浮世', shen: '深界', rong: '渗界' };
+
+const TAB_ID: Record<LobbyZone, string> = {
+  fushi: 'lobby-tab-fushi',
+  shen: 'lobby-tab-shen',
+  rong: 'lobby-tab-rong',
+};
+
+const ZONE_SUBTITLE: Record<LobbyZone, string> = {
+  fushi: '每一个世界都由 AI 即时生成,烟火寻常,慢慢过活。',
+  shen: '每一个世界都由 AI 即时生成,真假难辨,不可回头。',
+  rong: '两个世界渗在一起,就不再是原来任何一个。',
+};
 
 /**
  * 「我的存档」区块(ADR-034 已决 9):静态呈现,不新增动效。默认只展示最近 8 条,
@@ -464,6 +595,11 @@ const DRAG_CLASS: Record<NonNullable<CardDragState>, string> = {
  * per-combo 融合卡**文案**(ADR-014 参数化;展示层配置,不入后端)。
  * 卡片氛围 class 不在这里 —— 它与单体卡同源,由主题注册表按组合键给出(ADR-018 §4.1)。
  */
+/** 前端配了卡文案的组合才进渗界(决策 2 的交集)。 */
+function hasFusionCard(key: string): boolean {
+  return key in FUSION_CARDS;
+}
+
 const FUSION_CARDS: Record<
   string,
   { titles: [string, string, string]; ariaLabel: string; tagline: string }
