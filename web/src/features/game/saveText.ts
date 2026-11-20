@@ -1,6 +1,9 @@
 // 「我的存档」条目文案(ADR-034;纯函数,无平台 IO)。
 import type { SaveSummary } from '../../state/savePointers';
 
+/** 世界名为空(迁移来的旧指针)时的占位(ADR-034 已知代价 4,原文照旧;大厅继续条与存档页共用)。 */
+export const UNTITLED_SAVE = '上一局(续上后显示世界名)';
+
 /** 条目副标题:世界(单体 / 融合)· 进度 · 本设备上次游玩时间(客户端本地时钟,不是服务端时间)。 */
 export function describeSave(s: SaveSummary, nameOf: (archetype: string) => string): string {
   const kind = s.archetypes.length > 0 ? s.archetypes.map(nameOf).join(' × ') : '';

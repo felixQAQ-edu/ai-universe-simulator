@@ -157,3 +157,54 @@
     animation: none;
   }
 }
+
+/* ── 大厅继续块(ADR-042 决策 4 / 8)────────────────────────────────── */
+
+.svWrap {
+  display: flex;
+  flex-direction: column;
+}
+
+.svCont {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.9rem;
+  width: 100%;
+  min-height: 60px;
+  padding: 0.75rem 0.15rem;
+  background: none;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.svLabel {
+  font-size: 0.72rem;
+  letter-spacing: 0.2em;
+  color: var(--muted);
+}
+
+.svAll {
+  align-self: flex-end;
+  margin-top: -0.55rem;
+  font: inherit;
+  font-size: 0.78rem;
+  color: var(--muted);
+  background: none;
+  border: 0;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  padding: 0.6rem 0.1rem;
+  min-height: 44px;
+  cursor: pointer;
+}
+
+/* 没有可继续的(审定 4):只剩这一行,上面没有继续条可贴,不往上收。 */
+.svAllAlone {
+  margin-top: 0;
+}

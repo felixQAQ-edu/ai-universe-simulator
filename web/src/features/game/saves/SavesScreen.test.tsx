@@ -8,7 +8,8 @@ import { useHistoryStore } from '../../../state/historyStore';
 import { createSavePointers, type SaveSummary } from '../../../state/savePointers';
 import { screens, useSavesView } from '../../../state/screens';
 import { GameScreen } from '../GameScreen';
-import { SavesScreen, UNTITLED_SAVE } from './SavesScreen';
+import { UNTITLED_SAVE } from '../saveText';
+import { SavesScreen } from './SavesScreen';
 
 const sum = (i: number, extra: Partial<SaveSummary> = {}): SaveSummary => ({
   saveId: `s${i}`,

@@ -10,10 +10,13 @@ import {
 } from 'react';
 import { useGameStore } from '../../state/gameStore';
 import { useHistoryStore } from '../../state/historyStore';
-import { screens } from '../../state/screens';
-import { SAVE_LIST_VISIBLE, onSavePointersChanged, type SaveSummary } from '../../state/savePointers';
+import { screens, useSavesView } from '../../state/screens';
+import { CONTINUE_LOST_NOTICE, useContinueNotice } from '../../state/continueNotice';
+import { onSavePointersChanged } from '../../state/savePointers';
 import { lobbyPrefs, onLobbyPrefsChanged, type LobbyZone } from '../../state/lobbyPrefs';
-import { describeSave } from './saveText';
+import { describeSave, UNTITLED_SAVE } from './saveText';
+import { pickContinue } from './saves/pick';
+import saveStyles from './saves/saves.module.css';
 import { discoveredFusions, hasUndiscovered, initialZone, zoneOfWorld } from './lobby';
 import type { ArchetypeSummary } from '../../api';
 import { classifyPair, fusionKey, isFusionAllowed, pairOf } from './fusion/drag';
@@ -63,8 +66,11 @@ export function ArchetypeSelect() {
   const saveNotice = useGameStore((s) => s.saveNotice);
   const refreshSaves = useGameStore((s) => s.refreshSaves);
   const resumeGame = useGameStore((s) => s.resumeGame);
-  /** 「回看上局」只跟随最近一条(ADR-034 已决 9)。 */
+  /** 「回看上局」只跟随最近一条(ADR-034 已决 9);入口在存档页,探测仍从这里提前发(ADR-042 决策 6)。 */
   const latestSaveId = saves.length > 0 ? saves[0].saveId : null;
+  /** 继续条:最近一局没结局、能找回的(ADR-042 决策 4)。 */
+  const cont = pickContinue(saves);
+  const contNotice = useContinueNotice((s) => s.text);
 
   /**
    * 已揉出的融合组合键,按揉出先后(纯组件 state、零持久化 —— 离开选择屏即遗忘,回来要重新拖)。
@@ -131,18 +137,34 @@ export function ArchetypeSelect() {
   // 跨页签:别的页签开局 / 落回合时刷新列表显示(ADR-034 已决 8;只刷新,不写)。
   useEffect(() => onSavePointersChanged(refreshSaves), [refreshSaves]);
 
-  // 「回看上局」入口(ADR-025 刀 3):只在有存档时才可能出现,且只跟随最近一条(ADR-034 已决 9);
-  // 显示与否靠探测(口径 B)。
+  // 「回看上局」入口(ADR-025 刀 3)搬进了存档页(ADR-042 决策 6),探测仍在这里提前发:
+  // 多数情况下进存档页时结果已经在了,入口不会晚到把下面的行往下推(已知代价 5)。
+  // 只跟随最近一条(ADR-034 已决 9);显示与否靠探测(口径 B)。
   // 去重与缓存在 historyStore 里:同一 saveId 在途不重发,已确认可见不再发,失败不记。
   // 只在后端声明有历史存储时才探测(capabilities.history;非 pg 环境那里恒为 501,不去撞它)。
   const historyCapable = useGameStore((s) => s.capabilities.history);
   const probeHistory = useHistoryStore((s) => s.probe);
-  const historyVisible = useHistoryStore((s) =>
-    latestSaveId ? s.visible[latestSaveId] === true : false,
-  );
   useEffect(() => {
     if (latestSaveId && historyCapable) probeHistory(latestSaveId);
   }, [latestSaveId, historyCapable, probeHistory]);
+
+  // 从存档页回来:焦点回「全部存档(N)」(ADR-042 决策 5;一次性提示,落完即清)。
+  const allRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (useSavesView.getState().focus !== 'all') return;
+    allRef.current?.focus();
+    useSavesView.setState({ focus: null });
+  }, []);
+
+  /** 点「继续」:续不上且那一局因此被标成暂时无法找回(404)时,在继续条下说一声(审定 3)。 */
+  const onContinue = async (saveId: string) => {
+    await resumeGame(saveId);
+    const after = useGameStore.getState();
+    if (after.status !== 'idle') return;
+    if (after.saves.find((x) => x.saveId === saveId)?.availability === 'unavailable') {
+      useContinueNotice.setState({ text: CONTINUE_LOST_NOTICE });
+    }
+  };
 
   const canFuse = useCallback(
     (host: string, foreign: string) => isFusionAllowed(fusions, host, foreign),
@@ -360,25 +382,35 @@ export function ArchetypeSelect() {
           <p ref={liveRef} className={styles.srOnly} aria-live="polite" data-testid="fusion-live" />
         </header>
 
-        {/* 我的存档(ADR-034):放在原「继续上局」的位置;没有任何条目时整个区块不渲染(DOM 与改动前相同)。 */}
+        {/* 继续块(ADR-042 决策 4):没有任何存档时整块不渲染(选择屏 DOM 与改动前相同);
+            有存档但没有可继续的 → 只剩「全部存档(N)」一行(审定 4)。 */}
         {saves.length > 0 && (
-          <SaveList
-            saves={saves}
-            notice={saveNotice}
-            nameOf={(a) => archetypes.find((x) => x.archetype === a)?.displayName ?? a}
-            onResume={(id) => void resumeGame(id)}
-          />
-        )}
-        {/* 回看上局:辅助入口,视觉权重低于存档条目;不预留空位,探测成功后淡入(无位移动画)。 */}
-        {latestSaveId && historyVisible && (
-          <button
-            type="button"
-            className={styles.historyEntry}
-            onClick={() => screens.openHistory(latestSaveId)}
-          >
-            <span className={styles.historyEntryTitle}>回看上局</span>
-            <span className={styles.historyEntryHint}>看看这一局已经发生过什么</span>
-          </button>
+          <div className={saveStyles.svWrap}>
+            {cont && (
+              <button type="button" className={saveStyles.svCont} onClick={() => void onContinue(cont.saveId)}>
+                <span className={saveStyles.svLabel}>继续</span>
+                <span>
+                  <span className={saveStyles.svTitle}>{cont.title || UNTITLED_SAVE}</span>
+                  <span className={saveStyles.svMeta}>{describeSave(cont, nameOf)}</span>
+                </span>
+                <span className={saveStyles.svChev} aria-hidden="true">
+                  ›
+                </span>
+              </button>
+            )}
+            <button
+              ref={allRef}
+              type="button"
+              className={cont ? saveStyles.svAll : `${saveStyles.svAll} ${saveStyles.svAllAlone}`}
+              onClick={() => {
+                useContinueNotice.setState({ text: null });
+                screens.openSaves(zone);
+              }}
+            >
+              全部存档({saves.length})
+            </button>
+            {(contNotice ?? saveNotice) && <p className={saveStyles.svNotice}>{contNotice ?? saveNotice}</p>}
+          </div>
         )}
 
         {loading && archetypes.length === 0 ? (
@@ -522,57 +554,6 @@ const ZONE_SUBTITLE: Record<LobbyZone, string> = {
   shen: '每一个世界都由 AI 即时生成,真假难辨,不可回头。',
   rong: '两个世界渗在一起,就不再是原来任何一个。',
 };
-
-/**
- * 「我的存档」区块(ADR-034 已决 9):静态呈现,不新增动效。默认只展示最近 8 条,
- * 其余由「查看全部」展开 —— **只管展示,不管保存**,所有指针都留在存储里。第一版没有「移除」。
- * 导出供组件测试。
- */
-export function SaveList({
-  saves,
-  notice,
-  nameOf,
-  onResume,
-}: {
-  saves: SaveSummary[];
-  notice: string | null;
-  nameOf: (archetype: string) => string;
-  onResume: (saveId: string) => void;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const shown = expanded ? saves : saves.slice(0, SAVE_LIST_VISIBLE);
-  const hidden = saves.length - shown.length;
-  return (
-    <section className={styles.saves} aria-label="我的存档">
-      <h2 className={styles.savesTitle}>我的存档</h2>
-      {notice && <p className={styles.savesNotice}>{notice}</p>}
-      <ul className={styles.saveList}>
-        {shown.map((s) => (
-          <li key={s.saveId}>
-            <button
-              type="button"
-              className={[styles.resumeBtn, s.availability === 'unavailable' ? styles.saveUnavailable : '']
-                .filter(Boolean)
-                .join(' ')}
-              onClick={() => onResume(s.saveId)}
-            >
-              <span className={styles.resumeTitle}>{s.title || '上一局(续上后显示世界名)'}</span>
-              <span className={styles.resumeHint}>{describeSave(s, nameOf)}</span>
-              {s.availability === 'unavailable' && (
-                <span className={styles.saveStatus}>暂时无法找回 · 点此重试</span>
-              )}
-            </button>
-          </li>
-        ))}
-      </ul>
-      {hidden > 0 && (
-        <button type="button" className={styles.savesMore} onClick={() => setExpanded(true)}>
-          查看全部({saves.length})
-        </button>
-      )}
-    </section>
-  );
-}
 
 /** 一条方向提示(磁吸 = 悬停在合法目标上;reject = 松手在非法目标上)。 */
 interface FusionHint {

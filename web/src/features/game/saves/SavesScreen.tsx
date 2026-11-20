@@ -7,12 +7,9 @@ import { onSavePointersChanged, type SaveSummary } from '../../../state/savePoin
 import { screens, useSavesView } from '../../../state/screens';
 import styles from '../game.module.css';
 import lobbyStyles from '../lobby.module.css';
-import { describeSave } from '../saveText';
+import { describeSave, UNTITLED_SAVE } from '../saveText';
 import { ZONE_CLASS } from '../zoneClass';
 import sv from './saves.module.css';
-
-/** 世界名为空(迁移来的旧指针)时行上的占位(ADR-034 已知代价 4,原文照旧)。 */
-export const UNTITLED_SAVE = '上一局(续上后显示世界名)';
 
 export function SavesScreen() {
   const zone = useSavesView((s) => s.zone);

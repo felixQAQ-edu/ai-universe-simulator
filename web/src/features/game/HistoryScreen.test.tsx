@@ -67,6 +67,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  // 每条用例自己退回大厅(backToLobby);留下没退的历史条目会让下一条的「返回」走错路。
+  expect(window.history.state).toBeNull();
   vi.unstubAllGlobals();
   useHistoryStore.getState().close();
   useGameStore.getState().reset();
@@ -79,6 +81,22 @@ const saveOf = (saveId: string): SaveSummary => ({
   saveId, title: '雨夜便利店', archetypes: ['rules_creepy'], turn: 2,
   ended: false, lastPlayedAt: 1, availability: 'available',
 });
+
+/** 大厅 →「全部存档(N)」→ 存档页(ADR-042:「回看上局」入口搬到了这里)。 */
+async function enterSaves() {
+  await userEvent.click(screen.getByRole('button', { name: /^全部存档/ }));
+  await screen.findByRole('heading', { level: 1, name: '我的存档' });
+}
+
+/** 把这条用例压进去的浏览器历史一条条退掉(经 popstate,与玩家按返回同一条路),回到大厅。 */
+async function backToLobby() {
+  while (window.history.state?.aiuNav) {
+    const before = window.history.state.aiuNav;
+    act(() => screens.goBack());
+    await waitFor(() => expect(window.history.state?.aiuNav).not.toBe(before));
+  }
+  await screen.findByRole('heading', { name: '选择你的世界' });
+}
 
 async function settle() {
   // 探测是 fire-and-forget;给在途 promise 链走完的机会。
@@ -94,17 +112,23 @@ describe('选择屏入口(口径 A/B/C/D)', () => {
     expect(screen.queryByRole('button', { name: entryName })).not.toBeInTheDocument();
   });
 
-  it('探测成功 → 入口出现在存档条目下面,是真 button,文案逐字', async () => {
+  it('探测从大厅提前发;入口在存档页的进行中组上面,是真 button,文案逐字(ADR-042 决策 6)', async () => {
     useGameStore.setState({ saves: [saveOf(SID)] });
     historyReplies = [ok([ev(0, '开场叙事', null)])];
     render(<GameScreen />);
-    const entry = await screen.findByRole('button', { name: entryName });
+    await settle();
+    expect(historyCalls).toEqual([`/api/game/${SID}/history`]); // 还在大厅就探过了
+    expect(screen.queryByRole('button', { name: entryName })).not.toBeInTheDocument(); // 大厅不再有入口
+    await enterSaves();
+    const entry = screen.getByRole('button', { name: entryName });
     expect(entry).toHaveTextContent('回看上局');
-    expect(entry).toHaveTextContent('看看这一局已经发生过什么');
-    const resume = screen.getByRole('button', { name: /雨夜便利店/ });
-    // 放在它下面:DOM 顺序 resume → entry。
-    expect(resume.compareDocumentPosition(entry) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(historyCalls).toEqual([`/api/game/${SID}/history`]);
+    expect(entry).toHaveTextContent('看看最近这一局已经发生过什么');
+    const row = screen.getByRole('button', { name: /雨夜便利店/ });
+    // 放在存档行上面:DOM 顺序 entry → row。
+    expect(entry.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await settle();
+    expect(historyCalls).toHaveLength(1); // 存档页那一次被去重
+    await backToLobby();
   });
 
   it.each([
@@ -118,22 +142,27 @@ describe('选择屏入口(口径 A/B/C/D)', () => {
     render(<GameScreen />);
     await settle();
     expect(historyCalls).toHaveLength(1);
+    expect(screen.getByRole('button', { name: /继续.*雨夜便利店/ })).toBeInTheDocument();
+    await enterSaves();
     expect(screen.queryByRole('button', { name: entryName })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /雨夜便利店/ })).toBeInTheDocument();
     expect(screen.queryByText(/HTTP|501|404|503|history|请求失败|错误/)).not.toBeInTheDocument();
+    await backToLobby();
   });
 
-  it('重渲染不重复发探测;重新进入选择屏命中缓存不再请求', async () => {
+  it('重渲染不重复发探测;重新进入选择屏 / 存档页命中缓存不再请求', async () => {
     useGameStore.setState({ saves: [saveOf(SID)] });
     historyReplies = [ok([ev(0, '开场叙事', null)])];
     const { rerender, unmount } = render(<GameScreen />);
     rerender(<GameScreen />);
-    await screen.findByRole('button', { name: entryName });
+    await settle();
     unmount();
     render(<GameScreen />);
+    await enterSaves();
     expect(screen.getByRole('button', { name: entryName })).toBeInTheDocument();
     await settle();
     expect(historyCalls).toHaveLength(1);
+    await backToLobby();
   });
 });
 
@@ -148,16 +177,23 @@ describe('能力位 capabilities.history(2026-10-09)', () => {
     await settle();
     await settle();
     expect(historyCalls).toEqual([]);
+    await enterSaves();
+    await settle();
+    expect(historyCalls).toEqual([]); // 存档页同样不探
     expect(screen.queryByRole('button', { name: entryName })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /雨夜便利店/ })).toBeInTheDocument();
+    await backToLobby();
   });
 
   it('目录里 history 为 true → 照旧探测一次', async () => {
     useGameStore.setState({ saves: [saveOf(SID)] });
     historyReplies = [ok([ev(0, '开场', null)])];
     render(<GameScreen />);
+    await settle();
+    await enterSaves();
     await screen.findByRole('button', { name: entryName });
     expect(historyCalls).toEqual([`/api/game/${SID}/history`]);
+    await backToLobby();
   });
 });
 
@@ -169,12 +205,15 @@ describe('历史页(口径 E/F/G/H/I)', () => {
     render(<GameScreen />);
   }
 
-  it('点入口 → 进入历史页(接线)', async () => {
+  it('存档页点入口 → 进入历史页(接线)', async () => {
     useGameStore.setState({ saves: [saveOf(SID)] });
     historyReplies = [ok([ev(0, '开场', null)]), ok([ev(0, '开场', null)])];
     render(<GameScreen />);
+    await settle();
+    await enterSaves();
     await userEvent.click(await screen.findByRole('button', { name: entryName }));
     expect(await screen.findByRole('heading', { name: '这一局的故事' })).toBeInTheDocument();
+    await backToLobby();
   });
 
   it('标题是 heading;开场 / 第 N 回合;不显示玩家动作', async () => {

@@ -18,8 +18,6 @@ import type { Archetype } from '../types/schema';
 export const SAVE_KEY_PREFIX = 'aiuniverse.save.';
 /** ADR-015 Slice 2 的旧单槽键;只在迁移里读、比对后清(ADR-034 已决 7)。 */
 export const LEGACY_SAVE_ID_KEY = 'aiuniverse.saveId';
-/** 选择屏默认展示条数(只管展示,不管保存;ADR-034 已决 4)。 */
-export const SAVE_LIST_VISIBLE = 8;
 
 export type SaveAvailability = 'available' | 'unavailable';
 
