@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -79,7 +80,29 @@ export function ArchetypeSelect() {
   // ── 分区(ADR-041 决策 2)────────────────────────────────────────────────────
   /** 浏览器记下的已发现组合(发现先后);别的页签改了也跟着刷新。 */
   const [storedDiscovered, setStoredDiscovered] = useState<readonly string[]>(() => lobbyPrefs.readDiscovered());
-  useEffect(() => onLobbyPrefsChanged(() => setStoredDiscovered(lobbyPrefs.readDiscovered())), []);
+  /** 第三区出现是否已开演过(ADR-018 §4.9:记「已开演」,不记「已排期」)。 */
+  const [revealed, setRevealed] = useState(() => lobbyPrefs.readRevealed());
+  /**
+   * 别的页签带来了发现:本页签直接显示渗界标签,不播出现动画、不写 revealed(决策 2「不在本页签播」;
+   * revealed 由开演的那个页签写)。
+   */
+  const [quietReveal, setQuietReveal] = useState(false);
+  useEffect(
+    () =>
+      onLobbyPrefsChanged(() => {
+        const next = lobbyPrefs.readDiscovered();
+        setStoredDiscovered(next);
+        setRevealed(lobbyPrefs.readRevealed());
+        if (next.length > 0) setQuietReveal(true);
+      }),
+    [],
+  );
+  /** 本页签正在演第三区出现(决策 6 的 900ms 那一刻起):给标签条挂 FLIP、给「渗界」两字挂淡入。 */
+  const [revealing, setRevealing] = useState(false);
+  /** 合成那一刻用:这一次合成会不会带出第三区(reduced 下两句并播)。在 effect 里跟着 state 更新。 */
+  const pendingRevealRef = useRef(false);
+  /** reduced 下第二句已跟着合成那一句播过了。 */
+  const revealAnnouncedRef = useRef(false);
   /** 进门时读到的「上次停的区」;本次停留中玩家切过区则以 chosenZone 为准。 */
   const [storedZone] = useState<LobbyZone | null>(() => lobbyPrefs.readZone());
   const [chosenZone, setChosenZone] = useState<LobbyZone | null>(null);
@@ -97,8 +120,11 @@ export function ArchetypeSelect() {
     [storedDiscovered, saves, fusions],
   );
   const catalogLoaded = archetypes.length > 0;
+  /** 渗界标签在不在:已发现非空,且已经开演过(或正在演 / 别的页签带来的)。 */
+  const rongShown = discovered.length > 0 && (revealed || revealing || quietReveal);
   // 目录到手前不知道哪些组合还合法:先按浏览器记录估「渗界在不在」,免得记的是渗界的老玩家进门先闪一下浮世。
-  const zone = initialZone(chosenZone ?? storedZone, catalogLoaded ? discovered.length : storedDiscovered.length);
+  const rongCount = catalogLoaded ? (rongShown ? discovered.length : 0) : revealed ? storedDiscovered.length : 0;
+  const zone = initialZone(chosenZone ?? storedZone, rongCount);
 
   // 跨页签:别的页签开局 / 落回合时刷新列表显示(ADR-034 已决 8;只刷新,不写)。
   useEffect(() => onSavePointersChanged(refreshSaves), [refreshSaves]);
@@ -152,7 +178,14 @@ export function ArchetypeSelect() {
       // 读屏播报(沿用同一个 aria-live 区与去重)。文案 Felix 2026-11-09 定稿;刻意不说「列表末尾」,
       // 以后调整插入位置时,播报不会指错路(ADR-019 订正 2026-11-09 §2)。
       const name = FUSION_CARDS[key]?.titles[2];
-      if (name) announce(`融合成功。《${name}》已加入世界列表。`);
+      let text = name ? `融合成功。《${name}》已加入世界列表。` : '';
+      // reduced-motion 下第三区与成品卡同时出现:两句并成一次写入(连写两次,读屏多半只念后一句)。
+      // 原句不改,第二句接在后面(审定 2)。非 reduced 时第二句在 900ms 开演那一刻单独播。
+      if (reducedMotion() && pendingRevealRef.current) {
+        text += REVEAL_ANNOUNCEMENT;
+        revealAnnouncedRef.current = true;
+      }
+      if (text) announce(text);
     },
     [announce],
   );
@@ -212,7 +245,65 @@ export function ArchetypeSelect() {
     if (magnetText) announce(magnetText);
   }, [magnetText, announce]);
 
-  const visibleZones: LobbyZone[] = discovered.length > 0 ? ['fushi', 'shen', 'rong'] : ['fushi', 'shen'];
+  const visibleZones: LobbyZone[] = rongShown ? ['fushi', 'shen', 'rong'] : ['fushi', 'shen'];
+
+  // ── 第三区第一次出现(决策 6;大厅的一级记忆点)──────────────────────────────────
+  // 一条路径管两种来源:本次合成出第一个组合(从松手算 900ms),或进门时已发现非空而还没开演过
+  // (上次 900ms 之前就离开了 / 玩过融合局的老玩家,审定 8;从卡片列表挂好算 900ms,在当时所在的区播)。
+  // 依赖里不放 zone:0–900ms 之间切区照常在 900ms 播。卸载即清计时器 → 没开演 → 不写 revealed。
+  const needsReveal = catalogLoaded && discovered.length > 0 && !revealed && !quietReveal;
+  const nothingYet = discovered.length === 0 && !revealed && !quietReveal;
+  useLayoutEffect(() => {
+    pendingRevealRef.current = nothingYet;
+  }, [nothingYet]);
+  /** FLIP 的起点:开演前一刻,两个旧标签的位置。 */
+  const flipFrom = useRef<Partial<Record<LobbyZone, number>>>({});
+  useEffect(() => {
+    if (!needsReveal) return;
+    const start = () => {
+      const reduced = reducedMotion();
+      flipFrom.current = {};
+      if (!reduced) {
+        for (const z of ['fushi', 'shen'] as const) {
+          const el = tabRefs.current[z];
+          if (el) flipFrom.current[z] = el.getBoundingClientRect().left;
+        }
+      }
+      lobbyPrefs.markRevealed(); // 开演这一刻才写(ADR-018 §4.9)
+      setRevealed(true);
+      setRevealing(!reduced);
+      if (!revealAnnouncedRef.current) announce(REVEAL_ANNOUNCEMENT);
+      revealAnnouncedRef.current = false;
+    };
+    // reduced-motion:没有 900ms 停顿,标签与成品卡同时出现。
+    if (reducedMotion()) {
+      start();
+      return;
+    }
+    const t = window.setTimeout(start, REVEAL_WAIT_MS);
+    return () => window.clearTimeout(t);
+  }, [needsReveal, announce]);
+
+  // 标签挂上之后:前两个标签从旧位置平移到新位置(FLIP,只动 transform)。Web Animations,不留内联样式;
+  // 「渗界」两字的淡入是 CSS(.tabRevealing,只动 opacity,从平移的一半开始)。
+  useLayoutEffect(() => {
+    if (!revealing) return;
+    const running: Animation[] = [];
+    for (const z of ['fushi', 'shen'] as const) {
+      const el = tabRefs.current[z];
+      const from = flipFrom.current[z];
+      if (!el || from === undefined || typeof el.animate !== 'function') continue;
+      const dx = from - el.getBoundingClientRect().left;
+      if (dx === 0) continue;
+      running.push(
+        el.animate([{ transform: `translateX(${dx}px)` }, { transform: 'none' }], {
+          duration: REVEAL_FLIP_MS,
+          easing: 'ease-out',
+        }),
+      );
+    }
+    return () => running.forEach((a) => a.cancel());
+  }, [revealing]);
 
   /** 切区(决策 5):记住这一区;离开深界即清空本次合成的成品卡与拖拽提示。 */
   const selectZone = (next: LobbyZone) => {
@@ -319,7 +410,9 @@ export function ArchetypeSelect() {
                   onClick={() => selectZone(z)}
                   onKeyDown={(e) => onTabKeyDown(e, z)}
                 >
-                  {ZONE_NAME[z]}
+                  <span className={z === 'rong' && revealing ? lobbyStyles.tabRevealing : undefined}>
+                    {ZONE_NAME[z]}
+                  </span>
                 </button>
               ))}
             </div>
@@ -414,6 +507,12 @@ const ZONE_CLASS: Record<LobbyZone, string> = {
   shen: lobbyStyles.zoneShen,
   rong: lobbyStyles.zoneRong,
 };
+
+/** 第三区出现的时间线(决策 6,样张「甲」的默认值)。 */
+const REVEAL_WAIT_MS = 900;
+const REVEAL_FLIP_MS = 600;
+/** 第一次出现渗界时的第二句播报(审定 2:原句不改,另播这一句)。 */
+const REVEAL_ANNOUNCEMENT = '出现了新的分区:渗界。';
 
 const ZONE_NAME: Record<LobbyZone, string> = { fushi: '浮世', shen: '深界', rong: '渗界' };
 

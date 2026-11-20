@@ -115,6 +115,18 @@
   opacity: 1;
 }
 
+/* 第三区出现:「渗界」两字一起淡入,700ms ease-out,从前两个标签平移的一半(300ms)开始(决策 6)。 */
+.tabRevealing {
+  display: inline-block;
+  animation: tabRevealIn 0.7s ease-out 0.3s backwards;
+}
+
+@keyframes tabRevealIn {
+  from {
+    opacity: 0;
+  }
+}
+
 .tab:focus-visible {
   outline: 1px solid var(--text);
   outline-offset: 2px;
@@ -359,6 +371,10 @@
   .tab,
   .tab::after {
     transition: none;
+  }
+
+  .tabRevealing {
+    animation: none;
   }
 
   /* 气氛层全部静止;闪不出现;暖光停在静态满亮度(样张)。 */

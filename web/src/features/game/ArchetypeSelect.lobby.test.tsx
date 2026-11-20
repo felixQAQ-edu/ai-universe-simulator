@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ArchetypeSummary } from '../../api';
 import type { Archetype } from '../../types/schema';
 import { useGameStore } from '../../state/gameStore';
-import { LOBBY_DISCOVERED_KEY, LOBBY_ZONE_KEY } from '../../state/lobbyPrefs';
+import { LOBBY_DISCOVERED_KEY, LOBBY_REVEALED_KEY, LOBBY_ZONE_KEY } from '../../state/lobbyPrefs';
 import type { SaveSummary } from '../../state/savePointers';
 import { ArchetypeSelect } from './ArchetypeSelect';
 import styles from './game.module.css';
@@ -102,6 +102,7 @@ describe('标签结构与键盘(决策 3 / 审定 7)', () => {
   });
 
   it('←/→ 只移焦点、循环,不切区;Home / End 到两端', () => {
+    localStorage.setItem(LOBBY_REVEALED_KEY, 'true');
     useGameStore.setState({ saves: [save('s', ['cultivation', 'cthulhu'])] });
     render(<ArchetypeSelect />);
     tab('浮世').focus();
@@ -166,6 +167,9 @@ describe('切区(决策 5)', () => {
 });
 
 describe('渗界(决策 2 / 审定 6)', () => {
+  // 本组只管渗界里放什么;第三区出现的时间线见「第三区第一次出现」。
+  beforeEach(() => localStorage.setItem(LOBBY_REVEALED_KEY, 'true'));
+
   it('存档里玩过融合局 → 渗界标签出现;渗界只放已发现的融合卡;还有没发现的 → 底句', () => {
     useGameStore.setState({ saves: [save('s', ['cultivation', 'cthulhu'])] });
     render(<ArchetypeSelect />);
@@ -231,6 +235,7 @@ describe('成品卡的去处(决策 6)', () => {
     expect(cardNames()).toEqual(['规则怪谈', '克苏鲁', '修仙', '验讫']);
     expect(JSON.parse(localStorage.getItem(LOBBY_DISCOVERED_KEY)!)).toEqual(['cultivation×cthulhu']);
 
+    act(() => void vi.advanceTimersByTime(900)); // 第三区出现(时间线见下一组)
     fireEvent.click(tab('浮世'));
     fireEvent.click(tab('深界'));
     expect(cardNames()).toEqual(['规则怪谈', '克苏鲁', '修仙']);
@@ -241,12 +246,13 @@ describe('成品卡的去处(决策 6)', () => {
   it('存储写不进时,这一次停留仍按已发现处理(渗界照样有它)', () => {
     vi.useFakeTimers();
     vi.spyOn(window, 'scrollBy').mockImplementation(() => {});
-    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+    vi.spyOn(localStorage, 'setItem').mockImplementation(() => {
       throw new Error('quota');
     });
     render(<ArchetypeSelect />);
     fireEvent.click(tab('深界'));
     fuse('cthulhu', 'cultivation');
+    act(() => void vi.advanceTimersByTime(900));
     fireEvent.click(tab('渗界'));
     expect(cardNames()).toEqual(['验讫']);
   });
