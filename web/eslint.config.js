@@ -33,12 +33,18 @@ export default defineConfig([
         { name: 'EventSource', message: '平台 IO 禁入逻辑/状态层(ADR-003 边界);走 src/api/ 适配层。' },
         { name: 'WebSocket', message: '平台 IO 禁入逻辑/状态层(ADR-003 边界);走 src/api/ 适配层。' },
         { name: 'XMLHttpRequest', message: '平台 IO 禁入逻辑/状态层(ADR-003 边界);走 src/api/ 适配层。' },
+        // ADR-042 决策 5:浏览器历史也是平台 API(小程序没有),只在 src/api/navHistory.ts 里碰。
+        { name: 'history', message: '浏览器历史禁入逻辑/状态层(ADR-003 / ADR-042);走 src/api/navHistory.ts。' },
       ],
       'no-restricted-syntax': [
         'error',
         {
           selector: "MemberExpression[object.name='wx']",
           message: '小程序 API 禁入逻辑/状态层(ADR-003);Phase 1 不写小程序代码,迁移期只在 api/ 适配层接 wx.*。',
+        },
+        {
+          selector: "MemberExpression[object.name=/^(window|globalThis|self)$/][property.name='history']",
+          message: '浏览器历史禁入逻辑/状态层(ADR-003 / ADR-042);走 src/api/navHistory.ts。',
         },
       ],
     },

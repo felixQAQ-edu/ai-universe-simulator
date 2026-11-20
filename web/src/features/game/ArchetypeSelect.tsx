@@ -10,6 +10,7 @@ import {
 } from 'react';
 import { useGameStore } from '../../state/gameStore';
 import { useHistoryStore } from '../../state/historyStore';
+import { screens } from '../../state/screens';
 import { SAVE_LIST_VISIBLE, onSavePointersChanged, type SaveSummary } from '../../state/savePointers';
 import { lobbyPrefs, onLobbyPrefsChanged, type LobbyZone } from '../../state/lobbyPrefs';
 import { describeSave } from './saveText';
@@ -135,7 +136,6 @@ export function ArchetypeSelect() {
   // 只在后端声明有历史存储时才探测(capabilities.history;非 pg 环境那里恒为 501,不去撞它)。
   const historyCapable = useGameStore((s) => s.capabilities.history);
   const probeHistory = useHistoryStore((s) => s.probe);
-  const openHistory = useHistoryStore((s) => s.open);
   const historyVisible = useHistoryStore((s) =>
     latestSaveId ? s.visible[latestSaveId] === true : false,
   );
@@ -373,7 +373,7 @@ export function ArchetypeSelect() {
           <button
             type="button"
             className={styles.historyEntry}
-            onClick={() => openHistory(latestSaveId)}
+            onClick={() => screens.openHistory(latestSaveId)}
           >
             <span className={styles.historyEntryTitle}>回看上局</span>
             <span className={styles.historyEntryHint}>看看这一局已经发生过什么</span>

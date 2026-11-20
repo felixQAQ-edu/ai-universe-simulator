@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useGameStore } from '../../state/gameStore';
 import { useHistoryStore } from '../../state/historyStore';
+import { screens } from '../../state/screens';
 import { ArchetypeSelect } from './ArchetypeSelect';
 import { DecisionCircle } from './DecisionCircle';
 import { EndingScreen } from './EndingScreen';
@@ -26,6 +27,8 @@ export function GameScreen() {
   const status = useGameStore((s) => s.status);
   // 历史页是选择屏的一个旁支(ADR-025 刀 3):导航状态在 historyStore,不碰回合流程的 status。
   const viewingHistory = useHistoryStore((s) => s.viewing !== null);
+  // 存档页 / 历史页的返回键接浏览器历史(ADR-042 决策 5):装一次,卸载即撤。
+  useEffect(() => screens.install(), []);
 
   if (status === 'idle') return viewingHistory ? <HistoryScreen /> : <ArchetypeSelect />;
   if (status === 'initializing') return <LoadingScreen />;
