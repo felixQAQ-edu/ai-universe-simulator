@@ -140,11 +140,237 @@
   margin-top: 0.2rem;
 }
 
+/* ── 背景气氛层(ADR-041 决策 8;数值照样张)─────────────────────────────────────
+ * 卡片后面、页头与卡缝里露出来;跟着大厅这一栏走(640px),栏外只有底色。
+ * 三区的层都在 DOM 里,由区类决定哪几层亮(切区时层 0.6s 淡入淡出,同样张)。
+ *
+ * 预算(Motion Constraints §2,页面层另算一份,审定 9):
+ * - 浮世:持续环境 = 暖光(四道光的明暗 + 整层慢移,同一层,记一个槽)。
+ * - 深界:低频偶发 = 远处闪电(整页亮两下 + 细折线,同一节拍,一个事件)。
+ * - 渗界:持续环境 = 暖光;低频偶发 = 一个 13s 事件,两拍:先发暗、紧接着往暗紫里闪(审定 10,记一个槽)。
+ *   两拍分在两个元素上(发暗是暖光层的 filter,闪是整页覆盖层的 opacity),写成同周期、同延迟的两份关键帧,
+ *   挂载于同一次样式计算,相位由构造保证一致;样张原来的 11s 发暗不再单独循环。
+ * 只动 opacity / transform;发暗沿用样张的 filter(只作用在暖光层上)。 */
+.fx {
+  position: absolute;
+  inset: 0;
+  max-width: 640px;
+  margin: 0 auto;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.fx > * {
+  position: absolute;
+  opacity: 0;
+  transition: opacity 0.6s ease;
+}
+
+.fxRays {
+  top: -40px;
+  left: -15%;
+  width: 130%;
+  height: 78%;
+  transform: skewX(-16deg);
+}
+
+.fxRays i {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  display: block;
+  background: linear-gradient(to bottom, var(--ray) 0%, transparent 100%);
+  animation: rayBreath ease-in-out infinite alternate;
+}
+
+.fxRays i:nth-child(1) {
+  left: 22%;
+  width: 54px;
+  animation-duration: 9s;
+}
+.fxRays i:nth-child(2) {
+  left: 36%;
+  width: 22px;
+  animation-duration: 12s;
+  animation-delay: -4s;
+}
+.fxRays i:nth-child(3) {
+  left: 52%;
+  width: 74px;
+  animation-duration: 14s;
+  animation-delay: -7s;
+}
+.fxRays i:nth-child(4) {
+  left: 71%;
+  width: 34px;
+  animation-duration: 10s;
+  animation-delay: -2s;
+}
+
+.fxWash {
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 300px;
+  background: linear-gradient(to bottom, var(--wash) 0%, transparent 100%);
+}
+
+.fxBolt {
+  top: 6px;
+  right: 12px;
+  width: 52px;
+  height: 104px;
+}
+
+.fxBolt svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.fxFlash {
+  inset: 0;
+  background: var(--flash);
+}
+
+.zoneFushi {
+  --ray: rgba(255, 222, 150, 0.5);
+  --wash: rgba(255, 226, 168, 0.38);
+}
+
+.zoneShen {
+  --flash: rgba(196, 204, 255, 0.11);
+}
+
+.zoneRong {
+  --ray: rgba(255, 236, 196, 0.32);
+  --wash: rgba(255, 236, 200, 0.18);
+  --flash: rgba(70, 40, 110, 0.16);
+}
+
+.zoneFushi .fxRays,
+.zoneFushi .fxWash,
+.zoneRong .fxRays,
+.zoneRong .fxWash {
+  opacity: 1;
+}
+
+.zoneFushi .fxRays {
+  animation: raysDrift 30s ease-in-out infinite alternate;
+}
+
+/* 渗界的一个 13s 事件:第一拍发暗(暖光层)、第二拍暗紫闪(覆盖层),周期与延迟逐字相同。 */
+.zoneRong .fxRays {
+  animation:
+    raysDrift 30s ease-in-out infinite alternate,
+    rongDim 13s steps(1, end) infinite 4s;
+}
+
+.zoneRong .fxFlash {
+  animation: flash 13s linear infinite 4s;
+}
+
+.zoneShen .fxFlash {
+  animation: flash 9s linear infinite;
+}
+
+.zoneShen .fxBolt {
+  animation: bolt 9s linear infinite;
+}
+
+@keyframes raysDrift {
+  from {
+    transform: skewX(-16deg) translateX(0);
+  }
+  to {
+    transform: skewX(-13deg) translateX(-28px);
+  }
+}
+
+@keyframes rayBreath {
+  from {
+    opacity: 0.45;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* 亮两下:70.6% 到 1、71.4% 灭、72.8% 到 0.7、74% 灭。 */
+@keyframes flash {
+  0%,
+  70% {
+    opacity: 0;
+  }
+  70.6% {
+    opacity: 1;
+  }
+  71.4% {
+    opacity: 0;
+  }
+  72.8% {
+    opacity: 0.7;
+  }
+  74%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes bolt {
+  0%,
+  70% {
+    opacity: 0;
+  }
+  70.6% {
+    opacity: 0.55;
+  }
+  71.4% {
+    opacity: 0;
+  }
+  72.8% {
+    opacity: 0.4;
+  }
+  75%,
+  100% {
+    opacity: 0;
+  }
+}
+
+/* 发暗那一拍:样张的发暗停留 0.22s(11s 的 82%–84%),在 13s 里 = 1.7%,放在闪开始之前紧挨着
+ * (68.3%–70%,闪从 70% 起亮)。steps(1, end):跳变,不渐变,同样张。 */
+@keyframes rongDim {
+  0% {
+    filter: none;
+  }
+  68.3% {
+    filter: brightness(0.82) saturate(0.6);
+  }
+  70%,
+  100% {
+    filter: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .lobby,
   .lobby::before,
   .tab,
   .tab::after {
     transition: none;
+  }
+
+  /* 气氛层全部静止;闪不出现;暖光停在静态满亮度(样张)。 */
+  .fx > *,
+  .fxRays i {
+    animation: none !important;
+    transition: none;
+  }
+
+  .zoneShen .fxFlash,
+  .zoneShen .fxBolt,
+  .zoneRong .fxFlash {
+    opacity: 0;
   }
 }

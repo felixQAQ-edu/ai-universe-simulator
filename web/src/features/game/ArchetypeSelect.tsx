@@ -256,6 +256,7 @@ export function ArchetypeSelect() {
 
   return (
     <div className={`${lobbyStyles.lobby} ${ZONE_CLASS[zone]}`} data-zone={zone}>
+      <LobbyAmbient />
       <main className={styles.screen}>
         <header className={styles.selectHeader}>
           <p className={styles.phase}>AI Universe Simulator</p>
@@ -379,6 +380,31 @@ export function ArchetypeSelect() {
           </>
         )}
       </main>
+    </div>
+  );
+}
+
+/**
+ * 背景气氛层(ADR-041 决策 8):纯装饰,aria-hidden、不接指针。三区的层都在,哪几层亮由区类决定(纯 CSS)。
+ * 放在 <main> 外面:<main> 的子元素结构有对拍。
+ */
+function LobbyAmbient() {
+  return (
+    <div className={lobbyStyles.fx} aria-hidden="true" data-testid="lobby-ambient">
+      <div className={lobbyStyles.fxWash} />
+      <div className={lobbyStyles.fxRays}>
+        <i />
+        <i />
+        <i />
+        <i />
+      </div>
+      <div className={lobbyStyles.fxFlash} />
+      <div className={lobbyStyles.fxBolt}>
+        <svg viewBox="0 0 52 104" fill="none">
+          <polyline points="38,0 30,30 40,34 22,70 31,74 16,104" stroke="#d6dbff" strokeWidth="1" />
+          <polyline points="30,30 20,44" stroke="#d6dbff" strokeWidth="0.7" />
+        </svg>
+      </div>
     </div>
   );
 }

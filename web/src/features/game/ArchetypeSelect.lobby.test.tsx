@@ -8,6 +8,7 @@ import { LOBBY_DISCOVERED_KEY, LOBBY_ZONE_KEY } from '../../state/lobbyPrefs';
 import type { SaveSummary } from '../../state/savePointers';
 import { ArchetypeSelect } from './ArchetypeSelect';
 import styles from './game.module.css';
+import lobbyCss from './lobby.module.css?raw';
 
 const card = (archetype: Archetype, displayName: string, experienceMode: 'fushi' | 'shenjie', active = true): ArchetypeSummary => ({
   archetype,
@@ -248,5 +249,39 @@ describe('成品卡的去处(决策 6)', () => {
     fuse('cthulhu', 'cultivation');
     fireEvent.click(tab('渗界'));
     expect(cardNames()).toEqual(['验讫']);
+  });
+});
+
+describe('背景气氛层(决策 8 / 审定 10)', () => {
+  /** 取某个选择器的规则体(只认独立成段的那一条)。 */
+  const rule = (sel: string) => {
+    const m = lobbyCss.match(new RegExp(`(^|\\n)${sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} \\{([^}]*)\\}`));
+    if (!m) throw new Error(`没有规则 ${sel}`);
+    return m[2];
+  };
+
+  it('在 <main> 外面、aria-hidden;<main> 子元素不受影响', () => {
+    const { container } = render(<ArchetypeSelect />);
+    const fx = screen.getByTestId('lobby-ambient');
+    expect(fx).toHaveAttribute('aria-hidden', 'true');
+    expect(fx.closest('main')).toBeNull();
+    expect(fx.parentElement).toBe(container.querySelector('[data-zone]'));
+  });
+
+  it('渗界只有一个低频事件:发暗与暗紫闪同周期(13s)、同延迟(4s),发暗在闪之前', () => {
+    expect(rule('.zoneRong .fxRays')).toMatch(/rongDim 13s steps\(1, end\) infinite 4s/);
+    expect(rule('.zoneRong .fxFlash')).toMatch(/flash 13s linear infinite 4s/);
+    expect(lobbyCss).not.toMatch(/@keyframes sunSeep|animation[^;{}]*\b11s\b/); // 没有单独循环的 11s 发暗
+    const dim = lobbyCss.slice(lobbyCss.indexOf('@keyframes rongDim'));
+    const darkAt = Number(/([\d.]+)% \{\s*filter: brightness/.exec(dim)![1]);
+    const backAt = Number(/([\d.]+)%,\s*100% \{\s*filter: none/.exec(dim)![1]);
+    expect(darkAt).toBeLessThan(backAt);
+    expect(backAt).toBeLessThanOrEqual(70); // 闪从 70% 起亮
+  });
+
+  it('reduced-motion:气氛层不动,深界与渗界的闪不出现', () => {
+    const reduced = lobbyCss.slice(lobbyCss.lastIndexOf('@media (prefers-reduced-motion: reduce)'));
+    expect(reduced).toMatch(/\.fx > \*,\s*\.fxRays i \{\s*animation: none !important;/);
+    expect(reduced).toMatch(/\.zoneShen \.fxFlash,\s*\.zoneShen \.fxBolt,\s*\.zoneRong \.fxFlash \{\s*opacity: 0;/);
   });
 });
