@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useGameStore } from '../../state/gameStore';
 import { useHistoryStore } from '../../state/historyStore';
-import { screens } from '../../state/screens';
+import { screens, useSavesView } from '../../state/screens';
 import { ArchetypeSelect } from './ArchetypeSelect';
 import { DecisionCircle } from './DecisionCircle';
 import { EndingScreen } from './EndingScreen';
 import { HistoryScreen } from './HistoryScreen';
 import { Prose } from './Prose';
 import { RulesPanel } from './RulesPanel';
+import { SavesScreen } from './saves/SavesScreen';
 import { SceneBanner } from './SceneBanner';
 import { StatsPanel } from './StatsPanel';
 import { SkinContext } from './theme/contract';
@@ -27,10 +28,15 @@ export function GameScreen() {
   const status = useGameStore((s) => s.status);
   // 历史页是选择屏的一个旁支(ADR-025 刀 3):导航状态在 historyStore,不碰回合流程的 status。
   const viewingHistory = useHistoryStore((s) => s.viewing !== null);
+  // 存档页(ADR-042):选择屏的另一个旁支;从存档页点进历史页时两者都开着,历史页在上。
+  const viewingSaves = useSavesView((s) => s.open);
   // 存档页 / 历史页的返回键接浏览器历史(ADR-042 决策 5):装一次,卸载即撤。
   useEffect(() => screens.install(), []);
 
-  if (status === 'idle') return viewingHistory ? <HistoryScreen /> : <ArchetypeSelect />;
+  if (status === 'idle') {
+    if (viewingHistory) return <HistoryScreen />;
+    return viewingSaves ? <SavesScreen /> : <ArchetypeSelect />;
+  }
   if (status === 'initializing') return <LoadingScreen />;
   if (status === 'initError') return <InitErrorScreen />;
   return <PlayingScreen />;

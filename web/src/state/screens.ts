@@ -21,9 +21,14 @@ export interface SavesViewState {
   open: boolean;
   /** 点「全部存档」那一刻大厅正在显示的区(存档页取这一区的页面令牌;存档页不切区)。 */
   zone: LobbyZone;
+  /**
+   * 回到某一屏时焦点该落在哪(ADR-042 决策 5;一次性,落完由那一屏清掉):
+   * `history` = 从历史页回存档页 → 焦点回「回看上局」;`all` = 从存档页回大厅 → 焦点回「全部存档(N)」。
+   */
+  focus: 'history' | 'all' | null;
 }
 
-export const useSavesView = create<SavesViewState>(() => ({ open: false, zone: 'fushi' }));
+export const useSavesView = create<SavesViewState>(() => ({ open: false, zone: 'fushi', focus: null }));
 
 /** 历史页的最小接口(便于测试注入;生产 = historyStore)。 */
 interface HistoryControl {
@@ -46,8 +51,10 @@ export function createScreens(nav: NavHistory = defaultNav, history: HistoryCont
 
   /** 关最上面那一屏:历史页在开着就关历史页,否则关存档页。 */
   const closeTop = () => {
-    if (history.isOpen()) history.close();
-    else if (useSavesView.getState().open) useSavesView.setState({ open: false });
+    if (history.isOpen()) {
+      history.close();
+      if (useSavesView.getState().open) useSavesView.setState({ focus: 'history' });
+    } else if (useSavesView.getState().open) useSavesView.setState({ open: false, focus: 'all' });
   };
 
   const onPop = () => {
@@ -69,7 +76,7 @@ export function createScreens(nav: NavHistory = defaultNav, history: HistoryCont
       if (useSavesView.getState().open) return;
       nav.push('saves');
       depth++;
-      useSavesView.setState({ open: true, zone });
+      useSavesView.setState({ open: true, zone, focus: null });
     },
     openHistory(saveId: string) {
       nav.push('history');
@@ -84,7 +91,7 @@ export function createScreens(nav: NavHistory = defaultNav, history: HistoryCont
     /** 从存档页点开一局:关存档页、吃掉那一条历史,popstate 到达时不再处理。 */
     leaveSavesForGame() {
       if (!useSavesView.getState().open) return;
-      useSavesView.setState({ open: false });
+      useSavesView.setState({ open: false, focus: null });
       if (depth > 0) {
         selfPops++;
         nav.back();

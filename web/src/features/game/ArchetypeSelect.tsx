@@ -23,6 +23,7 @@ import { cardTheme } from './theme/registry';
 import { reducedMotion } from './theme/motion';
 import styles from './game.module.css';
 import lobbyStyles from './lobby.module.css';
+import { ZONE_CLASS } from './zoneClass';
 
 // 世界选择第一屏(产品门面,ADR-008 决策 4)。玩家进游戏 → 看见可玩世界 → 选一个 →
 // startGame(archetype) → 复用 Phase 1 已验证整局闭环。
@@ -501,12 +502,6 @@ function LobbyAmbient() {
     </div>
   );
 }
-
-const ZONE_CLASS: Record<LobbyZone, string> = {
-  fushi: lobbyStyles.zoneFushi,
-  shen: lobbyStyles.zoneShen,
-  rong: lobbyStyles.zoneRong,
-};
 
 /** 第三区出现的时间线(决策 6,样张「甲」的默认值)。 */
 const REVEAL_WAIT_MS = 900;

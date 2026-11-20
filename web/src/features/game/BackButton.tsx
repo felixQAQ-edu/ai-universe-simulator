@@ -16,7 +16,14 @@ import styles from './game.module.css';
 //
 // 导航不可缺席:皮肤没配 `backClass` 也照常渲染(只是长得普通)。
 
-export function BackButton({ onBack }: { onBack: () => void }) {
+export function BackButton({
+  onBack,
+  label = '返回世界选择',
+}: {
+  onBack: () => void;
+  /** 读屏念的去向(缺省 = 回世界选择;历史页从存档页进来时改说回存档页,ADR-042)。 */
+  label?: string;
+}) {
   const skin = useSkin()?.skin;
 
   // 按压时长每次求值 —— 只为「时间不可信」的世界开的口子(缺省不写,其余世界行为逐字不变)。
@@ -35,7 +42,7 @@ export function BackButton({ onBack }: { onBack: () => void }) {
       onPointerDown={onPointerDown}
       onClick={onBack}
       // 图标 + 「返回」二字都在按钮里,读屏念得出;aria-label 说明去哪儿,免得只念「返回」。
-      aria-label="返回世界选择"
+      aria-label={label}
     >
       <span className={styles.backGlyph} aria-hidden="true">
         ←

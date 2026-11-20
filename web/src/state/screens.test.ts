@@ -34,7 +34,7 @@ function fakeHistory() {
   };
 }
 
-beforeEach(() => useSavesView.setState({ open: false, zone: 'fushi' }));
+beforeEach(() => useSavesView.setState({ open: false, zone: 'fushi', focus: null }));
 
 describe('存档页 / 历史页的返回键(ADR-042 决策 5)', () => {
   it('打开存档页压一条;手机返回键 = 关存档页,不离站', () => {
@@ -42,7 +42,7 @@ describe('存档页 / 历史页的返回键(ADR-042 决策 5)', () => {
     const s = createScreens(nav, fakeHistory().ctl);
     s.install();
     s.openSaves('shen');
-    expect(useSavesView.getState()).toEqual({ open: true, zone: 'shen' });
+    expect(useSavesView.getState()).toEqual({ open: true, zone: 'shen', focus: null });
     expect(stack).toEqual([null, 'saves']);
     pressBack();
     expect(useSavesView.getState().open).toBe(false);
@@ -113,7 +113,7 @@ describe('存档页 / 历史页的返回键(ADR-042 决策 5)', () => {
     s.leaveSavesForGame(); // 点开一局:pop 还没到
     s.openSaves('shen'); // 续局失败很快回到大厅,玩家又点了「全部存档」
     pending.splice(0).forEach((f) => f()); // 这时那一次 pop 才到
-    expect(useSavesView.getState()).toEqual({ open: true, zone: 'shen' });
+    expect(useSavesView.getState()).toEqual({ open: true, zone: 'shen', focus: null });
   });
 
   it('没压过历史(深度 0)时「返回」直接关页,不调 back() 离站', () => {
@@ -125,6 +125,32 @@ describe('存档页 / 历史页的返回键(ADR-042 决策 5)', () => {
     s.goBack();
     expect(h.viewing()).toBeNull();
     expect(stack).toEqual([null]);
+  });
+
+  it('回到哪一屏就给那一屏留焦点提示:历史页关 → history;存档页关 → all;点开一局 → 不留', () => {
+    const { nav } = fakeNav();
+    const h = fakeHistory();
+    const s = createScreens(nav, h.ctl);
+    s.install();
+    s.openSaves('fushi');
+    s.openHistory('s1');
+    s.goBack();
+    expect(useSavesView.getState()).toMatchObject({ open: true, focus: 'history' });
+    s.goBack();
+    expect(useSavesView.getState()).toMatchObject({ open: false, focus: 'all' });
+    s.openSaves('fushi');
+    expect(useSavesView.getState().focus).toBeNull();
+    s.leaveSavesForGame();
+    expect(useSavesView.getState()).toMatchObject({ open: false, focus: null });
+  });
+
+  it('不经存档页直接开的历史页,关掉时不给存档页留提示', () => {
+    const { nav } = fakeNav();
+    const s = createScreens(nav, fakeHistory().ctl);
+    s.install();
+    s.openHistory('s1');
+    s.goBack();
+    expect(useSavesView.getState()).toMatchObject({ open: false, focus: null });
   });
 
   it('存档页已开时再点「全部存档」不重复压', () => {

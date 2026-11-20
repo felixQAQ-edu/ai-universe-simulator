@@ -1,0 +1,159 @@
+/* 存档区(ADR-042 决策 8)。数值逐项取自 docs/saves-samples/saves-sample.html(sv 前缀那一段)。
+ * 颜色只用区令牌(--text / --muted / --line / --bg,由根上的区类给,ADR-041 决策 4);本文件不定义任何颜色。 */
+
+/* ── 存档页 ─────────────────────────────────────────────────────────── */
+
+.svBack {
+  align-self: flex-start;
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--text);
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  padding: 0.6rem 0 0.2rem;
+  min-height: 44px;
+  cursor: pointer;
+  border-radius: 0;
+}
+
+.svH1 {
+  margin: 0.4rem 0 0;
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+.svH1:focus {
+  outline: none; /* 标题只作程序化焦点落点(tabIndex -1),不是可操作控件 */
+}
+
+.svSub {
+  margin: 0.2rem 0 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.svNotice {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.svTitle {
+  display: block;
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.svMeta {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.svChev {
+  color: var(--muted);
+  font-size: 1.1rem;
+}
+
+/* 「回看上局」:从大厅搬来的一次性淡入(ADR-042 决策 6;不是新增动效)。 */
+.svHistory {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  font: inherit;
+  text-align: left;
+  color: var(--text);
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  padding: 0.7rem 0.15rem;
+  min-height: 56px;
+  cursor: pointer;
+  animation: svHistoryFadeIn 0.4s ease-out both;
+}
+
+@keyframes svHistoryFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.svGroup {
+  display: flex;
+  flex-direction: column;
+}
+
+.svGroupHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 0.2rem 0 0.35rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.svGroupHead h2 {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  color: var(--muted);
+}
+
+.svGroupHead h2:focus {
+  outline: none; /* 组空了时的程序化焦点落点(ADR-042 决策 10) */
+}
+
+.svGroupHead h2 b {
+  font-weight: 400;
+  margin-left: 0.4em;
+  letter-spacing: 0;
+}
+
+.svList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.svRow {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+}
+
+.svOpen {
+  font: inherit;
+  text-align: left;
+  color: var(--text);
+  background: none;
+  border: 0;
+  padding: 0.7rem 0.15rem;
+  min-height: 56px;
+  cursor: pointer;
+}
+
+.svRowOff .svTitle {
+  color: var(--muted);
+}
+
+.svOff {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .svHistory {
+    animation: none;
+  }
+}

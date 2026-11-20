@@ -1,5 +1,5 @@
 import { useHistoryStore } from '../../state/historyStore';
-import { screens } from '../../state/screens';
+import { screens, useSavesView } from '../../state/screens';
 import { BackButton } from './BackButton';
 import { gapLines, turnHeading } from './historyText';
 import styles from './game.module.css';
@@ -19,12 +19,14 @@ export function HistoryScreen() {
   const more = useHistoryStore((s) => s.more);
   const retry = useHistoryStore((s) => s.retry);
   const loadMore = useHistoryStore((s) => s.loadMore);
+  /** 从存档页进来的:返回回存档页(ADR-042 决策 5)。 */
+  const fromSaves = useSavesView((s) => s.open);
 
   return (
     <main className={styles.screen}>
       <div className={styles.historyNav}>
         {/* 返回走浏览器历史(ADR-042 决策 5):popstate 才真正关页,手机返回键与这个按钮同一条路。 */}
-        <BackButton onBack={screens.goBack} />
+        <BackButton onBack={screens.goBack} label={fromSaves ? '返回我的存档' : undefined} />
       </div>
       <h1 className={styles.title}>这一局的故事</h1>
 
