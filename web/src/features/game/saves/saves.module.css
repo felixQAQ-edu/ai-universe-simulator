@@ -15,6 +15,19 @@
   min-height: 44px;
   cursor: pointer;
   border-radius: 0;
+  position: relative;
+}
+
+/* 热区补到 44px 宽(决策 10 / ADR-018 §4.18):两个字加「‹」实测只有 36.86px 宽(375 视口)。
+ * 不加 min-width —— 那会把下划线拉长、改样张的样子;改用不可见的伪元素以按钮中线为轴向两边各补到 22px,
+ * 按钮本身比 44px 宽时两侧取 0,不缩。宽度随字体变,所以不写死补几像素。 */
+.svBack::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: -1px; /* 绝对定位相对内边距盒,盖住 1px 下边框,两角才落在热区里 */
+  left: min(0px, calc(50% - 22px));
+  right: min(0px, calc(50% - 22px));
 }
 
 .svH1 {
