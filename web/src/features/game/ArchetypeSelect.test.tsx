@@ -13,6 +13,7 @@ const APOCALYPSE: ArchetypeSummary = {
   displayName: '末日生存',
   tagline: '废土求生,饥饿是另一个敌人。',
   vibeTag: '荒凉 · 绝境',
+  experienceMode: 'shenjie',
   active: true,
 };
 const CTHULHU: ArchetypeSummary = {
@@ -20,6 +21,7 @@ const CTHULHU: ArchetypeSummary = {
   displayName: '克苏鲁',
   tagline: '凝视深渊,深渊回以低语。知道得越多,离疯狂越近。',
   vibeTag: '深渊 · 疯狂',
+  experienceMode: 'shenjie',
   active: true,
 };
 const LOCKED: ArchetypeSummary = {
@@ -27,6 +29,7 @@ const LOCKED: ArchetypeSummary = {
   displayName: '人生模拟',
   tagline: null,
   vibeTag: null,
+  experienceMode: 'fushi',
   active: false,
 };
 
@@ -66,6 +69,7 @@ const CULTIVATION: ArchetypeSummary = {
   displayName: '修仙',
   tagline: '逆天改命,踏上仙途。',
   vibeTag: '缥缈 · 仙途',
+  experienceMode: 'shenjie',
   active: true,
 };
 

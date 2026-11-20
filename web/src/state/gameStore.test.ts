@@ -98,9 +98,9 @@ const FUSION_LIST: FusionCombo[] = [
 ];
 
 const ARCHETYPE_LIST: ArchetypeSummary[] = [
-  { archetype: 'rules_creepy', displayName: '规则怪谈', tagline: '一纸诡异守则', vibeTag: '诡异 · 高危', active: true },
-  { archetype: 'apocalypse', displayName: '末日生存', tagline: '废土求生', vibeTag: '荒凉 · 绝境', active: true },
-  { archetype: 'cultivation', displayName: '修仙', tagline: null, vibeTag: null, active: false },
+  { archetype: 'rules_creepy', displayName: '规则怪谈', tagline: '一纸诡异守则', vibeTag: '诡异 · 高危', experienceMode: 'shenjie', active: true },
+  { archetype: 'apocalypse', displayName: '末日生存', tagline: '废土求生', vibeTag: '荒凉 · 绝境', experienceMode: 'shenjie', active: true },
+  { archetype: 'cultivation', displayName: '修仙', tagline: null, vibeTag: null, experienceMode: 'shenjie', active: false },
 ];
 
 /** 建一个 mock GameApi;initBehavior 控制成功/失败;openTurnStream 返回可控流。 */

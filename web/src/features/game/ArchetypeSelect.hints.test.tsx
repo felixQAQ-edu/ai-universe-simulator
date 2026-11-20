@@ -21,7 +21,7 @@ const topOf = (id: string) => ORDER.indexOf(id as (typeof ORDER)[number]) * 100;
 beforeEach(() => {
   localStorage.clear();
   useGameStore.setState({
-    archetypes: ORDER.map((a) => ({ archetype: a, displayName: NAMES[a], tagline: null, vibeTag: null, active: true })),
+    archetypes: ORDER.map((a) => ({ archetype: a, displayName: NAMES[a], tagline: null, vibeTag: null, experienceMode: 'shenjie' as const, active: true })),
     // 线上现役组合里与这三张有关的一条:《验讫》cultivation×cthulhu(克苏鲁拖到修仙上)。
     fusions: [{ host: 'cultivation', foreign: 'cthulhu', key: 'cultivation×cthulhu' }],
     capabilities: { history: false },

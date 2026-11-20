@@ -34,7 +34,13 @@ export function createH5GameApi(baseUrl = ''): GameApi {
       // 两张表各自容错:老后端(无 fusions 字段)→ 空组合表 = 拖拽一律判无效组合,
       // 不报错、不阻断选择屏(同 severity 四种缺省一律安全降级的口径,ADR-018)。
       return {
-        archetypes: Array.isArray(data?.archetypes) ? data.archetypes : [],
+        // ADR-041 决策 1:缺 experienceMode(测试替身 / 老后端)或取值不认识 → 深界(分区之前所有卡所在的行为)。
+        archetypes: Array.isArray(data?.archetypes)
+          ? data.archetypes.map((a) => ({
+              ...a,
+              experienceMode: a?.experienceMode === 'fushi' ? 'fushi' : 'shenjie',
+            }))
+          : [],
         fusions: Array.isArray(data?.fusions) ? data.fusions : [],
         // 能力标志同样容错:缺失或非 true 一律按 false(老后端不会让选择屏去撞 /history)。
         capabilities: { history: data?.capabilities?.history === true },

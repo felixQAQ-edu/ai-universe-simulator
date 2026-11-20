@@ -185,11 +185,12 @@ describe('源码级边界:只有存档指针模块碰存档相关的 localStorag
     expect(offenders).toEqual(['/src/state/savePointers.ts']);
   });
 
-  it('调用 localStorage 的只有 savePointers.ts 与(设备键的)api/deviceId.ts', () => {
+  it('调用 localStorage 的只有 savePointers.ts、(设备键的)api/deviceId.ts 与(大厅键的)state/lobbyPrefs.ts', () => {
     const callers = prod
       .filter(([, src]) => /localStorage\s*[?.]/.test(src))
       .map(([p]) => p)
       .sort();
-    expect(callers).toEqual(['/src/api/deviceId.ts', '/src/state/savePointers.ts']);
+    // ADR-041 决策 2:大厅偏好(上次停的区 / 已发现 / 已开演)另有一个模块,键名不含存档前缀(见上一条)。
+    expect(callers).toEqual(['/src/api/deviceId.ts', '/src/state/lobbyPrefs.ts', '/src/state/savePointers.ts']);
   });
 });

@@ -25,9 +25,9 @@ beforeEach(() => {
   localStorage.clear();
   useGameStore.setState({
     archetypes: [
-      ...ORDER.map((a) => ({ archetype: a, displayName: NAMES[a], tagline: null, vibeTag: null, active: true })),
+      ...ORDER.map((a) => ({ archetype: a, displayName: NAMES[a], tagline: null, vibeTag: null, experienceMode: 'shenjie' as const, active: true })),
       // 一张未开放卡:成品卡要排在它之前(「已开放卡之后」= 刀 2c-1 之前的位置)。
-      { archetype: 'life_sim', displayName: '人生模拟', tagline: null, vibeTag: null, active: false },
+      { archetype: 'life_sim', displayName: '人生模拟', tagline: null, vibeTag: null, experienceMode: 'shenjie', active: false },
     ],
     // 同一宿主(修仙)的两条现役组合:《验讫》与《识海遗蜕》。
     fusions: [

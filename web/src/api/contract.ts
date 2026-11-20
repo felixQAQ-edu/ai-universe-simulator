@@ -60,8 +60,16 @@ export interface ArchetypeSummary {
   tagline: string | null;
   /** 氛围/危险短标签(可选;未激活占位为 null/缺省)。 */
   vibeTag: string | null;
+  /**
+   * 大厅分区(ADR-041 决策 1):浮世 / 深界。服务端登记时必填;融合世界不带(一律进渗界)。
+   * 适配层对缺这个键的卡(测试替身、老后端)按 `'shenjie'` 处理 —— 那是分区之前所有卡所在的行为(可拖)。
+   */
+  experienceMode: ExperienceMode;
   active: boolean;
 }
+
+/** 大厅分区的 wire 取值(ADR-041 审定 5)。深界、渗界拼音相同,所以 wire 上只有这两个;渗界不是单体世界的分区。 */
+export type ExperienceMode = 'fushi' | 'shenjie';
 
 /**
  * 一对已登记的融合组合(后端 `GET /api/archetypes` 的 `fusions` 只读投影,ADR-019)。

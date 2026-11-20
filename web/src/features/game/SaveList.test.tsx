@@ -21,7 +21,7 @@ beforeEach(() => {
   // 目录请求走不到真网络:直接让 loadArchetypes 视为已加载。
   useGameStore.setState({
     archetypes: [
-      { archetype: 'rules_creepy', displayName: '规则怪谈', tagline: null, vibeTag: null, active: true },
+      { archetype: 'rules_creepy', displayName: '规则怪谈', tagline: null, vibeTag: null, experienceMode: 'shenjie', active: true },
     ],
     fusions: [],
     capabilities: { history: false },

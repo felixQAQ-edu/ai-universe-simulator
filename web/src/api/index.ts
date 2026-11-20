@@ -9,6 +9,7 @@ export type {
   ClientWorld,
   DiscoveredRule,
   EndingPayload,
+  ExperienceMode,
   CatalogCapabilities,
   FusionCombo,
   GameApi,

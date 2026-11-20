@@ -210,6 +210,24 @@ describe('listArchetypes', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 500 } as Response));
     await expect(api.listArchetypes()).rejects.toBeInstanceOf(GameApiError);
   });
+
+  it('experienceMode(ADR-041 决策 1):原样透传 fushi / shenjie;缺键或不认识的值 → shenjie', async () => {
+    const card = (archetype: string, experienceMode?: unknown) => ({
+      archetype,
+      displayName: archetype,
+      tagline: null,
+      vibeTag: null,
+      active: true,
+      ...(experienceMode === undefined ? {} : { experienceMode }),
+    });
+    const payload = {
+      archetypes: [card('life_sim', 'fushi'), card('cthulhu', 'shenjie'), card('rules_creepy'), card('apocalypse', 'rong')],
+      fusions: [],
+    };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(200, payload)));
+    const { archetypes: list } = await api.listArchetypes();
+    expect(list.map((a) => a.experienceMode)).toEqual(['fushi', 'shenjie', 'shenjie', 'shenjie']);
+  });
 });
 
 describe('openTurnStream', () => {
