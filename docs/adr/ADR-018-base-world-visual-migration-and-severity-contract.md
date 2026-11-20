@@ -239,6 +239,17 @@
 - `generating` 与 reveal 打字期,低频调度**停表**(正文是禁区,AGENTS.md Motion Constraints §5);
 - 测试环境补 `matchMedia` polyfill(jsdom 不带,同 Slice 2 补 `localStorage` polyfill 的先例)。
 
+> **补充(F-041,2026-11-20;上文原文不动):teardown 时数值滚动直接落终态,过期 tween 的回调不写 state。**
+> teardown 的 `ctx.revert()` 语义不变(AGENTS.md Motion Constraints §5 不动)。但 gsap 3.15 下,context 里一段**已完成**的 `to()`
+> 在 revert 时会再触发一次 `onUpdate`,值 = 起点 —— 通用层的数值滚动(`useAnimatedValues`)若在回调里无条件写 state,
+> turn 切换就会把上一回合的起点写回屏幕(值不变的回合一直停在那里,档名与 severity 跟着错)。故数值滚动另守两条:
+> ① 起 tween 时记 `runtime.token`,`onUpdate` / `onComplete` 里 `!runtime.alive(token)` 即返回;
+> ② 经 `runtime.onTeardown` 登记落终态:teardown 时 state 直接落到这次 tween 的目标值(滚到一半也一样)——
+> 与「旧 turn 的在途动效不跨 turn 补发」同义,直接到终态。同一次提交里新值已到(值又变的回合)则不落,新 tween 从此刻的显示值接着滚。
+> 依赖 teardown 的既有顺序:递增世代号 → 跑 cleanup → `ctx.revert()`(`lifecycle.ts`)。
+> **一般读法**:凡在 GSAP 回调里写 React state 的代码,都要按 runtime 世代号判过期;revert 不等于「回调不会再来」。
+> 出处:[FINDINGS F-041](../../bakeoff/FINDINGS.md)、`useAnimatedValues.test.tsx`。
+
 **4.5 feature gate**
 
 刀 1 后**只有规则怪谈登记新主题**,其余世界走旧实现。出问题**删一条注册即回退**,不得要求回滚整套基建。
