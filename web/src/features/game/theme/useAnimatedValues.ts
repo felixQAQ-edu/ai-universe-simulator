@@ -83,7 +83,22 @@ export function useAnimatedValues(
 
     const proxy: Record<string, number> = {};
     for (const k of Object.keys(target)) proxy[k] = from[k] ?? target[k];
-    // 走统一 runtime:turn 切换 / 卸载由同一个 teardown 收走(§4.4),这里不另起清理。
+
+    // ── turn 切换 / 卸载(teardown)时的两条(FINDINGS F-041;ADR-018 §4.4 补充块)──────────
+    // ① 过期 tween 的回调不写 state。gsap 3.15 下,context 里一段**已完成**的 to() 在 `ctx.revert()`
+    //    时会再触发一次 onUpdate,值 = 起点;不拦就把上一回合的起点写回屏幕(值不变的回合会一直停在那里)。
+    //    teardown 先递增世代号、再跑 cleanup、最后 revert(lifecycle.ts),所以 revert 引发的回调一律已过期。
+    // ② teardown 时数值直接落到这次 tween 的目标值(滚到一半也一样):旧 turn 的在途动效不跨 turn 补发,直接到终态。
+    //    只在 state 仍属于这次滚动时落位:同一次提交里新值已经到了(值又变的回合),渲染期对齐已经把 state 换成新的那组,
+    //    新 tween 从此刻的显示值接着滚 —— 这时再落旧目标值,会多出一帧跳回。
+    const token = runtime.token;
+    const rollKey = valueKey;
+    runtime.onTeardown(() =>
+      setState((s) =>
+        s.valueKey === rollKey ? { ...s, exact: { ...target }, shown: rounded(target, target) } : s,
+      ),
+    );
+    // 走统一 runtime:turn 切换 / 卸载由同一个 teardown 收走(§4.4)。
     // setState 发生在 GSAP 的逐帧回调里(异步),不是 effect 同步体。
     runtime.add(() => {
       gsap.to(proxy, {
@@ -91,10 +106,14 @@ export function useAnimatedValues(
         duration: durationMs / 1000,
         ease: skin.valueRoll.ease,
         delay: (holdMs + startDelayMs) / 1000,
-        onUpdate: () =>
-          setState((s) => ({ ...s, exact: { ...proxy }, shown: rounded(proxy, target) })),
-        onComplete: () =>
-          setState((s) => ({ ...s, exact: { ...target }, shown: rounded(target, target) })),
+        onUpdate: () => {
+          if (!runtime.alive(token)) return;
+          setState((s) => ({ ...s, exact: { ...proxy }, shown: rounded(proxy, target) }));
+        },
+        onComplete: () => {
+          if (!runtime.alive(token)) return;
+          setState((s) => ({ ...s, exact: { ...target }, shown: rounded(target, target) }));
+        },
       });
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
