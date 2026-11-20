@@ -154,6 +154,13 @@
     - 两组各有哪些 id,读 `ArchetypeRegistry.listForSelection()`(已激活 = 构造器 `register(...)` 的元数据,未开放 = `INACTIVE_DISPLAY_NAMES`),
       本补充不写死清单(写死的清单会漂,照 ROADMAP v8.8 先例)。`INACTIVE_DISPLAY_NAMES` 现为空表,但「未开放」分支是**刻意保留**的
       ([ADR-036](adr/ADR-036-cyberpunk-world-paidan.md) 裁定 4(a)):将来再有占位时不必重建。
+    ⚠️ **补充(ADR-041,2026-11-21;上文原文与两段补充一字不动)**:目录每一项多一个必填字段 **`experienceMode`**(大厅分区),
+    JSON 取值 **`"fushi"`(浮世)/ `"shenjie"`(深界)**,已激活与未开放占位**都必须有**(`ArchetypeMeta` 两个构造器与占位表都要求它、不给缺省,
+    漏答编译或启动不过)。**只在大厅成立**(世界目录立字一):只经本端点下发给选择屏分区,不进 world-gen / event-loop 注入、不进引擎、不进局内;
+    不是 state schema 字段。**融合世界没有这个字段** —— 一律进第三区「渗界」(世界目录立字七),前端据 `fusions` 只读投影即可;
+    深界与渗界拼音相同,故 wire 上只有两个值,前端区 id 另用 `fushi` / `shen` / `rong`。前端适配层对缺键或不认识的值按 `"shenjie"` 处理
+    (分区之前所有卡所在的行为)。大厅停在哪区、已发现的融合组合、第三区是否已出现过,三项都只存在浏览器本地(`aiuniverse.lobby.*`),
+    不进服务端。JSON `schemaVersion` 仍 "0.4"。出处 [ADR-041](adr/ADR-041-lobby-three-zones.md) 决策 1 / 审定 5。
 
 16. **混合模式融合协议(ADR-012 轴合并 + ADR-013 融合协议,round 1 端到端验通 2026-07-08;ADR-014 骨架参数化 + 第二组合,round 1.5 端到端验通 2026-07-14)**:混合模式(`mode:"hybrid"`、`archetypes` 2–3)把多套设定调和成**一个自洽世界**(非轮流播/拼接)。round 1 彩蛋=**修仙 × 规则怪谈「识海遗蜕」**(host=修仙);round 1.5=**规则怪谈 × 末日「守则即补给」缺页的人防工程**(host=rules_creepy,hunger 换皮「补给」、首例三致命轴 {hp,san,hunger})。**引擎/校验/`schemaVersion`(保 "0.4")一律不动**——融合只在**播种层 + 提示词 + 前端**三处;引擎侧融合世界只是「一个有 N 轴的普通世界」,照旧遍历 attributes(守 §三.5 引擎数值无知)。融合提示词=**参数化骨架 + per-combo 槽位**(ADR-014:派生槽=致命轴清单/结局条数从 `fusedAxes` 算,文案槽=真假称呼/资源经济/裁决口吻/附加指令;安全规矩全在骨架单点维护)。八条约定:
 
@@ -272,6 +279,7 @@
 | v0.9 | 2026-06-25 | 加世界流水线第一次复用·克苏鲁(`cthulhu`)落地 + 真 key 冒烟验通:§三.4 archetype 枚举追加 `cthulhu`(已激活,签名轴=禁忌知识 `knowledge` 累积型双刃)、§三.15 已激活示例补 cthulhu;§三.14 轴行为提示字段 `decay` 泛化为 `behaviorHint`(涵盖衰减/累积/联动,引擎仍不读),并记两条架构缺口 F-012(引擎 ≤0 触底假设只对 depletion 轴成立)/ F-013(骨架强制 isTrue 与非真假守则世界冲突)——均本批提示词兜、引擎正解留修仙批。约定层补充,JSON `schemaVersion` 仍 "0.2"(registry 伴生字段 + 元数据提示文本,非 state schema 变更),仅 CONTEXT 文档版本升 v0.9 |
 | **v1.0** | 2026-06-25 | **修仙(`cultivation`)落地 + ADR-009 架构正解(根治 F-012/F-013),真 key 冒烟验通**:§三.4 枚举 `cultivation` 标已激活(全新数值体系 `{hp,mana,realm}`=气血/灵力/境界,主角轴=境界 accumulation)、§三.5/§三.15 同步;**§二 `rules[].isTrue` 改可选**(F-013,校验零分派)+ **JSON `schemaVersion` "0.2"→"0.3"**(首次真动字段约束;`WORLD_SCHEMA` 接受双版本守 parity 夹具,见 ADR-009);**§三.8 触底按轴角色 `axisRole`**(depletion ≤0 致死 / accumulation 不触底,F-012 引擎根治)、**§三.14 元数据增 `axisRole` + `rulesCarryTruth`**。golden parity 字节级守 depletion 零回归(server 173 / web 30 全绿)。F-012/F-013 已关闭。CONTEXT 文档版本升 v1.0(本批是首个真动 JSON `schemaVersion` 的批次)。 |
 | **v1.1** | 2026-06-26 | **结局极性 gate(ADR-010 根治 F-014 + 关闭 F-015),真 key 冒烟验通**:**§二 `endings[].outcome` 新增**(可选极性 `success|failure|neutral`,AI 标、引擎只读;`toClientState` 不剥)+ **JSON `schemaVersion` "0.3"→"0.4"**(`WORLD_SCHEMA` 接受 `{0.2,0.3,0.4}` 三版本守 parity);**§三.8 结局极性 gate**(致命轴濒零 ≤`ENDING_GATE_THRESHOLD`(10)时引擎拒绝 AI `outcome==success` 结局、据极性确定性挑 failure;触底/gate 收窄到致命轴)+ **§三.14 元数据增 `lethal`**(depletion 内部细分致命生命轴/非致命资源轴;灵力 `lethal=false` 关闭 F-015)。引擎只读 outcome 标 + lethal 轴值、不懂结局语义(守 ADR-008);golden parity 字节级零回归(server 188 / web 30 全绿)。真 key 冒烟两局验通:气血 0→拦成功结局给「身死道消」、气血 5 濒死未死→不强制结束给挣扎选项(两边界都对);灵力两局 0 未误死。F-014/F-015 已关闭。CONTEXT 文档版本升 v1.1。 |
+| **v3.1** | 2026-11-21 | **ADR-041 回写**:§三.15 加补充块 —— 目录每项多一个必填字段 `experienceMode`(`"fushi"` / `"shenjie"`;只在大厅成立;融合世界不带、一律进第三区「渗界」;前端缺键按 `"shenjie"`;大厅三项偏好只存浏览器本地)。上文原文与既有补充段一字未动。**JSON `schemaVersion` 不动(仍 "0.4")**;仅 CONTEXT 文档版本升 v3.1。 |
 | **v3.0** | 2026-11-15 | **ADR-040 回写**:§三.9 再加一个补充块 —— 视图 3 新增下发时现算的展示数据 `markedTurns`(《寻常》牵挂升档的回合号;只登记 `life_sim`;来源是已落盘的 issues 标记行;空清单不写键;已结束的局照常给)。上文原文与 ADR-039 补充块一字未动;§三.18(e) 未加句(拿不准则只写 §三.9,照 ADR-040 实施回写项)。**JSON `schemaVersion` 不动(仍 "0.4")**;仅 CONTEXT 文档版本升 v3.0。 |
 | **v2.9** | 2026-11-13 | **ADR-039 回写**:§三.9 加补充块 —— 视图 3 新增两项下发时现算的展示文字 `timeLabel` 与选项 `tag`(只登记 `time_travel`;没有就不写键;落点 `ClientProjection`,存档与喂模型的选项文字不动;`tag` 只来自服务端登记表)。上文原文一字未动。**JSON `schemaVersion` 不动(仍 "0.4")**;仅 CONTEXT 文档版本升 v2.9。 |
 | **v2.8** | 2026-11-12 | **ADR-038 回写(Slice F)**:§三.4 加补充块 —— `time_travel` 已激活(卡面「穿越古代」、游戏内世界名固定《七日开张》、浮世;截至 `01cf2b5` `KNOWN` 八个 id 全部已激活)。上文原文与既有补充段一字未动。§三.18 **未加新约定**(「选项前缀 + 服务端两头兜底」目前只有《七日开张》一个使用者,见 ADR-038 订正一与 FINDINGS F-040)。**JSON `schemaVersion` 不动(仍 "0.4")**;仅 CONTEXT 文档版本升 v2.8。 |
