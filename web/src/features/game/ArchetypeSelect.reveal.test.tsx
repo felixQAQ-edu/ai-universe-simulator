@@ -10,6 +10,7 @@ import { useGameStore } from '../../state/gameStore';
 import { LOBBY_DISCOVERED_KEY, LOBBY_REVEALED_KEY, LOBBY_ZONE_KEY } from '../../state/lobbyPrefs';
 import type { SaveSummary } from '../../state/savePointers';
 import { ArchetypeSelect } from './ArchetypeSelect';
+import { spyOnStorageSetItem } from '../../test/storageSpy';
 import lobbyStyles from './lobby.module.css';
 
 const ORDER = ['rules_creepy', 'cthulhu', 'cultivation'] as const;
@@ -219,7 +220,7 @@ describe('一辈子只一次:记「已开演」,不记「已排期」(ADR-018 §
   });
 
   it('StrictMode(dev 的双挂载):只开演一次、只写一次、只播一次', () => {
-    const setItem = vi.spyOn(localStorage, 'setItem');
+    const setItem = spyOnStorageSetItem();
     useGameStore.setState({ saves: [save('s', ['cultivation', 'cthulhu'])] });
     render(
       <StrictMode>
@@ -233,7 +234,7 @@ describe('一辈子只一次:记「已开演」,不记「已排期」(ADR-018 §
   });
 
   it('写不进 revealed(存储不可用):这一次照样演完、标签留着;下次进门会再看到一次(已知代价 3)', () => {
-    vi.spyOn(localStorage, 'setItem').mockImplementation(() => {
+    spyOnStorageSetItem().mockImplementation(() => {
       throw new Error('quota');
     });
     useGameStore.setState({ saves: [save('s', ['cultivation', 'cthulhu'])] });

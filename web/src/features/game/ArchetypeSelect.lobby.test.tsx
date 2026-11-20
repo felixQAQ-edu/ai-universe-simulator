@@ -7,6 +7,7 @@ import { useGameStore } from '../../state/gameStore';
 import { LOBBY_DISCOVERED_KEY, LOBBY_REVEALED_KEY, LOBBY_ZONE_KEY } from '../../state/lobbyPrefs';
 import type { SaveSummary } from '../../state/savePointers';
 import { ArchetypeSelect } from './ArchetypeSelect';
+import { spyOnStorageSetItem } from '../../test/storageSpy';
 import styles from './game.module.css';
 import lobbyCss from './lobby.module.css?raw';
 
@@ -246,7 +247,7 @@ describe('成品卡的去处(决策 6)', () => {
   it('存储写不进时,这一次停留仍按已发现处理(渗界照样有它)', () => {
     vi.useFakeTimers();
     vi.spyOn(window, 'scrollBy').mockImplementation(() => {});
-    vi.spyOn(localStorage, 'setItem').mockImplementation(() => {
+    spyOnStorageSetItem().mockImplementation(() => {
       throw new Error('quota');
     });
     render(<ArchetypeSelect />);
