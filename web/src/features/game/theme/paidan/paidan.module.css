@@ -38,7 +38,8 @@
   /* 规则条目未点亮色:#a29db6 在 #17161f 上约 6.4:1。 */
   --rule-idle: #a29db6;
 
-  /* 时间感(成对,ADR-018 §4.3):利落、数字化,缓出(= GSAP power3.out,见 skins.tsx valueRoll)。 */
+  /* 时间感(成对,ADR-018 §4.3):利落、数字化,缓出。cubic-bezier(0.215, 0.61, 0.355, 1) 是三次方缓出;
+     skins.tsx valueRoll 用的 GSAP power3.out 是四次方缓出 —— 两者都是缓出,不是同一条曲线。 */
   --t-dur: 0.18s;
   --t-ease: cubic-bezier(0.215, 0.61, 0.355, 1);
 
