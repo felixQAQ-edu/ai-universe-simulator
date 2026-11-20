@@ -1,7 +1,8 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useGameStore } from '../../state/gameStore';
+import { screens } from '../../state/screens';
 import { useHistoryStore } from '../../state/historyStore';
 import type { SaveSummary } from '../../state/savePointers';
 import { GameScreen } from './GameScreen';
@@ -227,10 +228,16 @@ describe('历史页(口径 E/F/G/H/I)', () => {
   });
 
   it('「返回」回选择屏(复用 BackButton,无皮肤)', async () => {
-    await openPage(ok([ev(0, '开场', null)]));
+    // 经 screens 打开(压一条历史),「返回」要把那一条退掉(ADR-042 决策 5)
+    historyReplies = [ok([ev(0, '开场', null)])];
+    render(<GameScreen />);
+    act(() => screens.openHistory(SID));
+    expect(window.history.state).toEqual({ aiuNav: 'history' });
     await screen.findByRole('heading', { name: '这一局的故事' });
     await userEvent.click(screen.getByRole('button', { name: '返回世界选择' }));
     await waitFor(() => expect(screen.getByRole('heading', { name: '选择你的世界' })).toBeInTheDocument());
     expect(useGameStore.getState().status).toBe('idle');
+    // 返回经浏览器历史(ADR-042 决策 5):进页压的那一条被退掉了,不留在栈上
+    expect(window.history.state).toBeNull();
   });
 });

@@ -91,6 +91,31 @@ describe('存档页 / 历史页的返回键(ADR-042 决策 5)', () => {
     expect(stack).toEqual([null]);
   });
 
+  it('自己发的 pop 晚到(真浏览器是异步):期间又打开了存档页,也不能把它关掉', () => {
+    const stack: Array<NavTag | null> = [null];
+    let pop: (() => void) | null = null;
+    const pending: Array<() => void> = [];
+    const nav: NavHistory = {
+      push: (t) => void stack.push(t),
+      back: () => {
+        stack.pop();
+        pending.push(() => pop?.());
+      },
+      onPop: (cb) => {
+        pop = cb;
+        return () => (pop = null);
+      },
+      clearStaleMarker: () => {},
+    };
+    const s = createScreens(nav, fakeHistory().ctl);
+    s.install();
+    s.openSaves('fushi');
+    s.leaveSavesForGame(); // 点开一局:pop 还没到
+    s.openSaves('shen'); // 续局失败很快回到大厅,玩家又点了「全部存档」
+    pending.splice(0).forEach((f) => f()); // 这时那一次 pop 才到
+    expect(useSavesView.getState()).toEqual({ open: true, zone: 'shen' });
+  });
+
   it('没压过历史(深度 0)时「返回」直接关页,不调 back() 离站', () => {
     const { nav, stack } = fakeNav();
     const h = fakeHistory();
