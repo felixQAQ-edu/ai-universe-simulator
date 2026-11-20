@@ -1,6 +1,7 @@
 package com.aiuniverse.server.archetype;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.entry;
 
 import java.util.List;
@@ -89,6 +90,55 @@ class ArchetypeRegistryTest {
 		assertThat(placeholder.displayName()).isEqualTo(FakePlaceholderRegistry.DISPLAY_NAME);
 		assertThat(placeholder.tagline()).isNull();
 		assertThat(placeholder.vibeTag()).isNull();
+	}
+
+	/**
+	 * ADR-041 决策 1 / 世界目录立字五:每个世界(含未开放占位)都必须回答属于哪一侧。
+	 * 已激活八条的分区逐条钉死,值来自世界目录「三区计数(截至 080494f)」。
+	 */
+	@Test
+	void everySelectionEntryAnswersWhichZoneItBelongsTo() {
+		for (ArchetypeSummary s : new FakePlaceholderRegistry().listForSelection()) {
+			assertThat(s.experienceMode()).as("登记时必须回答属于哪一侧:%s", s.archetype()).isNotNull();
+		}
+		java.util.Map<String, ExperienceMode> zones = new java.util.LinkedHashMap<>();
+		for (ArchetypeSummary s : registry.listForSelection()) {
+			zones.put(s.archetype(), s.experienceMode());
+		}
+		assertThat(zones).containsExactlyInAnyOrderEntriesOf(java.util.Map.of(
+				"life_sim", ExperienceMode.FUSHI,
+				"animal_life", ExperienceMode.FUSHI,
+				"time_travel", ExperienceMode.FUSHI,
+				"cyberpunk", ExperienceMode.SHENJIE,
+				"cultivation", ExperienceMode.SHENJIE,
+				"rules_creepy", ExperienceMode.SHENJIE,
+				"apocalypse", ExperienceMode.SHENJIE,
+				"cthulhu", ExperienceMode.SHENJIE));
+	}
+
+	@Test
+	void metaWithoutExperienceModeIsRejected() {
+		ArchetypeMeta m = registry.meta("rules_creepy");
+		assertThatThrownBy(() -> new ArchetypeMeta(m.id(), m.displayName(), m.tagline(), m.vibeTag(), null,
+				m.worldview(), m.attributes(), m.ruleForm(), m.rulesCarryTruth()))
+				.isInstanceOf(NullPointerException.class)
+				.hasMessageContaining("ADR-041");
+	}
+
+	/**
+	 * ADR-041 决策 7(跨区融合不堵死,但先写成红灯):拖拽合成只在深界里发生,
+	 * 一边在浮世的组合在深界里拖不出来。这条变红 = 有人要登记跨区组合 → 先做渗界里的「合成台」(另立 ADR)再登记。
+	 */
+	@Test
+	void everyFusionComboParticipantIsInShenjieUntilACraftingTableExists() {
+		for (FusionSummary c : registry.listFusionCombos()) {
+			assertThat(registry.meta(c.host()).experienceMode())
+					.as("ADR-041 决策 7:%s 的 host 不在深界,先做合成台再登记跨区组合", c.key())
+					.isEqualTo(ExperienceMode.SHENJIE);
+			assertThat(registry.meta(c.foreign()).experienceMode())
+					.as("ADR-041 决策 7:%s 的 foreign 不在深界,先做合成台再登记跨区组合", c.key())
+					.isEqualTo(ExperienceMode.SHENJIE);
+		}
 	}
 
 	/**

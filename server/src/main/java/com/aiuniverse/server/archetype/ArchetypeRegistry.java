@@ -6,6 +6,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import org.springframework.stereotype.Component;
@@ -18,7 +19,7 @@ import org.springframework.stereotype.Component;
  * <ul>
  *   <li><b>已知</b> = {@link #KNOWN} 常量里的那些;非已知 → init 400(非法 archetype)。</li>
  *   <li><b>已激活</b> = 构造器里 {@code register(...)} 的那些,<b>以登记处为准</b>;
- *       已知但未激活 = {@link #INACTIVE_DISPLAY_NAMES} 里的那些 → init 400「未开放」
+ *       已知但未激活 = {@link #INACTIVE_PLACEHOLDERS} 里的那些 → init 400「未开放」
  *       (占位枚举,等各自独立批 + 独立 world-gen 冒烟)。</li>
  * </ul>
  *
@@ -43,16 +44,29 @@ public class ArchetypeRegistry {
 			"rules_creepy", "life_sim", "cultivation", "cyberpunk", "apocalypse", "cthulhu", "animal_life", "time_travel");
 
 	/**
-	 * 已知但未激活(占位枚举)的玩家可见中文名(CONTEXT §三.4)——选择屏渲染「敬请期待」灰显卡片用。
+	 * 已知但未激活(占位枚举)的条目(CONTEXT §三.4)——选择屏渲染「敬请期待」灰显卡片用。
 	 * 让 registry 成为「选择目录」的单一真理源(前端不硬编码模式清单)。保序 = 选择屏占位排序。
+	 *
+	 * <p>ADR-041 决策 1:原名 {@code INACTIVE_DISPLAY_NAMES}(id → 中文名),改为 id → {@link Placeholder}(中文名 + 分区)——
+	 * 未开放卡也在某一区里显示,同样必须回答属于哪一侧。
 	 */
-	private static final Map<String, String> INACTIVE_DISPLAY_NAMES;
+	private static final Map<String, Placeholder> INACTIVE_PLACEHOLDERS;
 	static {
-		Map<String, String> m = new LinkedHashMap<>();
+		Map<String, Placeholder> m = new LinkedHashMap<>();
 		// life_sim 已于 ADR-020 刀 1 激活(《寻常》复用既有占位 id,对外名仍「人生模拟」)→ 本表删去那一行。
 		// cyberpunk 已于 ADR-036 Slice B 激活(《派单》,对外卡名仍「赛博朋克」)→ 本表删去最后一行,表为空。
 		// 分支与空表保留(ADR-036 裁定 4(a)):将来再有占位时不必重建;守护测试在测试内注入假占位。
-		INACTIVE_DISPLAY_NAMES = Collections.unmodifiableMap(m);
+		INACTIVE_PLACEHOLDERS = Collections.unmodifiableMap(m);
+	}
+
+	/**
+	 * 一个已知但未开放的占位:玩家可见中文名 + 大厅分区(ADR-041 决策 1,两项都必填)。
+	 */
+	public record Placeholder(String displayName, ExperienceMode experienceMode) {
+		public Placeholder {
+			Objects.requireNonNull(displayName, "displayName");
+			Objects.requireNonNull(experienceMode, () -> "占位 " + displayName + " 缺 experienceMode(ADR-041 决策 1)");
+		}
 	}
 
 	/** 已激活(有元数据)的 archetype → 元数据。保序便于稳定遍历。 */
@@ -113,20 +127,20 @@ public class ArchetypeRegistry {
 
 	/**
 	 * id ∈ CONTEXT §三.4 枚举(已知)。非已知 → init 视为非法 400。
-	 * 未开放占位({@link #inactiveDisplayNames()})也算已知 —— 生产表为空,此并集与只看 {@link #KNOWN} 逐值相同;
+	 * 未开放占位({@link #inactivePlaceholders()})也算已知 —— 生产表为空,此并集与只看 {@link #KNOWN} 逐值相同;
 	 * 它只让测试注入的假占位走得到「已知但未激活 → 未开放」这条分支(ADR-036 裁定 4(a))。
 	 */
 	public boolean isKnown(String archetype) {
-		return KNOWN.contains(archetype) || inactiveDisplayNames().containsKey(archetype);
+		return KNOWN.contains(archetype) || inactivePlaceholders().containsKey(archetype);
 	}
 
 	/**
-	 * 已知但未激活的占位:id → 玩家可见中文名(选择屏「敬请期待」灰显 + init 400「未开放」)。
-	 * 生产 = {@link #INACTIVE_DISPLAY_NAMES}(ADR-036 Slice B 起为空)。<b>只为测试留的覆写点</b>:
+	 * 已知但未激活的占位:id → 中文名 + 分区(选择屏「敬请期待」灰显 + init 400「未开放」)。
+	 * 生产 = {@link #INACTIVE_PLACEHOLDERS}(ADR-036 Slice B 起为空)。<b>只为测试留的覆写点</b>:
 	 * 守护测试在测试内构造子类、注入一个假占位,守的行为不变(ADR-036 裁定 4(a) / 已知代价 7)。
 	 */
-	protected Map<String, String> inactiveDisplayNames() {
-		return INACTIVE_DISPLAY_NAMES;
+	protected Map<String, Placeholder> inactivePlaceholders() {
+		return INACTIVE_PLACEHOLDERS;
 	}
 
 	/** id 已激活(本批可生成)。已知但未激活 → init 400「未开放」。 */
@@ -442,10 +456,11 @@ public class ArchetypeRegistry {
 	public List<ArchetypeSummary> listForSelection() {
 		List<ArchetypeSummary> out = new ArrayList<>();
 		for (ArchetypeMeta m : active.values()) {
-			out.add(new ArchetypeSummary(m.id(), m.displayName(), m.tagline(), m.vibeTag(), true));
+			out.add(new ArchetypeSummary(m.id(), m.displayName(), m.tagline(), m.vibeTag(), m.experienceMode(), true));
 		}
-		for (Map.Entry<String, String> e : inactiveDisplayNames().entrySet()) {
-			out.add(new ArchetypeSummary(e.getKey(), e.getValue(), null, null, false));
+		for (Map.Entry<String, Placeholder> e : inactivePlaceholders().entrySet()) {
+			Placeholder p = e.getValue();
+			out.add(new ArchetypeSummary(e.getKey(), p.displayName(), null, null, p.experienceMode(), false));
 		}
 		return List.copyOf(out);
 	}
@@ -476,6 +491,7 @@ public class ArchetypeRegistry {
 				"规则怪谈",
 				"一纸诡异守则,真假混杂。读懂它,或者付出代价。",
 				"诡异 · 高危",
+				ExperienceMode.SHENJIE,
 				"规则怪谈:玩家身处一个看似日常却暗藏异常的封闭场景(如雨夜便利店、末班地铁、山区民宿),"
 						+ "墙上/纸上贴着一组必须遵守的规则,违反或误读会招致超自然后果。氛围瘆人、逻辑自洽。",
 				List.of(
@@ -500,6 +516,7 @@ public class ArchetypeRegistry {
 				"末日生存",
 				"废土求生,饥饿是另一个敌人。撑过下一个夜晚。",
 				"荒凉 · 绝境",
+				ExperienceMode.SHENJIE,
 				"末日生存:文明崩塌后的废墟世界(如丧尸蔓延的城市、核冬天的避难所、资源枯竭的末世聚落),"
 						+ "玩家在饥饿、伤病与未知威胁之间求生。氛围荒凉、紧绷、危机四伏,资源永远不够。",
 				List.of(
@@ -531,6 +548,7 @@ public class ArchetypeRegistry {
 				"克苏鲁",
 				"凝视深渊,深渊回以低语。知道得越多,离疯狂越近。",
 				"深渊 · 疯狂",
+				ExperienceMode.SHENJIE,
 				"克苏鲁神话式的不可名状之恐怖:沉睡于宇宙与海渊的旧日支配者、写满禁忌真相的古老典籍、"
 						+ "阴郁的海边小镇 / 偏僻古宅 / 积尘的大学禁阅区。人类一旦窥见宇宙的真实图景,理智便开始崩解。"
 						+ "氛围阴郁、压抑、缓慢逼近,恐惧来自「不该知道的事」而非血腥。",
@@ -577,6 +595,7 @@ public class ArchetypeRegistry {
 				"修仙",
 				"逆天改命,踏上仙途。一念成圣,一念成魔。",
 				"缥缈 · 仙途",
+				ExperienceMode.SHENJIE,
 				"东方仙侠修真世界:天地灵气氤氲,宗门林立、洞天福地隐于山海;凡人以灵根资质入道,炼气、筑基、"
 						+ "结金丹,逆天夺命、追求长生与飞升。修行路上有心魔横生、渡劫天劫、同道相争与天材地宝的诱惑。"
 						+ "角色入场即带一种灵根资质(如天灵根 / 双灵根 / 废灵根,写进 character.traits),它影响修行快慢与叙事际遇。"
@@ -659,6 +678,7 @@ public class ArchetypeRegistry {
 				"动物人生",
 				"熟悉的一切变了，你学会的规则还作数吗？",
 				"视角错位 · 误读回收",
+				ExperienceMode.FUSHI,
 				"它一直生活在一户人家的屋里。它不懂人的话，也不知道搬家、遗弃或收养，只能从反复出现的声音、气味、动作和结果里学习：金属声响过，门会打开；叫一声，脚步会靠近；碗被放下，就有东西可吃。它把这些重复当作世界本来的秩序。\n"
 						+ "后来，纸箱出现，家具被搬走，那套秩序开始松动。玩家可能让它跟着人进入新家，也可能让它留在空下来的旧屋，并在以后决定是否跨过那扇门。无论到了哪里，过去熟悉的信号都不再可靠；故事应通过它能够直接感知的变化，表现它怎样继续试探、记住回应，并慢慢形成新的生活方式。\n"
 						+ "不得预先宣布它必然被留下、必然进入外面，也不得替它解释人的理由。正文只能通过具体发生的事表现变化，不要直接复述\"规则失效\"\"建立新规律\"或\"处境改变\"等设计语言。",
@@ -757,6 +777,7 @@ public class ArchetypeRegistry {
 				"人生模拟",
 				"一生只有一次,而它大部分时候都很寻常。",
 				"平常 · 一生",
+				ExperienceMode.FUSHI,
 				"《寻常》——一个普通人的一辈子:不逆袭、不觉醒、没有主线,没有异常与敌人;"
 						+ "推着人走的是时间、家人、钱和身体。这个世界的引擎是【回收】:早期那些不起眼的东西"
 						+ "(一句随口的话、一个擦肩的人、一件旧物),几十年后会变形回来,以另一副样子出现在他面前。"
@@ -853,6 +874,7 @@ public class ArchetypeRegistry {
 				"赛博朋克",
 				"你每快一次,它就记住一次。",
 				"城中村 · 高压",
+				ExperienceMode.SHENJIE,
 				"《派单》——一个跑腿员的三个夜班:你在城中村里替一个虚构的派单平台送单,按单计酬,没有底薪,"
 						+ "三个夜班之后要交房租和这期义体月供。"
 						+ "底色是近未来:塔楼和空中连廊悬在头顶,城中村挤在下面;无人机和飞行车只在高处掠过;"
@@ -938,6 +960,7 @@ public class ArchetypeRegistry {
 				"穿越古代",
 				"这条街什么都卖,就是没见过你这样卖的。",
 				"市井 · 穿帮",
+				ExperienceMode.FUSHI,
 				"《七日开张》——你穿越到一个不具名的「本朝」,被街坊当成失踪摊主的远房亲戚,"
 						+ "接手了县城以下一条街上一个快倒闭的小摊;七天后是这条街一年一度的「百味夜集」。"
 						+ "失踪的摊主在钱匣里留下一张字迹缺笔画的小抄,写着「这个时代的规矩」;前任是谁、去了哪里,不揭示。"

@@ -58,7 +58,7 @@ class FixedWorldTitleTest {
 				if (!titled.contains(archetype)) {
 					return m;
 				}
-				return new ArchetypeMeta(m.id(), m.displayName(), m.tagline(), m.vibeTag(), m.worldview(),
+				return new ArchetypeMeta(m.id(), m.displayName(), m.tagline(), m.vibeTag(), m.experienceMode(), m.worldview(),
 						m.attributes(), m.ruleForm(), m.rulesCarryTruth(), FIXED);
 			}
 		};

@@ -15,8 +15,11 @@ public class FakePlaceholderRegistry extends ArchetypeRegistry {
 	/** 假占位的玩家可见中文名。 */
 	public static final String DISPLAY_NAME = "测试占位";
 
+	/** 假占位的分区(ADR-041 决策 1:未开放卡也必须回答属于哪一侧)。 */
+	public static final ExperienceMode EXPERIENCE_MODE = ExperienceMode.FUSHI;
+
 	@Override
-	protected Map<String, String> inactiveDisplayNames() {
-		return Map.of(ID, DISPLAY_NAME);
+	protected Map<String, Placeholder> inactivePlaceholders() {
+		return Map.of(ID, new Placeholder(DISPLAY_NAME, EXPERIENCE_MODE));
 	}
 }

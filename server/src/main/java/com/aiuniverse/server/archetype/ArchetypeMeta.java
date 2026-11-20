@@ -1,6 +1,7 @@
 package com.aiuniverse.server.archetype;
 
 import java.util.List;
+import java.util.Objects;
 
 /**
  * 一个 archetype(模式)的轻量元数据(ADR-008 决策 1 核心新件 / CONTEXT §三.14)。
@@ -18,6 +19,8 @@ import java.util.List;
  * @param tagline     选择屏一句话钩子(玩家可见中文,CONTEXT §三.3)——<b>仅供选择屏卡片展示</b>,
  *                    不进 world-gen 注入(注入用 {@link #worldview});区别于长 worldview。
  * @param vibeTag     选择屏氛围/危险短标签(如「诡异 · 高危」「荒凉 · 绝境」),同样仅展示用。
+ * @param experienceMode 大厅分区(浮世 / 深界;ADR-041 决策 1)——<b>必填、无缺省</b>:每个新世界登记时都须回答属于哪一侧
+ *                    (世界目录立字五)。仅供选择屏分区,不进 world-gen 注入、不进局内(立字一)。
  * @param worldview   世界观描述(喂 world-gen 注入块)
  * @param attributes  数值轴清单(顺序即面板/提示词呈现顺序;至少一条)
  * @param ruleForm    该模式规则形态描述(喂注入块)——末日=生存法则/资源约束,规则怪谈=真假规则
@@ -33,6 +36,7 @@ public record ArchetypeMeta(
 		String displayName,
 		String tagline,
 		String vibeTag,
+		ExperienceMode experienceMode,
 		String worldview,
 		List<AttributeAxis> attributes,
 		String ruleForm,
@@ -40,12 +44,13 @@ public record ArchetypeMeta(
 		String fixedWorldTitle) {
 
 	public ArchetypeMeta {
+		Objects.requireNonNull(experienceMode, () -> "ArchetypeMeta " + id + " 缺 experienceMode(ADR-041 决策 1:登记时必须回答属于哪一侧)");
 		attributes = List.copyOf(attributes);
 	}
 
 	/** 不固定世界名(既有世界的登记形态,{@code fixedWorldTitle = null})。 */
-	public ArchetypeMeta(String id, String displayName, String tagline, String vibeTag, String worldview,
-			List<AttributeAxis> attributes, String ruleForm, boolean rulesCarryTruth) {
-		this(id, displayName, tagline, vibeTag, worldview, attributes, ruleForm, rulesCarryTruth, null);
+	public ArchetypeMeta(String id, String displayName, String tagline, String vibeTag, ExperienceMode experienceMode,
+			String worldview, List<AttributeAxis> attributes, String ruleForm, boolean rulesCarryTruth) {
+		this(id, displayName, tagline, vibeTag, experienceMode, worldview, attributes, ruleForm, rulesCarryTruth, null);
 	}
 }
