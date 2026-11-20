@@ -1,0 +1,2281 @@
+<title>存档区样张</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* ── 样张外壳(随查看者主题) ── */
+:root { --shell:#f1eff4; --panel:#ffffff; --ink:#1c1822; --ink-soft:#6b6375; --rule:#dcd9e2; --mark:#55626a; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --shell:#0c0a10; --panel:#1b1722; --ink:#ece9f1; --ink-soft:#9a93a6; --rule:#2f2a39; --mark:#a9b7bf; color-scheme: dark; } }
+:root[data-theme="dark"] { --shell:#0c0a10; --panel:#1b1722; --ink:#ece9f1; --ink-soft:#9a93a6; --rule:#2f2a39; --mark:#a9b7bf; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { background: var(--shell); color: var(--ink); font-family: system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif; line-height: 1.5;
+  padding-block: 1.5rem 3rem; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.wrap { max-width: 1000px; margin: 0 auto; display: flex; flex-direction: column; gap: 1.25rem; }
+.head h1 { margin: 0; font-size: 1.35rem; }
+.head p { margin: 0.35rem 0 0; color: var(--ink-soft); font-size: 0.9rem; max-width: 64ch; }
+.bench { display: flex; flex-wrap: wrap; gap: 1.5rem; align-items: flex-start; }
+.stageCol { flex: 0 1 375px; min-width: 0; display: flex; flex-direction: column; gap: 0.75rem; }
+.notes { flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 1rem; }
+.box { background: var(--panel); border: 1px solid var(--rule); border-radius: 12px; padding: 0.9rem 1rem; }
+.box h2 { margin: 0 0 0.6rem; font-size: 0.95rem; }
+.box ul { margin: 0; padding-left: 1.2rem; display: flex; flex-direction: column; gap: 0.45rem; font-size: 0.86rem; }
+.seg { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.seg button { font: inherit; font-size: 0.8rem; padding: 0.35rem 0.7rem; background: transparent; color: var(--ink); border: 1px solid var(--rule); border-radius: 8px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--mark); color: var(--panel); border-color: var(--mark); }
+.seg button:focus-visible { outline: 2px solid var(--mark); outline-offset: 2px; }
+.ph { border-bottom: 1px dashed currentColor; }
+
+/* ── 手机框 ── */
+.phone { width: 375px; max-width: 100%; border-radius: 18px; overflow: hidden; border: 1px solid var(--rule); }
+
+/* ════ 下面是游戏里的真实 CSS(main 8a75ce5 web/src/features/game/game.module.css 原样,类名不变) ════ */
+/* 规则怪谈回合循环 UI · 移动优先。视觉方向延续 scaffold 基底(深浅色 / safe-area)。 */
+
+.screen {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 1rem 1rem 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-height: 100dvh;
+}
+
+/* #8 顶部 establishing-shot 氛围带 -------------------------------------
+ * 静态底图铺顶(据 archetype 选图)+ 图底渐变融进正文背景 + 其上叠现成状态字段。
+ * 全出血(负 margin 逃出 .screen 的上/左右 padding)贴到列顶,读作「氛围横幅」;
+ * 图缺失时 .bannerImg 不渲染 → 只余氛围底色 + 渐变,固定高度保证布局不塌。 */
+.banner {
+  position: relative;
+  margin: -1rem -1rem 0; /* 逃出 .screen 顶部与两侧 padding,全出血到列边 */
+  height: clamp(300px, 42vh, 380px);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end; /* 状态文字落在底部(渐变已融进 bg 处,保证可读) */
+  overflow: hidden;
+  background: var(--chip); /* 图缺失/加载前的氛围底色兜底 */
+}
+
+/* 底图层:CSS background(非 <img>),cover 铺满;404 时浏览器静默不显、布局不受影响。 */
+.bannerImg {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  z-index: 0;
+}
+
+/* 图底渐变:上半透明露图、下半融进正文背景(var(--bg)),托住文字 + 盖住右下角水印。
+ * 底部 ~14%(≥86%)恒为纯 var(--bg):覆盖锚图右下角约 8–12% 高的四角星水印(留一点余量);
+ * 上方 ramp 保持平缓,尽量少吃图片主体。若水印更高、加厚仍盖不住 → 改走「单张裁右下角」。 */
+.bannerScrim {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    transparent 40%,
+    color-mix(in srgb, var(--bg) 50%, transparent) 66%,
+    var(--bg) 86%
+  );
+}
+
+.bannerText {
+  position: relative;
+  z-index: 2; /* 抬到图/渐变之上 */
+  padding: 0 1rem 0.7rem;
+}
+
+/* 导航层(线 C):返回键与「第 N 回合」同排。行高由返回键的 44px 热区撑起,
+ * 状态文字垂直居中对齐 —— 返回键不额外推高 banner(bannerText 的下 padding 相应吃掉一点)。 */
+.phaseRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* 返回键 · 通用降级形态。皮肤未配 backClass 时长这样 —— **照常渲染**:
+ * 导航不可缺席,没配形态只意味着它长得普通,不意味着玩家出不去。 */
+.back {
+  /* 移动优先热区:整块可点(不是只有图标),≥44×44 CSS px。 */
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  padding: 0 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--card) 70%, transparent);
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.72rem;
+  line-height: 1;
+  cursor: pointer;
+  /* 时间感令牌成对使用(ADR-018 §4.3);--press-dur 只有配了 backPressDurMs 的世界会写。 */
+  transition: opacity var(--press-dur, var(--t-dur, 0.15s)) var(--t-ease, ease);
+}
+
+.back:active {
+  opacity: 0.65;
+}
+
+.backGlyph {
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+.backText {
+  letter-spacing: 0.05em;
+}
+
+.phase {
+  margin: 0;
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  /* 主题令牌(ADR-038 G-2 决策 6):回落值 = 旧值,不配令牌的世界计算样式不变。 */
+  color: var(--phase-color, var(--muted));
+  text-shadow: var(--phase-shadow, none);
+}
+
+.title {
+  margin: 0.25rem 0 0.1rem;
+  /* 主题令牌(ADR-020《寻常》局内皮肤一节决策 2d):回落值 = 旧值。 */
+  font-size: var(--title-size, 1.5rem);
+  letter-spacing: var(--title-tracking, inherit); /* 旧规则没写字距 = 继承,回落也得是继承 */
+  line-height: 1.25;
+  /* 主题令牌(ADR-038 G-2 决策 6):回落值 = 旧值(继承的字体;<h1> 的 UA 默认粗体)。 */
+  font-family: var(--title-font, inherit);
+  font-weight: var(--title-weight, bold);
+}
+
+.tone {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+/* 数值面板 ------------------------------------------------------------ */
+.stats {
+  display: flex;
+  gap: 0.6rem;
+}
+
+/* 纵向 flex:档名换行的格子会变高,同排其余格子被 stretch 拉到同高后,
+   由 .statValRow 吃掉多出来的高度,进度条因此仍压在每格底部 —— 四格底边对齐。 */
+.stat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.55rem 0.7rem;
+}
+
+.statKey {
+  display: block;
+  font-size: 0.7rem;
+  color: var(--muted);
+  letter-spacing: 0.03em;
+}
+
+/* 宽时数字与档名同排;格子窄到放不下时,档名整段换到数字下一行(375 宽下四轴世界曾被挤成一字一行)。
+   flex: 1 + align-content: flex-start:吃掉格子被 stretch 多出的高度,但行仍贴顶,不被撑开。 */
+.statValRow {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  align-content: flex-start;
+  gap: 0.1rem 0.4rem;
+  margin-top: 0.1rem;
+}
+
+.statVal {
+  font-size: 1.4rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+/* #3 数值行为化:当前行为档 label,紧贴数字、弱化(辅助信息不抢主数值)。 */
+.statBand {
+  font-size: 0.72rem;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+  line-height: 1;
+  white-space: nowrap; /* 档名是一个词,不按字拆行 */
+}
+
+.bar {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--chip);
+  margin-top: 0.4rem;
+  overflow: hidden;
+}
+
+.barFill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.5s ease;
+}
+
+.barHp {
+  background: #d8635f;
+}
+
+.barSan {
+  background: #6b8cc4;
+}
+
+.barHunger {
+  background: #c79a4e;
+}
+
+.barKnowledge {
+  background: #6fae8e; /* 幽绿:禁忌知识(克苏鲁深渊蠕动色) */
+}
+
+.barMana {
+  background: #6cb6d0; /* 青:灵力(修仙缥缈流光色) */
+}
+
+.barRealm {
+  background: #9ad0c2; /* 缥缈青白:境界(修仙成长主轴) */
+}
+
+.barDefault {
+  background: var(--muted);
+}
+
+/* 散文区 ------------------------------------------------------------- */
+/* 主题令牌(缺省 = 刀 1 之前的原值,故未设 token 的世界计算样式逐条不变):
+   皮肤可让正文卡与数值卡**用不同的白、不同的边框强度** —— 三张同规格白卡并排
+   是「后台系统」的读法,而不是一个世界。四个 token 一律只改 CSS 值(底色 / 边框 /
+   内缘 / 留白),**不动 DOM 结构**:改结构属 C 批叙事壳层差异化,不在收敛批范围。 */
+.prose {
+  background: var(--prose-bg, var(--card));
+  border: var(--prose-border, 1px solid var(--line));
+  box-shadow: var(--prose-shadow, none);
+  border-radius: var(--panel-radius, 12px);
+  padding: var(--prose-pad, 1rem 1.05rem);
+  min-height: 8rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  /* 主题令牌(ADR-020《寻常》局内皮肤一节决策 2d):回落值 = 旧值。 */
+  line-height: var(--prose-lh, 1.85);
+  font-size: var(--prose-size, 1rem);
+}
+
+.caret {
+  display: inline-block;
+  width: 0.5ch;
+  margin-left: 1px;
+  animation: blink 1s steps(2) infinite;
+  /* 主题令牌:皮肤可置 `paused` 把闪烁冻成静态方块(ADR-018 §4.2 通用层被 tokenize、
+     不认识具体世界;缺省 running = 刀 1 之前的行为)。 */
+  animation-play-state: var(--caret-play, running);
+  color: var(--muted);
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+/* 决策圈 ------------------------------------------------------------- */
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.action {
+  width: 100%;
+  text-align: left;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.85rem 1rem;
+  font-size: 0.98rem;
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color 0.15s ease, transform 0.05s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.action:active {
+  transform: scale(0.99);
+}
+
+.action:hover:not(:disabled) {
+  border-color: var(--muted);
+}
+
+.action:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.actionMain {
+  display: block;
+}
+
+.actionId {
+  display: inline-block;
+  min-width: 1.4em;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+/* 选项小签(ADR-039):编号与文字之间、同一行。所有 tag 同一种样式;只用现有 token,不加动效。 */
+.actionTag {
+  display: inline-block;
+  margin-right: 0.5em;
+  padding: 0 0.45em;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  font-size: 0.8em;
+  line-height: 1.5;
+  color: var(--muted);
+  vertical-align: 0.08em;
+}
+
+/* 定性风险提示(ADR-011):选项文字下方独立小字,muted、次级层级,缩进对齐正文起点;缺失时不渲染、不占位。 */
+.actionHint {
+  display: block;
+  margin-top: 0.28rem;
+  padding-left: 1.4em; /* 对齐 actionId 宽度,让提示落在正文起点下方 */
+  font-size: 0.76rem;
+  line-height: 1.4;
+  color: var(--muted);
+  opacity: 0.85;
+}
+
+/* 规则面板 ----------------------------------------------------------- */
+.rules {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--panel-radius, 12px);
+  padding: 0.8rem 1rem;
+}
+
+.rulesTitle {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+}
+
+.ruleList {
+  margin: 0;
+  padding-left: 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.rule {
+  font-size: 0.9rem;
+  /* 主题令牌:规则是连续阅读区,皮肤可放松行距 / 提高未点亮项对比度(缺省 = 旧值)。 */
+  line-height: var(--rule-lh, 1.5);
+  color: var(--rule-idle, var(--muted));
+  /* 未验证的规则留白边,验证后才长出左侧警示条 —— 让「坐实的规则」在面板里跳出来。 */
+  border-left: 3px solid transparent;
+  border-radius: var(--rule-radius, 0 8px 8px 0);
+  padding: 0.2rem 0.5rem;
+  margin-left: -0.5rem;
+  transition: color 0.25s ease, background 0.3s ease, border-color 0.3s ease;
+}
+
+.ruleDiscovered {
+  color: var(--text);
+  font-weight: 600;
+  background: var(--accent-soft);
+  border-left-color: var(--accent);
+}
+
+/* 本回合「刚被坐实」的规则:一次性脉冲,把玩家的视线从剧情瞬间拉到对应规则上(降低「没头绪」)。 */
+.ruleJustDiscovered {
+  animation: ruleFlash 1.8s ease-out 1;
+}
+
+@keyframes ruleFlash {
+  0% {
+    background: var(--accent);
+    color: var(--bg);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  35% {
+    background: var(--accent);
+    color: var(--bg);
+  }
+  100% {
+    background: var(--accent-soft);
+    color: var(--text);
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ruleJustDiscovered {
+    animation: none;
+  }
+
+  /* 光标闪烁在偏好减弱动效下也要停 —— 这是刀 1 记在 ADR-018 §6 的既有缺口(非刀 1 引入):
+     规则怪谈与修仙靠主题 token `--caret-play: paused` 已无此问题,但**未登记皮肤的世界
+     拿不到那个 token**,于是这条正文区里唯一的循环动画在 reduce 下照闪(AGENTS.md §5
+     「新增效果不得开天窗」的反面:旧效果的天窗同样要补)。停的是动画,不是光标本身 ——
+     方块照常显示,「正在打字」的指示不丢。 */
+  .caret {
+    animation: none;
+  }
+
+  /* 返回键(线 C):按压反馈的过渡一律停 —— 反馈本身不丢(:active 的终态照旧生效),
+     停的是插值过程。写死 0s 覆盖 `--press-dur`,免得配了 backPressDurMs 的世界
+     (克苏鲁「时长不可信」)在 reduce 下仍走随机时长。 */
+  .back {
+    transition: none;
+  }
+}
+
+.ruleTag {
+  font-size: 0.68rem;
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.4rem;
+  /* 主题令牌(ADR-038 G-2 决策 6):五项的回落值 = 旧值(旧样式没有边框 = none)。 */
+  border: var(--rule-tag-border, none);
+  border-radius: var(--rule-tag-radius, 6px);
+  background: var(--rule-tag-bg, var(--accent));
+  color: var(--rule-tag-fg, #fff);
+  font-weight: var(--rule-tag-weight, 600);
+  letter-spacing: 0.02em;
+}
+
+/* 通用 / 状态屏 ------------------------------------------------------ */
+.notice {
+  /* 主题令牌:皮肤给自己的世界配一套(缺省 = 旧的浅色/深色两版)。 */
+  background: var(--notice-bg, #f6e7c8);
+  color: var(--notice-fg, #7a5a13);
+  border-radius: var(--panel-radius, 10px);
+  padding: 0.55rem 0.8rem;
+  font-size: 0.85rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  .notice {
+    background: var(--notice-bg, #3a3115);
+    color: var(--notice-fg, #e7c878);
+  }
+}
+
+.centered {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  text-align: center;
+  padding: 2rem 1rem;
+}
+
+.primaryBtn {
+  background: var(--text);
+  color: var(--bg);
+  border: none;
+  border-radius: 999px;
+  padding: 0.85rem 2rem;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.primaryBtn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.muted {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+.spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--chip);
+  border-top-color: var(--muted);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 选择屏(世界选择第一屏)----------------------------------------------- */
+.selectHeader {
+  /* 页头上留白随区走(ADR-041 决策 4);下留白 0.6 → 0.4rem 照样张。不加过渡(切区直接跳)。 */
+  padding: var(--lobby-pad, 1.6rem) 0 0.4rem;
+  text-align: center;
+}
+
+.selectHeader .title {
+  font-size: 1.8rem;
+  margin-top: 0.4rem;
+}
+
+.cardList {
+  position: relative; /* 融合方向提示(.fusionNote)的定位锚点 */
+  display: flex;
+  flex-direction: column;
+  /* 卡片间距随区走(ADR-041 决策 4:浮世 1.2 / 深界 0.6 / 渗界 0.9rem);.fusionNote 的半缝偏移读同一个值。 */
+  gap: var(--lobby-gap, 0.85rem);
+}
+
+/* ── 氛围卡片:每个世界一套专属主题,卡片自己就是那个世界的「预告片」──────────────
+ * 产品核心卖点 = AI 实时生成的活体世界;统一柔光传达不了。改为每个 archetype 一套 CSS 主题
+ * (色 / 动效 / 纹理随世界走),静止状态就明显看得见、扫一眼就有那个世界的味道。
+ * 纯 CSS @keyframes,不引 GSAP / 任何动画库(对 Taro/小程序支持差、违 ADR-003,已决记 backlog)。
+ *
+ * 【可扩展】加新世界 = ① ArchetypeSelect.tsx 的 vibeClass() 加一个分支映射到新 .cardXxx;
+ *   ② 这里加一个 .cardXxx 主题块(背景调色 + ::before/::after 两层氛围 + :hover + keyframes)。
+ *   克苏鲁 / 修仙日后各配各的,互不影响。已解锁世界都应配一套主题(未配则回落朴素 .card)。
+ *
+ * 【底线】低频、不癫痫式闪烁、不晃到看不清文字、prefers-reduced-motion 关掉运动;
+ *   氛围 > 炫技 —— 传达世界性格,不塞特效。灰显占位卡(.cardLocked)一律静止(死的,反衬解锁卡是活的)。
+ *   分层:卡背景(底)→ ::before/::after 氛围(z-index 0)→ 文字内容(z-index 1,见 .cardTop/.cardTagline)。 */
+.card {
+  position: relative; /* 氛围 pseudo 的定位锚点 */
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--muted);
+  border-radius: 14px;
+  padding: 1.1rem 1.2rem;
+  background: var(--card);
+  color: var(--text);
+  cursor: pointer;
+  transition: transform 0.12s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 解锁卡:裁掉溢出的氛围层(漂移/暗角随圆角)+ 入场克制渐显微浮。 */
+.card:not(.cardLocked) {
+  overflow: hidden;
+  animation: cardEnter 0.5s ease backwards; /* 不用 forwards,免占住 transform 妨碍 hover */
+}
+
+.card:hover:not(.cardLocked) {
+  transform: translateY(-2px);
+}
+
+.card:active:not(.cardLocked) {
+  transform: translateY(0) scale(0.995);
+}
+
+/* ── 融合拖拽的四个样式令牌(ADR-019 入口;差异只在样式故不开组件槽,ADR-018 §4.17)──
+ * `touch-action: pan-y` 是这套手势的地基(ADR-018 §4.20):纵向滚动仍走浏览器原生、带惯性,
+ * 横向留给判定 —— 写 `none` 等于没收玩家在这一屏的默认手势。抓起之后挡滚动靠
+ * 非 passive 的 touchmove + preventDefault(touch-action 在触摸序列开始时就定死,中途改无效)。 */
+.cardDraggable {
+  touch-action: pan-y;
+}
+
+/* 抓起:抬起来一点(位移由 JS 逐帧写 transform,这里只给层级与投影,不与之打架)。 */
+.cardDragging {
+  z-index: 30;
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.35);
+  cursor: grabbing;
+}
+
+/* 合法目标:接得住(边缘亮起来);非法:推开一点(边缘转冷)。位移同样由 JS 写。 */
+.cardTargetValid {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent), 0 8px 22px rgba(0, 0, 0, 0.22);
+}
+
+.cardTargetInvalid {
+  border-color: var(--line);
+  opacity: 0.72;
+}
+
+/* ── 融合方向提示(ADR-019 实施记录):磁吸「将…揉入…」/ 拖反「反过来试试…」/ 不存在,同一位置体系 ──
+ * 相对 .cardList 绝对定位,竖直居中在目标卡上沿或下沿外的卡间缝里(top 由 JS 写成卡沿,
+ * 再用 ±半缝(卡片间距的一半)推进缝中;data-side 选哪一侧)。缝 + 邻卡上下内边距 > 提示高度,
+ * 所以压到的只是邻卡的内边距,**不压任何一张卡的标题**。pointer-events: none:不挡手势。
+ * 动效预算:它是**用户触发**槽里的提示,不是新效果 —— 替代页头那行静态 .fusionNote(本刀删去),
+ * 淡入一次即止,不循环。 */
+.fusionNote {
+  position: absolute;
+  left: 50%;
+  z-index: 31; /* 高于抓起的卡(.cardDragging 30) */
+  width: max-content;
+  max-width: calc(100% - 2rem);
+  margin: 0;
+  padding: 0.2rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.35;
+  text-align: center;
+  pointer-events: none;
+  transform: translate(-50%, calc(-50% - var(--lobby-gap, 0.85rem) / 2));
+  animation: fusionNoteIn 0.18s ease backwards;
+  transition: opacity 0.16s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.fusionNote[data-side='below'] {
+  transform: translate(-50%, calc(-50% + var(--lobby-gap, 0.85rem) / 2));
+}
+
+/* 磁吸提示:吸附约 150ms 后才淡入(一掠而过的路过不出字);拒绝提示松手即出,不延迟。 */
+.fusionNoteMagnet {
+  animation-delay: 0.15s;
+}
+
+/* 可提交态:提示加强(字色与边转亮,不加位移、不加闪烁)。 */
+.fusionNoteArmed {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+/* 离开目标 / 松手:淡出(元素留在原处到下一条提示替换它)。 */
+.fusionNoteLeaving {
+  opacity: 0;
+}
+
+/* 淡入带 4px 上浮;用独立的 translate 属性,不与定位用的 transform 打架。 */
+@keyframes fusionNoteIn {
+  from {
+    opacity: 0;
+    translate: 0 4px;
+  }
+}
+
+@keyframes fusionNoteFade {
+  from {
+    opacity: 0;
+  }
+}
+
+/* 减弱动效:只淡入淡出,不位移。 */
+@media (prefers-reduced-motion: reduce) {
+  .fusionNote {
+    animation-name: fusionNoteFade;
+  }
+}
+
+/* 只给屏幕阅读器的播报区(视觉上不占位)。 */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.cardList .card:nth-child(1) {
+  animation-delay: 0.04s;
+}
+.cardList .card:nth-child(2) {
+  animation-delay: 0.12s;
+}
+.cardList .card:nth-child(3) {
+  animation-delay: 0.2s;
+}
+
+/* ── 规则怪谈:冷蓝灰 + 底部血色渗入 + 暗角 + 偶发冷光闪烁(信号不稳/灯将灭)+ hover 血色更浓(致命）──
+ * 冷蓝保持「日常诡异」基调,叠一层暗血红(底部渗血 + 血色左缘)强化「读错付出代价」的致命感。 */
+.cardCreepy {
+  color: #c6d0dd;
+  border-left-color: #8a4a52; /* 冷蓝带血:左缘暗红,静止即见危险 */
+  background: linear-gradient(160deg, #1a2230 0%, #141a26 50%, #1d1014 100%); /* 冷蓝顶 → 暗血底 */
+}
+
+/* 暗角 + 底部血色渗入(静态,扫一眼就压抑、危险)。 */
+.cardCreepy::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(95% 60% at 50% 112%, rgba(150, 32, 30, 0.34), transparent 62%),
+    radial-gradient(130% 110% at 50% 30%, transparent 36%, rgba(0, 0, 0, 0.58) 100%);
+}
+
+/* 顶部冷光,偶发闪烁 —— 像将灭的日光灯。只抖光晕 opacity,不动文字(可读性不受影响)。 */
+.cardCreepy::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: radial-gradient(78% 56% at 50% 0%, rgba(140, 178, 224, 0.22), transparent 70%);
+  animation: creepyFlicker 6.5s linear infinite;
+}
+
+.cardCreepy:hover {
+  border-left-color: #b5392f; /* 危险红渗入 */
+  box-shadow:
+    0 10px 28px -14px rgba(0, 0, 0, 0.65),
+    inset 0 0 28px -4px rgba(190, 45, 40, 0.5),
+    inset 0 0 0 1px rgba(190, 45, 40, 0.32);
+}
+
+.cardCreepy:hover::after {
+  animation-duration: 3.4s; /* 闪得更急,更不安 */
+}
+
+/* ── 末日生存:土黄/锈色 + 粗粝颗粒纹理 + 横向缓慢飘过的沙尘 + hover 尘动更急(荒凉）── */
+.cardApocalypse {
+  color: #e8dcc0;
+  border-left-color: #b07a3a;
+  /* 颗粒纹理(SVG feTurbulence,纯 CSS data-URI,overlay 混入)+ 锈土底色。 */
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E")
+      repeat,
+    linear-gradient(155deg, #3a2e1a 0%, #2a2012 60%, #211810 100%);
+  background-size: 140px 140px, cover;
+  background-blend-mode: overlay, normal;
+}
+
+/* 沙尘颗粒:一层细小尘点横向漂移(扬尘),静止可见、缓缓飘。 */
+.cardApocalypse::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(1.5px 1.5px at 8% 22%, rgba(235, 215, 170, 0.55), transparent 60%),
+    radial-gradient(1px 1px at 28% 68%, rgba(220, 195, 150, 0.5), transparent 60%),
+    radial-gradient(1.5px 1.5px at 52% 34%, rgba(235, 215, 170, 0.5), transparent 60%),
+    radial-gradient(1px 1px at 70% 80%, rgba(210, 180, 130, 0.5), transparent 60%),
+    radial-gradient(2px 2px at 86% 24%, rgba(235, 215, 170, 0.45), transparent 60%),
+    radial-gradient(1px 1px at 42% 92%, rgba(220, 195, 150, 0.45), transparent 60%);
+  background-size: 200% 100%;
+  background-repeat: repeat-x;
+  animation: dustDrift 16s linear infinite;
+}
+
+/* 暖色尘雾阵风,缓慢横扫(沙尘暴的气口)。 */
+.cardApocalypse::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    100deg,
+    transparent 12%,
+    rgba(176, 122, 58, 0.22) 45%,
+    rgba(150, 100, 50, 0.1) 64%,
+    transparent 88%
+  );
+  background-size: 220% 100%;
+  animation: dustHaze 10s ease-in-out infinite;
+}
+
+.cardApocalypse:hover {
+  box-shadow: 0 10px 30px -14px rgba(0, 0, 0, 0.6);
+}
+
+.cardApocalypse:hover::before {
+  animation-duration: 7s; /* 尘动更急 */
+}
+
+.cardApocalypse:hover::after {
+  animation-duration: 5s;
+}
+
+/* ── 克苏鲁:幽绿/深渊蓝 + 缓慢扭曲蠕动的触手般暗影 + 不可名状的不安 ──
+ * 跟规则怪谈「日常诡异」区分:克苏鲁更「深海/古老/疯狂」——色更暗绿、动更慢更黏稠(蠕动而非闪烁)。 */
+.cardCthulhu {
+  color: #c2d6c8;
+  border-left-color: #3f7d68;
+  background: radial-gradient(120% 130% at 30% 18%, #122a2a 0%, #0c1c22 50%, #07121a 100%);
+}
+
+/* 深渊暗角:四周向中心压暗,像沉入海渊(静态,扫一眼就压抑)。 */
+.cardCthulhu::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: radial-gradient(115% 100% at 50% 40%, transparent 30%, rgba(0, 8, 10, 0.66) 100%);
+}
+
+/* 触手般的幽绿暗影:两团幽光缓慢扭曲、错相位蠕动(深渊里有东西在动)。只动光团,不动文字。 */
+.cardCthulhu::after {
+  content: '';
+  position: absolute;
+  inset: -20%;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(40% 55% at 28% 32%, rgba(90, 175, 140, 0.2), transparent 64%),
+    radial-gradient(46% 50% at 74% 70%, rgba(60, 120, 150, 0.18), transparent 66%);
+  animation: cthulhuWrithe 13s ease-in-out infinite;
+}
+
+.cardCthulhu:hover {
+  border-left-color: #5fbf9a;
+  box-shadow:
+    0 10px 30px -14px rgba(0, 0, 0, 0.7),
+    inset 0 0 30px -6px rgba(60, 150, 120, 0.32);
+}
+
+.cardCthulhu:hover::after {
+  animation-duration: 8s; /* 蠕动更急,深渊更近 */
+}
+
+/* ── 《派单》赛博朋克(ADR-036 Slice G-1,深界):湿柏油蓝黑底 + 两处霓虹光源,静态 ──
+ * 青和紫各占一边(决策 12 订正 6「霓虹粉紫和蓝绿」):左缘色条 = 评分青;左下一团 = 旧墙上的全息广告紫;
+ * 右上一点 = 远处楼群的青光;外加一层四周压暗。霓虹只作具体光源、只占角落,不是铺满的渐变(AGENTS.md 反面清单)。
+ * G-1 时全部静态(只有 ::before);G-2 加 ::after 斜飘雨丝(见下方 .cardPaidan::after),::before 仍静态。
+ * 对比度(WCAG,按渐变逐像素合成卡底,343 / 608 两种卡宽;取卡底最暗处、左下紫光最浓处、右上青光处,最低值都在左下紫光处):
+ *   标题 #e0e2ec ≥ 10.2:1 / 标语 #a49fb8 ≥ 5.1:1 / 标签 #d3a6f2(叠标签底)≥ 5.0:1。
+ *   悬停(多一层内阴影紫光)文字区最低 10.6 / 5.3 / 5.2;低于 4.5 的只有卡最外缘几像素,那里没有文字。 */
+.cardPaidan {
+  color: #e0e2ec;
+  border-left-color: #4fbfc6;
+  background: linear-gradient(160deg, #1a1828 0%, #13121d 55%, #0d0c14 100%);
+}
+
+.cardPaidan::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(85% 120% at 0% 110%, rgba(186, 92, 236, 0.3), transparent 68%),
+    radial-gradient(60% 80% at 100% -10%, rgba(95, 210, 216, 0.1), transparent 70%),
+    radial-gradient(130% 110% at 50% 30%, transparent 45%, rgba(0, 0, 0, 0.35) 100%);
+}
+
+/* 卡面粒子:斜飘的细雨丝(ADR-036 Slice G-2)。本卡首个 ::after 动效,无可替代(AGENTS.md §3)。
+ * 短雨丝 = 竖长小椭圆点,两层不同宽度、**同一纵向周期 60px** 错开平铺(循环无缝);整层转 14° 成斜飘,
+ * 动画沿雨丝方向 `transform: translateY` 一个周期 —— **只动 transform,不动 background-position**(§6;
+ * 其余四张卡的 ::after 都在动 background-position,这里不照抄)。层比卡大一圈,转角与位移都不露边。
+ * 不用蒙版:蒙版会跟着层一起位移,每个周期跳一下;「文字带附近减弱」改由标题 / 标语的深色描边光晕承担(见下)。
+ * 默认参数(Felix 在 dev server 上看过再调):
+ *   --rain-peak  0.24  雨丝最亮处的不透明度(偏紫那层为它的 75%)
+ *   --rain-cycle 0.8s  走完一个 60px 周期的时长(约 75px/s,细雨) */
+.cardPaidan {
+  --rain-peak: 0.24;
+  --rain-cycle: 0.8s;
+}
+
+.cardPaidan::after {
+  content: '';
+  position: absolute;
+  inset: -60% -30%;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(1px 9px at 50% 50%, rgba(185, 228, 235, var(--rain-peak)), transparent) 0 0 / 29px 60px,
+    radial-gradient(1px 7px at 50% 50%, rgba(205, 180, 245, calc(var(--rain-peak) * 0.75)), transparent)
+      13px 23px / 41px 60px;
+  transform: rotate(14deg) translateY(0);
+  animation: paidanRain var(--rain-cycle) linear infinite;
+}
+
+/* 文字带附近减弱:标题与标语描一圈卡底色的光晕,雨丝从字后面经过时,紧贴笔画的那几个像素仍是卡底色。 */
+.cardPaidan .cardTitle,
+.cardPaidan .cardTagline {
+  text-shadow:
+    0 0 2px #13121d,
+    0 0 6px #13121d;
+}
+
+.cardPaidan:hover {
+  border-left-color: #7fe0e5;
+  box-shadow:
+    0 10px 28px -14px rgba(0, 0, 0, 0.65),
+    inset 0 0 28px -6px rgba(186, 92, 236, 0.32);
+}
+
+/* ── 修仙:白色仙气——近白底 + 缓缓飘动的云彩 + 微金光点(缥缈仙途,空灵向上)──
+ * 区别克苏鲁「深渊幽绿」、规则怪谈「冷蓝诡异」:修仙是唯一的「亮」卡——白底仙气、金辉、向上,空灵悠远。
+ * 亮底 → 文字用深色(青灰墨绿,不随 app 明暗主题漂移)。 */
+.cardCultivation {
+  color: #46554e;
+  border-left-color: #c9a84a; /* 金 */
+  background: linear-gradient(165deg, #f6f8f6 0%, #eef3ef 55%, #e6ede8 100%);
+}
+
+/* 飘动的云彩:几团柔白云气横向缓缓漂移(仙气缭绕,静止可见)。只动云气,不动文字。 */
+.cardCultivation::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(60% 45% at 20% 30%, rgba(255, 255, 255, 0.92), transparent 70%),
+    radial-gradient(52% 40% at 62% 64%, rgba(255, 255, 255, 0.82), transparent 72%),
+    radial-gradient(46% 38% at 90% 26%, rgba(236, 244, 240, 0.85), transparent 72%);
+  background-size: 200% 100%;
+  background-repeat: repeat-x;
+  animation: cloudDrift 24s linear infinite;
+}
+
+/* 微金光点:几粒金色流光自下而上缓缓升腾(灵气金辉,空灵不晃眼)。 */
+.cardCultivation::after {
+  content: '';
+  position: absolute;
+  inset: -8% 0 -32%;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(2px 2px at 24% 82%, rgba(214, 178, 84, 0.7), transparent 60%),
+    radial-gradient(1.5px 1.5px at 58% 90%, rgba(228, 196, 110, 0.62), transparent 60%),
+    radial-gradient(2px 2px at 80% 86%, rgba(206, 168, 70, 0.55), transparent 60%),
+    radial-gradient(1.5px 1.5px at 42% 94%, rgba(222, 188, 96, 0.6), transparent 60%);
+  background-repeat: no-repeat;
+  animation: spiritRise 13s linear infinite;
+}
+
+.cardCultivation:hover {
+  border-left-color: #e0bd5e;
+  box-shadow:
+    0 10px 30px -14px rgba(120, 100, 40, 0.4),
+    inset 0 0 34px -6px rgba(220, 190, 110, 0.34);
+}
+
+.cardCultivation:hover::before {
+  animation-duration: 16s; /* 云气流动更盛 */
+}
+
+/* ── 《寻常》人生模拟(ADR-020,浮世):灰蓝旧布底 + 旧靛青左缘 + 窗光里的浮尘 ──
+ * 浮世视觉语言(world-catalog 第二节 (3)):不要纯白、克制、有高级感,不做糖果 UI。
+ * 2026-11-09 那一刀只有色值;2026-11-12 起加**一个持续槽**:一道斜光带(静态,画在卡底上)+ 只在光带里看得见的浮尘
+ * (ADR-020 裁定一补充段)。替代关系 = 无可替代(本卡首个动效,AGENTS.md §3)。不写 :hover 专属效果
+ * (入场渐显与 hover 微浮来自通用 .card)。亮底 → 文字用深色,不随 app 明暗主题漂移(同修仙卡)。
+ * 浮尘 = 三层小圆点,**同一纵向周期 96px** 错开平铺(循环无缝);整层转 16°,沿自身方向 `transform: translateY`
+ * 一个周期 —— **只动 transform,不动 background-position**(AGENTS.md §6)。层比卡大一圈,转角与位移都不露边。
+ * ::after 是一张卡底色遮片(静态):把光带以外的浮尘盖掉。标题 / 标语描一圈浅色光晕,浮尘经过字后面时不贴笔画。
+ * 参数(Felix 2026-11-12 在可运行样张上看过、认可的默认值):
+ *   --beam        0.6   光带亮度
+ *   --mote-peak   0.5   浮尘最浓处的不透明度
+ *   --mote-cycle  26s   浮尘走完一个 96px 周期的时长 */
+.cardLifeSim {
+  --beam: 0.6;
+  --mote-peak: 0.5;
+  --mote-cycle: 26s;
+  color: #2f3a40; /* 标题 */
+  border-left-color: #8a9ba3; /* 灰蓝色条 */
+  background:
+    linear-gradient(
+      118deg,
+      rgba(255, 236, 198, 0) 51%,
+      rgba(255, 236, 198, var(--beam)) 56%,
+      rgba(255, 236, 198, calc(var(--beam) * 0.45)) 70%,
+      rgba(255, 236, 198, 0) 82%
+    ),
+    #eef1f2;
+}
+
+.cardLifeSim::before {
+  content: '';
+  position: absolute;
+  inset: -120% -25% -240%;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(1.6px 1.6px at 50% 50%, rgba(160, 118, 62, var(--mote-peak)), transparent) 0 0 / 47px 96px,
+    radial-gradient(1.2px 1.2px at 50% 50%, rgba(160, 118, 62, calc(var(--mote-peak) * 0.8)), transparent)
+      19px 37px / 71px 96px,
+    radial-gradient(2.2px 2.2px at 50% 50%, rgba(178, 138, 82, calc(var(--mote-peak) * 0.6)), transparent)
+      31px 70px / 113px 96px;
+  transform: rotate(16deg) translateY(0);
+  animation: lifeMotes var(--mote-cycle) linear infinite;
+}
+
+/* 卡底色遮片:把光带以外的浮尘盖掉,尘只在光里看得见。 */
+.cardLifeSim::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    118deg,
+    #eef1f2 50%,
+    rgba(238, 241, 242, 0) 56%,
+    rgba(238, 241, 242, 0) 73%,
+    #eef1f2 83%
+  );
+}
+
+.cardLifeSim .cardTitle,
+.cardLifeSim .cardTagline {
+  text-shadow:
+    0 0 2px #f3f1ea,
+    0 0 5px #f3f1ea;
+}
+
+/* ── 《动物人生》(ADR-021,浮世):淡苔绿底 + 苔绿左缘 + 门缝底下的光,有脚步经过 ──
+ * 2026-11-09 那一刀只有色值;2026-11-12 起加**一个持续槽**(ADR-021 约束 5 补充段):卡底一道暖色亮线 = 门缝透进来的光
+ * (静态,连同上方一圈微光与 14px 暗带都画在卡底上),::after = 两块门板暗色的小片盖住亮线 = 脚的影子,
+ * 从右边进来、走到门口、停一会儿、走开、空等。替代关系 = 无可替代(本卡首个动效,AGENTS.md §3)。
+ * 只动 transform(AGENTS.md §6)。不写 :hover 专属效果。亮底 → 文字用深色,不随明暗主题漂移。
+ * 参数(Felix 2026-11-12 在可运行样张上看过、认可的默认值):
+ *   --gap-light   0.95  门缝光亮度
+ *   --step-cycle  12s   一趟脚步(来、停、走、空等)的总时长 */
+.cardAnimalLife {
+  --gap-light: 0.95;
+  --step-cycle: 12s;
+  color: #2e3a2c; /* 标题 */
+  border-left-color: #8a9a7b; /* 苔绿色条 */
+  background:
+    linear-gradient(
+        to left,
+        rgba(255, 224, 150, var(--gap-light)) 0%,
+        rgba(255, 224, 150, var(--gap-light)) 48%,
+        rgba(255, 224, 150, 0) 82%
+      )
+      right bottom / 100% 2.5px no-repeat,
+    radial-gradient(46% 9px at 74% 100%, rgba(255, 232, 170, calc(var(--gap-light) * 0.5)), rgba(255, 232, 170, 0))
+      bottom / 100% 12px no-repeat,
+    linear-gradient(to top, rgba(62, 78, 54, 0.22), rgba(62, 78, 54, 0)) bottom / 100% 14px no-repeat,
+    #eef2ea;
+}
+
+/* 两块门板暗色的小片盖住亮线 = 脚的影子。 */
+.cardAnimalLife::after {
+  content: '';
+  position: absolute;
+  left: 100%;
+  bottom: 0;
+  width: 100%;
+  height: 9px;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(196, 203, 190, 0), #c4cbbe 28%, #c4cbbe 72%, rgba(196, 203, 190, 0)) 0 0 / 30px 100%
+      no-repeat,
+    linear-gradient(90deg, rgba(196, 203, 190, 0), #c4cbbe 28%, #c4cbbe 72%, rgba(196, 203, 190, 0)) 44px 0 / 30px
+      100% no-repeat;
+  -webkit-mask-image: linear-gradient(to top, #000 45%, transparent);
+  mask-image: linear-gradient(to top, #000 45%, transparent);
+  transform: translateX(0);
+  animation: animalSteps var(--step-cycle) ease-in-out infinite;
+}
+
+/* ── 《七日开张》穿越古代(ADR-038 Slice G-1,浮世):麻布白底 + 土黄左缘 + 一缕热气 ──
+ * 配色取自顶图:卡底 = 晨光里的麻布白;色条 = 土黄布幌;标题 / 标语 = 木板深褐;右下一团淡木色 = 摊子的暗处,
+ * 热气从那里升起才看得见。**一个持续槽**:两缕热气错开半个周期,是同一种表现的两缕,不是两个效果。
+ * 替代关系 = 无可替代(本卡首个动效,AGENTS.md §3)。只动 transform 与 opacity(AGENTS.md §6)。不写 :hover 专属效果。
+ * 伪元素上写的 opacity / transform 是减弱动效时停住的那一帧。
+ * 对比度(WCAG,真实卡片 DOM,343 / 608 两种卡宽,动画全程取文字区卡底最暗处)见 .cardQiri .cardTag / .cardTagline 两处注释。
+ * 参数(Felix 2026-11-12 在可运行样张上看过、认可的默认值):
+ *   --steam-peak   0.85  热气最浓处的不透明度
+ *   --steam-cycle  9s    一缕热气从冒出到散掉的时长 */
+.cardQiri {
+  --steam-peak: 0.85;
+  --steam-cycle: 9s;
+  color: #3b3127;
+  border-left-color: #d0963f;
+  background:
+    radial-gradient(60% 120% at 82% 115%, rgba(122, 95, 60, 0.24), rgba(122, 95, 60, 0) 72%),
+    #f2ede2;
+}
+
+.cardQiri::before,
+.cardQiri::after {
+  content: '';
+  position: absolute;
+  bottom: -12%;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(50% 50% at 50% 62%, rgba(255, 253, 246, var(--steam-peak)), rgba(255, 253, 246, 0) 70%),
+    radial-gradient(
+      36% 40% at 36% 30%,
+      rgba(255, 253, 246, calc(var(--steam-peak) * 0.7)),
+      rgba(255, 253, 246, 0) 70%
+    );
+  filter: blur(3px);
+  opacity: 0.7;
+  transform: translate(4px, -15%) scale(1); /* 减弱动效时停在这一帧 */
+  animation: qiriSteam var(--steam-cycle) ease-out infinite;
+}
+
+.cardQiri::before {
+  left: 71%;
+  width: 44px;
+  height: 68px;
+}
+
+.cardQiri::after {
+  left: 80%;
+  width: 34px;
+  height: 56px;
+  animation-delay: calc(var(--steam-cycle) * -0.5);
+}
+
+/* ── 渗漏卡(融合入口,ADR-013):修仙青白仙气 × 规则怪谈冷蓝诡异【互噬】——
+ * 两种氛围在同一张卡上抢地盘:左上是修仙的近白青光,右下是怪谈的冷蓝暗渊,中间一道撕裂接缝。
+ * 由拖拽揉合产出(ADR-019),松手后直接出现、没有入场动画(见下方 .card.cardFusion 一组)。纯 CSS,不引动画库。 */
+.cardFusion {
+  color: #cdd6d2;
+  border-left-color: #7ea9a0; /* 青金与冷蓝之间的病态青 */
+  background:
+    linear-gradient(135deg, rgba(238, 244, 240, 0.16) 0%, rgba(180, 210, 196, 0.08) 34%, transparent 52%),
+    linear-gradient(315deg, rgba(26, 34, 48, 0.9) 0%, rgba(20, 26, 38, 0.72) 40%, transparent 62%),
+    linear-gradient(160deg, #22302c 0%, #16202a 55%, #131a26 100%);
+}
+
+/* 融合卡**没有入场动画**(ADR-019 订正 §8;订正 2026-11-09:入口不演动画,松手后卡直接出现在已开放卡之后)。
+ * 原 fusionSeep(竖向展开 + 整卡模糊)已删。两类特异性:压过 .card:not(.cardLocked) 的 cardEnter
+ * (否则新挂上的融合卡会补播一次列表的入场错峰)。 */
+.card.cardFusion,
+.card.cardFusionRenfang,
+.card.cardFusionYanqi {
+  animation: none;
+}
+
+/* 互噬氛围层:修仙云气(左上)与怪谈冷光(右下)缓慢拉锯、彼此渗透。 */
+.cardFusion::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(55% 48% at 18% 22%, rgba(236, 244, 240, 0.30), transparent 68%),
+    radial-gradient(60% 52% at 84% 82%, rgba(96, 138, 190, 0.26), transparent 70%),
+    radial-gradient(2px 2px at 30% 78%, rgba(214, 178, 84, 0.55), transparent 60%),
+    radial-gradient(1.5px 1.5px at 72% 30%, rgba(140, 178, 224, 0.5), transparent 60%);
+  background-size: 180% 180%;
+  animation: fusionClash 9s ease-in-out infinite alternate;
+}
+
+/* 撕裂接缝:一道斜贯的裂隙微光(两个世界的边界渗漏处),偶发抽搐。 */
+.cardFusion::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    115deg,
+    transparent 46%,
+    rgba(190, 226, 214, 0.28) 49%,
+    rgba(120, 170, 210, 0.34) 51%,
+    transparent 54%
+  );
+  animation: fusionSeam 7s linear infinite;
+}
+
+.cardFusion:hover {
+  border-left-color: #9ecfc0;
+  box-shadow:
+    0 10px 30px -14px rgba(0, 0, 0, 0.7),
+    inset 0 0 30px -6px rgba(120, 190, 170, 0.28),
+    inset 0 0 18px -4px rgba(96, 138, 190, 0.3);
+}
+
+/* 融合卡标题:三层(修仙/规则怪谈/识海遗蜕)叠放同一格,CSS 轮换撕裂浮现。 */
+.fusionTitle {
+  display: inline-grid;
+}
+
+.fusionTitle > span {
+  grid-area: 1 / 1;
+  white-space: nowrap;
+  opacity: 0;
+}
+
+.fusionTitleA {
+  animation: fusionFlickerA 5.2s steps(1, end) infinite;
+}
+.fusionTitleB {
+  animation: fusionFlickerB 5.2s steps(1, end) infinite;
+}
+.fusionTitleC {
+  color: #d9e6df;
+  text-shadow: 0 0 12px rgba(150, 210, 190, 0.35);
+  animation: fusionFlickerC 5.2s steps(1, end) infinite;
+}
+
+/* 「刚揉出」(ADR-019 订正 §4):新生融合卡的标题先**停在真名满一个标题循环**,再接进正常轮换。纯 CSS。
+ *
+ * 起算点 T = --fresh-text-at = 0:挂载那一刻(订正 2026-11-09:入口不演动画,卡一挂上字就在;
+ * 原先由揉合路径写成 3150 / 320ms,那条路径已删)。变量保留,算式不必随起点改写:
+ *   - 停驻(fusionTitleHoldOn / Off):挂载起 T + 5.2s,真名 1、另两层 0;只跑一次、不留填充;
+ *   - 轮换(fusionFlicker*):延迟 T + 5.2s − 0.936s 起播,于是停驻结束那一刻轮换正走到局部 0.936s = 18%,
+ *     落在真名驻留段(16%–55%)里 —— 真名 1、另两层 0,与停驻的最后一帧相同:停与转同一帧,衔接点不空帧、不跳。
+ * 每层两条动画,**列表里靠后的那条优先**(CSS Animations 的合成顺序)。
+ * 衔接算式由 ArchetypeSelect.fusion.test 钉住;原有撕裂空档(8–9%、59–62%)不动。
+ * reduced-motion 下这一层整个关掉(标题本就静态停在真名,见文件末减弱动效块)。 */
+.cardFresh {
+  --fresh-text-at: 0ms;
+}
+.cardFresh .fusionTitleA {
+  animation:
+    fusionFlickerA 5.2s steps(1, end) calc(var(--fresh-text-at) + 5.2s - 0.936s) infinite,
+    fusionTitleHoldOff calc(var(--fresh-text-at) + 5.2s) linear;
+}
+.cardFresh .fusionTitleB {
+  animation:
+    fusionFlickerB 5.2s steps(1, end) calc(var(--fresh-text-at) + 5.2s - 0.936s) infinite,
+    fusionTitleHoldOff calc(var(--fresh-text-at) + 5.2s) linear;
+}
+.cardFresh .fusionTitleC {
+  animation:
+    fusionFlickerC 5.2s steps(1, end) calc(var(--fresh-text-at) + 5.2s - 0.936s) infinite,
+    fusionTitleHoldOn calc(var(--fresh-text-at) + 5.2s) linear;
+}
+
+/* ── 第二渗漏卡(守则即补给,ADR-014):规则怪谈冷蓝 × 末日锈土【互噬】——
+ * 左上是怪谈的冷蓝灯光(灯将灭的走廊),右下是废土的锈尘(烂在锈里的世界),中缝一道撕裂接缝。
+ * 复用 fusionTitle 三层撕裂标题机制,只换配色氛围。纯 CSS,不引动画库。 */
+.cardFusionRenfang {
+  color: #d3cec6;
+  border-left-color: #8a7a68; /* 冷蓝与锈土之间的灰褐 */
+  background:
+    linear-gradient(135deg, rgba(140, 178, 224, 0.15) 0%, rgba(96, 130, 172, 0.08) 34%, transparent 52%),
+    linear-gradient(315deg, rgba(58, 42, 28, 0.9) 0%, rgba(46, 34, 24, 0.72) 40%, transparent 62%),
+    linear-gradient(160deg, #222a36 0%, #29221c 55%, #241d17 100%);
+}
+
+/* 互噬氛围层:怪谈冷光(左上)与末日锈尘(右下)缓慢拉锯、彼此渗透。 */
+.cardFusionRenfang::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(55% 48% at 18% 22%, rgba(140, 178, 224, 0.28), transparent 68%),
+    radial-gradient(60% 52% at 84% 82%, rgba(168, 118, 72, 0.28), transparent 70%),
+    radial-gradient(2px 2px at 30% 78%, rgba(196, 150, 92, 0.5), transparent 60%),
+    radial-gradient(1.5px 1.5px at 72% 30%, rgba(140, 178, 224, 0.5), transparent 60%);
+  background-size: 180% 180%;
+  animation: fusionClash 9s ease-in-out infinite alternate;
+}
+
+/* 撕裂接缝:冷蓝与锈金在裂隙处渗漏(缺页的边界),偶发抽搐。 */
+.cardFusionRenfang::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    115deg,
+    transparent 46%,
+    rgba(150, 190, 230, 0.28) 49%,
+    rgba(196, 150, 92, 0.3) 51%,
+    transparent 54%
+  );
+  animation: fusionSeam 7s linear infinite;
+}
+
+.cardFusionRenfang:hover {
+  border-left-color: #b09578;
+  box-shadow:
+    0 10px 30px -14px rgba(0, 0, 0, 0.7),
+    inset 0 0 30px -6px rgba(140, 178, 224, 0.26),
+    inset 0 0 18px -4px rgba(196, 150, 92, 0.28);
+}
+
+/* 第二卡的定稿名层:锈金微光(区别识海的病态青)。 */
+.cardFusionRenfang .fusionTitleC {
+  color: #e2d8c8;
+  text-shadow: 0 0 12px rgba(196, 150, 92, 0.35);
+}
+
+/* ── 第三渗漏卡(验讫,ADR-035):修仙青白微金 × 克苏鲁幽绿深渊【互噬】——
+ * 左上是修仙的青白仙气与金辉(满门道贺),右下是克苏鲁的幽绿深渊(台下的东西),中缝一道撕裂接缝。
+ * 色值全部取自 .cardCultivation / .cardCthulhu,不另造色系。
+ * 复用 fusionTitle 三层撕裂标题机制,只换配色氛围。纯 CSS,不引动画库。 */
+.cardFusionYanqi {
+  color: #c2d6c8;
+  border-left-color: #c9a84a; /* 修仙的金;hover 时被深渊幽绿吞掉 */
+  background:
+    linear-gradient(135deg, rgba(236, 244, 240, 0.16) 0%, rgba(236, 244, 240, 0.08) 34%, transparent 52%),
+    linear-gradient(315deg, rgba(7, 18, 26, 0.9) 0%, rgba(12, 28, 34, 0.72) 40%, transparent 62%),
+    linear-gradient(160deg, #122a2a 0%, #0c1c22 55%, #07121a 100%);
+}
+
+/* 互噬氛围层:修仙云气与金点(左上)与克苏鲁幽光(右下)缓慢拉锯、彼此渗透。 */
+.cardFusionYanqi::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(55% 48% at 18% 22%, rgba(236, 244, 240, 0.3), transparent 68%),
+    radial-gradient(60% 52% at 84% 82%, rgba(90, 175, 140, 0.26), transparent 70%),
+    radial-gradient(2px 2px at 30% 78%, rgba(214, 178, 84, 0.55), transparent 60%),
+    radial-gradient(1.5px 1.5px at 72% 30%, rgba(90, 175, 140, 0.5), transparent 60%);
+  background-size: 180% 180%;
+  animation: fusionClash 9s ease-in-out infinite alternate;
+}
+
+/* 撕裂接缝:金辉与幽绿在裂隙处渗漏(飞升台的边界),偶发抽搐。 */
+.cardFusionYanqi::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    115deg,
+    transparent 46%,
+    rgba(214, 178, 84, 0.28) 49%,
+    rgba(90, 175, 140, 0.34) 51%,
+    transparent 54%
+  );
+  animation: fusionSeam 7s linear infinite;
+}
+
+.cardFusionYanqi:hover {
+  border-left-color: #5fbf9a;
+  box-shadow:
+    0 10px 30px -14px rgba(0, 0, 0, 0.7),
+    inset 0 0 30px -6px rgba(60, 150, 120, 0.32),
+    inset 0 0 18px -4px rgba(220, 190, 110, 0.28);
+}
+
+/* 第三卡的定稿名层:仙气青白 + 金辉(一方印的颜色,区别识海病态青 / 人防锈金)。 */
+.cardFusionYanqi .fusionTitleC {
+  color: #eef3ef;
+  text-shadow: 0 0 12px rgba(214, 178, 84, 0.35);
+}
+
+/* ── 未开放占位:灰显、不可点、零动效(死的,反衬解锁卡是活的)── */
+.cardLocked {
+  opacity: 0.5;
+  cursor: default;
+  border-left-color: var(--line);
+}
+
+@keyframes cardEnter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 偶发闪烁:绝大多数时间稳定,仅两处快速短暂的双闪(灯将灭)—— 不是癫痫式连闪。 */
+@keyframes creepyFlicker {
+  0%,
+  40% {
+    opacity: 1;
+  }
+  41% {
+    opacity: 0.2;
+  }
+  41.8% {
+    opacity: 1;
+  }
+  42.5% {
+    opacity: 0.35;
+  }
+  43.2% {
+    opacity: 1;
+  }
+  77% {
+    opacity: 1;
+  }
+  77.7% {
+    opacity: 0.25;
+  }
+  78.4% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes dustDrift {
+  from {
+    background-position: 0% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@keyframes dustHaze {
+  0% {
+    background-position: 120% 0;
+  }
+  100% {
+    background-position: -40% 0;
+  }
+}
+
+/* 触手蠕动:幽光团缓慢扭曲 + 错位漂移(不旋转、不闪——黏稠、不安、不可名状)。 */
+/* 《派单》雨丝:沿雨丝方向走一个 60px 纵向周期(两层同周期,首尾无缝);旋转写在关键帧里,免得被 transform 覆盖。 */
+@keyframes paidanRain {
+  from {
+    transform: rotate(14deg) translateY(0);
+  }
+  to {
+    transform: rotate(14deg) translateY(60px);
+  }
+}
+
+/* 《寻常》浮尘:沿自身方向走一个 96px 纵向周期(三层同周期,首尾无缝);旋转写在关键帧里,免得被 transform 覆盖。 */
+@keyframes lifeMotes {
+  from {
+    transform: rotate(16deg) translateY(0);
+  }
+  to {
+    transform: rotate(16deg) translateY(-96px);
+  }
+}
+
+/* 《动物人生》脚步:来、停、走、空等。 */
+@keyframes animalSteps {
+  0% {
+    transform: translateX(0);
+  }
+  16% {
+    transform: translateX(-34%); /* 走到门口 */
+  }
+  42% {
+    transform: translateX(-34%); /* 停一会儿 */
+  }
+  60%,
+  100% {
+    transform: translateX(-125%); /* 走开,之后空等 */
+  }
+}
+
+/* 《七日开张》热气:冒出、升高、散开。 */
+@keyframes qiriSteam {
+  0% {
+    transform: translate(0, 30%) scale(0.7);
+    opacity: 0;
+  }
+  18% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(10px, -75%) scale(1.35);
+    opacity: 0;
+  }
+}
+
+@keyframes cthulhuWrithe {
+  0% {
+    transform: translate(0, 0) scale(1);
+  }
+  33% {
+    transform: translate(3%, -2%) scale(1.06);
+  }
+  66% {
+    transform: translate(-2%, 3%) scale(0.97);
+  }
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+}
+
+/* 云气横移:柔白云团缓缓横向漂移(仙气缭绕,慢、不晃眼)。 */
+@keyframes cloudDrift {
+  from {
+    background-position: 0% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* 灵气升腾:光点自下而上缓缓飘升(空灵、向上、不晃眼;低强度,文字始终可读)。 */
+@keyframes spiritRise {
+  0% {
+    transform: translateY(0);
+    opacity: 0.8;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-42%);
+    opacity: 0.8;
+  }
+}
+
+/* 「刚揉出」的标题停驻(见 .cardFresh):整段恒值,只跑一次。 */
+@keyframes fusionTitleHoldOn {
+  from,
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fusionTitleHoldOff {
+  from,
+  to {
+    opacity: 0;
+  }
+}
+
+/* 互噬拉锯:两团氛围缓慢彼此挤压渗透(alternate 往复,黏着、不安)。 */
+@keyframes fusionClash {
+  from {
+    background-position: 0% 0%;
+  }
+  to {
+    background-position: 100% 100%;
+  }
+}
+
+/* 裂隙抽搐:接缝微光绝大多数时间稳定,偶发两次错位抽动(边界不稳)。 */
+@keyframes fusionSeam {
+  0%,
+  46% {
+    opacity: 0.8;
+    transform: translateX(0);
+  }
+  47% {
+    opacity: 0.3;
+    transform: translateX(2%);
+  }
+  48.2% {
+    opacity: 0.9;
+    transform: translateX(-1.5%);
+  }
+  49.4%,
+  100% {
+    opacity: 0.8;
+    transform: translateX(0);
+  }
+}
+
+/* 标题撕裂轮换:修仙(短暂)→ 规则怪谈(短暂)→ 识海遗蜕(驻留)—— 像信号夺台,最终真名占上风。 */
+@keyframes fusionFlickerA {
+  0%,
+  7% {
+    opacity: 1;
+  }
+  8%,
+  55% {
+    opacity: 0;
+  }
+  56%,
+  58% {
+    opacity: 1;
+  }
+  59%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes fusionFlickerB {
+  0%,
+  8% {
+    opacity: 0;
+  }
+  9%,
+  15% {
+    opacity: 1;
+  }
+  16%,
+  61% {
+    opacity: 0;
+  }
+  62%,
+  64% {
+    opacity: 1;
+  }
+  65%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes fusionFlickerC {
+  0%,
+  15% {
+    opacity: 0;
+  }
+  16%,
+  55% {
+    opacity: 1;
+  }
+  56%,
+  64% {
+    opacity: 0;
+  }
+  65%,
+  100% {
+    opacity: 1;
+  }
+}
+
+/* 无障碍:减少动态时关掉所有运动,保留静态氛围(暗角/尘点/雾霭/调色)—— 世界性格仍读得到。 */
+@media (prefers-reduced-motion: reduce) {
+  .cardCreepy::after,
+  .cardApocalypse::before,
+  .cardApocalypse::after,
+  .cardCthulhu::after,
+  .cardPaidan::after,
+  .cardLifeSim::before,
+  .cardAnimalLife::after,
+  .cardQiri::before,
+  .cardQiri::after,
+  .cardCultivation::before,
+  .cardCultivation::after,
+  .cardFusion,
+  .cardFusion::before,
+  .cardFusion::after,
+  .cardFusionRenfang,
+  .cardFusionRenfang::before,
+  .cardFusionRenfang::after,
+  .cardFusionYanqi,
+  .cardFusionYanqi::before,
+  .cardFusionYanqi::after,
+  .fusionTitleA,
+  .fusionTitleB,
+  .card:not(.cardLocked) {
+    animation: none;
+  }
+
+  /* 融合卡标题静态收在真名「识海遗蜕」(A/B 关闭动画后保持初始 opacity:0,C 静态可见)。
+     选择器必须写成 `.fusionTitle > .fusionTitleC`(0,2,0):单写 `.fusionTitleC`(0,1,0)压不过
+     基础规则 `.fusionTitle > span { opacity: 0 }`(0,1,1),真名层会一直透明 —— 三张融合卡在
+     减弱动效下都没有标题(媒体查询不加权重,只看选择器本身)。 */
+  .fusionTitle > .fusionTitleC {
+    animation: none;
+    opacity: 1;
+  }
+
+  /* 「刚揉出」那一层不需要(标题本就静态停在真名)。.cardFresh 的规则是 (0,2,0),
+     上面 (0,1,0) 的 .fusionTitleA / .fusionTitleB 关不掉它们,这里按同一权重再关一次。 */
+  .cardFresh .fusionTitleA,
+  .cardFresh .fusionTitleB,
+  .cardFresh .fusionTitleC {
+    animation: none;
+  }
+}
+
+.cardTop {
+  position: relative; /* 抬到氛围层(::before/::after)之上,保证文字可读 */
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.cardTitle {
+  margin: 0;
+  font-size: 1.25rem;
+  line-height: 1.3;
+}
+
+.cardTag {
+  flex-shrink: 0;
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: var(--chip);
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+/* 主题卡背景恒为深色氛围 —— 标签/钩子改用各自世界的可读色(不随 app 明暗主题漂移)。 */
+.cardCreepy .cardTag {
+  background: rgba(120, 150, 190, 0.16);
+  color: #a8bdd6;
+}
+
+.cardApocalypse .cardTag {
+  background: rgba(199, 154, 78, 0.18);
+  color: #d8bd86;
+}
+
+.cardCthulhu .cardTag {
+  background: rgba(90, 175, 140, 0.16);
+  color: #8fd0b4;
+}
+
+/* 修仙是亮底卡 —— 标签/钩子改用深金/墨色,在白底上可读(不随 app 明暗主题漂移)。 */
+.cardCultivation .cardTag {
+  background: rgba(201, 168, 74, 0.2);
+  color: #8a6c1f;
+}
+
+/* 《寻常》亮底卡:标签字对标签底 #e2e7e9 对比度 5.04:1(WCAG AA ≥ 4.5;标签底不透明,光带与浮尘不透上来,343 / 608 卡宽实测不变)。 */
+.cardLifeSim .cardTag {
+  background: #e2e7e9;
+  color: #55626a;
+}
+
+/* 《动物人生》亮底卡:标签字对标签底 #e2e8dc 对比度 5.18:1(WCAG AA ≥ 4.5)。 */
+.cardAnimalLife .cardTag {
+  background: #e2e8dc;
+  color: #55624f;
+}
+
+/* 《七日开张》亮底卡:标签字对标签底 #e7dfcc 对比度 5.36:1(真实卡片 DOM 逐像素,343 / 608 卡宽,热气全周期;标签底不透明,热气不透上来)。 */
+.cardQiri .cardTag {
+  background: #e7dfcc;
+  color: #6b5526;
+}
+
+/* 《派单》标签:淡紫底紫字;叠在卡底上最低对比度 5.0:1(左下紫光处,见 .cardPaidan 注释)。 */
+.cardPaidan .cardTag {
+  background: rgba(190, 110, 240, 0.18);
+  color: #d3a6f2;
+}
+
+/* 渗漏卡标签:病态青(两世界之间的颜色)。 */
+.cardFusion .cardTag {
+  background: rgba(126, 169, 160, 0.16);
+  color: #9ecfc0;
+}
+
+/* 第二渗漏卡标签:锈金(缺页与配给簿的颜色)。 */
+.cardFusionRenfang .cardTag {
+  background: rgba(176, 149, 120, 0.16);
+  color: #b09578;
+}
+
+/* 第三渗漏卡标签:修仙的金(验讫那一方印的颜色),深底上用亮金可读。 */
+.cardFusionYanqi .cardTag {
+  background: rgba(201, 168, 74, 0.2);
+  color: #e0bd5e;
+}
+
+.cardSoon {
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+
+.cardTagline {
+  position: relative; /* 抬到氛围层之上 */
+  z-index: 1;
+  margin: 0.5rem 0 0;
+  font-size: 0.88rem;
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+.cardCreepy .cardTagline {
+  color: #93a4b9;
+}
+
+.cardApocalypse .cardTagline {
+  color: #bcaa86;
+}
+
+.cardCthulhu .cardTagline {
+  color: #9ab8aa;
+}
+
+.cardCultivation .cardTagline {
+  color: #5a6862;
+}
+
+/* 《寻常》标语(WCAG AA ≥ 4.5;真实卡片 DOM 逐像素,文字区卡底最暗处,未计浮尘本身 —— 浮尘经过字后面时由 text-shadow 描边挡):
+ * 343 卡宽 4.80:1(标语末尾伸进光带,最暗处是光带暖色);608 卡宽 4.91:1(标语不到光带,底色就是卡底 #eef1f2),
+ * 整条标语带(假设标语长到穿过光带)4.81:1。标题 #2f3a40 两种卡宽都是 10.28:1。
+ * 计入浮尘本身时,单个尘点像素处最低 3.37:1(343 卡宽)。 */
+.cardLifeSim .cardTagline {
+  color: #5e6a70;
+}
+
+/* 《动物人生》标语对卡底 #eef2ea 对比度 5.20:1(WCAG AA ≥ 4.5)。 */
+.cardAnimalLife .cardTagline {
+  color: #5b6857;
+}
+
+/* 《七日开张》标语木褐:真实卡片 DOM 逐像素、热气全周期、文字区卡底最暗处(右下淡木色里)—— 343 卡宽 5.11:1,608 卡宽 6.02:1;
+ * 把范围放宽到整条标语带(不只文字盒)两种卡宽都是 5.10:1。标题 #3b3127 两种卡宽都是 10.87:1。 */
+.cardQiri .cardTagline {
+  color: #625645;
+}
+
+/* 《派单》标语灰紫:最低对比度 5.1:1(左下紫光处,见 .cardPaidan 注释)。 */
+.cardPaidan .cardTagline {
+  color: #a49fb8;
+}
+
+/* 融合卡标语:深底卡,不能回落 var(--muted)(为浅底调的灰)。各取一个原世界的标语色调亮,
+ * 对比度按标语区域的实际合成底色测(两种卡宽 × 常态/hover × 动画全周期取最暗、最亮两处),两处均 ≥ 4.5:1。 */
+.cardFusion .cardTagline {
+  color: #e5e9ee; /* 怪谈 #93a4b9 调亮,偏修仙青白 */
+}
+
+.cardFusionRenfang .cardTagline {
+  color: #dad0bc; /* 末日 #bcaa86 调亮 */
+}
+
+.cardFusionYanqi .cardTagline {
+  color: #ccdcd4; /* 克苏鲁 #9ab8aa 调亮 */
+}
+
+/* 次级出口(等待期「取消」/ 错误屏「换个世界」)。两处都是**导航控件**,
+ * 故与返回键同一条热区口径:≥44×44 CSS px,整块可点。 */
+.linkBtn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 0.85rem;
+  cursor: pointer;
+  text-decoration: underline;
+  -webkit-tap-highlight-color: transparent;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 0.75rem;
+}
+
+/* 结局画面 ----------------------------------------------------------- */
+.ending {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 1.4rem 1.2rem;
+  text-align: center;
+}
+
+.endingLabel {
+  margin: 0;
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.endingTitle {
+  margin: 0.4rem 0 0.7rem;
+  font-size: 1.6rem;
+}
+
+.endingDesc {
+  margin: 0 0 1.2rem;
+  line-height: 1.7;
+  color: var(--text);
+}
+
+/* ── 续局入口(ADR-015 Slice 2)──────────────────────────────── */
+.resumeBtn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  width: 100%;
+  margin: 0 0 1rem;
+  padding: 0.8rem 1.2rem;
+  background: transparent;
+  border: 1px dashed var(--muted);
+  border-radius: 14px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.resumeTitle {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.resumeHint {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+/* ── 回看上局(ADR-025 刀 3,无皮肤)──────────────────────────────────── */
+/* 辅助入口:视觉权重低于「继续上局」—— 无边框、字更小、更淡;不预留空位,出现时只淡入不位移。 */
+.historyEntry {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  width: 100%;
+  margin: -0.4rem 0 1rem;
+  padding: 0.4rem 1rem;
+  min-height: 44px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  animation: historyFadeIn 0.4s ease-out both;
+}
+
+.historyEntryTitle {
+  font-size: 0.85rem;
+  color: var(--muted);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.historyEntryHint {
+  font-size: 0.72rem;
+  color: var(--muted);
+  opacity: 0.8;
+}
+
+@keyframes historyFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.historyNav {
+  display: flex;
+  margin-bottom: 0.5rem;
+}
+
+.historyList {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+}
+
+.historyTurn {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--muted);
+  margin: 0 0 0.3rem;
+  letter-spacing: 0.05em;
+}
+
+.historyProse {
+  margin: 0;
+  line-height: 1.8;
+  white-space: pre-wrap;
+  color: var(--text);
+}
+
+.historyGap {
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-style: italic;
+  padding-left: 0.6rem;
+  border-left: 2px dashed var(--line);
+}
+
+.historyMore {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 1.2rem 0 0.5rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .historyEntry {
+    animation: none;
+  }
+}
+
+/* ── 我的存档(ADR-034;静态,不新增动效)──────────────────────────── */
+/* 条目复用 .resumeBtn 的形态(原「继续上局」按钮),区块放在它原来的位置。 */
+.saves {
+  margin: 0 0 1rem;
+}
+
+.savesTitle {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+  letter-spacing: 0.08em;
+}
+
+.savesNotice {
+  margin: 0 0 0.5rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.saveList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.saveList .resumeBtn {
+  margin: 0;
+}
+
+.saveUnavailable {
+  opacity: 0.7;
+}
+
+.saveStatus {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.savesMore {
+  display: block;
+  width: 100%;
+  margin: 0.5rem 0 0;
+  min-height: 44px;
+  background: transparent;
+  border: none;
+  font-size: 0.8rem;
+  color: var(--muted);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+}
+
+/* ════ 真实 CSS 结束 ════ */
+
+/* ════ 本样张新增:三区大厅(lb 前缀 = 新东西) ════ */
+.lb { position: relative; overflow: hidden; isolation: isolate; background: var(--bg); color: var(--text); transition: background-color 0.4s ease, color 0.4s ease;
+  font-family: system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif; line-height: 1.5; }
+.lb .screen { min-height: 760px; position: relative; z-index: 1; }
+
+/* ── 区的背景气氛层(在卡片后面,只在卡缝、页头、页边露出来;卡片本身不受影响) ── */
+.fx { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
+.fx > * { position: absolute; opacity: 0; transition: opacity 0.6s ease; }
+/* 浮世 · 阳光:从上面斜斜照下来的几道暖光,往下渐渐散掉;各自慢慢明暗,整体极慢地挪 */
+.fxRays { top: -40px; left: -15%; width: 130%; height: 78%; transform: skewX(-16deg); }
+.fxRays i { position: absolute; top: 0; height: 100%; display: block;
+  background: linear-gradient(to bottom, var(--ray) 0%, transparent 100%); animation: rayBreath ease-in-out infinite alternate; }
+.fxRays i:nth-child(1) { left: 22%; width: 54px; animation-duration: 9s; }
+.fxRays i:nth-child(2) { left: 36%; width: 22px; animation-duration: 12s; animation-delay: -4s; }
+.fxRays i:nth-child(3) { left: 52%; width: 74px; animation-duration: 14s; animation-delay: -7s; }
+.fxRays i:nth-child(4) { left: 71%; width: 34px; animation-duration: 10s; animation-delay: -2s; }
+.fxWash { top: 0; left: 0; right: 0; height: 300px; background: linear-gradient(to bottom, var(--wash) 0%, transparent 100%); }
+/* 深界 · 远处的闪电:页头后面一道细折线 + 整页底色很轻地亮两下 */
+.fxBolt { top: 6px; right: 12px; width: 52px; height: 104px; } /* 只在页头右上角,落不到存档和卡片上的字 */
+.fxBolt svg { width: 100%; height: 100%; display: block; }
+.fxFlash { inset: 0; background: var(--flash); }
+.zFushi { --ray: rgba(255, 222, 150, 0.5); --wash: rgba(255, 226, 168, 0.38); }
+.zShen  { --flash: rgba(196, 204, 255, 0.11); }
+.zRong  { --ray: rgba(255, 236, 196, 0.32); --wash: rgba(255, 236, 200, 0.18); --flash: rgba(70, 40, 110, 0.16); }
+.zFushi .fxRays, .zFushi .fxWash, .zRong .fxRays, .zRong .fxWash { opacity: 1; }
+.zFushi .fxRays { animation: raysDrift 30s ease-in-out infinite alternate; }
+.zRong .fxRays { animation: raysDrift 30s ease-in-out infinite alternate, sunSeep 11s steps(1, end) infinite; }
+.zShen .fxFlash { animation: flash 9s linear infinite; }
+.zShen .fxBolt { animation: bolt 9s linear infinite; }
+.zRong .fxFlash { animation: flash 13s linear infinite 4s; }
+@keyframes raysDrift { from { transform: skewX(-16deg) translateX(0); } to { transform: skewX(-13deg) translateX(-28px); } }
+@keyframes rayBreath { from { opacity: 0.45; } to { opacity: 1; } }
+/* 两下闪,间隔 0.2s,0.45s 内结束;一秒内不超过三次闪(WCAG 2.3.1) */
+@keyframes flash { 0%, 70% { opacity: 0; } 70.6% { opacity: 1; } 71.4% { opacity: 0; } 72.8% { opacity: 0.7; } 74% { opacity: 0; } 100% { opacity: 0; } }
+@keyframes bolt  { 0%, 70% { opacity: 0; } 70.6% { opacity: 0.55; } 71.4% { opacity: 0; } 72.8% { opacity: 0.4; } 75% { opacity: 0; } 100% { opacity: 0; } }
+/* 渗界 · 阳光偶尔被「渗」一下:暖光忽然发暗一瞬 */
+@keyframes sunSeep { 0%, 81% { filter: none; } 82% { filter: brightness(0.82) saturate(0.6); } 84%, 100% { filter: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .fx > *, .fxRays i { animation: none !important; transition: none; }
+  .zShen .fxFlash, .zShen .fxBolt, .zRong .fxFlash { opacity: 0; }
+}
+/* 三区各一套页面令牌;卡片本身是各世界自己的卡面,不跟区变 */
+.zFushi { --bg:#f3efe7; --text:#2a2521; --muted:#6a6157; --line:#ddd5c8; --card:#fbf9f5; --chip:#ece6dc; --accent:#9a4f22; --gap:1.2rem; --pad:1.6rem; }
+.zShen  { --bg:#111014; --text:#ebe8ef; --muted:#9e97a9; --line:#2a2730; --card:#19171d; --chip:#211f26; --accent:#e0935a; --gap:0.6rem; --pad:1rem; }
+.zRong  { --bg:#b9b5bf; --text:#1a181e; --muted:#3d3944; --line:#9d97a5; --card:#c8c4cc; --chip:#aca7b2; --accent:#7a3f22; --gap:0.9rem; --pad:1.3rem; }
+.lb .selectHeader { padding: var(--pad) 0 0.4rem; transition: padding 0.4s ease; }
+.lb .cardList { gap: var(--gap); }
+
+/* 分区标签:只有字,当前区下面一道线,方角 */
+.lbTabs { display: flex; gap: 1.6rem; justify-content: center; border-bottom: 1px solid var(--line); margin-top: 0.2rem; }
+.lbTab { font: inherit; font-size: 0.95rem; letter-spacing: 0.35em; padding: 0.55rem 0 0.5rem 0.35em; background: none; border: 0; border-bottom: 2px solid transparent;
+  margin-bottom: -1px; color: var(--muted); cursor: pointer; min-height: 44px; border-radius: 0; }
+.lbTab[aria-selected="true"] { color: var(--text); border-bottom-color: var(--text); }
+.lbTab:focus-visible { outline: 1px solid var(--text); outline-offset: 2px; }
+.lbTab[hidden] { display: none; }
+.lbHint { margin: 0; font-size: 0.78rem; color: var(--muted); text-align: center; }
+.lbFoot { margin: 0.2rem 0 0; font-size: 0.78rem; color: var(--muted); text-align: center; }
+.lb .ph { border-bottom: 1px dashed var(--muted); }
+</style>
+
+<style>
+/* ════ 本样张新增:继续条 + 存档页 + 撤销条(sv 前缀) ════ */
+.phone { position: relative; }
+.svCont { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 0.9rem; width: 100%; min-height: 60px;
+  padding: 0.75rem 0.15rem; background: none; border: 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+  color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.svLabel { font-size: 0.72rem; letter-spacing: 0.2em; color: var(--muted); }
+.svTitle { display: block; font-size: 1rem; font-weight: 600; line-height: 1.35; }
+.svMeta { display: block; font-size: 0.78rem; color: var(--muted); line-height: 1.5; }
+.svChev { color: var(--muted); font-size: 1.1rem; }
+.svAll { align-self: flex-end; margin-top: -0.55rem; font: inherit; font-size: 0.78rem; color: var(--muted); background: none; border: 0;
+  text-decoration: underline; text-underline-offset: 3px; padding: 0.6rem 0.1rem; min-height: 44px; cursor: pointer; }
+.svWrap { display: flex; flex-direction: column; }
+
+/* 存档页 */
+.svBack { align-self: flex-start; font: inherit; font-size: 0.85rem; color: var(--text); background: none; border: 0; border-bottom: 1px solid var(--line);
+  padding: 0.6rem 0 0.2rem; min-height: 44px; cursor: pointer; border-radius: 0; }
+.svH1 { margin: 0.4rem 0 0; font-size: 1.35rem; font-weight: 700; letter-spacing: 0.05em; }
+.svSub { margin: 0.2rem 0 0; font-size: 0.78rem; color: var(--muted); }
+.svGroup { display: flex; flex-direction: column; }
+.svGroupHead { display: flex; justify-content: space-between; align-items: baseline; padding: 0.2rem 0 0.35rem; border-bottom: 1px solid var(--line); }
+.svGroupHead h2 { margin: 0; font-size: 0.8rem; font-weight: 600; letter-spacing: 0.15em; color: var(--muted); }
+.svGroupHead h2 b { font-weight: 400; margin-left: 0.4em; letter-spacing: 0; }
+.svClear { font: inherit; font-size: 0.75rem; color: var(--muted); background: none; border: 0; text-decoration: underline; text-underline-offset: 3px;
+  padding: 0.5rem 0; min-height: 44px; cursor: pointer; }
+.svRow { display: grid; grid-template-columns: 1fr auto; align-items: center; border-bottom: 1px solid var(--line); }
+.svOpen { font: inherit; text-align: left; color: var(--text); background: none; border: 0; padding: 0.7rem 0.15rem; min-height: 56px; cursor: pointer; }
+.svRemove { font: inherit; font-size: 0.75rem; color: var(--muted); background: none; border: 0; min-width: 44px; min-height: 44px; padding: 0 0.2rem 0 0.8rem; cursor: pointer; }
+.svRow.off .svTitle { color: var(--muted); }
+.svOff { display: block; font-size: 0.75rem; color: var(--muted); }
+.svHistory { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 0.6rem; width: 100%; font: inherit; text-align: left; color: var(--text);
+  background: none; border: 0; border-bottom: 1px solid var(--line); padding: 0.7rem 0.15rem; min-height: 56px; cursor: pointer; }
+
+/* 撤销条:贴在页面底部,5 秒走完一道细线 */
+.svToast { position: absolute; left: 12px; right: 12px; bottom: 14px; z-index: 5; display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 0.8rem;
+  padding: 0.7rem 0.9rem 0.8rem; background: var(--text); color: var(--bg); border-radius: 2px; font-size: 0.85rem; overflow: hidden; }
+.svToast button { font: inherit; font-size: 0.85rem; color: var(--bg); background: none; border: 0; text-decoration: underline; text-underline-offset: 3px;
+  min-height: 44px; min-width: 44px; cursor: pointer; }
+.svToast i { position: absolute; left: 0; bottom: 0; height: 2px; width: 100%; background: var(--bg); opacity: 0.55; transform-origin: left center; transform: scaleX(0.6); }
+</style>
+<div class="wrap">
+  <header class="head">
+    <h1>存档区样张</h1>
+    <p>静态第一版。大厅只留一条「继续」,全部存档进单独一页,每条可以「从这台设备移除」,移除后底部 5 秒内可撤销。上面的按钮切状态;手机里的「继续 / 全部存档 / 返回」也能点。存档数据是你截图里的那些,另补了几条示意。</p>
+  </header>
+  <div class="bench">
+    <div class="stageCol">
+      <div class="seg" role="group" aria-label="状态">
+        <button type="button" data-state="lobby" aria-pressed="true">大厅 · 有存档</button>
+        <button type="button" data-state="fresh" aria-pressed="false">大厅 · 新玩家</button>
+        <button type="button" data-state="saves" aria-pressed="false">存档页</button>
+        <button type="button" data-state="removed" aria-pressed="false">存档页 · 刚移除一条</button>
+        <button type="button" data-state="cleared" aria-pressed="false">存档页 · 刚全部移除已结局</button>
+      </div>
+      <div class="seg" role="group" aria-label="区">
+        <button type="button" data-zone="fushi" aria-pressed="true">浮世配色</button>
+        <button type="button" data-zone="shen" aria-pressed="false">深界配色</button>
+        <button type="button" data-zone="rong" aria-pressed="false">渗界配色</button>
+      </div>
+      <div class="phone">
+        <div class="lb zFushi" id="lb">
+          <main class="screen" id="screen"></main>
+          <div id="toast"></div>
+        </div>
+      </div>
+    </div>
+    <aside class="notes">
+      <div class="box">
+        <h2>大厅里</h2>
+        <ul>
+          <li><b>「继续」</b>:标题下面、分区标签上面,只有一条 —— 最近一局<b>没结局、能找回</b>的(「暂时无法找回」的跳过往下找)。上下各一道细线,没有框;左边小字「继续」,中间世界名 + 一行小字,右边一个「›」。一条都没有就不出现。</li>
+          <li><b>「全部存档(16)」</b>:继续条右下角一行小字链接。一个存档都没有时这一块整个不出现(看「新玩家」)。</li>
+          <li>原来的 8 条虚线框和「回看上局」都不在大厅了,世界一进门就在第一屏。</li>
+        </ul>
+      </div>
+      <div class="box">
+        <h2>存档页</h2>
+        <ul>
+          <li>顶部「‹ 返回」(字 + 下划线),标题「我的存档」,一句小字说明移除的意思。</li>
+          <li><b>「回看上局」</b>挪到这里,放最上面。</li>
+          <li>两组:「进行中」「已结局」,各带数量。每条一行:世界名、类型 · 回合 · 时间;点这一行和现在一样打开那一局。「暂时无法找回 · 点此重试」照旧,只是字变淡。</li>
+          <li>每行右边一个小字「移除」(热区 ≥ 44px)。「已结局」组标题旁边一个「全部移除」。</li>
+          <li><b>撤销条</b>:移除后这一行立刻消失,底部出现「已从这台设备移除《七日开张》 撤销」,一道细线 5 秒走完才真正删掉。5 秒内关掉页面 = 不删(宁可多留一条)。</li>
+          <li>配色跟进来前所在的区一致(上面可以切着看)。没有圆角卡片、没有虚线框,都是细线分隔。</li>
+        </ul>
+      </div>
+      <div class="box">
+        <h2>文案(都是提议,你改)</h2>
+        <ul>
+          <li>大厅:「继续」「全部存档(16)」。</li>
+          <li>存档页小字:「移除只是从这台设备上拿掉,移除后在这里就找不回来了。」</li>
+          <li>撤销条:「已从这台设备移除《X》」「已从这台设备移除 11 局已结局的存档」+「撤销」。</li>
+        </ul>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<template id="t-cards"><button type="button" class="card cardLifeSim"><div class="cardTop"><h2 class="cardTitle">人生模拟</h2><span class="cardTag">平常 · 一生</span></div><p class="cardTagline">一生只有一次,而它大部分时候都很寻常。</p></button><button type="button" class="card cardAnimalLife"><div class="cardTop"><h2 class="cardTitle">动物人生</h2><span class="cardTag">视角错位 · 误读回收</span></div><p class="cardTagline">熟悉的一切变了，你学会的规则还作数吗？</p></button><button type="button" class="card cardQiri"><div class="cardTop"><h2 class="cardTitle">穿越古代</h2><span class="cardTag">市井 · 穿帮</span></div><p class="cardTagline">这条街什么都卖,就是没见过你这样卖的。</p></button></template>
+<script>
+(function () {
+  var lb = document.getElementById('lb'), screen = document.getElementById('screen'), toast = document.getElementById('toast');
+  var zone = 'fushi', state = 'lobby';
+  var ONGOING = [
+    ['寻常', '人生模拟 · 第 0 回合 · 11月20日 17:18'],
+    ['床脚那块地方', '动物人生 · 第 1 回合 · 11月15日 00:18'],
+    ['七日开张', '穿越古代 · 第 0 回合 · 11月13日 20:22'],
+    ['派单', '赛博朋克 · 第 7 回合 · 11月11日 19:12', true],
+    ['验讫', '修仙 × 克苏鲁 · 第 12 回合 · 11月9日 22:40']
+  ];
+  var ENDED = [
+    ['七日开张', '穿越古代 · 已结局 · 11月12日 17:41'],
+    ['七日开张', '穿越古代 · 已结局 · 11月12日 17:37'],
+    ['七日开张', '穿越古代 · 已结局 · 11月12日 16:58'],
+    ['七日开张', '穿越古代 · 已结局 · 11月12日 16:53'],
+    ['雨夜便利店', '规则怪谈 · 已结局 · 11月8日 23:05'],
+    ['第七号避难所', '末日生存 · 已结局 · 11月6日 21:17']
+  ];
+  var MORE_ENDED = 5;
+  function el(h) { var d = document.createElement('div'); d.innerHTML = h.trim(); return d.firstChild; }
+  function row(r) {
+    return '<div class="svRow' + (r[2] ? ' off' : '') + '"><button type="button" class="svOpen"><span class="svTitle">' + r[0] + '</span><span class="svMeta">' + r[1] + '</span>' +
+      (r[2] ? '<span class="svOff">暂时无法找回 · 点此重试</span>' : '') + '</button><button type="button" class="svRemove" aria-label="从这台设备移除《' + r[0] + '》">移除</button></div>';
+  }
+  var SUB = { fushi: '每一个世界都由 AI 即时生成,烟火寻常,慢慢过活。', shen: '每一个世界都由 AI 即时生成,真假难辨,不可回头。', rong: '两个世界渗在一起,就不再是原来任何一个。' };
+  function lobby(fresh) {
+    var h = '<header class="selectHeader"><p class="phase">AI Universe Simulator</p><h1 class="title">选择你的世界</h1><p class="muted">' + SUB[zone] + '</p></header>';
+    if (!fresh) h += '<div class="svWrap"><button type="button" class="svCont" id="go-cont"><span class="svLabel">继续</span><span><span class="svTitle">寻常</span><span class="svMeta">人生模拟 · 第 0 回合 · 11月20日 17:18</span></span><span class="svChev" aria-hidden="true">›</span></button>' +
+      '<button type="button" class="svAll" id="go-all">全部存档(16)</button></div>';
+    h += '<nav class="lbTabs" role="tablist" aria-label="分区"><button type="button" class="lbTab" role="tab" aria-selected="' + (zone === 'fushi') + '">浮世</button><button type="button" class="lbTab" role="tab" aria-selected="' + (zone === 'shen') + '">深界</button>' + (fresh ? '' : '<button type="button" class="lbTab" role="tab" aria-selected="' + (zone === 'rong') + '">渗界</button>') + '</nav>';
+    h += '<div class="cardList">' + document.getElementById('t-cards').innerHTML + '</div>';
+    screen.innerHTML = h;
+    var a = document.getElementById('go-all'); if (a) a.onclick = function () { set('saves'); };
+  }
+  function saves(kind) {
+    var ongoing = ONGOING, ended = ENDED, endedCount = ENDED.length + MORE_ENDED;
+    if (kind === 'removed') ended = ENDED.slice(1), endedCount -= 1;
+    if (kind === 'cleared') ended = [], endedCount = 0;
+    var h = '<button type="button" class="svBack" id="go-back">‹ 返回</button><div><h1 class="svH1">我的存档</h1><p class="svSub">移除只是从这台设备上拿掉,移除后在这里就找不回来了。</p></div>';
+    h += '<button type="button" class="svHistory"><span><span class="svTitle">回看上局</span><span class="svMeta">看看最近这一局已经发生过什么</span></span><span class="svChev" aria-hidden="true">›</span></button>';
+    h += '<section class="svGroup"><div class="svGroupHead"><h2>进行中<b>' + ongoing.length + '</b></h2></div>' + ongoing.map(row).join('') + '</section>';
+    h += '<section class="svGroup"><div class="svGroupHead"><h2>已结局<b>' + endedCount + '</b></h2>' + (endedCount ? '<button type="button" class="svClear">全部移除</button>' : '') + '</div>' +
+      ended.map(row).join('') + (endedCount > ended.length ? '<p class="svMeta" style="padding:0.6rem 0.15rem">…… 另有 ' + (endedCount - ended.length) + ' 局(示意)</p>' : '') + '</section>';
+    screen.innerHTML = h;
+    document.getElementById('go-back').onclick = function () { set('lobby'); };
+    toast.innerHTML = kind === 'removed' ? '<div class="svToast" role="status"><span>已从这台设备移除《七日开张》</span><button type="button">撤销</button><i></i></div>'
+      : kind === 'cleared' ? '<div class="svToast" role="status"><span>已从这台设备移除 11 局已结局的存档</span><button type="button">撤销</button><i></i></div>' : '';
+  }
+  function set(s) {
+    state = s; toast.innerHTML = '';
+    lb.className = 'lb ' + ({ fushi: 'zFushi', shen: 'zShen', rong: 'zRong' })[zone];
+    if (s === 'lobby' || s === 'fresh') lobby(s === 'fresh'); else saves(s);
+    document.querySelectorAll('[data-state]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.state === s)); });
+  }
+  document.querySelectorAll('[data-state]').forEach(function (b) { b.onclick = function () { set(b.dataset.state); }; });
+  document.querySelectorAll('[data-zone]').forEach(function (b) { b.onclick = function () {
+    zone = b.dataset.zone; document.querySelectorAll('[data-zone]').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); }); set(state); }; });
+  set('lobby');
+})();
+</script>
