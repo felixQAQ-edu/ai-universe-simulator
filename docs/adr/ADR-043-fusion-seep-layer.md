@@ -7,6 +7,8 @@
 
 > ⚠️ **补充(2026-11-21;上一行状态原文不动)**:Felix 2026-11-21 已审定文末八项,结果见「Felix 审定(2026-11-21)」一节;状态改读为「已接受(实施中)」。
 
+> ⚠️ **补充(2026-11-21;上两行原文不动)**:状态改读为**已实施(待部署)**。刀 1–8 见文末「实施记录」,分支 `claude/adr-043-fusion-seep`;**未部署**。
+
 ## 背景
 
 融合局在游戏内一直走「纯 host 呈现」:`registry.ts` 的 `FUSIONS` 只登记封面与卡皮肤,局内皮肤一律取 host 的
@@ -663,6 +665,23 @@ interface SeepEntry {
 
 三档墨渍与挖空的样子(圆角 3px 之后的缺口;可用「窥天切档」直接切);钟鸣 + 压印(印心 (105%, 87.1%);366 宽及以下印是 23px,367 及以上 30px;「重压印」可反复看);
 字洇在起雾 / 将失下的频率与收墨节奏(「触发字洇」可直接看收墨);跌回初境印消失、开局小成印直接在;新封面在四种横幅尺寸下的取景。
+
+### 真机与刀 8 回写
+
+Felix 2026-11-21 真机看过,无异议。
+
+刀 8 回写(一个 commit),补充块都照「补充块定稿」照抄,各文档原文不动:
+- [ADR-019](ADR-019-fusion-visual-entry-and-composability.md) §4 六条之后:补充块(含 §4 第 1 条的改写)。
+- [ADR-018](ADR-018-base-world-visual-migration-and-severity-contract.md) §4.2:补充块(只读行框几何的破口,审定 3)。
+  定稿写的落点是「§4.2 / `AmbientProps.rootRef` 头注释那条『不 query 别的组件 DOM』之后」。ADR-018 正文里没有这句原话,它在代码 `theme/contract.ts` 的头注释里;
+  本次只改文档,补充块放在 ADR-018 §4.2 末尾(「任何主题组件不得重新解释轴语义」之后),`contract.ts` 头注释未动。
+- `AGENTS.md` Motion Constraints §2 与 [ADR-017](ADR-017-frontend-visual-charter-and-animation-libraries.md) ②:各单列《验讫》一行(审定 8)。
+- ROADMAP 本周一条、README ADR 一行。
+
+**CONTEXT 为什么不动**(照 ADR-042 刀 7 的做法):
+- 本 ADR 没有 wire / schema / 服务端改动:不新增端点、不新增字段,`schemaVersion` 仍 "0.4"。渗入层只读前端已有的输入(轴的档序号、severity、签名轴跨档),都来自现有的 `InitResponse.attributes` 与 state 投影。
+- 改动全在前端 `web/`(渗入层在 `theme/seep/`,另有契约里两个可选挂点、`GameScreen` / `StatsPanel` / `XianStats` 的接线与封面图),服务端与 `prompts/` 一行未改;守 §三.13 前端跨端边界,没有新增平台 IO。
+- 被修订的对象是 ADR-019 §4 与 ADR-018 §4.2,补充块已加在那里;CONTEXT 里没有写这两处约定。
 
 ## 实际效果(事后补充)
 
