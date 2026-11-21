@@ -10,6 +10,7 @@
 // 该世界即刻回到旧实现,不必回滚任何基建。
 
 import styles from '../game.module.css';
+import type { SeepId } from './seep/registry';
 
 /**
  * 已登记新皮肤的世界 id。刀 1 规则怪谈(试验田)证明基建可用,刀 2 加修仙;刀 3/4 各自再加一条。
@@ -40,6 +41,11 @@ export interface WorldTheme {
   cardClass: string;
   /** 新视觉皮肤 id;null = 未登记 → 旧实现(feature gate)。 */
   skin: SkinId | null;
+  /**
+   * 融合局内渗入项 id(ADR-043)。**只在 `FUSIONS` 里登记了渗入项的组合才出现这个键** ——
+   * 单体世界与未登记渗入的组合,解析结果与加字段之前逐键相同(同 `scenePosition`)。
+   */
+  seep?: SeepId;
 }
 
 /** 中性主题:未知世界 / 无上下文时的安全缺省——不显图、中性卡、旧实现。 */
@@ -132,11 +138,12 @@ const WORLDS: Readonly<Record<string, WorldEntry>> = {
 };
 
 /**
- * 融合组合登记表(ADR-013/014),键 = `host×foreign`(有序)。只登记**封面与卡皮肤**——
+ * 融合组合登记表(ADR-013/014),键 = `host×foreign`(有序)。登记**封面与卡皮肤**,以及可选的**局内渗入项**(ADR-043)——
  * **游戏内皮肤刻意不登记**:融合局的 `skin` 一律取 host 的(ADR-018 §5 Q2「签名未实现前纯 host 呈现」,
  * 同 scene.ts 未配图即降级的先例);融合专属视觉签名挂 ADR-019,不阻塞基础移植。
+ * ⚠️ 补充(ADR-043):局内皮肤仍取 host 的;外来世界只经 `seep` 渗入一两样东西(没登记 `seep` 的组合纯 host)。
  */
-const FUSIONS: Readonly<Record<string, { sceneUrl: string; cardClass: string }>> = {
+const FUSIONS: Readonly<Record<string, { sceneUrl: string; cardClass: string; seep?: SeepId }>> = {
   'cultivation×rules_creepy': {
     sceneUrl: '/scenes/fusion-shihai.webp',
     cardClass: styles.cardFusion, // 修仙青白仙气 × 怪谈冷蓝互噬
@@ -148,6 +155,8 @@ const FUSIONS: Readonly<Record<string, { sceneUrl: string; cardClass: string }>>
   'cultivation×cthulhu': {
     sceneUrl: '/scenes/fusion-yanqi.webp',
     cardClass: styles.cardFusionYanqi, // 修仙青白微金 × 克苏鲁幽绿深渊互噬
+    // ADR-043:局内渗入层(墨洇 / 验讫印 / 字洇),参数见 `seep/registry.ts`。删掉这一行即回到纯 host 呈现。
+    seep: 'yanqi',
   },
 };
 
@@ -179,7 +188,14 @@ export function resolveWorldTheme(
     const key = fusionKey(host, list[1]);
     const fusion = FUSIONS[key];
     if (fusion) {
-      return { key, sceneUrl: fusion.sceneUrl, cardClass: fusion.cardClass, skin: hostSkin };
+      return {
+        key,
+        sceneUrl: fusion.sceneUrl,
+        cardClass: fusion.cardClass,
+        skin: hostSkin,
+        // 渗入项跟着组合走:只有登记了的组合才带这个键(ADR-043 决策 1)。
+        ...(fusion.seep ? { seep: fusion.seep } : {}),
+      };
     }
     // 未登记融合组合:回落 host 单体登记(仍优雅降级)。
   }

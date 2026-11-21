@@ -235,6 +235,7 @@ describe('resolveWorldTheme · 加《动物人生》后其余世界零回归', (
     });
     expect(resolveWorldTheme(['cultivation', 'cthulhu'])).toStrictEqual({
       key: 'cultivation×cthulhu', sceneUrl: '/scenes/fusion-yanqi.webp', cardClass: styles.cardFusionYanqi, skin: 'cultivation',
+      seep: 'yanqi', // ADR-043:《验讫》登记了局内渗入项(ADR-043 决策 12 预告的基线变化;其余各项逐字段不变)
     });
     expect(resolveWorldTheme(UNREGISTERED)).toEqual(NEUTRAL_THEME);
     expect(resolveWorldTheme('totally_unknown')).toEqual(NEUTRAL_THEME);
