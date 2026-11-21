@@ -110,7 +110,10 @@ describe('SeepStain · 渲染', () => {
     expect(layer.getAttribute('aria-hidden')).toBe('true');
     const rects = [...layer.querySelectorAll('mask rect')];
     expect(rects.map((r) => r.getAttribute('fill'))).toEqual(['#fff', '#000']);
-    expect(rects[1].getAttribute('x')).toBe('28'); // 40 - 10 - 2
+    expect(rects[1].getAttribute('x')).toBe('27'); // 40 - 10 - 3(外扩 3px,裁定 5)
+    expect(rects[1].getAttribute('width')).toBe('56'); // 50 + 3 + 3
+    expect([rects[1].getAttribute('rx'), rects[1].getAttribute('ry')]).toEqual(['3', '3']); // 圆角 3px
+    expect(rects[0].getAttribute('rx')).toBeNull(); // 白底不圆角
     // 墨渍挂在 mask 下
     const g = layer.querySelector('g[mask]')!;
     expect(g.getAttribute('mask')).toMatch(/^url\(#seep-mask-/);

@@ -50,6 +50,8 @@ describe('渗入登记表 · 自洽', () => {
       const s = e!.stain;
       if (!s) continue;
       expect(s.levels.length).toBeGreaterThan(0);
+      // 圆角 = 外扩:挖空恰是行框的 holePadPx 邻域(裁定 5);圆角大于外扩会让四角露出行框外扩区
+      expect(s.holeRadiusPx, e!.id).toBe(s.holePadPx);
       for (const l of s.levels) {
         for (const o of [l.fillOpacity, l.strokeOpacity]) {
           expect(o).toBeGreaterThanOrEqual(0);

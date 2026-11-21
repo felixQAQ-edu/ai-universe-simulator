@@ -43,8 +43,13 @@ export interface StainSpec {
   color: string;
   /** 跨档(上或下)时不透明度、显隐、尺寸的过渡时长。首次装载不过渡。 */
   transitionMs: number;
-  /** 避让:文字行框外扩多少再挖空(ADR-043 决策 6)。 */
+  /** 避让:文字行框外扩多少再挖空(ADR-043 决策 6;Felix 2026-11-21 裁定 5:2px → 3px)。 */
   holePadPx: number;
+  /**
+   * 挖空矩形的圆角半径(Felix 2026-11-21 裁定 5)。取与 holePadPx 相等:外扩 r 再圆角 r 的矩形 = 离行框不超过 r 的点集
+   * (行框的 r 邻域),避让规则因此读作「墨渍上色区与行框外扩 3px 不相交」,四角不多挖一块直角。
+   */
+  holeRadiusPx: number;
   /** 按档序号(0 起)给;超出取最后一档。 */
   levels: readonly StainLevelSpec[];
 }
@@ -100,7 +105,8 @@ export const SEEPS: Partial<Record<SeepId, SeepEntry>> = {
       axisKey: 'knowledge', // 窥天:未觉 / 见格 / 知渔
       color: YANQI_INK,
       transitionMs: 2400,
-      holePadPx: 2,
+      holePadPx: 3,
+      holeRadiusPx: 3,
       levels: [
         {
           fillOpacity: 0.1,

@@ -16,7 +16,7 @@ import styles from './seep.module.css';
 
 // 墨洇(ADR-043 决策 3 / 6):一个承载框一层 SVG,画该档该出现的角落水渍。
 //
-// **避让(方案 M3,Felix 补裁 9 + 审定 3)**:层里带一个 `<mask>`,白底 + 框内每个文字行框(外扩 holePadPx)一块黑矩形,
+// **避让(方案 M3,Felix 补裁 9 + 审定 3)**:层里带一个 `<mask>`,白底 + 框内每个文字行框(外扩 holePadPx、圆角 holeRadiusPx)一块黑圆角矩形,
 // 墨渍的上色区域与任何文字行框的交集恒为空。行框读自**本层所在的承载框**的文本节点 —— 数值区那一层读的是宿主形态
 // 组件(XianStats)的文本:这是 ADR-018「不 query 别的组件 DOM」在**只读几何**上的破口,Felix 审定 3 已认可、记入已知代价。
 // 渗入层自己的节点(`[data-seep]`:墨渍层、验讫印)不计入行框。
@@ -43,6 +43,7 @@ export function SeepStain({
   const spec = stainLevelSpec(stain, level);
   const visible = !!spec;
   const pad = stain.holePadPx;
+  const radius = stain.holeRadiusPx;
 
   // 量:挂载即量一次(layout effect,首帧就带着挖空画出来);之后框尺寸、框内文字、字体任一变化 → rAF 合并重量。
   useLayoutEffect(() => {
@@ -136,7 +137,7 @@ export function SeepStain({
                 fill="#fff"
               />
               {geo.holes.map((b, i) => (
-                <rect key={i} x={b.x} y={b.y} width={b.w} height={b.h} fill="#000" />
+                <rect key={i} x={b.x} y={b.y} width={b.w} height={b.h} rx={radius} ry={radius} fill="#000" />
               ))}
             </mask>
           </defs>
