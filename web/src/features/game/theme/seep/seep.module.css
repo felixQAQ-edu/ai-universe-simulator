@@ -1,0 +1,70 @@
+/* ADR-043 融合渗入层的样式。**只在登记了渗入的组合里被引用**(当前只有《验讫》);
+   其余世界的 DOM 里不出现这里的任何 class,计算样式与加本文件之前逐字节相同(ADR-018 §4.5.2)。 */
+
+/* 数值区外包层:只为给墨渍层一个定位框,不加 margin / padding / 尺寸 —— 宿主形态的几何不变(实测见 ADR-043 实施记录)。 */
+.statsHost {
+  position: relative;
+}
+
+/* 《验讫》正文形态:复用通用 .prose,只多这两条。isolation 让字洇那团淡墨的 z-index:-1
+   落在正文底色之上、字之下(刀 5)。 */
+.prose {
+  position: relative;
+  isolation: isolate;
+}
+
+/* ── 墨洇(决策 3 / 6)──────────────────────────────────────────────────
+   一个承载框一层 SVG,用户单位 = 像素;墨渍按角贴边,mask 把框内每个文字行框(外扩 2px)挖空,
+   墨永远不落在字上(Felix 补裁 9)。层本身静止 —— 只在档变的那一回合走一次 2400ms 过渡。 */
+.layer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.stain {
+  transform-box: view-box;
+  transform-origin: 0 0;
+  transition:
+    opacity var(--seep-ms, 2400ms) ease,
+    transform var(--seep-ms, 2400ms) ease;
+}
+
+/* 水渍的样子(样张原样):淡墨铺底 + 边缘一圈稍深的「水线」 */
+.stain path {
+  fill: var(--seep-ink);
+  fill-opacity: var(--fo);
+  stroke: var(--seep-ink);
+  stroke-opacity: var(--so);
+  stroke-width: 1.1;
+  vector-effect: non-scaling-stroke;
+  transition:
+    fill-opacity var(--seep-ms, 2400ms) ease,
+    stroke-opacity var(--seep-ms, 2400ms) ease;
+}
+
+.stain circle {
+  fill: var(--seep-ink);
+  fill-opacity: var(--so);
+  transition: fill-opacity var(--seep-ms, 2400ms) ease;
+}
+
+/* 首次装载 / 续局:直接到位,不走过渡(挂载后两帧摘掉)。 */
+.still .stain,
+.still .stain path,
+.still .stain circle {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stain,
+  .stain path,
+  .stain circle {
+    transition: none;
+  }
+}

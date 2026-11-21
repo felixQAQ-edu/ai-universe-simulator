@@ -15,6 +15,9 @@ import { SkinContext } from './theme/contract';
 import { DebugPanel } from './theme/DebugPanel';
 import { useSkinRuntime } from './theme/lifecycle';
 import { resolveWorldTheme } from './theme/registry';
+import { resolveSeep, seepSignals, seepWantsProse } from './theme/seep/registry';
+import { SeepProse } from './theme/seep/SeepProse';
+import { SeepStain } from './theme/seep/SeepStain';
 import { SKINS } from './theme/skins';
 import { useSignalCrossing } from './theme/useSignalCrossing';
 import { useTypewriter } from './useTypewriter';
@@ -127,6 +130,9 @@ function PlayingScreen() {
   // 子组件一律消费这次判定的结果(封面 / 皮肤 / 卡片氛围),不得各自再判 archetype。
   const theme = resolveWorldTheme(world?.archetypes);
   const skin = (theme.skin ? SKINS[theme.skin] : null) ?? null;
+  // 融合渗入层(ADR-043):只有登记了的组合有;宿主对不上即当作没登记(只降级,不崩)。
+  const seep = resolveSeep(theme.seep, theme.skin);
+  const seepSig = seepSignals(seep, attributeAxes, attributeValues);
 
   // ── 一级记忆点的触发信号(ADR-018 §5 Q5)──────────────────────────────
   // 「盯哪根轴」是皮肤在注册表里的按 key 配置;这里只按那个 key 算档序号、判**向上**跨档。
@@ -222,6 +228,9 @@ function PlayingScreen() {
           rootRef={rootRef}
           timeLabel={timeLabel}
           timeline={timeline}
+          {...(seep?.stain
+            ? { overlay: <SeepStain stain={seep.stain} level={seepSig.stainLevel} surface="stats" /> }
+            : {})}
         />
 
         {ProseForm ? (
@@ -235,6 +244,8 @@ function PlayingScreen() {
             turn={turn}
             signatureSeverity={signature.severity}
           />
+        ) : seep && seepWantsProse(seep) ? (
+          <SeepProse text={proseText} caret={revealing} seep={seep} signals={seepSig} />
         ) : (
           <Prose text={proseText} caret={revealing} />
         )}

@@ -3,6 +3,7 @@ import type { AttributeAxisMeta } from '../../api';
 import { resolveBandLabel, resolveSeverity } from './bands';
 import { severityWord, useSkin, type AxisView, type StatsTimeline } from './theme/contract';
 import { useAnimatedValues } from './theme/useAnimatedValues';
+import seepStyles from './theme/seep/seep.module.css';
 import styles from './game.module.css';
 
 // 数值面板 = **通用层**(ADR-018 §4.2)。职责严格限于:
@@ -20,6 +21,7 @@ export function StatsPanel({
   timeLabel = null,
   timeline = null,
   signatureAccessory = null,
+  overlay = null,
 }: {
   axes: AttributeAxisMeta[];
   values: Record<string, number>;
@@ -39,6 +41,11 @@ export function StatsPanel({
    * null / 缺省 = 不交,形态组件的 props 与加这个字段之前逐键相同。
    */
   signatureAccessory?: ReactNode;
+  /**
+   * 叠在数值区上的一层(ADR-043 决策 3 的墨洇)。给了 → 形态组件外包一层 `position: relative` 的定位框,
+   * 这一层放在形态之后;null / 缺省 → 不包,输出与加这个字段之前逐字节相同。
+   */
+  overlay?: ReactNode;
 }) {
   const bundle = useSkin();
   // 数值滚动的**单一驱动量**:档名与 severity 一律按此刻屏幕上的数去查,
@@ -48,10 +55,10 @@ export function StatsPanel({
   // 去认「哪根轴特殊」(ADR-018 §4.2 + §5 Q5「锁在注册表内」)。
   const signatureKey = bundle?.skin.signatureAxisKey ?? null;
   const views = axes.map((axis) => toAxisView(axis, shown, signatureKey));
-  if (!bundle) return <LegacyStats axes={views} />;
+  if (!bundle) return withOverlay(<LegacyStats axes={views} />, overlay);
   const Form = bundle.skin.Stats;
   // 标签非空才放进 props:没有标签的世界,形态组件的 props 与加这个字段之前逐键相同(ADR-038 G-2 决策 6)。
-  return (
+  return withOverlay(
     <Form
       axes={views}
       runtime={bundle.runtime}
@@ -59,7 +66,18 @@ export function StatsPanel({
       {...(timeLabel ? { timeLabel } : {})}
       {...(timeline && bundle.skin.statsTimeline ? { timeline } : {})}
       {...(signatureAccessory != null && bundle.skin.signatureAccessory ? { signatureAccessory } : {})}
-    />
+    />,
+    overlay,
+  );
+}
+
+function withOverlay(panel: ReactNode, overlay: ReactNode) {
+  if (overlay == null) return panel;
+  return (
+    <div className={seepStyles.statsHost}>
+      {panel}
+      {overlay}
+    </div>
   );
 }
 

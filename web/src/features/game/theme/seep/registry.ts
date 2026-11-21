@@ -203,3 +203,9 @@ export function stainLevelSpec(stain: StainSpec, level: number | null): StainLev
   if (level === null || level < 0 || stain.levels.length === 0) return null;
   return stain.levels[Math.min(level, stain.levels.length - 1)];
 }
+
+/** 这条登记要不要正文形态:登了字洇,或墨洇有落在正文上的角。 */
+export function seepWantsProse(seep: SeepEntry | null): boolean {
+  if (!seep) return false;
+  return !!seep.bleed || !!seep.stain?.levels.some((l) => l.corners.some((c) => c.surface === 'prose'));
+}
