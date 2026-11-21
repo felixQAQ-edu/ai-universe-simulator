@@ -91,3 +91,48 @@
   writing-mode: vertical-rl;
   background: rgba(236, 242, 238, 0.55);
 }
+
+/* ── 字洇成墨(决策 5;样张 .yqBleed 原样)──────────────────────────────
+   只换色不换字:不改字宽、不加 aria。字后那团淡墨 z-index:-1,靠 .prose 的 isolation 落在正文底色之上、字之下。
+   类名序列与样张一致:plain → on(--bin 晕开)→ off(--bout 收墨)→ plain(字色按 --bin 回原色)。 */
+.bleed {
+  position: relative;
+  color: #184034;
+  transition: color var(--bin, 400ms) ease-out;
+}
+
+.bleed::before {
+  content: '';
+  position: absolute;
+  left: -0.3em;
+  right: -0.34em;
+  top: -0.14em;
+  bottom: -0.22em;
+  z-index: -1;
+  background: #184034;
+  border: 1px solid rgba(24, 64, 52, 0.45);
+  border-radius: 46% 54% 41% 59% / 55% 43% 57% 45%;
+  transform: scale(0.35);
+  opacity: 0;
+  transition:
+    transform var(--bin, 400ms) ease-out,
+    opacity var(--bin, 400ms) ease-out;
+}
+
+.bleedOn {
+  color: #184034;
+}
+
+.bleedOn::before {
+  transform: scale(1);
+  opacity: 0.16;
+}
+
+.bleedOff,
+.bleedOff::before {
+  transition-duration: var(--bout, 500ms);
+}
+
+.bleedPlain {
+  color: inherit;
+}

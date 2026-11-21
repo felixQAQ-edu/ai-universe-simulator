@@ -258,7 +258,14 @@ function PlayingScreen() {
             signatureSeverity={signature.severity}
           />
         ) : seep && seepWantsProse(seep) ? (
-          <SeepProse text={proseText} caret={revealing} seep={seep} signals={seepSig} />
+          <SeepProse
+            text={proseText}
+            caret={revealing}
+            seep={seep}
+            signals={seepSig}
+            paused={paused}
+            runtime={runtime}
+          />
         ) : (
           <Prose text={proseText} caret={revealing} />
         )}
