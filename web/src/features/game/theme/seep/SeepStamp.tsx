@@ -92,7 +92,10 @@ export function SeepStamp({
       ref={ref}
       className={styles.stamp}
       data-seep="stamp"
-      style={{ left: `calc(${stamp.center.x} - 15px)`, top: `calc(${stamp.center.y} - 15px)` }}
+      style={{
+        left: `calc(${stamp.center.x} - var(--stamp-size) / 2)`,
+        top: `calc(${stamp.center.y} - var(--stamp-size) / 2)`,
+      }}
     >
       {stamp.text}
     </div>

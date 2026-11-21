@@ -86,12 +86,12 @@ describe('验讫印 · 在不在跟着当前档走(补裁 7)', () => {
     expect(h.shown()).toBeNull();
   });
 
-  it('位置挂在境界印框上的 (97%, 69%),印边长 30px 的一半做偏移', () => {
+  it('位置挂在境界印框上的 (105%, 87.1%),用边长变量的一半做偏移(边长随断点变,印心不变)', () => {
     const h = harness();
     h.set(0, 1);
     const el = h.shown() as HTMLElement;
-    expect(el.style.left).toBe('calc(97% - 15px)');
-    expect(el.style.top).toBe('calc(69% - 15px)');
+    expect(el.style.left).toBe('calc(105% - var(--stamp-size) / 2)');
+    expect(el.style.top).toBe('calc(87.1% - var(--stamp-size) / 2)');
   });
 });
 

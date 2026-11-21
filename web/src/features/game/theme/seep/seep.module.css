@@ -71,25 +71,36 @@
 
 /* ── 验讫印(决策 4;样张 .yqStamp 原样,位置改为挂在境界印框上的百分比)──────────────
    挂在 XianStats 的 .sealAnchor 里(与境界印同位同大、不裁切);left / top 由登记表的 center 算(行内样式)。
-   终态 = 关键帧末帧(opacity .85 + rotate(-9deg)),所以 WAAPI 播完不用 fill 也停在对的地方。 */
+   终态 = 关键帧末帧(opacity .85 + rotate(-9deg)),所以 WAAPI 播完不用 fill 也停在对的地方。
+   边长 --stamp-size:30px;窄于 367 宽缩到 23px(ADR-043 第 1 条改判 + 补充)—— 印心 (105%, 87.1%) 不动。
+   367 = 30px 印从此宽度往上到 480、162 个局面与行框外扩 2px 全不相交的最小宽度(361–366 撞清明列「起雾」「将失」);
+   23px = 320 宽 162 个局面下全不相交的最大整数边长(实测上限 ≈23.0)。两个数都是实测后写死,不做运行时测量。
+   边框 / 圆角 / 字号按边长等比(1.5 / 2 / 10.5 都 ÷30);行内样式的 left / top 用同一个变量减半做偏移。 */
 .stamp {
+  --stamp-size: 30px;
   position: absolute;
   box-sizing: border-box;
-  width: 30px;
-  height: 30px;
+  width: var(--stamp-size);
+  height: var(--stamp-size);
   transform: rotate(-9deg);
-  border: 1.5px solid #184034;
-  border-radius: 2px;
+  border: calc(var(--stamp-size) * 0.05) solid #184034;
+  border-radius: calc(var(--stamp-size) / 15);
   color: #184034;
   opacity: 0.85;
   display: grid;
   place-items: center;
   font-family: 'Noto Serif SC', 'Songti SC', STSong, serif;
   font-weight: 700;
-  font-size: 10.5px;
+  font-size: calc(var(--stamp-size) * 0.35);
   line-height: 1.05;
   writing-mode: vertical-rl;
   background: rgba(236, 242, 238, 0.55);
+}
+
+@media (max-width: 366px) {
+  .stamp {
+    --stamp-size: 23px;
+  }
 }
 
 /* ── 字洇成墨(决策 5;样张 .yqBleed 原样)──────────────────────────────

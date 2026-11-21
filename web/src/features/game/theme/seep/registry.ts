@@ -63,7 +63,10 @@ export interface StampSpec {
   afterCrossingMs: number;
   pressMs: number;
   fromScale: number;
-  /** 印中心相对挂点(= 签名轴那方印的框)的位置。 */
+  /**
+   * 印中心相对挂点(= 签名轴那方印的框)的位置;各宽度同一个值。
+   * 边长不在这里:30px,窄于 367 宽缩到 23px,写死在 seep.module.css 的断点里(ADR-043 第 1 条改判)。
+   */
   center: { x: string; y: string };
 }
 
@@ -140,7 +143,7 @@ export const SEEPS: Partial<Record<SeepId, SeepEntry>> = {
       afterCrossingMs: 1650,
       pressMs: 260,
       fromScale: 1.35,
-      center: { x: '97%', y: '69%' },
+      center: { x: '105%', y: '87.1%' },
     },
     bleed: {
       axisKey: 'san', // 清明:澄澈 / 起雾 / 将失
