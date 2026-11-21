@@ -19,6 +19,7 @@ import { resolveSeep, seepSignals, seepWantsProse } from './theme/seep/registry'
 import { SeepProse } from './theme/seep/SeepProse';
 import { SeepStain } from './theme/seep/SeepStain';
 import { SeepStamp } from './theme/seep/SeepStamp';
+import { useSeepDebug } from './theme/seep/SeepDebug';
 import { SKINS } from './theme/skins';
 import { useSignalCrossing } from './theme/useSignalCrossing';
 import { useTypewriter } from './useTypewriter';
@@ -133,7 +134,9 @@ function PlayingScreen() {
   const skin = (theme.skin ? SKINS[theme.skin] : null) ?? null;
   // 融合渗入层(ADR-043):只有登记了的组合有;宿主对不上即当作没登记(只降级,不崩)。
   const seep = resolveSeep(theme.seep, theme.skin);
-  const seepSig = seepSignals(seep, attributeAxes, attributeValues);
+  // 调试控件(仅 ?debug=1)可覆盖墨洇的档、补压印、手动字洇;非 debug 下 seepDbg.signals 就是 seepSig 本身。
+  const seepDbg = useSeepDebug(seep, attributeAxes, seepSignals(seep, attributeAxes, attributeValues));
+  const seepSig = seepDbg.signals;
 
   // ── 一级记忆点的触发信号(ADR-018 §5 Q5)──────────────────────────────
   // 「盯哪根轴」是皮肤在注册表里的按 key 配置;这里只按那个 key 算档序号、判**向上**跨档。
@@ -237,7 +240,7 @@ function PlayingScreen() {
                 signatureAccessory: (
                   <SeepStamp
                     stamp={seep.stamp}
-                    tick={signature.tick}
+                    tick={signature.tick + seepDbg.stampNonce}
                     index={signature.index}
                     runtime={runtime}
                   />
@@ -245,6 +248,7 @@ function PlayingScreen() {
               }
             : {})}
         />
+        {seepDbg.controls}
 
         {ProseForm ? (
           <ProseForm
@@ -265,6 +269,7 @@ function PlayingScreen() {
             signals={seepSig}
             paused={paused}
             runtime={runtime}
+            debugFire={seepDbg.bleedNonce}
           />
         ) : (
           <Prose text={proseText} caret={revealing} />

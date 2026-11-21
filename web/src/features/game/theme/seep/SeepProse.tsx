@@ -20,6 +20,8 @@ import styles from './seep.module.css';
 //   **reduced-motion 下不出现**(审定 7)。
 // - 选字:正文中的汉字,优先当前视口内的(读自己组件的字框),不连续两次同一字位;视口内一个都没有 → 这次作罢、另排下一次。
 // - 计时走 `runtime.setTimeout`(换回合 / 卸载作废)+ 本次 effect 的作废标记;回调写 state 前都查(F-041)。不持宿主的锁。
+// - 调试(`debugFire`,仅 ?debug=1 的「触发字洇」改它):变了 → 撤掉在途的一次、立刻演一次,不论清明在哪档;
+//   逐字期间与 reduced-motion 下照样不演。演完只在清明 caution / danger 时接着按档排下一次。
 
 const TRACE = 'seep.bleed';
 const now = () => Math.round(performance.now());
@@ -39,6 +41,7 @@ export function SeepProse({
   signals,
   paused,
   runtime,
+  debugFire = 0,
 }: {
   text: string;
   caret: boolean;
@@ -47,16 +50,21 @@ export function SeepProse({
   /** 正文不稳定期(生成中 / 开场逐字未完)。 */
   paused: boolean;
   runtime: SkinRuntime;
+  /** 调试触发计数(见头注释);缺省 0 = 从不手动触发。 */
+  debugFire?: number;
 }) {
   const ref = useRef<HTMLDivElement | null>(null);
   const [bleed, setBleed] = useState<Bleed | null>(null);
   const lastOffset = useRef(-1);
   const spec = seep.bleed;
   const severity = signals.bleedSeverity;
+  const seenFire = useRef(debugFire);
 
   useEffect(() => {
+    const forced = debugFire !== seenFire.current;
+    seenFire.current = debugFire;
     const win = spec ? bleedWindow(spec, severity) : null;
-    if (!spec || !win || paused || !text) return;
+    if (!spec || (!win && !forced) || paused || !text) return;
     if (reducedMotion()) {
       trace(TRACE, { suppressedReason: 'reduced-motion', state: 'suppressed' }, true);
       return;
@@ -68,6 +76,7 @@ export function SeepProse({
     const after = (ms: number, fn: () => void) => runtime.setTimeout(() => live() && fn(), ms);
 
     const schedule = (first: boolean) => {
+      if (!win) return; // 手动触发的那一次演完,清明不在 caution / danger → 不再排
       const d = nextBleedDelayMs(win, first);
       trace(TRACE, { scheduledAt: now() + Math.round(d), state: 'scheduled', suppressedReason: undefined }, true);
       after(d, fire);
@@ -117,9 +126,10 @@ export function SeepProse({
     };
     // 换回合 / 卸载(runtime teardown)与 effect 重跑(paused / 文本 / 档变)走同一个撤销:复原成一段文本、不留半截。
     runtime.onTeardown(stop);
-    schedule(true);
+    if (forced) fire();
+    else schedule(true);
     return stop;
-  }, [spec, severity, paused, text, runtime]);
+  }, [spec, severity, paused, text, runtime, debugFire]);
 
   const shown = bleed && text.slice(bleed.offset, bleed.offset + bleed.length) ? bleed : null;
   return (

@@ -136,3 +136,22 @@
 .bleedPlain {
   color: inherit;
 }
+
+/* ── 调试控件(仅 ?debug=1,SeepDebug.tsx;同克苏鲁 debugRow / debugBtn 的样子)── */
+.debugRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0;
+}
+
+.debugBtn {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 0.68rem;
+  color: var(--muted);
+  background: transparent;
+  border: 1px dashed var(--muted);
+  border-radius: 2px;
+  padding: 4px 8px;
+  cursor: pointer;
+}
