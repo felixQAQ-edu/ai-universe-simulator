@@ -205,6 +205,47 @@ describe('RealmSeal(境界印)· 签名轴形态分派', () => {
   });
 });
 
+// ADR-043 决策 4(Felix 补裁 8):挂点只在收到挂件时渲染;印本身(含 aria-label 与 ref)不变。
+describe('RealmSeal · 签名轴挂件的挂点', () => {
+  const THREE: AttributeAxisMeta[] = [
+    { key: 'hp', displayName: '气血', bands: HP_BANDS },
+    { key: 'mana', displayName: '灵力', bands: MANA_BANDS },
+    { key: 'realm', displayName: '境界', bands: REALM_BANDS },
+  ];
+  const VALUES = { hp: 86, mana: 64, realm: 40 };
+
+  it('没收到挂件:不包外层、不渲染挂点', () => {
+    const { container } = withSkin(<StatsPanel axes={THREE} values={VALUES} />);
+    expect(container.querySelector('[class*="sealHost"]')).toBeNull();
+    expect(container.querySelector('[class*="sealAnchor"]')).toBeNull();
+  });
+
+  it('收到挂件:印放进外层,挂点是印的兄弟(不在 clip-path 的印里),挂件在挂点里', () => {
+    const { container } = withSkin(
+      <StatsPanel axes={THREE} values={VALUES} signatureAccessory={<i data-testid="acc" />} />,
+    );
+    const host = container.querySelector('[class*="sealHost"]')!;
+    const seal = screen.getByLabelText('境界 · 40 · 小成 · 正常');
+    const anchor = container.querySelector('[class*="sealAnchor"]')!;
+    expect(host).not.toBeNull();
+    expect(seal.parentElement).toBe(host);
+    expect(anchor.parentElement).toBe(host);
+    expect(seal.contains(anchor)).toBe(false);
+    expect(anchor.getAttribute('aria-hidden')).toBe('true');
+    expect(anchor.contains(screen.getByTestId('acc'))).toBe(true);
+    // 可访问节点仍是三根轴各一个(挂点不发声)
+    expect([...container.querySelectorAll('[aria-label]')]).toHaveLength(3);
+  });
+
+  it('有无挂件,印内部的 DOM 逐字相同', () => {
+    const a = withSkin(<StatsPanel axes={THREE} values={VALUES} />);
+    const plain = a.getByLabelText('境界 · 40 · 小成 · 正常').outerHTML;
+    a.unmount();
+    const b = withSkin(<StatsPanel axes={THREE} values={VALUES} signatureAccessory={<i />} />);
+    expect(b.getByLabelText('境界 · 40 · 小成 · 正常').outerHTML).toBe(plain);
+  });
+});
+
 // 收敛批:亮芯由「低频心跳」改为「数值变化的回应」(常态完全静止)。
 // 直打 `XianStats` 而不经 `StatsPanel` —— 这里要钉的是**形态层对值变化的反应**,
 // 插值本身是通用层的事(已有自己的用例),掺进来只会让时序不可控。

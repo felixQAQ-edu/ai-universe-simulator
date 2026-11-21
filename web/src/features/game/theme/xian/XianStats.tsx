@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import type { AxisView, StatsProps } from '../contract';
 import { severityWord } from '../contract';
 import styles from './xian.module.css';
@@ -56,7 +57,7 @@ function useFlowing(value: number): boolean {
   return seen.changes > 0 && settled < seen.changes;
 }
 
-export function XianStats({ axes, rootRef }: StatsProps) {
+export function XianStats({ axes, rootRef, signatureAccessory }: StatsProps) {
   const sealRef = useRef<HTMLDivElement | null>(null);
 
   // 把境界印的中心写成主题根上的 `--seal-x/--seal-y`,好让**钟鸣的金光从印扩散**
@@ -98,7 +99,7 @@ export function XianStats({ axes, rootRef }: StatsProps) {
     <div className={styles.lingmai}>
       {axes.map((axis) =>
         axis.signature ? (
-          <RealmSeal key={axis.key} axis={axis} sealRef={sealRef} />
+          <RealmSeal key={axis.key} axis={axis} sealRef={sealRef} accessory={signatureAccessory} />
         ) : (
           <MaiColumn key={axis.key} axis={axis} />
         ),
@@ -139,6 +140,32 @@ const riskWord = (axis: AxisView) =>
  * 一个恒 neutral 的印染成红色会读成警报。
  */
 function RealmSeal({
+  axis,
+  sealRef,
+  accessory,
+}: {
+  axis: AxisView;
+  sealRef: React.RefObject<HTMLDivElement | null>;
+  /**
+   * 签名轴挂件(ADR-043 决策 4;Felix 补裁 8 许可的唯一改动)。印带八角 `clip-path`,挂件放进印里会被切掉 ——
+   * 故收到时印外多包一层 `.sealHost`,紧跟印之后放一个与印同位同大、**不裁切**的挂点 `.sealAnchor`。
+   * 没收到 → 不包、不渲染挂点,输出与加这个参数之前逐字节相同。**印的几何两种情况必须逐像素相同**(实测见 ADR-043 实施记录)。
+   */
+  accessory?: ReactNode;
+}) {
+  const seal = <SealFace axis={axis} sealRef={sealRef} />;
+  if (accessory == null) return seal;
+  return (
+    <div className={styles.sealHost}>
+      {seal}
+      <div className={styles.sealAnchor} aria-hidden="true">
+        {accessory}
+      </div>
+    </div>
+  );
+}
+
+function SealFace({
   axis,
   sealRef,
 }: {

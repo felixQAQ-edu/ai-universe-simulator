@@ -31,6 +31,12 @@ describe('渗入登记表 · 自洽', () => {
     for (const e of entries) expect(SKINS[e!.hostSkin]).toBeDefined();
   });
 
+  it('登了压印的宿主声明了 signatureAccessory(否则通用层永不交挂件,印无处可挂)', () => {
+    for (const e of entries) {
+      if (e!.stamp) expect(SKINS[e!.hostSkin]!.signatureAccessory, e!.id).toBe(true);
+    }
+  });
+
   it('登了字洇 / 正文墨渍的宿主没有 Prose 槽;登了字洇的宿主低频槽为空', () => {
     for (const e of entries) {
       const prose = !!e!.bleed || !!e!.stain?.levels.some((l) => l.corners.some((c) => c.surface === 'prose'));

@@ -204,3 +204,41 @@ describe('StatsPanel · timeline 只给声明了 statsTimeline 的皮肤', () =>
     expect(props.timeline).toEqual(timeline);
   });
 });
+
+// ADR-043 决策 4:签名轴挂件只交给声明了 signatureAccessory 的皮肤,且只在真的有挂件时 —— 其余 props 逐键不变。
+describe('StatsPanel · signatureAccessory 只给声明了的皮肤', () => {
+  const axes: AttributeAxisMeta[] = [{ key: 'hp', displayName: '体力' }];
+  const accessory = <span>挂件</span>;
+  function seenProps(base: WorldSkin, withAccessory: boolean) {
+    const seen: StatsProps[] = [];
+    const Spy = (props: StatsProps) => {
+      seen.push(props);
+      return null;
+    };
+    render(
+      <SkinContext.Provider value={{ skin: { ...base, Stats: Spy }, runtime: new SkinRuntime() }}>
+        <StatsPanel
+          axes={axes}
+          values={{ hp: 50 }}
+          {...(withAccessory ? { signatureAccessory: accessory } : {})}
+        />
+      </SkinContext.Provider>,
+    );
+    return seen[seen.length - 1];
+  }
+
+  it('未声明的皮肤:即使传了挂件,props 也只有 axes / rootRef / runtime', () => {
+    for (const skin of Object.values(SKINS)) {
+      if (skin!.signatureAccessory || skin!.statsTimeline) continue;
+      expect(Object.keys(seenProps(skin!, true)).sort(), skin!.id).toEqual(['axes', 'rootRef', 'runtime']);
+    }
+  });
+
+  it('声明了的皮肤(修仙)但本局没挂件:props 里没有这个键', () => {
+    expect(Object.keys(seenProps(SKINS.cultivation!, false)).sort()).toEqual(['axes', 'rootRef', 'runtime']);
+  });
+
+  it('声明了的皮肤(修仙)且有挂件:原样收到', () => {
+    expect(seenProps(SKINS.cultivation!, true).signatureAccessory).toBe(accessory);
+  });
+});

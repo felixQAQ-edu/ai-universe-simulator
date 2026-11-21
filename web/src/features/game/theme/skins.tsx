@@ -75,6 +75,9 @@ export const SKINS: Partial<Record<SkinId, WorldSkin>> = {
     // 「盯 realm」是**注册表里的按 key 配置**(ADR-018 §5 Q5 立字:锁在注册表内,
     // 不得渗进通用数值组件)—— 通用层只按这个 key 算档序号,不知道 realm 是境界。
     signatureAxisKey: 'realm',
+    // 境界印旁能挂件(ADR-043 决策 4):只有融合渗入层登记了压印的组合(《验讫》)才真的交挂件;
+    // 修仙单体与识海遗蜕收不到挂件,`XianStats` 输出逐字节不变。
+    signatureAccessory: true,
     screenClass: xian.screen,
     pausedClass: xian.paused,
     // 顶部场景图 = 钟鸣的**主承载面**(不透明、占屏最大、在视线起点);此处不挂持续动画,

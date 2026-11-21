@@ -618,6 +618,30 @@
   background: linear-gradient(180deg, rgba(180, 90, 74, 0.16), rgba(171, 75, 60, 0.26));
 }
 
+/* ── 签名轴挂件的挂点(ADR-043 决策 4;**只在收到挂件时渲染**)────────────────
+   印带八角 clip-path,挂件放进印里会被切掉 → 印外包 .sealHost,接管印在灵脉行里的排布
+   (flex / align-self / margin-top 原样搬过来,印自己的 margin-top 归零),紧随其后放一个
+   与印同位同大、不裁切的 .sealAnchor。没收到挂件时这两个 class 不出现在 DOM 里,
+   修仙单体与识海遗蜕的计算样式逐字节不变(ADR-018 §4.5.2)。印的几何两种情况必须逐像素相同。 */
+.sealHost {
+  position: relative;
+  flex: 0 0 auto;
+  align-self: center;
+  margin-top: 6px;
+  display: flex;
+}
+
+.sealHost > .seal {
+  margin-top: 0;
+}
+
+.sealAnchor {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+}
+
 /* ── 决策圈形态:玉简签 ───────────────────────────────────────────────
    对角切角(clip-path)+ 金色签头(左缘)+ 宽度刻意不齐(避免表单感)+ 缓出发光。 */
 .slips {

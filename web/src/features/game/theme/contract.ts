@@ -1,5 +1,5 @@
 import { createContext, useContext } from 'react';
-import type { ComponentType, RefObject } from 'react';
+import type { ComponentType, ReactNode, RefObject } from 'react';
 import type { AxisSeverity } from '../../../api';
 import type { ClientAction } from '../../../api';
 import type { SkinRuntime } from './lifecycle';
@@ -211,6 +211,15 @@ export interface StatsProps {
    *   **原样使用、不判档** —— 「哪一回合值得标」是服务端判的,皮肤只比对清单有没有多出刚落地的那一回合。
    */
   timeline?: StatsTimeline;
+  /**
+   * 签名轴挂件(ADR-043 融合渗入层的验讫印)。**只给声明了 {@link WorldSkin.signatureAccessory} 的皮肤,
+   * 且只在本局登记了要挂东西时**:其余情况 props 里没有这个键(调用逐键不变,同 `timeLabel`)。
+   *
+   * 形态组件收到后,把它放进签名轴形态旁一个**不被裁切**的挂点里(挂点与签名轴形态同位同大),
+   * 挂件自己按挂点的百分比定位 —— 不依赖面板里的像素坐标。没收到时**不渲染任何东西**(DOM 逐字节不变)。
+   * 形态组件不解读挂件的内容:它只是一块「放在签名轴旁边」的节点。
+   */
+  signatureAccessory?: ReactNode;
 }
 
 /** {@link StatsProps.timeline} 的形状。 */
@@ -275,6 +284,11 @@ export interface WorldSkin {
    * 这是「这套皮肤的数值形态要画回合」的声明,**不是世界判定**:通用层不因它分派任何语义。
    */
   statsTimeline?: true;
+  /**
+   * 数值形态能在签名轴旁挂件(ADR-043 决策 4)。true → 通用层可以把 {@link StatsProps.signatureAccessory} 交给 `Stats`;
+   * 缺省 → 永不交,`Stats` 的 props 与加这个开关之前逐键相同。融合渗入层的压印只许登记在声明了它的宿主上。
+   */
+  signatureAccessory?: true;
   /** 主题根 class:色板 token + `--t-dur`/`--t-ease`(成对)+ reduced-motion 覆盖。 */
   screenClass: string;
   /** 停表时挂在主题根上的 class(低频 CSS 动效在其下 `animation-play-state: paused`)。 */

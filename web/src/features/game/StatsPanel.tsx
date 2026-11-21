@@ -1,4 +1,4 @@
-import type { RefObject } from 'react';
+import type { ReactNode, RefObject } from 'react';
 import type { AttributeAxisMeta } from '../../api';
 import { resolveBandLabel, resolveSeverity } from './bands';
 import { severityWord, useSkin, type AxisView, type StatsTimeline } from './theme/contract';
@@ -19,6 +19,7 @@ export function StatsPanel({
   rootRef = NULL_ROOT,
   timeLabel = null,
   timeline = null,
+  signatureAccessory = null,
 }: {
   axes: AttributeAxisMeta[];
   values: Record<string, number>;
@@ -33,6 +34,11 @@ export function StatsPanel({
   timeLabel?: string | null;
   /** 回合数与标记回合(见 `StatsProps.timeline`);只交给声明了 `statsTimeline` 的皮肤。 */
   timeline?: StatsTimeline | null;
+  /**
+   * 签名轴挂件(见 `StatsProps.signatureAccessory`;ADR-043 验讫印)。只交给声明了 `signatureAccessory` 的皮肤;
+   * null / 缺省 = 不交,形态组件的 props 与加这个字段之前逐键相同。
+   */
+  signatureAccessory?: ReactNode;
 }) {
   const bundle = useSkin();
   // 数值滚动的**单一驱动量**:档名与 severity 一律按此刻屏幕上的数去查,
@@ -52,6 +58,7 @@ export function StatsPanel({
       rootRef={rootRef}
       {...(timeLabel ? { timeLabel } : {})}
       {...(timeline && bundle.skin.statsTimeline ? { timeline } : {})}
+      {...(signatureAccessory != null && bundle.skin.signatureAccessory ? { signatureAccessory } : {})}
     />
   );
 }
