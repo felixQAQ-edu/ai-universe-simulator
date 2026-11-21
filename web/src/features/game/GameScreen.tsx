@@ -18,6 +18,7 @@ import { resolveWorldTheme } from './theme/registry';
 import { resolveSeep, seepSignals, seepWantsProse } from './theme/seep/registry';
 import { SeepProse } from './theme/seep/SeepProse';
 import { SeepStain } from './theme/seep/SeepStain';
+import { SeepStamp } from './theme/seep/SeepStamp';
 import { SKINS } from './theme/skins';
 import { useSignalCrossing } from './theme/useSignalCrossing';
 import { useTypewriter } from './useTypewriter';
@@ -230,6 +231,18 @@ function PlayingScreen() {
           timeline={timeline}
           {...(seep?.stain
             ? { overlay: <SeepStain stain={seep.stain} level={seepSig.stainLevel} surface="stats" /> }
+            : {})}
+          {...(seep?.stamp
+            ? {
+                signatureAccessory: (
+                  <SeepStamp
+                    stamp={seep.stamp}
+                    tick={signature.tick}
+                    index={signature.index}
+                    runtime={runtime}
+                  />
+                ),
+              }
             : {})}
         />
 

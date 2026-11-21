@@ -68,3 +68,26 @@
     transition: none;
   }
 }
+
+/* ── 验讫印(决策 4;样张 .yqStamp 原样,位置改为挂在境界印框上的百分比)──────────────
+   挂在 XianStats 的 .sealAnchor 里(与境界印同位同大、不裁切);left / top 由登记表的 center 算(行内样式)。
+   终态 = 关键帧末帧(opacity .85 + rotate(-9deg)),所以 WAAPI 播完不用 fill 也停在对的地方。 */
+.stamp {
+  position: absolute;
+  box-sizing: border-box;
+  width: 30px;
+  height: 30px;
+  transform: rotate(-9deg);
+  border: 1.5px solid #184034;
+  border-radius: 2px;
+  color: #184034;
+  opacity: 0.85;
+  display: grid;
+  place-items: center;
+  font-family: 'Noto Serif SC', 'Songti SC', STSong, serif;
+  font-weight: 700;
+  font-size: 10.5px;
+  line-height: 1.05;
+  writing-mode: vertical-rl;
+  background: rgba(236, 242, 238, 0.55);
+}
