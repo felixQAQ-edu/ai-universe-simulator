@@ -180,6 +180,7 @@ API key 只进环境变量,**绝不写进 yaml / 代码 / 提交**。
 - [ADR-039](docs/adr/ADR-039-client-view-time-label-and-action-tag.md) — 展示层 DTO 增量:时段标签与选项 tag 由服务端下发(已实施,未部署)
 - [ADR-040](docs/adr/ADR-040-xun-kept-turns-client-projection.md) — 视图 3 增量:《寻常》牵挂升档的回合清单由服务端记录并下发(已实施,未部署)
 - [ADR-041](docs/adr/ADR-041-lobby-three-zones.md) — 三区大厅:浮世 / 深界 / 渗界(已实施,未部署)
+- [ADR-042](docs/adr/ADR-042-saves-area.md) — 存档区:大厅一条继续 + 单独存档页 + 玩家主动移除(已实施,未部署)
 
 ## 文档
 
