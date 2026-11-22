@@ -22,7 +22,7 @@ import com.aiuniverse.server.eventloop.CommonPromptAdditions;
 /**
  * ADR-036 Slice C ·《派单》world-gen 指令槽。钉:
  * <ol>
- * <li>既有六个单体世界与三个融合组合的 world-gen 提示词,除末尾随机种子行外逐字节不变
+ * <li>既有五个单体世界与三个融合组合的 world-gen 提示词,除末尾随机种子行外逐字节不变(《寻常》ADR-044 起另立快照)
  *     (快照取自 Slice C 之前的 {@code main} {@code 3e72099},见 {@code golden/world-gen-prompts/});</li>
  * <li>cyberpunk 的提示词含规则数量、来源前缀、7 条结局池、优先序与世界名行;种子池两种开局身份都有;</li>
  * <li>禁用词(卡面名除外)不出现在给模型的正向文字里 —— 只允许出现在「【世界名】」一条与「【禁用词 · 本世界】」一段;</li>
@@ -41,7 +41,9 @@ class PaidanWorldGenTest {
 	/** 快照文件名 → 有序 archetype 列表。 */
 	private static final Map<String, List<String>> SNAPSHOTS = new LinkedHashMap<>();
 	static {
-		for (String id : List.of("rules_creepy", "apocalypse", "cthulhu", "cultivation", "life_sim", "animal_life")) {
+		// ADR-044 待审 7:《寻常》(life_sim)的 world-gen 提示词有意改动(加【小标题】),移出本组,另立快照
+		// XunWorldGenSnapshotTest;它原来那张 golden/world-gen-prompts/life_sim.txt 随之删除(git 历史可查)。
+		for (String id : List.of("rules_creepy", "apocalypse", "cthulhu", "cultivation", "animal_life")) {
 			SNAPSHOTS.put(id, List.of(id));
 		}
 		SNAPSHOTS.put("cultivation_x_rules_creepy", List.of("cultivation", "rules_creepy"));
@@ -57,7 +59,7 @@ class PaidanWorldGenTest {
 
 	@Test
 	void existingWorldGenPromptsAreByteIdenticalExceptTheSeedLine() throws IOException {
-		assertThat(SNAPSHOTS).hasSize(9);
+		assertThat(SNAPSHOTS).hasSize(8);
 		for (Map.Entry<String, List<String>> e : SNAPSHOTS.entrySet()) {
 			String expected = resource("golden/world-gen-prompts/" + e.getKey() + ".txt");
 			for (int i = 0; i < 5; i++) { // 种子随机:多抽几次,前缀都不变

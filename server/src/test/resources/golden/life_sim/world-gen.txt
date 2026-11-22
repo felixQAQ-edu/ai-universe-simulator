@@ -15,6 +15,7 @@ world + character 初值 + rules(规则/法则,形态见下)+ endings + 初始 a
 不要任何前后缀解释文字。字段:
 - schemaVersion:必须为 "0.4";mode:"single";archetypes:["life_sim"]
 - world:{ title, background, tone 用中文;dangerLevel ∈ {low,medium,high,extreme} 取种子给定值 }
+  - world.tone 显示在游戏标题下面,写成一句让玩家想进入这个世界的介绍,从玩家的处境说起;不得写成写作要求、风格说明或氛围词清单。
 - character:{ attributes:{ 上述数值轴,各 0-100 }, traits:2-4 个中文, inventory:1-3 件中文 }
 - rules:6-8 条,皆为该模式的法则/心法/守则形态(读起来是准则与代价,无真假之分,【不要输出 isTrue 字段】):
   - id 用【整数】,从 1 连续编号;
@@ -46,6 +47,9 @@ world + character 初值 + rules(规则/法则,形态见下)+ endings + 初始 a
 正确做法是保持情绪与后果的重量,把镜头停在「发生了什么 / 他选择了什么 / 代价是什么」,
 不进入「具体怎么做」。
 
+【现实边界 · 硬约束】
+不写政治隐喻、不借设定影射现实政治事件或人物;不出现现实品牌和商号;不点名现实在世人物。
+
 【泄露硬约束】绝不把 isTrue / hiddenLogic 的内容,或规则真伪/正确解法,写进 background / tone /
 玩家可见的 rules.content / openingNarrative / availableActions 等任何玩家可见字段。隐藏逻辑只进 hiddenLogic。
 
@@ -68,6 +72,7 @@ world + character 初值 + rules(规则/法则,形态见下)+ endings + 初始 a
   且必须以「别人不知道」的方式出现——【东西还在、人不在了,认得它的只有你和玩家】;
   不解释、不点破、不加说明,更不要列一份回收清单(列出来等于系统指认了记忆点);
   回收永远不加分、不标记。
+- 【小标题】world.subtitle 给这一辈子起一个名字,4–8 个字,挂在这一生开头具体的人、地方或年份上(种子给的年份与地方、家里的排行、身边的同龄人、手边的一样东西之类),要和 background 对得上。它是一个名字,不是几个氛围词或形容词并列,也不概括这一生会怎样、不预告结局。小标题是玩家可见字段,本世界所有对玩家可见字段的要求对它一样适用。
 - 【condition 一律用中文轴名】气力 / 热望 / 路口 / 牵挂——绝不写 vigor / longing / crossroads / ties。
 
 按以下种子生成世界,只回 JSON:

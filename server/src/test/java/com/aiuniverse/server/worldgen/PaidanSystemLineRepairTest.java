@@ -58,9 +58,24 @@ class PaidanSystemLineRepairTest {
 	}
 
 	@Test
+	void lineInSubtitleTriggersOneRepairThenSucceeds() {
+		// ADR-044 最终决策 4:world.subtitle 也是玩家可见字段,系统台词出现在这里同样走一次修复;修复后的小标题照常保留。
+		ScriptedLlm llm = new ScriptedLlm();
+		llm.responses.add(world("cyberpunk", "测", "", "", "").replace("\"title\":\"派单\"",
+				"\"title\":\"派单\",\"subtitle\":\"" + LINE + "\""));
+		llm.responses.add(world("cyberpunk", "测", "", "", "").replace("\"title\":\"派单\"",
+				"\"title\":\"派单\",\"subtitle\":\"九楼的第一单\""));
+		ObjectNode w = new WorldGenService(llm, prompts, mapper).generate("cyberpunk");
+		assertThat(llm.requests).as("恰一次修复").hasSize(2);
+		assertThat(llm.requests.get(1).prompt()).contains("world.subtitle: 「已为你优化时限。」只允许写在 became_benchmark 的 description 里");
+		assertThat(w.path("world").path("subtitle").asString()).isEqualTo("九楼的第一单");
+	}
+
+	@Test
 	void everyPlayerVisibleFieldIsChecked() {
 		String[][] cases = {
 				{ "world.title", world("cyberpunk", "测", "", "", "").replace("\"title\":\"派单\"", "\"title\":\"" + LINE + "\"") },
+				{ "world.subtitle", world("cyberpunk", "测", "", "", "").replace("\"title\":\"派单\"", "\"title\":\"派单\",\"subtitle\":\"" + LINE + "\"") },
 				{ "world.background", world("cyberpunk", "测", "", "", "").replace("\"background\":\"雨夜。\"", "\"background\":\"雨夜。" + LINE + "\"") },
 				{ "world.tone", world("cyberpunk", LINE, "", "", "") },
 				{ "rules[1].content", world("cyberpunk", "测", LINE, "", "") },

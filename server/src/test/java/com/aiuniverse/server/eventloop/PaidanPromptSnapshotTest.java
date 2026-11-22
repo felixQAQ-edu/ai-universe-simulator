@@ -29,6 +29,9 @@ import tools.jackson.databind.node.ObjectNode;
  *
  * <p>world-gen 截到最后一个「场景种子:」之前(种子随机);回合取与 PaidanTurnTest 同一组回合号、同一个最小存档(各轴 50)。
  * <b>快照怎么更新</b>:只在有意改动《派单》提示词时,在改动前的提交上重新生成。
+ *
+ * <p><b>重录记录</b>:ADR-044 刀 1(待审 7《派单》b)重录 {@code world-gen.txt} —— 【世界名】下一行加【小标题】,
+ * 与重录前那份的差异恰好是这一行;回合快照 {@code turn_T*.txt} 未动。
  */
 class PaidanPromptSnapshotTest {
 

@@ -135,7 +135,7 @@ public class WorldGenService {
 		List<String> errors = new ArrayList<>();
 		ObjectNode parsed = tryParse(archetypes, raw, errors);
 		if (parsed != null) {
-			return FixedWorldTitle.apply(archetypes, prompts.registry(), EndingOrder.apply(archetypes, parsed));
+			return landed(archetypes, parsed);
 		}
 
 		// 一次修复(设计稿 §4.3):带校验错误回喂「只回修正后的完整 world JSON」,同样开 json_object。
@@ -147,12 +147,21 @@ public class WorldGenService {
 		List<String> errors2 = new ArrayList<>();
 		ObjectNode parsed2 = tryParse(archetypes, raw2, errors2);
 		if (parsed2 != null) {
-			return FixedWorldTitle.apply(archetypes, prompts.registry(), EndingOrder.apply(archetypes, parsed2));
+			return landed(archetypes, parsed2);
 		}
 
 		// 修复仍败 → 整局 ERROR(设计稿 §4.4:无前态可守,不进半残 PLAYING)。
 		log.error("[world-gen] 修复后仍未过校验({} 条),整局 ERROR:{}", errors2.size(), errors2);
 		throw new WorldGenException("世界生成失败,请重新生成");
+	}
+
+	/**
+	 * 过校验之后、交给播种层之前的三步收口(两条成功路径共用):结局排序({@link EndingOrder})→ 固定世界名覆写
+	 * ({@link FixedWorldTitle})→ 小标题收口({@link WorldSubtitle},ADR-044)。三步互不读对方写的字段。
+	 */
+	private ObjectNode landed(List<String> archetypes, ObjectNode parsed) {
+		ObjectNode world = FixedWorldTitle.apply(archetypes, prompts.registry(), EndingOrder.apply(archetypes, parsed));
+		return WorldSubtitle.apply(archetypes, prompts.registry(), world);
 	}
 
 	/**
@@ -296,12 +305,12 @@ public class WorldGenService {
 
 	/**
 	 * ADR-036「订正(2026-11-10 三)」订正 2:系统台词只允许出现在 {@code became_benchmark} 的 {@code description} 里。
-	 * 查玩家可见的文字:world 的 title / background / tone、rules[].content、openingNarrative、availableActions[].text / hint,
+	 * 查玩家可见的文字:world 的 title / subtitle(ADR-044)/ background / tone、rules[].content、openingNarrative、availableActions[].text / hint,
 	 * 以及其他结局的 title / condition / description(和「成了标杆」的 title / condition)。
 	 * {@code hiddenLogic} 不查(玩家不可见,规则的真实判定可能需要提到它)。匹配不带句号,改了标点也算。
 	 */
 	private static void systemLineErrors(JsonNode world, List<String> errors) {
-		for (String f : List.of("title", "background", "tone")) {
+		for (String f : List.of("title", "subtitle", "background", "tone")) { // subtitle:ADR-044 最终决策 4
 			checkSystemLine("world." + f, world.path("world").path(f), errors);
 		}
 		JsonNode rules = world.path("rules");
