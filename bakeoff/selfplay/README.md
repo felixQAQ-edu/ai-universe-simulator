@@ -123,6 +123,23 @@ python3 bakeoff/selfplay/selfplay.py --out "$HOME/aiuniverse-selfplay/$(date +%Y
 | 回合 SSE `busy` / `internal_error` / 其它 code | 该局停并写原因,继续下一槽位;不补局 | 决策 2(`internal_error` 为本刀假设,见下) |
 | SSE 流里没有 `delta` | 该局停,原因 `sse_incomplete` | 本刀定 |
 
+## 成稿(刀 2 · `SelfPlayDraftTool`,不花钱)
+
+套件跑完(或冒烟跑完)后,在仓库根目录(`$SP` = 套件根目录,一行一条):
+
+```bash
+export SP="$HOME/aiuniverse-selfplay/20261122-a"
+```
+```bash
+./server/mvnw -q -f server/pom.xml test-compile org.codehaus.mojo:exec-maven-plugin:3.5.0:java -Dexec.mainClass=com.aiuniverse.server.eventloop.SelfPlayDraftTool -Dexec.classpathScope=test -Dexec.args="--in $SP"
+```
+
+- 产出 `$SP/drafts/`:每个已开局 attempt 一份 `<slot>-<attempt>.md`(ADR-045 决策 3 模板)+ `summary.md`(不含 saveId);`summary.json` 不改。
+- 写出前对全文过两道扫描(敏感形态 + 本套 saveId;隐藏字段名 + T0 存档里的隐藏字段原文),**任一命中 → 一个文件都不写**,
+  控制台只报类别与计数。`drafts/` 已存在也拒(不覆盖上一次的成稿)。
+- 稿件入库(`docs/long-memory-samples/<suiteId>/`)由 Felix 通读后手动 `cp`(ADR-045 待审 5 / 已知代价 9)。
+- 守护测试:`./server/mvnw -q -f server/pom.xml test -Dtest=SelfPlayDraftToolTest`(全量 `mvn test` 也会跑到,CI 的 server job 覆盖)。
+
 ## 对冻结 T0 续玩(`--resume-t0`)
 
 用于「加记忆账本前后」对比:世界逐字节相同、选项种子相同,回合生成仍随温度变化(ADR-045 勘察 7 (ii))。

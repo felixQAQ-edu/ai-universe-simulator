@@ -402,6 +402,12 @@ python3 bakeoff/selfplay/selfplay.py --out "$HOME/aiuniverse-selfplay/$(date +%Y
 ./server/mvnw -q -f server/pom.xml test-compile org.codehaus.mojo:exec-maven-plugin:3.5.0:java -Dexec.mainClass=com.aiuniverse.server.eventloop.SelfPlayDraftTool -Dexec.classpathScope=test -Dexec.args="--in $HOME/aiuniverse-selfplay/20261122-a --out $HOME/aiuniverse-selfplay/20261122-a/drafts"
 ```
 
+⚠️ 订正(刀 2,2026-11-22;上一条原文不动):实现只收 `--in`,输出固定为 `<套件根目录>/drafts/`(已存在则拒,不覆盖);命令改为:
+
+```bash
+./server/mvnw -q -f server/pom.xml test-compile org.codehaus.mojo:exec-maven-plugin:3.5.0:java -Dexec.mainClass=com.aiuniverse.server.eventloop.SelfPlayDraftTool -Dexec.classpathScope=test -Dexec.args="--in $HOME/aiuniverse-selfplay/20261122-a"
+```
+
 要看什么:首局开出来后 server 日志 `[world-gen] usage` 一行(核成本假设)、轨迹首行 `commit` 不是 `unknown`、
 `summary.json` 里每槽位的结局回合与降级回合数;跑完把终端最后几行(只有数字)贴回来。
 
