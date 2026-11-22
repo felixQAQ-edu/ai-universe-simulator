@@ -344,6 +344,25 @@ class PlanTests(Base):
             ("xun-2", xun, 120, 36, True),
         ])
 
+    def test_smoke_plan_one_game_five_turns_no_rerun(self):
+        self.stub.game_cfgs = [{"ending_at": 1}]  # 即便第 1 回合就结局,也不补局
+        code = self.run_main("--plan", "smoke", seed="1")
+        self.assertEqual(code, sp.EXIT_OK)
+        self.assertEqual(self.stub.init_bodies, [{"archetype": "cultivation"}])
+        e = self.slot("smoke-1")
+        self.assertEqual(len(e["attempts"]), 1)
+        self.assertEqual(self.summary()["rerunsUsed"], 0)
+        self.assertEqual(self.summary()["plan"], "smoke")
+
+    def test_smoke_plan_runs_exactly_five_turns(self):
+        code = self.run_main("--plan", "smoke", seed="1")
+        self.assertEqual(code, sp.EXIT_OK)
+        self.assertEqual(len(self.stub.init_bodies), 1)
+        a = self.slot("smoke-1")["attempts"][0]
+        self.assertEqual((a["turnsPlayed"], a["terminated"], a["short"]), (5, "target_reached", False))
+        self.assertEqual(len(self.stub.landed(0)), 5)
+        self.assertEqual(self.console.strip().splitlines()[-1], "合计 | 局 1 | 补局 0 | 回合 5")
+
     def test_is_short_boundaries(self):
         xiu, xun = sp.DEFAULT_PLAN[0], sp.DEFAULT_PLAN[5]
         self.assertTrue(sp.is_short(xiu, 29))

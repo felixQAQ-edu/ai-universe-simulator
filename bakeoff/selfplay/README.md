@@ -18,6 +18,67 @@ python3 -m unittest discover -s bakeoff/selfplay -v
 - **CI 不跑这组测试**:`.github/workflows/ci.yml` 只有 server(mvn)/ web(npm)/ audit 三个 job,没有 Python job。
   本刀不改 CI;改动 `selfplay.py` 后请手动跑上面这条。
 
+## 冒烟(`--plan smoke`,跑全套之前先跑它;Felix 本机,会花一点钱)
+
+一局修仙、5 回合、不补局(`smoke-1`)。目的只有三件事:world-gen 实测 usage、轨迹里的 `commit`、脚本汇总行都对得上,再开全套。
+
+终端 1 · server(在仓库根目录开始;env 与全套相同,日限额 12):
+
+```bash
+cd server
+```
+```bash
+read -s DEEPSEEK_API_KEY
+```
+```bash
+export DEEPSEEK_API_KEY
+```
+```bash
+export SP="$HOME/aiuniverse-selfplay/$(date +%Y%m%d)-smoke"
+```
+```bash
+mkdir -p "$SP/store" "$SP/traces"
+```
+```bash
+export AIUNIVERSE_LLM_ACTIVE=deepseek-v4-flash
+```
+```bash
+export AIUNIVERSE_SESSION_STORE_DIR="$SP/store"
+```
+```bash
+export AIUNIVERSE_TRACE_DIR="$SP/traces"
+```
+```bash
+export AIUNIVERSE_QUOTA_DAILY_BUDGET_CNY=12
+```
+```bash
+export AIUNIVERSE_QUOTA_INIT_PER_KEY_DAILY=20
+```
+```bash
+export AIUNIVERSE_QUOTA_TURNS_PER_KEY_DAILY=1000
+```
+```bash
+./mvnw -Dgit.sha="$(git rev-parse --short HEAD)" spring-boot:run
+```
+
+终端 2 · 脚本(在仓库根目录;`--out` 必须是仓库外的**新**目录,与终端 1 的 `$SP` 相同):
+
+```bash
+export SP="$HOME/aiuniverse-selfplay/$(date +%Y%m%d)-smoke"
+```
+```bash
+python3 bakeoff/selfplay/selfplay.py --plan smoke --out "$SP" --suite-seed 1
+```
+```bash
+head -c 400 "$SP"/traces/*.trace.jsonl | grep -o '"commit":"[^"]*"'
+```
+
+跑完回贴三样(都不含 saveId;贴之前自己再看一眼):
+
+1. 脚本最后的汇总行(`—— 汇总 ——` 之后那几行,只有槽位名与数字);
+2. 终端 1 server 日志里 `[world-gen] usage` 那一行(内容是 token 数、`model=`、`reasoningChars=`;日志前缀里若带线程名以外的 id,删掉再贴);
+3. 上面 `head -c 400 … | grep -o` 那条的输出(应是 `"commit":"<短 sha>"`,不是 `unknown`)。
+
 ## 跑一套(Felix 本机,会花钱)
 
 server 的起法与 env 见 ADR-045「运行方式」(store / traces 指到套件目录、日限额 ¥12、`-Dgit.sha` 必带)。server 起来之后,在仓库根目录:

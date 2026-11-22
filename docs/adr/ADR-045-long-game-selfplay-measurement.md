@@ -409,6 +409,8 @@ python3 bakeoff/selfplay/selfplay.py --out "$HOME/aiuniverse-selfplay/$(date +%Y
 
 1. 本 ADR 审定(待审清单逐条回填)。
 2. 刀 1:`bakeoff/selfplay/selfplay.py` + 纯离线单测(桩 HTTP server 回放一段录好的 SSE;不碰真 key)。
+   ⚠️ 订正(校勘 2026-11-22;上句原文不动):「回放一段录好的 SSE」改为「**SSE 由测试代码合成**」——
+   不读 `bakeoff/recordings/` 里的真实录制(刀 1 已照此实现,见 `bakeoff/selfplay/test_selfplay.py`)。
 3. 刀 2:测试侧 `SelfPlayDraftTool` + 两道扫描 + 守护测试(仓库内路径拒跑、命中不写、控制台不泄 saveId —— ADR-033 摔过)。
 4. 刀 3:Felix 本机按「运行方式」跑一套;回填「实际效果」;稿件是否入库按待审 5。
 5. 判读口径与勘察底稿另起(不在本 ADR)。

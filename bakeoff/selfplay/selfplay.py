@@ -53,7 +53,12 @@ DEFAULT_PLAN: tuple[Slot, ...] = (
     Slot("xun-1", _XUN, 120, 36, natural=True),
     Slot("xun-2", _XUN, 120, 36, natural=True),
 )
-PLANS = {"default": DEFAULT_PLAN}
+# 冒烟(ADR-045 刀 1b):真 key 前先用一局 5 回合核三件事 —— world-gen usage、轨迹 commit、汇总行。
+# short_below 0 ⇒ 永不判提前结局,不补局。
+SMOKE_PLAN: tuple[Slot, ...] = (
+    Slot("smoke-1", _XIU, 5, 0),
+)
+PLANS = {"default": DEFAULT_PLAN, "smoke": SMOKE_PLAN}
 
 # ── 上限(决策 2;数值写在这里,README 同步)──────────────────────────────
 
