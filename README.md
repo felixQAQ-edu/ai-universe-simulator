@@ -182,6 +182,7 @@ API key 只进环境变量,**绝不写进 yaml / 代码 / 提交**。
 - [ADR-041](docs/adr/ADR-041-lobby-three-zones.md) — 三区大厅:浮世 / 深界 / 渗界(已部署)
 - [ADR-042](docs/adr/ADR-042-saves-area.md) — 存档区:大厅一条继续 + 单独存档页 + 玩家主动移除(已部署)
 - [ADR-043](docs/adr/ADR-043-fusion-seep-layer.md) — 融合局内渗入层:宿主皮肤 + 外来世界渗进来(已部署)
+- [ADR-044](docs/adr/ADR-044-fixed-title-world-subtitle.md) — 固定世界名的三个世界加「每局小标题」(已部署)
 
 ## 文档
 

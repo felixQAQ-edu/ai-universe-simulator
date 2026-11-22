@@ -5,6 +5,9 @@
   ⚠️ 补充(2026-11-22):九个待审项与六条文案由 Felix 交校勘代定,逐条回填在文末两节各项之后(原有选项与理由保留)。
   原状态行:提议(草案;只勘察、只写 ADR,不动代码、不动提示词、不重录 golden。方向与结构约束由 Felix 2026-11-22 定;
   勘察结论、字段落点与落地切分由本 ADR 补齐,需要 Felix 拍板的列在文末「待 Felix 审定清单」与「待 Felix 定的文案」)
+  ⚠️ 补充(2026-11-22,部署后;上文状态、补充与原状态行一字不动):**已部署**。刀 1–2 已 ff 合入 `main`(至 `9510d72`),随 `9510d72` 上线
+  (Felix 2026-11-22 亲手部署;校勘已核 `/actuator/info`:`build.commit = 9510d72`、`build.time = 2026-11-22T01:57:24.421Z`;
+  fly release **v65**,创建于 2026-11-22T01:57:40Z(UTC))。见「实施记录」;局内顶图(待审 2)未做,「实际效果」待冒烟回填。
 - **决策者**:Felix
 
 ## 背景
@@ -280,6 +283,44 @@ world-gen 两个成功路径上、`FixedWorldTitle.apply` 旁边加一步(可并
 3. **刀 3 · docs**:本 ADR 实施记录与状态;CONTEXT §二补充块(可选字段 `world.subtitle`)并升文档版本;
    README ADR 列表一行、ROADMAP(`/roadmap-update`)。
 4. **真 key 冒烟**:**不跑**,除非 Felix 另说。若跑,三个世界各 ≥ 2 局,看小标题有无、长度、是否名字、是否越界。
+
+## 实施记录(2026-11-22;刀 1–3 已落,已部署;真 key 冒烟未跑)
+
+分支 `claude/adr-044-world-subtitle`(基于 `main` `2c7894d`),草案 `3e5e1de`;三个实施 commit 各自可编译可测、各自 push,
+Felix 点头后 ff 合入 `main`(至 `9510d72`),分支删除。
+
+| commit | 内容 |
+|---|---|
+| `f84e2b8` | **回填裁定**:九个待审项与六条文案(校勘代 Felix 定,2026-11-22)逐条回填在文末两节各项之后,三条指令逐字收录;状态改「已定(待实施)」。原有选项与理由保留。 |
+| `a20d478` | **刀 1 · 后端**:新增 `WorldSubtitle`(与 `FixedWorldTitle` 同位,`WorldGenService.landed` 里排在它之后,首过与修复两条成功路径都经过):未登记 `fixedWorldTitle` 的世界(含任何融合局)删 `world.subtitle` 键;三个登记世界去首尾空白,空串 / 非字符串 / 超过 10 字(按 code point)删键,视同漏写,漏写不算 world-gen 失败;登记世界每局一行 INFO(保留 / 删除 / 漏写 + 原文)。三个槽各加一条【小标题】,措辞逐字照本 ADR 的三条指令(《派单》《七日开张》在【世界名】下一行,《寻常》在槽末【condition 一律用中文轴名】之前);`prompts/world-gen.md` 两节逐字同步,升 v0.14(《寻常》槽本就不收录进该文件)。《派单》`systemLineErrors` 的 world 字段清单加 `subtitle`。骨架、`REPAIR_HEAD`、种子池、回合 prompt、`validateWorld`、Engine 一字未动。 |
+| `9510d72` | **刀 2 · 前端(不含局内顶图)**:`World` 与 `SaveSummary` 加可选 `subtitle`;`parseSummary` 遇非字符串小标题当作没有、条目照常显示,`serializeSummary` 没有小标题时不写这个键(旧形态指针序列化逐字节不变),`sameSummary` 比小标题;`recordFromWorld` 只写非空字符串。新组件 `saves/SaveTitle` 供存档页条目与大厅「继续」行共用:没有小标题时渲染与改动前相同的 `svTitle` span,有小标题时「 · 小标题」单独一个元素、整行单行省略兜底(只挂在有小标题的行上)。`saveText` 加 `shownSubtitle` / `saveName`,撤销条与移除按钮 aria-label 经同一处拼《派单 · 小标题》。`SceneBanner` 一字未动。 |
+
+**测试与 CI**:刀 1 `mvn clean test` 1101 个全绿(新增 `WorldSubtitleTest` 9、`XunWorldGenSnapshotTest` 2、`PaidanSystemLineRepairTest` +1);
+刀 2 `npm test` 59 个文件 858 个全绿,lint、build 通过。GitHub Actions CI:#361(`f84e2b8`)、#362(`a20d478`)、#363(`9510d72`,分支)、
+#364(`9510d72`,合入 `main` 后)全绿。
+
+**两张快照(待审 7)**:
+- 《寻常》:移出 `PaidanWorldGenTest` ①「既有世界」组(9 → 8),另立 `XunWorldGenSnapshotTest` + `golden/life_sim/world-gen.txt`,
+  出处 = `a20d478` 的 `buildWorldPrompt("life_sim")`(截到最后一个「场景种子:」之前)。录制时与旧快照 `golden/world-gen-prompts/life_sim.txt`
+  (`3e72099`)diff:差异恰好是 ADR-037 的 tone 行、【现实边界】块(旧快照比对前本就剔掉的两处)与这一条【小标题】;旧快照随之删除(git 记为改名)。
+- 《派单》:重录 `golden/cyberpunk/world-gen.txt`,出处 = `a20d478`;与重录前 diff 恰好多【小标题】一行。回合快照 `turn_T*` 未动。
+- 《七日开张》:没有整份 world-gen 快照(`QiriWorldGenTest` 只有 md lockstep 与内容断言),照实不新建。
+- 其余 8 张 world-gen 快照与全部回合 golden 逐字节不变(由既有测试证明)。
+
+**无小标题时 DOM 对拍(§4.5.1)**:`SavesNoSubtitleDom.test` + `__fixtures__/adr044-no-subtitle-dom.html`,基线在 `a20d478` 的前端原样上录
+(stash 掉刀 2 改动后跑同一场景),覆盖存档页两组、撤销条、大厅「继续」块;改动后逐字节相同。
+
+**375 视口读数**(dev server,本地指针播种):10 字小标题「七日开张 · 一二三四五六七八九十」在「继续」行 274px、存档页 294px 内不溢出
+(`scrollWidth = clientWidth`);小标题计算字体 `system-ui`,不含 `XunSong` / `QiriKai`;未挂单行类的长名仍 `white-space: normal`。
+
+**两处实施裁定**(本 ADR 正文没写到,实现时定,记在这里):
+1. **`"subtitle": null` 按漏写处理**:登记世界里键在但值为 JSON `null` 时,与没写这个键走同一分支(删键、INFO 记「漏写」),
+   不记成「删除(不是字符串)」。理由:模型写 `null` 的意思就是「没起」,日志里归到漏写率才对得上待审 1 的「先读漏写率」。
+2. **未登记世界只在带了这个键时才记 INFO**:没有这个键时原样返回,不写日志(其余世界的日志与输出都不变);
+   带了键才删并记一行「未登记固定世界名,删除 world.subtitle,原文=…」(`WorldSubtitleTest` 钉了「没这个键不记日志」)。
+
+**遗留**(登记进 ROADMAP 挂账,本 ADR 不做):局内顶图摆法(待审 2,等样张);存档行小标题字重(现与固定名同为 600,等 Felix 真机看);
+《寻常》槽缺【世界名】软层(挂账项第一条,照旧)。
 
 ## 实际效果(事后补充)
 

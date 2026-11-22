@@ -72,6 +72,14 @@
 - **id 约定(v0.2 收敛,见 ADR-001 / bakeoff FINDINGS F-001)**:`rules[].id` 用**整数**(便于引擎引用、状态回传里轻量);`endings[].id` 用 **snake_case 英文字符串**(作为稳定语义标识,便于命中判定与跨回合引用)。两者刻意不同且**各自固定**——生成时务必按类型产出,勿混用。
 - **endings 字段(v0.2)**:`title` 必填(短标题);`description` 可选(整句结局描述,模型偏好产出,予以承认);`condition` 为可判定的中文条件;`reached` 初始 `false`。`outcome` **可选**(v0.4,ADR-010 F-014):结局极性 `success | failure | neutral`,**world-gen 时 AI 标**(它是结局作者、最清楚好坏),**引擎只读不解读**(据它在致命轴濒零时拒绝 `success` 结局,§三.8);缺省视 `neutral`/不 gate(向后兼容)。`outcome` 是结局元信息非作者隐藏字段,`toClientState` **不剥它**(客户端可不显)。
 - `character.attributes` 为**必填对象**,至少含该模式的核心数值(规则怪谈:`hp`/`san`)。
+- ⚠️ **补充(ADR-044,2026-11-22;上文原文与 schema 块一字不动)**:`world` 多一个**可选**字段 **`subtitle`**(每局小标题,玩家可见中文短名)。
+  **只有登记了 `fixedWorldTitle` 的单体世界才可能有**(截至 `9510d72`:《派单》`cyberpunk`、《寻常》`life_sim`、《七日开张》`time_travel`);
+  由 AI 在 world-gen 时按这一局的内容起名,只进这三个世界的指令槽,骨架不提它。**服务端收口**(`WorldSubtitle`,与 `FixedWorldTitle` 同位,
+  过校验之后、落盘之前):未登记的世界(含任何融合局)删掉这个键;三个登记世界去首尾空白,空串 / 非字符串 / `null` / 超过 10 字(按 code point)删键、
+  视同漏写;**漏写不算 world-gen 失败**(不进修复、不 ERROR)。**引擎与校验器都不读它**(`validateWorld` 不校验、Engine 不认识),
+  它随整个 `world` 对象原样进视图 1(落盘)/ 视图 2(喂模型)/ 视图 3(客户端),续局回载读盘上的值。前端存档指针另存一份可选 `subtitle`
+  (不是字符串当作没有,条目照常显示)。JSON **`schemaVersion` 不动(仍 "0.4")**:可选的展示字段,旧档与其余世界没有这个键。
+  出处 [ADR-044](adr/ADR-044-fixed-title-world-subtitle.md)。
 
 ## 三、关键约定
 
@@ -279,6 +287,7 @@
 | v0.9 | 2026-06-25 | 加世界流水线第一次复用·克苏鲁(`cthulhu`)落地 + 真 key 冒烟验通:§三.4 archetype 枚举追加 `cthulhu`(已激活,签名轴=禁忌知识 `knowledge` 累积型双刃)、§三.15 已激活示例补 cthulhu;§三.14 轴行为提示字段 `decay` 泛化为 `behaviorHint`(涵盖衰减/累积/联动,引擎仍不读),并记两条架构缺口 F-012(引擎 ≤0 触底假设只对 depletion 轴成立)/ F-013(骨架强制 isTrue 与非真假守则世界冲突)——均本批提示词兜、引擎正解留修仙批。约定层补充,JSON `schemaVersion` 仍 "0.2"(registry 伴生字段 + 元数据提示文本,非 state schema 变更),仅 CONTEXT 文档版本升 v0.9 |
 | **v1.0** | 2026-06-25 | **修仙(`cultivation`)落地 + ADR-009 架构正解(根治 F-012/F-013),真 key 冒烟验通**:§三.4 枚举 `cultivation` 标已激活(全新数值体系 `{hp,mana,realm}`=气血/灵力/境界,主角轴=境界 accumulation)、§三.5/§三.15 同步;**§二 `rules[].isTrue` 改可选**(F-013,校验零分派)+ **JSON `schemaVersion` "0.2"→"0.3"**(首次真动字段约束;`WORLD_SCHEMA` 接受双版本守 parity 夹具,见 ADR-009);**§三.8 触底按轴角色 `axisRole`**(depletion ≤0 致死 / accumulation 不触底,F-012 引擎根治)、**§三.14 元数据增 `axisRole` + `rulesCarryTruth`**。golden parity 字节级守 depletion 零回归(server 173 / web 30 全绿)。F-012/F-013 已关闭。CONTEXT 文档版本升 v1.0(本批是首个真动 JSON `schemaVersion` 的批次)。 |
 | **v1.1** | 2026-06-26 | **结局极性 gate(ADR-010 根治 F-014 + 关闭 F-015),真 key 冒烟验通**:**§二 `endings[].outcome` 新增**(可选极性 `success|failure|neutral`,AI 标、引擎只读;`toClientState` 不剥)+ **JSON `schemaVersion` "0.3"→"0.4"**(`WORLD_SCHEMA` 接受 `{0.2,0.3,0.4}` 三版本守 parity);**§三.8 结局极性 gate**(致命轴濒零 ≤`ENDING_GATE_THRESHOLD`(10)时引擎拒绝 AI `outcome==success` 结局、据极性确定性挑 failure;触底/gate 收窄到致命轴)+ **§三.14 元数据增 `lethal`**(depletion 内部细分致命生命轴/非致命资源轴;灵力 `lethal=false` 关闭 F-015)。引擎只读 outcome 标 + lethal 轴值、不懂结局语义(守 ADR-008);golden parity 字节级零回归(server 188 / web 30 全绿)。真 key 冒烟两局验通:气血 0→拦成功结局给「身死道消」、气血 5 濒死未死→不强制结束给挣扎选项(两边界都对);灵力两局 0 未误死。F-014/F-015 已关闭。CONTEXT 文档版本升 v1.1。 |
+| **v3.2** | 2026-11-22 | **ADR-044 回写**:§二字段职责末加补充块 —— `world` 多一个可选字段 `subtitle`(每局小标题;只有登记了 `fixedWorldTitle` 的三个单体世界可能有;服务端 `WorldSubtitle` 收口:未登记世界删键,三个世界去空白、空串 / 非字符串 / `null` / 超过 10 字删键、漏写不算失败;引擎与校验器都不读;随 `world` 进三视图)。上文原文与 schema 块一字未动。**JSON `schemaVersion` 不动(仍 "0.4")**;仅 CONTEXT 文档版本升 v3.2。 |
 | **v3.1** | 2026-11-21 | **ADR-041 回写**:§三.15 加补充块 —— 目录每项多一个必填字段 `experienceMode`(`"fushi"` / `"shenjie"`;只在大厅成立;融合世界不带、一律进第三区「渗界」;前端缺键按 `"shenjie"`;大厅三项偏好只存浏览器本地)。上文原文与既有补充段一字未动。**JSON `schemaVersion` 不动(仍 "0.4")**;仅 CONTEXT 文档版本升 v3.1。 |
 | **v3.0** | 2026-11-15 | **ADR-040 回写**:§三.9 再加一个补充块 —— 视图 3 新增下发时现算的展示数据 `markedTurns`(《寻常》牵挂升档的回合号;只登记 `life_sim`;来源是已落盘的 issues 标记行;空清单不写键;已结束的局照常给)。上文原文与 ADR-039 补充块一字未动;§三.18(e) 未加句(拿不准则只写 §三.9,照 ADR-040 实施回写项)。**JSON `schemaVersion` 不动(仍 "0.4")**;仅 CONTEXT 文档版本升 v3.0。 |
 | **v2.9** | 2026-11-13 | **ADR-039 回写**:§三.9 加补充块 —— 视图 3 新增两项下发时现算的展示文字 `timeLabel` 与选项 `tag`(只登记 `time_travel`;没有就不写键;落点 `ClientProjection`,存档与喂模型的选项文字不动;`tag` 只来自服务端登记表)。上文原文一字未动。**JSON `schemaVersion` 不动(仍 "0.4")**;仅 CONTEXT 文档版本升 v2.9。 |
