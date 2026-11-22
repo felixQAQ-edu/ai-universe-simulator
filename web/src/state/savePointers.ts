@@ -25,6 +25,11 @@ export interface SaveSummary {
   saveId: string;
   /** 世界名(`world.title`);迁移来的旧指针在首次续局成功前为空串。 */
   title: string;
+  /**
+   * 每局小标题(`world.subtitle`,ADR-044;只有登记了固定世界名的三个世界会有)。**可选**:旧指针、旧档、漏写都没有这个键。
+   * 存在但不是字符串时当作没有(ADR-044 待审 5),条目照常显示 —— 小标题不决定这一局能不能打开。
+   */
+  subtitle?: string;
   /** 单体一个;融合为 host 在前的有序对。迁移来的旧指针为空数组。 */
   archetypes: Archetype[];
   turn: number;
@@ -54,7 +59,7 @@ export interface SavePointers {
   /** 旧单槽键 → 新键(ADR-034 已决 7)。幂等。 */
   migrateLegacy(): void;
   /**
-   * **唯一的删除条目函数**(ADR-042 决策 2):当前键解析出的摘要七个字段与 `expected` 全等才删,否则什么都不做。
+   * **唯一的删除条目函数**(ADR-042 决策 2):当前键解析出的摘要七个字段(ADR-044 起连同可选的小标题)与 `expected` 全等才删,否则什么都不做。
    * 撤销窗口那 5 秒里,别的页签可能刚续了这一局(回合号 / 上次游玩时间变了)—— 那时删掉的就是玩家刚在玩的一局。
    * 解析失败的键不删(ADR-034 已知代价 5)。删了返回 true。
    */
@@ -93,6 +98,8 @@ export function parseSummary(saveId: string, raw: string | null): SaveSummary | 
   return {
     saveId,
     title: o.title,
+    // 小标题不合形状(不是字符串)→ 当作没有,不让整条解析失败(ADR-044 待审 5)。没有时不写这个键。
+    ...(typeof o.subtitle === 'string' ? { subtitle: o.subtitle } : {}),
     archetypes: o.archetypes as Archetype[],
     turn: o.turn,
     ended: o.ended,
@@ -105,6 +112,8 @@ export function serializeSummary(s: SaveSummary): string {
   return JSON.stringify({
     saveId: s.saveId,
     title: s.title,
+    // 没有小标题时不写这个键:旧形态的指针序列化结果与 ADR-044 之前逐字节相同。
+    ...(s.subtitle !== undefined ? { subtitle: s.subtitle } : {}),
     archetypes: s.archetypes,
     turn: s.turn,
     ended: s.ended,
@@ -239,11 +248,12 @@ export function createSavePointers(
   };
 }
 
-/** 七个字段逐项相等(`archetypes` 按顺序比;融合是有序对)。 */
+/** 七个字段 + 可选的小标题(ADR-044)逐项相等(`archetypes` 按顺序比;融合是有序对)。 */
 function sameSummary(a: SaveSummary, b: SaveSummary): boolean {
   return (
     a.saveId === b.saveId &&
     a.title === b.title &&
+    a.subtitle === b.subtitle &&
     a.archetypes.length === b.archetypes.length &&
     a.archetypes.every((x, i) => x === b.archetypes[i]) &&
     a.turn === b.turn &&

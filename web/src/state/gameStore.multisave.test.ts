@@ -245,3 +245,51 @@ describe('撤销窗口走完后的删除(ADR-042 决策 2)', () => {
     expect(raw('n1')).not.toBeNull();
   });
 });
+
+describe('小标题进指针(ADR-044)', () => {
+  const withSubtitle = (saveId: string, subtitle: unknown): InitResult => {
+    const r = result(saveId, '派单');
+    (r.world.world as unknown as Record<string, unknown>).subtitle = subtitle;
+    return r;
+  };
+
+  it('开局与续局:存档里有小标题 → 指针带它;没有 → 指针没有这个键(与之前逐字节相同)', async () => {
+    const { api, initQueue, resumeQueue } = scriptedApi();
+    initQueue.push({ res: withSubtitle('s1', '九楼的第一单') });
+    initQueue.push({ res: result('s2', '派单') });
+    resumeQueue.push(withSubtitle('s2', '换电柜前三个人'));
+    const store = createGameStore(api, { now: () => 5 });
+    await store.getState().startGame('cyberpunk');
+    expect(ptr('s1').subtitle).toBe('九楼的第一单');
+    await store.getState().startGame('cyberpunk');
+    expect(raw('s2')).toBe(
+      JSON.stringify({ saveId: 's2', title: '派单', archetypes: ['rules_creepy'], turn: 0, ended: false, lastPlayedAt: 5, availability: 'available' }),
+    );
+    await store.getState().resumeGame('s2');
+    expect(ptr('s2').subtitle).toBe('换电柜前三个人');
+  });
+
+  it('下发里的小标题是空串或不是字符串 → 不写进指针', async () => {
+    const { api, initQueue } = scriptedApi();
+    initQueue.push({ res: withSubtitle('s1', '') });
+    initQueue.push({ res: withSubtitle('s2', 7) });
+    const store = createGameStore(api);
+    await store.getState().startGame('cyberpunk');
+    await store.getState().startGame('cyberpunk');
+    expect('subtitle' in ptr('s1')).toBe(false);
+    expect('subtitle' in ptr('s2')).toBe(false);
+  });
+
+  it('回合落地的 patch 保留小标题', async () => {
+    const { api, initQueue, stream } = scriptedApi();
+    initQueue.push({ res: withSubtitle('s1', '九楼的第一单') });
+    const store = createGameStore(api);
+    await store.getState().startGame('cyberpunk');
+    store.getState().chooseAction('A');
+    stream().d.forEach((cb) =>
+      cb({ turn: 1, status: 'ongoing', attributes: { hp: 90 }, discoveredRules: [], availableActions: [{ id: 'A', text: '走', hint: '' }] }),
+    );
+    expect(ptr('s1').turn).toBe(1);
+    expect(ptr('s1').subtitle).toBe('九楼的第一单');
+  });
+});

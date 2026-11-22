@@ -236,6 +236,10 @@ export function createGameStore(api: GameApi, opts: GameStoreOptions = {}) {
       pointers.write({
         saveId,
         title: world.world?.title ?? '',
+        // ADR-044:存档里有小标题才写这个键(没有时指针与之前逐字节相同)。
+        ...(typeof world.world?.subtitle === 'string' && world.world.subtitle
+          ? { subtitle: world.world.subtitle }
+          : {}),
         archetypes: [...(world.archetypes ?? [])],
         turn: world.state?.turn ?? 0,
         ended: world.state?.status === 'ended',

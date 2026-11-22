@@ -60,6 +60,19 @@
   line-height: 1.35;
 }
 
+/* 有小标题的那一行(ADR-044 待审 4):整行单行、溢出省略作兜底(小标题服务端已限 ≤ 10 字)。
+ * 只挂在有小标题的行上 —— 其余世界的长名照旧换行,计算样式与之前相同。 */
+.svTitleOneLine {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 小标题(连同前面的「 · 」)单独一个元素。字体显式跟随页面(存档区不设 --title-font,这里写明不吃任何世界的子集字体)。 */
+.svSubtitle {
+  font-family: inherit;
+}
+
 .svMeta {
   display: block;
   font-size: 0.78rem;

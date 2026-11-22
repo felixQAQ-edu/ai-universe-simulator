@@ -14,8 +14,9 @@ import { screens, useSavesView } from '../../state/screens';
 import { CONTINUE_LOST_NOTICE, useContinueNotice } from '../../state/continueNotice';
 import { onSavePointersChanged } from '../../state/savePointers';
 import { lobbyPrefs, onLobbyPrefsChanged, type LobbyZone } from '../../state/lobbyPrefs';
-import { describeSave, UNTITLED_SAVE } from './saveText';
+import { describeSave } from './saveText';
 import { pickContinue } from './saves/pick';
+import { SaveTitle } from './saves/SaveTitle';
 import saveStyles from './saves/saves.module.css';
 import { discoveredFusions, hasUndiscovered, initialZone, zoneOfWorld } from './lobby';
 import type { ArchetypeSummary } from '../../api';
@@ -390,7 +391,7 @@ export function ArchetypeSelect() {
               <button type="button" className={saveStyles.svCont} onClick={() => void onContinue(cont.saveId)}>
                 <span className={saveStyles.svLabel}>继续</span>
                 <span>
-                  <span className={saveStyles.svTitle}>{cont.title || UNTITLED_SAVE}</span>
+                  <SaveTitle save={cont} />
                   <span className={saveStyles.svMeta}>{describeSave(cont, nameOf)}</span>
                 </span>
                 <span className={saveStyles.svChev} aria-hidden="true">

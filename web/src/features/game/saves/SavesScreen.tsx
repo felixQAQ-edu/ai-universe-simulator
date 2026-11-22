@@ -8,8 +8,9 @@ import { onSavePointersChanged, type SaveSummary } from '../../../state/savePoin
 import { screens, useSavesView } from '../../../state/screens';
 import styles from '../game.module.css';
 import lobbyStyles from '../lobby.module.css';
-import { describeSave, removalMessage, UNTITLED_SAVE } from '../saveText';
+import { describeSave, removalMessage, saveName } from '../saveText';
 import { ZONE_CLASS } from '../zoneClass';
+import { SaveTitle } from './SaveTitle';
 import sv from './saves.module.css';
 import { useRemovalWindow } from './useRemovalWindow';
 
@@ -151,14 +152,14 @@ export function SavesScreen() {
                   }}
                   onClick={() => void open(s.saveId)}
                 >
-                  <span className={sv.svTitle}>{s.title || UNTITLED_SAVE}</span>
+                  <SaveTitle save={s} />
                   <span className={sv.svMeta}>{describeSave(s, nameOf)}</span>
                   {off && <span className={sv.svOff}>暂时无法找回 · 点此重试</span>}
                 </button>
                 <button
                   type="button"
                   className={sv.svRemove}
-                  aria-label={s.title ? `从这台设备移除《${s.title}》` : '从这台设备移除这一局'}
+                  aria-label={s.title ? `从这台设备移除《${saveName(s)}》` : '从这台设备移除这一局'}
                   ref={(el) => {
                     if (el) removeRefs.current.set(s.saveId, el);
                     else removeRefs.current.delete(s.saveId);

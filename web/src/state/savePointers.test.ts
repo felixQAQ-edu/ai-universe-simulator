@@ -214,6 +214,57 @@ describe('removeIfUnchanged:唯一的删除函数,比对后删(ADR-042 决策 2)
   });
 });
 
+describe('小标题(ADR-044):可选字段', () => {
+  const OLD_FORM = { saveId: 'o', title: '派单', archetypes: ['cyberpunk'], turn: 3, ended: false, lastPlayedAt: 9, availability: 'available' };
+
+  it('旧形态(没有 subtitle 键)照常解析,结果里也没有这个键', () => {
+    localStorage.setItem('aiuniverse.save.o', JSON.stringify(OLD_FORM));
+    const { entries, skipped } = createSavePointers().list();
+    expect(skipped).toBe(0);
+    expect(entries).toEqual([OLD_FORM]);
+    expect('subtitle' in entries[0]).toBe(false);
+  });
+
+  it('没有小标题时序列化与 ADR-044 之前逐字节相同(七个字段、原顺序)', () => {
+    const p = createSavePointers();
+    p.write(OLD_FORM as SaveSummary);
+    expect(localStorage.getItem('aiuniverse.save.o')).toBe(JSON.stringify(OLD_FORM));
+  });
+
+  it('新形态往返:写入 → 读回 → patch 后仍在', () => {
+    const p = createSavePointers();
+    p.write(sum('n', 1, { title: '七日开张', subtitle: '柳筐街的热汤' }));
+    expect(p.read('n')).toEqual(sum('n', 1, { title: '七日开张', subtitle: '柳筐街的热汤' }));
+    expect(p.patch('n', { turn: 5 })).toBe(true);
+    expect(p.read('n')?.subtitle).toBe('柳筐街的热汤');
+    expect(p.read('n')?.turn).toBe(5);
+  });
+
+  it('坏形态(subtitle 不是字符串)→ 当作没有小标题,条目照常显示,不算解析失败、不删', () => {
+    for (const bad of [7, null, true, ['x'], { a: 1 }]) {
+      localStorage.clear();
+      localStorage.setItem('aiuniverse.save.o', JSON.stringify({ ...OLD_FORM, subtitle: bad }));
+      const { entries, skipped } = createSavePointers().list();
+      expect(skipped, String(bad)).toBe(0);
+      expect(entries, String(bad)).toEqual([OLD_FORM]);
+      expect(localStorage.getItem('aiuniverse.save.o'), String(bad)).not.toBeNull();
+    }
+  });
+
+  it('removeIfUnchanged 也比小标题:窗口期间小标题变了(别的页签续了这一局)→ 不删', () => {
+    const p = createSavePointers();
+    const before = sum('n', 1, { subtitle: '九楼的第一单' });
+    p.write(before);
+    p.write({ ...before, subtitle: '换电柜前三个人' });
+    expect(p.removeIfUnchanged(before)).toBe(false);
+    expect(p.read('n')).not.toBeNull();
+    p.write({ ...before, subtitle: undefined });
+    expect(p.removeIfUnchanged(before)).toBe(false);
+    p.write(before);
+    expect(p.removeIfUnchanged(before)).toBe(true);
+  });
+});
+
 describe('源码级边界:只有存档指针模块碰存档相关的 localStorage 键', () => {
   // 用 Vite 原生 ?raw 读源码(ADR-022 刀 1 先例;node:fs 在 jsdom 下解析不出路径)。
   const sources = import.meta.glob('/src/**/*.{ts,tsx}', {

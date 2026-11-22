@@ -27,6 +27,11 @@ export type GameStatus = 'ongoing' | 'ended';
 
 export interface World {
   title: string;
+  /**
+   * 每局小标题(ADR-044):只有登记了固定世界名的单体世界(《派单》《寻常》《七日开张》)才可能有;
+   * 服务端已收口(去空白、≤ 10 字、其余世界删键)。旧档、漏写都没有这个键。`schemaVersion` 仍 "0.4"。
+   */
+  subtitle?: string;
   background: string;
   dangerLevel: DangerLevel;
   tone: string;
