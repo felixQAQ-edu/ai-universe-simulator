@@ -434,10 +434,79 @@ python3 bakeoff/selfplay/selfplay.py --out "$HOME/aiuniverse-selfplay/$(date +%Y
 
 ## 附录 A · 线上计数脚本原文(逐字)
 
-> ⚠️ **待补**:简报要求「脚本原文放 ADR 附录(校勘给出的那段,逐字)」,但本次简报**未附脚本原文**。
-> 本 ADR 不凭数字反推重写一份(那会是一段没跑过的代码冒充出处)。由 Felix 贴入后单独 commit。
+Felix 2026-11-22 在本机对 `/data/traces` 只读拷贝运行的就是下面这段;调用方式 = 第一行。
+
+```
+python3 -I - ~/wanjie-stats/traces-1122 <<'PY'
+import json, sys, os, statistics as st
+d = sys.argv[1]
+files = sorted(f for f in os.listdir(d) if f.endswith('.trace.jsonl'))
+buckets = {'01-10':0,'11-20':0,'21-30':0,'31-50':0,'51-100':0,'101+':0}
+rows, bad, partial, calls = [], 0, 0, {}
+for f in files:
+    turns = []
+    try:
+        with open(os.path.join(d, f), encoding='utf-8') as fh:
+            for line in fh:
+                if not line.endswith('\n'):
+                    partial += 1; break
+                turns.append(json.loads(line))
+    except Exception:
+        bad += 1; continue
+    n = len(turns)
+    if n == 0: continue
+    k = '01-10' if n<=10 else '11-20' if n<=20 else '21-30' if n<=30 else '31-50' if n<=50 else '51-100' if n<=100 else '101+'
+    buckets[k] += 1
+    if n <= 30: continue
+    pt = []
+    for t in turns:
+        u = t.get('usage') or []
+        for c in u: calls[c.get('call')] = calls.get(c.get('call'), 0) + 1
+        v = (u[0].get('usage') or {}).get('promptTokens', -1) if u else -1
+        pt.append(v)
+    pre = turns[0].get('pre') or {}
+    arch = '×'.join((pre.get('world') or {}).get('archetypes') or ['?'])
+    last = (turns[-1].get('pre') or {}).get('state') or {}
+    deg = sum(1 for t in turns if t.get('path') == 'degraded')
+    ok = [p for p in pt if p >= 0]
+    rows.append((n, arch, deg, ok[0] if ok else '-', int(st.median(ok)) if ok else '-', ok[-1] if ok else '-', len(last.get('logSummary') or '')))
+print(f'轨迹文件 {len(files)}(无法解码 {bad},半截末行 {partial})')
+print('每局已落地回合数分布:', '  '.join(f'{k}:{v}' for k, v in buckets.items()))
+print('调用名计数(长局内):', calls)
+print('> 30 回合的局(按回合数降序):回合 | 世界 | 降级回合 | 主调用 promptTokens 首/中位/末 | 末回合 logSummary 字符数')
+for r in sorted(rows, reverse=True):
+    print(f'{r[0]} | {r[1]} | {r[2]} | {r[3]}/{r[4]}/{r[5]} | {r[6]}')
+PY
+```
+
+附注:脚本由校勘写,先在云端容器用合成轨迹试跑过;线上数据只在 Felix 本机跑过。
 
 ## 附录 B · 线上计数输出(只抄数字行)
 
-> ⚠️ **待补**:脚本的原始输出行同样未随简报提供。数字本身已写在「背景 · 线上计数」(取自简报,Felix 2026-11-22 本机读数);
-> 本节不按那些数字仿写一份「输出」(格式是编的就不是出处)。原始数字行贴入后放在这里,与附录 A 同一个 commit。
+原始输出数字行,逐字:
+
+```text
+轨迹文件 92(无法解码 0,半截末行 0)
+每局已落地回合数分布: 01-10:48  11-20:16  21-30:9  31-50:8  51-100:4  101+:7
+调用名计数(长局内): {'主调用': 1780, '修复': 236}
+> 30 回合的局(按回合数降序):回合 | 世界 | 降级回合 | 主调用 promptTokens 首/中位/末 | 末回合 logSummary 字符数
+300 | cultivation | 5 | 3223/4803/5689 | 2546
+215 | cultivation | 5 | 3055/4389/4977 | 1781
+165 | cultivation | 2 | 2999/4069/4594 | 1331
+151 | cultivation | 6 | 2984/4140/4569 | 1205
+119 | cultivation | 1 | 2813/3690/4016 | 917
+108 | life_sim | 0 | 4699/5585/5884 | 818
+108 | cultivation | 1 | 2960/3821/4113 | 818
+86 | cultivation | 2 | 2941/3936/4195 | 638
+79 | cultivation | 0 | 2841/3625/3801 | 582
+75 | cultivation | 0 | 2823/3607/3830 | 550
+59 | life_sim | 0 | 4868/5582/5616 | 422
+50 | rules_creepy | 0 | 2254/2944/3112 | 350
+48 | life_sim | 0 | 4907/5690/5762 | 334
+48 | life_sim | 0 | 4813/5658/5869 | 334
+35 | life_sim | 0 | 4783/5391/5567 | 230
+35 | cultivation | 0 | 2828/3491/3582 | 230
+34 | rules_creepy | 0 | 2387/2955/3053 | 222
+33 | cthulhu | 1 | 2718/3327/3456 | 214
+32 | cultivation | 0 | 3039/3732/3910 | 206
+```
