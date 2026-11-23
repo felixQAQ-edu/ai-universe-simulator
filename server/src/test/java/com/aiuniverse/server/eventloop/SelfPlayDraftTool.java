@@ -211,6 +211,9 @@ public final class SelfPlayDraftTool {
 				.findFirst().orElseThrow(() -> new Refused("槽位 " + slot + " #" + attempt + " 的 http 记录没有 init / resume 行"));
 		JsonNode resp = start.path("response");
 		JsonNode world = resp.path("world");
+		// title / subtitle / background / tone 在 InitResponse.world 的 world 子对象下(world.world.title …,
+		// 同 WorldGenService.systemLineErrors、FixedWorldTitle 的读法);archetypes / character / rules 在外层。
+		JsonNode worldMeta = world.path("world");
 		String opening;
 		if ("resume".equals(start.path("type").asString(""))) {
 			opening = originOpening(mapper, origin, slot, attempt);
@@ -250,8 +253,8 @@ public final class SelfPlayDraftTool {
 		String commit = byTurnBefore.isEmpty() ? "—" : byTurnBefore.firstEntry().getValue().commit();
 
 		StringBuilder sb = new StringBuilder();
-		String title = world.path("title").asString("");
-		String subtitle = world.path("subtitle").asString("");
+		String title = worldMeta.path("title").asString("");
+		String subtitle = worldMeta.path("subtitle").asString("");
 		sb.append("# ").append(slot).append(" · ").append(title);
 		if (!subtitle.isEmpty()) {
 			sb.append("(").append(subtitle).append(")");
@@ -271,8 +274,8 @@ public final class SelfPlayDraftTool {
 		}
 
 		sb.append("\n## 世界(视图 3)\n\n");
-		sb.append("- 背景:").append(world.path("background").asString("")).append("\n");
-		sb.append("- 基调:").append(world.path("tone").asString("")).append("\n");
+		sb.append("- 背景:").append(worldMeta.path("background").asString("")).append("\n");
+		sb.append("- 基调:").append(worldMeta.path("tone").asString("")).append("\n");
 		sb.append("- 人物:traits ").append(joinStrings(world.path("character").path("traits")))
 				.append(" · inventory ").append(joinStrings(world.path("character").path("inventory"))).append("\n");
 		sb.append("- 规则:\n");
@@ -332,7 +335,8 @@ public final class SelfPlayDraftTool {
 				sb.append("- 本回合写下的 timeline:(http 无此回合)\n");
 				continue;
 			}
-			sb.append("\n").append(h.narrative()).append("\n\n");
+			// 成稿输出去掉叙事末尾空白(流末常带空行);上面的比对口径不动(两侧各自 strip)。
+			sb.append("\n").append(h.narrative().stripTrailing()).append("\n\n");
 			JsonNode before = h.line().path("pre").path("world").path("character").path("attributes");
 			JsonNode afterState = h.line().path("post").path("world");
 			JsonNode after = afterState.isMissingNode() ? h.line().path("axes")

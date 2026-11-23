@@ -468,10 +468,27 @@ class WorldGenRetryTests(Base):
         self.assertEqual(self.summary()["rerunsUsed"], 0)
         self.assertEqual(self.stub.landed(0), expected_stream("W", "t-1", 1, 12))  # 仍是 attempt 1 的种子
 
+    def test_smoke_all_init_failed_is_not_plain_done(self):
+        # 冒烟第一次的形状:唯一槽位 3 次 502 → 开局失败;汇总不得写「完成」、退出码不得为 0
+        self.stub.init_script = [502, 502, 502]
+        code = self.run_main("--plan", "smoke", seed="1")
+        self.assertEqual(code, sp.EXIT_SLOT_FAILED)
+        self.assertNotEqual(code, sp.EXIT_OK)
+        self.assertEqual(self.slot("smoke-1")["result"], "开局失败")
+        self.assertEqual(self.summary()["status"], "完成(有失败槽位 1)")
+        self.assertIn("状态 完成(有失败槽位 1)", self.console)
+
+    def test_failed_result_classifier(self):
+        for r in ("开局失败", "中止(busy)", "中止(stale)"):
+            self.assertTrue(sp._is_failed_result(r), r)
+        for r in ("达标", "未达目标", "续玩失败", "未跑", None):
+            self.assertFalse(sp._is_failed_result(r), r)
+
     def test_three_failures_give_up_slot_and_continue(self):
         self.stub.init_script = [502, 502, 502]
         code = self.run_main(plan=(SMALL, SMALL2))
-        self.assertEqual(code, sp.EXIT_OK)
+        self.assertEqual(code, sp.EXIT_SLOT_FAILED)
+        self.assertEqual(self.summary()["status"], "完成(有失败槽位 1)")
         self.assertEqual(len(self.stub.init_bodies), 4)  # 3 次失败 + 下一槽 1 次
         self.assertEqual(self.slot("t-1")["result"], "开局失败")
         self.assertEqual(self.slot("t-2")["result"], "达标")
@@ -516,7 +533,8 @@ class StaleAndCapacityTests(Base):
     def test_sse_internal_error_and_missing_delta_stop_game(self):
         self.stub.faults = {(0, 2): ["sse:internal_error"], (1, 5): ["cut"]}
         code = self.run_main(plan=(SMALL, SMALL2, SMALL3))
-        self.assertEqual(code, sp.EXIT_OK)
+        self.assertEqual(code, sp.EXIT_SLOT_FAILED)
+        self.assertEqual(self.summary()["status"], "完成(有失败槽位 2)")
         a1, a2 = self.slot("t-1")["attempts"][0], self.slot("t-2")["attempts"][0]
         self.assertEqual((a1["terminated"], a1["turnsPlayed"]), ("internal_error", 2))
         self.assertEqual((a2["terminated"], a2["turnsPlayed"]), ("sse_incomplete", 5))
@@ -552,7 +570,8 @@ class BudgetStopTests(Base):
     def test_sse_busy_stops_game_only(self):
         self.stub.faults = {(0, 4): ["sse:busy"]}
         code = self.run_main(plan=(SMALL, SMALL2))
-        self.assertEqual(code, sp.EXIT_OK)
+        self.assertEqual(code, sp.EXIT_SLOT_FAILED)
+        self.assertEqual(self.summary()["status"], "完成(有失败槽位 1)")
         a = self.slot("t-1")["attempts"][0]
         self.assertEqual((a["terminated"], a["turnsPlayed"]), ("busy", 4))
         self.assertEqual(self.slot("t-1")["result"], "中止(busy)")

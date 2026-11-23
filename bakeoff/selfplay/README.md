@@ -106,7 +106,14 @@ python3 bakeoff/selfplay/selfplay.py --out "$HOME/aiuniverse-selfplay/$(date +%Y
 
 控制台只打印槽位名、回合号与数字(各轴 key + 值),**不打印 saveId**;最后几行是数字汇总,可直接贴进聊天。
 
-退出码:0 完成 / 2 拒跑 / 3 预算闸停 / 4 中止(T0 冻结失败、server 中途不可达等)。
+退出码:0 完成 / 2 拒跑 / 3 预算闸停 / 4 中止(T0 冻结失败、server 中途不可达等)/
+5 跑完但有槽位「开局失败」或「中止(…)」(`summary.json` 与汇总的状态写「完成(有失败槽位 n)」)。
+
+### 排障
+
+- **开局连续 502、server 日志里没有任何 `usage` 行**(2026-11-23 冒烟实测):Felix 家里的网络下,本机 server 调 DeepSeek 时
+  TLS 握手失败(world-gen 日志 `cause=unable to find valid certification path to requested target`),换手机热点后正常。
+  这时请求没到模型、**没有花钱**。不建议、也不提供关闭证书校验的办法;换网络再跑。
 
 ### 规则与上限(写死在 `selfplay.py` 顶部)
 

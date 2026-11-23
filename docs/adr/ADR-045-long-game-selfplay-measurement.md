@@ -120,6 +120,8 @@ SSE 事件四种:`narrative{text}`(多条,拼接即玩家所见)/ `delta` / `end
 - ⚠️ 轨迹的 `commit` 字段来自 `build-info.properties` 的 `build.commit` = Maven 属性 `git.sha`,**默认 `unknown`**(`server/pom.xml:37`)。
   本机起 server 必须带 `-Dgit.sha=$(git rev-parse --short HEAD)`,否则评测基线无法对上代码版本。
   (`spring-boot:run` 前置生命周期含 `generate-resources`,build-info 会跑;**本机未实测**,首局跑完先看一眼轨迹里的 `commit`。)
+  ⚠️ 订正(冒烟实测,2026-11-23;上句原文不动):「本机未实测」改为**已验证** —— 冒烟局轨迹 `commit` = `5a15778`,
+  `-Dgit.sha` 在 `spring-boot:run` 下生效(见「实际效果 · 冒烟」)。
 - 单文件上限 5 MB ≈ 460 回合,120 回合局不会撞;总量上限 200 MB 不会撞。
 
 ### 勘察 4 · 玩家可见稿的字段来源
@@ -408,6 +410,10 @@ python3 bakeoff/selfplay/selfplay.py --out "$HOME/aiuniverse-selfplay/$(date +%Y
 ./server/mvnw -q -f server/pom.xml test-compile org.codehaus.mojo:exec-maven-plugin:3.5.0:java -Dexec.mainClass=com.aiuniverse.server.eventloop.SelfPlayDraftTool -Dexec.classpathScope=test -Dexec.args="--in $HOME/aiuniverse-selfplay/20261122-a"
 ```
 
+排障 · 开局连续 502、server 日志里没有任何 `usage` 行(2026-11-23 冒烟实测):Felix 家里的网络下,本机 server 调 DeepSeek 时
+TLS 握手失败(world-gen 日志 `cause=unable to find valid certification path to requested target`),换手机热点后正常。
+这时请求没到模型、**没有花钱**。**不建议、也不提供关闭证书校验的办法**;换网络再跑。
+
 要看什么:首局开出来后 server 日志 `[world-gen] usage` 一行(核成本假设)、轨迹首行 `commit` 不是 `unknown`、
 `summary.json` 里每槽位的结局回合与降级回合数;跑完把终端最后几行(只有数字)贴回来。
 
@@ -432,6 +438,21 @@ python3 bakeoff/selfplay/selfplay.py --out "$HOME/aiuniverse-selfplay/$(date +%Y
 
 *刀 3 第一套跑完时回填:每槽位实际回合数与结局回合、补局次数、降级率;world-gen 实测 usage 与本 ADR 假设的偏差;
 整套按配置单价估算的成本 vs ¥5.7–9.9 的估算;轨迹 `commit` 字段;两道扫描命中数。*
+
+### 冒烟(Felix 2026-11-23,本机,手机热点网络;commit `5a15778`;`--plan smoke` = 1 局 5 回合不补局)
+
+金额一律**按配置单价估算**(勘察 5 同口径),不是实际花费。全套跑完另回填下一节。
+
+- **成稿**:对齐失败 0、叙事不一致 0;两道扫描无误伤(未拦下正常稿件)。
+- **world-gen**:一次成功调用 prompt 1691 / completion 1487 token,约 ¥0.013。冒烟里开局共 3 次调用
+  (1 次修复后仍失败 → 502 → 重试成功),合计约 ¥0.048。
+  勘察 5 的 world-gen 假设(¥0.048/发、上界 ¥0.10/发)偏保守,**保留不改**。
+- **回合**:5 回合 + 2 次回合修复约 ¥0.034。**整次约 ¥0.08。**
+- **轨迹 `commit`** = `5a15778`:`-Dgit.sha` 在 `spring-boot:run` 下生效(勘察 3 那条「未实测」改为已验证)。
+- **观察(样本太小,不下结论)**:5 回合里 2 回合触发修复;开局 2 次里 1 次修复后仍失败。
+- 冒烟暴露并已修(刀 2 修正):成稿工具读 `title` / `subtitle` / `background` / `tone` 读错了层(它们在 `InitResponse.world`
+  的 `world` 子对象下),真实稿件里三项全空;叙事段末尾多空行;`selfplay.py` 在槽位「开局失败」时仍写「完成」、退出码 0
+  (冒烟第一次:3 次 502 → 开局失败)—— 现写「完成(有失败槽位 n)」、退出码 5。
 
 ## 待 Felix 审定清单
 

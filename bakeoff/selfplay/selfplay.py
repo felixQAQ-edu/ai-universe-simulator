@@ -11,7 +11,8 @@
 
 控制台只打印槽位名、回合号与数字,绝不打印 saveId(ADR-033 摔过)。
 
-退出码:0 完成 / 2 拒跑(未写任何文件)/ 3 预算闸停 / 4 中止(T0 冻结失败等)。
+退出码:0 完成 / 2 拒跑(未写任何文件)/ 3 预算闸停 / 4 中止(T0 冻结失败等)/
+       5 跑完但有槽位「开局失败」或「中止(…)」(状态写「完成(有失败槽位 n)」)。
 用法与测试命令见同目录 README.md。
 """
 from __future__ import annotations
@@ -73,9 +74,10 @@ TIMEOUT_INIT = 420   # server 侧开局 DeferredResult 390 s
 TIMEOUT_TURN = 150   # server 侧 SseEmitter 120 s
 TIMEOUT_STATE = 30
 
-EXIT_OK, EXIT_REFUSED, EXIT_BUDGET, EXIT_ABORT = 0, 2, 3, 4
+EXIT_OK, EXIT_REFUSED, EXIT_BUDGET, EXIT_ABORT, EXIT_SLOT_FAILED = 0, 2, 3, 4, 5
 
 STATUS_DONE = "完成"
+STATUS_DONE_WITH_FAILURES = "完成(有失败槽位 {n})"
 STATUS_BUDGET = "预算闸停"
 STATUS_ABORT = "中止"
 
@@ -651,7 +653,13 @@ class Runner:
                     code = EXIT_BUDGET
                     break
             else:
-                self.summary["status"] = STATUS_DONE
+                # 冒烟第一次就是这个形状:3 次 502 → 开局失败,却写着「完成」、退出码 0。
+                failed = sum(1 for e in self.summary["slots"] if _is_failed_result(e.get("result")))
+                if failed:
+                    self.summary["status"] = STATUS_DONE_WITH_FAILURES.format(n=failed)
+                    code = EXIT_SLOT_FAILED
+                else:
+                    self.summary["status"] = STATUS_DONE
         except Abort as e:
             self.summary["status"] = STATUS_ABORT
             self.summary["stop"] = {"reason": str(e)}
@@ -681,6 +689,11 @@ class Runner:
             c.say(f"{e['slot']} | 局 {len(played)} | 保留 #{e['kept'] if e['kept'] is not None else '-'}"
                   f" | 回合 {turns} | 结局回合 {end_turn} | {e['result']}")
         c.say(f"合计 | 局 {total_games} | 补局 {self.reruns_used} | 回合 {total_turns}")
+
+
+def _is_failed_result(result: object) -> bool:
+    """槽位结果是「开局失败」或「中止(…)」。其余(达标 / 未达目标 / 续玩失败 / 未跑…)不在此列。"""
+    return isinstance(result, str) and (result == "开局失败" or result.startswith("中止"))
 
 
 # ── 入口 ─────────────────────────────────────────────────────────────────

@@ -36,6 +36,10 @@ class SelfPlayDraftToolTest {
 	static final String SID = "0b5e3c2a-1111-4a1a-9a1a-000000000001";
 	static final String SID2 = "0b5e3c2a-2222-4a1a-9a1a-000000000002";
 	static final String HIDDEN = "其实这条守则是心魔所写的伪笔";
+	static final String TITLE = "桩世界";
+	static final String SUBTITLE = "小题";
+	static final String BACKGROUND = "山门";
+	static final String TONE = "清冷";
 	static final Pattern UUID = Pattern
 			.compile("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}");
 
@@ -53,6 +57,7 @@ class SelfPlayDraftToolTest {
 		String degradeReason; // 非 null → degraded
 		String traceNarrativeOverride;
 		String extraNarrative = ""; // 植入到 SSE 叙事里(测扫描)
+		String sseTail = ""; // 只加在 SSE 叙事末尾(真实流末常见空白;轨迹 parsed 里没有)
 	}
 
 	static final class Suite {
@@ -76,11 +81,16 @@ class SelfPlayDraftToolTest {
 			return specs.computeIfAbsent(cursor, k -> new TurnSpec());
 		}
 
+		/**
+		 * 照真实 InitResponse.world 的形状造(不照工具的读法造):archetypes / character / rules / state 在外层,
+		 * title / subtitle / background / tone 在 world.world 子对象下(对照 WorldGenService.systemLineErrors、FixedWorldTitle)。
+		 */
 		static ObjectNode view3World(int turn) {
 			ObjectNode w = M.createObjectNode();
-			w.put("title", "桩世界").put("subtitle", "小题");
+			w.put("schemaVersion", "0.4").put("mode", "single");
 			w.putArray("archetypes").add("cultivation");
-			w.put("background", "山门").put("tone", "清冷");
+			w.putObject("world").put("title", TITLE).put("subtitle", SUBTITLE).put("background", BACKGROUND)
+					.put("tone", TONE).put("dangerLevel", "high");
 			ObjectNode ch = w.putObject("character");
 			ch.putArray("traits").add("沉静").add("寡言");
 			ch.putArray("inventory").add("木剑");
@@ -167,7 +177,7 @@ class SelfPlayDraftToolTest {
 					l.putObject("request").put("turn", c).put("actionId", s.httpAction);
 					l.put("httpStatus", 200);
 					l.set("pre", state(c));
-					l.put("sse", sse(c, s.extraNarrative));
+					l.put("sse", sse(c, s.extraNarrative + s.sseTail));
 					l.set("post", state(c + 1));
 					http.add(M.writeValueAsString(l));
 				}
@@ -313,6 +323,35 @@ class SelfPlayDraftToolTest {
 		assertThat(summary).doesNotContain(SID);
 		assertThat(r.console()).contains("成稿 1 份 | 回合 2 | 降级 0 | 对齐失败 0 | 叙事不一致 0");
 		assertThat(root.resolve("summary.json")).content().doesNotContain("drafts"); // summary.json 不改
+	}
+
+	/** 标题 / 小标题 / 背景 / 基调取自 world.world(真实形状),非空且逐字等于输入;读外层会全空。 */
+	@Test
+	void worldHeaderFieldsReadFromNestedWorldObject() throws IOException {
+		Path root = tmp.resolve("suite");
+		new Suite(root, SID, "hdr-1").write();
+		assertThat(runMain(root).thrown()).isNull();
+		String d = draft(root, "hdr-1");
+		List<String> lines = d.lines().toList();
+		assertThat(lines.get(0)).isEqualTo("# hdr-1 · " + TITLE + "(" + SUBTITLE + ")");
+		String bg = lines.stream().filter(l -> l.startsWith("- 背景:")).findFirst().orElseThrow().substring("- 背景:".length());
+		String tone = lines.stream().filter(l -> l.startsWith("- 基调:")).findFirst().orElseThrow().substring("- 基调:".length());
+		assertThat(bg).isNotEmpty().isEqualTo(BACKGROUND);
+		assertThat(tone).isNotEmpty().isEqualTo(TONE);
+	}
+
+	/** SSE 叙事末尾的空白不进稿件;比对口径不变(两侧 strip 后相等 → 不算叙事不一致)。 */
+	@Test
+	void trailingNarrativeWhitespaceIsTrimmedInDraftOnly() throws IOException {
+		Path root = tmp.resolve("suite");
+		Suite s = new Suite(root, SID, "ws-1");
+		s.turns = 1;
+		s.spec(0).sseTail = "\n\n\n  \n";
+		s.write();
+		Run r = runMain(root);
+		assertThat(r.thrown()).isNull();
+		assertThat(draft(root, "ws-1")).contains("\n第1回合叙事。\n\n- 落账:");
+		assertThat(r.console()).contains("叙事不一致 0");
 	}
 
 	@Test
