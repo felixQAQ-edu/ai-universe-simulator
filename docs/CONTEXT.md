@@ -80,6 +80,12 @@
   它随整个 `world` 对象原样进视图 1(落盘)/ 视图 2(喂模型)/ 视图 3(客户端),续局回载读盘上的值。前端存档指针另存一份可选 `subtitle`
   (不是字符串当作没有,条目照常显示)。JSON **`schemaVersion` 不动(仍 "0.4")**:可选的展示字段,旧档与其余世界没有这个键。
   出处 [ADR-044](adr/ADR-044-fixed-title-world-subtitle.md)。
+- ⚠️ **补充(ADR-046,2026-11-24;上文原文与 schema 块一字不动)**:`character.inventory` 的归属改为 —— **初值由 AI 在 world-gen 时生成**(仍 1–3 件);
+  **回合中 AI 可在 `stateUpdate.inventory` 给出本回合结束后的整份新清单**(中文字符串数组,整表替换),**引擎落账**写回 `world.character.inventory`:
+  缺这个键 = 沿用,空数组 = 身上已无物品,超过 8 条截断为前 8 条并记一条引擎 issue;降级回合不动;修复回合以修复后的尾巴为准。
+  校验器只查形状(给了就须是数组、元素为非空字符串),不懂物品语义,引擎也不推断。上文「AI 生成:… `character` 初值」与「引擎维护」两句,
+  对 `inventory` 以本补充为准。它本来就在 `world` 里,随 `world` 进视图 1 / 2 / 3;**不新增持久化字段,JSON `schemaVersion` 不动(仍 "0.4")**,旧存档无需迁移。
+  出处 [ADR-046](adr/ADR-046-inventory-updates-per-turn.md)。
 
 ## 三、关键约定
 
@@ -234,6 +240,11 @@
     决策 2 把【现实边界 · 硬约束】加进回合骨架,对所有世界生效,旧局也拿到这一块(Felix 2026-11-12 接受,ADR-037 已知代价 9)。
     剔除带上下文锚定:「【绝境的写法】末行 + 边界块」整串替换回末行,且该整串须恰好出现 1 次(`AnimalLifeLegacyGoldenTest` 经
     `CommonPromptAdditions.stripTurn`);金样本 `golden/adr028-legacy-turn-prompts/` 未重录。旧局判定、旧局标记与拒载规则不变。
+    ⚠️ **订正(ADR-046,2026-11-24;上文 ADR-028 补充段与 ADR-037 订正块原文一字不动)**:上一订正块的「锚定剔除公共现实边界块后,回合 prompt 与 `583abc9`
+    逐字节相同」**改读为「锚定剔除公共现实边界块与 ADR-046 物品三行后,回合 prompt 与 `583abc9` 逐字节相同」**。
+    [ADR-046](adr/ADR-046-inventory-updates-per-turn.md) D4 在回合骨架尾巴字段清单里加了物品三行,对所有世界生效,旧局也拿到;
+    剔除照 ADR-037 的锚定做法(锚 = 骨架 `stateUpdate` 的括注行,整串须恰好出现 1 次;`CommonPromptAdditions.stripTurn` 第二层),
+    金样本仍未重录。剔除已到两层,**再改一次回合骨架就重录**(ADR-037 已知代价 10、ADR-046 已知代价 3)。旧局判定、旧局标记与拒载规则不变。
 
 18. **单体世界的服务端编排(ADR-036《派单》验通后回写,2026-11-11)**:《派单》经四次订正与三轮真 key 冒烟验通,
     循「验通再立字」先例(同 §三.16 (9)(10)、§三.17)立五条。**五条都不动 state schema、不动 Engine**,JSON `schemaVersion` 仍 "0.4"。
@@ -287,6 +298,7 @@
 | v0.9 | 2026-06-25 | 加世界流水线第一次复用·克苏鲁(`cthulhu`)落地 + 真 key 冒烟验通:§三.4 archetype 枚举追加 `cthulhu`(已激活,签名轴=禁忌知识 `knowledge` 累积型双刃)、§三.15 已激活示例补 cthulhu;§三.14 轴行为提示字段 `decay` 泛化为 `behaviorHint`(涵盖衰减/累积/联动,引擎仍不读),并记两条架构缺口 F-012(引擎 ≤0 触底假设只对 depletion 轴成立)/ F-013(骨架强制 isTrue 与非真假守则世界冲突)——均本批提示词兜、引擎正解留修仙批。约定层补充,JSON `schemaVersion` 仍 "0.2"(registry 伴生字段 + 元数据提示文本,非 state schema 变更),仅 CONTEXT 文档版本升 v0.9 |
 | **v1.0** | 2026-06-25 | **修仙(`cultivation`)落地 + ADR-009 架构正解(根治 F-012/F-013),真 key 冒烟验通**:§三.4 枚举 `cultivation` 标已激活(全新数值体系 `{hp,mana,realm}`=气血/灵力/境界,主角轴=境界 accumulation)、§三.5/§三.15 同步;**§二 `rules[].isTrue` 改可选**(F-013,校验零分派)+ **JSON `schemaVersion` "0.2"→"0.3"**(首次真动字段约束;`WORLD_SCHEMA` 接受双版本守 parity 夹具,见 ADR-009);**§三.8 触底按轴角色 `axisRole`**(depletion ≤0 致死 / accumulation 不触底,F-012 引擎根治)、**§三.14 元数据增 `axisRole` + `rulesCarryTruth`**。golden parity 字节级守 depletion 零回归(server 173 / web 30 全绿)。F-012/F-013 已关闭。CONTEXT 文档版本升 v1.0(本批是首个真动 JSON `schemaVersion` 的批次)。 |
 | **v1.1** | 2026-06-26 | **结局极性 gate(ADR-010 根治 F-014 + 关闭 F-015),真 key 冒烟验通**:**§二 `endings[].outcome` 新增**(可选极性 `success|failure|neutral`,AI 标、引擎只读;`toClientState` 不剥)+ **JSON `schemaVersion` "0.3"→"0.4"**(`WORLD_SCHEMA` 接受 `{0.2,0.3,0.4}` 三版本守 parity);**§三.8 结局极性 gate**(致命轴濒零 ≤`ENDING_GATE_THRESHOLD`(10)时引擎拒绝 AI `outcome==success` 结局、据极性确定性挑 failure;触底/gate 收窄到致命轴)+ **§三.14 元数据增 `lethal`**(depletion 内部细分致命生命轴/非致命资源轴;灵力 `lethal=false` 关闭 F-015)。引擎只读 outcome 标 + lethal 轴值、不懂结局语义(守 ADR-008);golden parity 字节级零回归(server 188 / web 30 全绿)。真 key 冒烟两局验通:气血 0→拦成功结局给「身死道消」、气血 5 濒死未死→不强制结束给挣扎选项(两边界都对);灵力两局 0 未误死。F-014/F-015 已关闭。CONTEXT 文档版本升 v1.1。 |
+| **v3.3** | 2026-11-24 | **ADR-046 回写**:§二字段职责末加补充块 —— `character.inventory` 归属:初值 AI 在 world-gen 生成,回合中 AI 经 `stateUpdate.inventory` 给整份新清单、引擎落账(缺键沿用、空数组 = 已无物品、超 8 条截断记 issue、降级不动、修复以修复尾巴为准;校验只查形状)。§三.17 加订正块 —— legacy 金样本改读为「剔除边界块与 ADR-046 物品三行后逐字节相同」,剔除已两层、再改骨架即重录。上文原文与既有补充 / 订正块一字未动。**JSON `schemaVersion` 不动(仍 "0.4")**;仅 CONTEXT 文档版本升 v3.3。 |
 | **v3.2** | 2026-11-22 | **ADR-044 回写**:§二字段职责末加补充块 —— `world` 多一个可选字段 `subtitle`(每局小标题;只有登记了 `fixedWorldTitle` 的三个单体世界可能有;服务端 `WorldSubtitle` 收口:未登记世界删键,三个世界去空白、空串 / 非字符串 / `null` / 超过 10 字删键、漏写不算失败;引擎与校验器都不读;随 `world` 进三视图)。上文原文与 schema 块一字未动。**JSON `schemaVersion` 不动(仍 "0.4")**;仅 CONTEXT 文档版本升 v3.2。 |
 | **v3.1** | 2026-11-21 | **ADR-041 回写**:§三.15 加补充块 —— 目录每项多一个必填字段 `experienceMode`(`"fushi"` / `"shenjie"`;只在大厅成立;融合世界不带、一律进第三区「渗界」;前端缺键按 `"shenjie"`;大厅三项偏好只存浏览器本地)。上文原文与既有补充段一字未动。**JSON `schemaVersion` 不动(仍 "0.4")**;仅 CONTEXT 文档版本升 v3.1。 |
 | **v3.0** | 2026-11-15 | **ADR-040 回写**:§三.9 再加一个补充块 —— 视图 3 新增下发时现算的展示数据 `markedTurns`(《寻常》牵挂升档的回合号;只登记 `life_sim`;来源是已落盘的 issues 标记行;空清单不写键;已结束的局照常给)。上文原文与 ADR-039 补充块一字未动;§三.18(e) 未加句(拿不准则只写 §三.9,照 ADR-040 实施回写项)。**JSON `schemaVersion` 不动(仍 "0.4")**;仅 CONTEXT 文档版本升 v3.0。 |
