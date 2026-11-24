@@ -189,3 +189,17 @@ python3 bakeoff/selfplay/selfplay.py --out "$SP" --resume-t0 "$OLD"
 
 续玩沿用原套件的 `suiteSeed` 与各槽位保留局的 attempt(与 `--suite-seed` 互斥);每槽位先 `GET /state`,
 不是 turn 0 或 404 则该槽位「续玩失败」;续玩不补局、不开新局。`http/<slot>-<attempt>.jsonl` 首行是 `resume`(没有开场叙事,T0 取原套件的 init 行)。
+
+## 物品读数脚本(ADR-046 D7,只读,不花钱)
+
+三个脚本只读套件目录,不写任何文件、不输出 saveId。前两个出自 [记忆账本勘察底稿](../../docs/memory-ledger-survey.md) 附录 A.7 / A.9,
+入库只把写死的套件目录改成参数,其余逐字不动 —— 加 inventory 更新前后用同一把尺子。
+
+| 脚本 | 量什么 | 用法 |
+|---|---|---|
+| `invT0.py` | 每槽位保留局 T0 与终局存档的 inventory 是否相同 | `python3 -I bakeoff/selfplay/invT0.py <套件目录> [<原套件目录>]` |
+| `invproxy.py` | 物品名在叙事 / 所选行动文本里出现的回合(物品类 ② 的候选回合;物品表写死四局四件) | `python3 -I bakeoff/selfplay/invproxy.py <套件目录>` |
+| `invupdates.py` | 每局 `stateUpdate.inventory` 带键的回合数、其中清单真的变了的回合数、修复回合里带键数(口径见脚本头注释) | `python3 -I bakeoff/selfplay/invupdates.py <套件目录>` |
+
+`invT0.py` 的第二个参数只在**续玩套件**上要给:续玩套件的 summary 里 `t0` 是原套件下的相对路径(续玩不重新冻结 T0),
+所以要指向原套件目录;新套件不用给。
