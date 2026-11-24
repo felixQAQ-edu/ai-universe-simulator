@@ -103,8 +103,11 @@ public final class GameSchemas {
 		if (v.requireObject(t.get("stateUpdate"), "stateUpdate")) {
 			JsonNode upd = t.get("stateUpdate");
 			v.optionalString(upd, "timeline", "stateUpdate/timeline");
+			// ADR-046 D2:inventory 可选;给了就只查形状(数组、元素为非空字符串),不懂物品语义。条数上限在引擎侧截断,不进校验。
+			v.optionalNonEmptyStringArray(upd, "inventory", "stateUpdate/inventory");
 			// ADR-008 决策 1:每个已给数值轴硬校验 0–100,key 集合不硬校验({hp,san} / {hp,hunger} 同路);timeline 非数值轴,跳过。
-			v.requireEachNumberInRange(upd, "stateUpdate", 0, 100, "timeline");
+			// inventory 同样跳过:否则 "inventory": 3 会被当成数值轴放过,由上面的形状检查接管(ADR-046 勘察 3)。
+			v.requireEachNumberInRange(upd, "stateUpdate", 0, 100, "timeline", "inventory");
 		}
 
 		v.optionalIntegerArray(t, "triggeredRuleIds");
@@ -214,6 +217,30 @@ public final class GameSchemas {
 			for (JsonNode item : n) {
 				if (!item.isIntegralNumber()) {
 					add(field + "/" + i, "应为整数");
+				}
+				i++;
+			}
+		}
+
+		/**
+		 * 可选字符串数组(ADR-046 D2):缺键容忍;给了(含 {@code null})就必须是数组,
+		 * 每个元素必须是非空字符串(与 {@link #requireNonEmptyString} 同口径:空串算错,纯空白不另判)。
+		 */
+		void optionalNonEmptyStringArray(JsonNode parent, String field, String path) {
+			if (parent == null || !parent.has(field)) {
+				return;
+			}
+			JsonNode n = parent.get(field);
+			if (n == null || !n.isArray()) {
+				add(path, "应为字符串数组");
+				return;
+			}
+			int i = 0;
+			for (JsonNode item : n) {
+				if (!item.isString()) {
+					add(path + "/" + i, "应为字符串");
+				} else if (item.asString().isEmpty()) {
+					add(path + "/" + i, "不能为空串");
 				}
 				i++;
 			}

@@ -208,6 +208,67 @@ class GameSchemasTest {
 		assertThat(GameSchemas.validateTurn(t)).anyMatch(s -> s.contains("availableActions"));
 	}
 
+	// ── ADR-046 D2:stateUpdate.inventory 只查形状 ──────────────────────
+
+	@Test
+	void turnInventoryAbsentPasses() {
+		assertThat(validTurn().path("stateUpdate").has("inventory")).isFalse();
+		assertThat(GameSchemas.validateTurn(validTurn())).isEmpty();
+	}
+
+	@Test
+	void turnInventoryEmptyArrayPasses() {
+		ObjectNode t = validTurn();
+		((ObjectNode) t.path("stateUpdate")).putArray("inventory");
+		assertThat(GameSchemas.validateTurn(t)).isEmpty();
+	}
+
+	@Test
+	void turnInventoryStringArrayPasses() {
+		ObjectNode t = validTurn();
+		((ObjectNode) t.path("stateUpdate")).putArray("inventory").add("聚气丹(余一粒)").add("下品灵石");
+		assertThat(GameSchemas.validateTurn(t)).isEmpty();
+	}
+
+	@Test
+	void turnInventoryNonArrayFails() {
+		for (String raw : new String[] { "\"聚气丹\"", "3", "{}", "null", "true" }) {
+			ObjectNode t = validTurn();
+			((ObjectNode) t.path("stateUpdate")).set("inventory", mapper.readTree(raw));
+			assertThat(GameSchemas.validateTurn(t)).as(raw).containsExactly("stateUpdate/inventory: 应为字符串数组");
+		}
+	}
+
+	/** "inventory": 3 以前会被 requireEachNumberInRange 当数值轴放过;现在由形状检查接管,且不再报一条数值范围错。 */
+	@Test
+	void turnInventoryNumberIsNotTreatedAsAxis() {
+		ObjectNode t = validTurn();
+		((ObjectNode) t.path("stateUpdate")).put("inventory", 300);
+		assertThat(GameSchemas.validateTurn(t)).containsExactly("stateUpdate/inventory: 应为字符串数组");
+	}
+
+	@Test
+	void turnInventoryBadElementsFail() {
+		ObjectNode t = validTurn();
+		var inv = ((ObjectNode) t.path("stateUpdate")).putArray("inventory");
+		inv.add("灵石").add(3).add("").addNull().add(" ");
+		assertThat(GameSchemas.validateTurn(t)).containsExactly(
+				"stateUpdate/inventory/1: 应为字符串",
+				"stateUpdate/inventory/2: 不能为空串",
+				"stateUpdate/inventory/3: 应为字符串");
+	}
+
+	/** 条数上限不进校验(D2:引擎侧截断,不为数量触发修复)。 */
+	@Test
+	void turnInventoryLongListStillPasses() {
+		ObjectNode t = validTurn();
+		var inv = ((ObjectNode) t.path("stateUpdate")).putArray("inventory");
+		for (int i = 0; i < 20; i++) {
+			inv.add("物" + i);
+		}
+		assertThat(GameSchemas.validateTurn(t)).isEmpty();
+	}
+
 	@Test
 	void realRecordedWorldAndTurnPass() {
 		// 用 golden 夹具里的真实录制产出兜底:手写校验器对真实形态不误杀。
