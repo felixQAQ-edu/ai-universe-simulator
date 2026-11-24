@@ -45,6 +45,11 @@ public class Engine {
 	 * 不必等触底(0)。
 	 */
 	public static final double ENDING_GATE_THRESHOLD = 10;
+	/**
+	 * ADR-046 D2:回合尾巴 {@code stateUpdate.inventory} 落账时最多保留的条数;超出的截断为前 N 条并记一条 issue
+	 * (不为数量上限触发修复)。开局 1–3 件,8 是留了余量的拍数(ADR-046 已知代价 8)。
+	 */
+	public static final int MAX_INVENTORY = 8;
 
 	private final ObjectMapper mapper;
 	private final ObjectNode world;
@@ -283,6 +288,11 @@ public class Engine {
 		if (upd.has("timeline")) {
 			timeline = upd.get("timeline").asString("");
 		}
+		// 5b. inventory(ADR-046 D3):给了就整表替换 world.character.inventory,缺省沿用,空数组 = 身上已无物品。
+		//     引擎不懂物品语义:不推断「用了一粒」、不去重、不改字;只做条数截断(先例 markRuleDiscovered 写 world 内部)。
+		if (upd.has("inventory") && upd.get("inventory").isArray()) {
+			replaceInventory(upd.get("inventory"));
+		}
 		// 6. triggered |= ;discoveredRuleIds → 标 rule.discovered
 		for (JsonNode id : parsed.path("triggeredRuleIds")) {
 			triggered.add(id.asInt());
@@ -343,7 +353,7 @@ public class Engine {
 
 	/**
 	 * 保守 no-op 推进(规格 §6.5/§6.6)：修复仍败 / 回灌叙事非法时的优雅降级。
-	 * <b>turn++、记一条 log(已流出的叙事当氛围文字)、绝不脏写</b> hp/san/timeline/triggered/discovered/ending。
+	 * <b>turn++、记一条 log(已流出的叙事当氛围文字)、绝不脏写</b> hp/san/timeline/triggered/discovered/ending/inventory(ADR-046 D3)。
 	 * 由 {@code EventLoopService} 在响亮告警后调用;数值/结局逻辑一概不动。
 	 *
 	 * @param narrative      已展示给玩家的叙事(可空;空表示叙事本身也非法)
@@ -434,6 +444,22 @@ public class Engine {
 		List<ObjectNode> keep = new ArrayList<>(log.subList(log.size() - LOG_KEEP, log.size()));
 		log.clear();
 		log.addAll(keep);
+	}
+
+	/** ADR-046 D3:整表替换;超过 {@link #MAX_INVENTORY} 条截断为前 N 条并记一条 issue。{@code character} 不是对象时不写。 */
+	private void replaceInventory(JsonNode incoming) {
+		JsonNode character = world.get("character");
+		if (character == null || !character.isObject()) {
+			return;
+		}
+		ArrayNode inv = mapper.createArrayNode();
+		for (int i = 0; i < Math.min(incoming.size(), MAX_INVENTORY); i++) {
+			inv.add(incoming.get(i).deepCopy());
+		}
+		if (incoming.size() > MAX_INVENTORY) {
+			issues.add("T" + turn + " inventory 超过 " + MAX_INVENTORY + " 条,截断为前 " + MAX_INVENTORY + " 条(ADR-046)");
+		}
+		((ObjectNode) character).set("inventory", inv);
 	}
 
 	private void markRuleDiscovered(int ruleId) {

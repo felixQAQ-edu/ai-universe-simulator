@@ -200,6 +200,83 @@ class EventLoopServiceTest {
 		assertThat(s.engine().san()).isEqualTo(80);
 	}
 
+	// ── ADR-046 测试面 5:修复回合以修复后的尾巴为准 ──
+	// 主尾巴照真实失败的样子造:叙事 + 哨兵 + 一段带 inventory、但 JSON 语法坏掉的尾巴
+	// (基线 42 次修复全是「结构化尾巴非合法 JSON」)。修复发是纯尾巴 JSON(json_object)。
+
+	private static final String BROKEN_TAIL_WITH_INVENTORY = "{\"stateUpdate\":{\"hp\":90,\"san\":95,\"timeline\":\"进店\","
+			+ "\"inventory\":[\"手电(没电了)\"]},\"triggeredRuleIds\":[],\"discoveredRuleIds\":[],"
+			+ "\"availableActions\":[{\"id\":\"A\",\"text\":\"看告示\"},{\"id\":\"B\",\"text\":\"离开\"}],"
+			+ "\"ending\":null,}"; // 尾逗号:非合法 JSON
+
+	private GameSession sessionWithInventory() {
+		GameSession s = session();
+		((ObjectNode) s.engine().world().path("character")).putArray("inventory").add("手电").add("店员工牌");
+		return s;
+	}
+
+	@Test
+	void repairTailWithoutInventoryKeepsInventory() {
+		ScriptedLlm llm = new ScriptedLlm();
+		llm.script(wire("手电闪了两下。", BROKEN_TAIL_WITH_INVENTORY), validTail(88, 95, "null"));
+		GameSession s = sessionWithInventory();
+
+		new EventLoopService(llm, prompts, mapper).execute(s, "A", new RecordingSink());
+
+		assertThat(llm.requests).as("恰一次修复").hasSize(2);
+		assertThat(llm.requests.get(1).prompt()).as("前提:主尾巴是语法错").contains("结构化尾巴非合法 JSON");
+		assertThat(s.engine().hp()).as("前提:落账走的是修复尾巴(88,不是坏尾巴里的 90)").isEqualTo(88);
+		assertThat(s.engine().world().path("character").path("inventory").toString())
+				.as("修复尾巴缺这个键 → 沿用(即便原尾巴里有过)").isEqualTo("[\"手电\",\"店员工牌\"]");
+	}
+
+	@Test
+	void repairTailWithInventoryWins() {
+		String repaired = validTail(90, 95, "null").replace("\"timeline\":\"进店\"",
+				"\"timeline\":\"进店\",\"inventory\":[\"店员工牌\"]");
+		ScriptedLlm llm = new ScriptedLlm();
+		llm.script(wire("手电闪了两下。", BROKEN_TAIL_WITH_INVENTORY), repaired);
+		GameSession s = sessionWithInventory();
+
+		new EventLoopService(llm, prompts, mapper).execute(s, "A", new RecordingSink());
+
+		assertThat(llm.requests).hasSize(2);
+		assertThat(s.engine().world().path("character").path("inventory").toString())
+				.as("以修复尾巴为准,不是原尾巴的「手电(没电了)」").isEqualTo("[\"店员工牌\"]");
+	}
+
+	/** 形状不合法(元素非字符串)→ 走那一次修复;修复 prompt 点名 stateUpdate/inventory。 */
+	@Test
+	void badInventoryShapeTriggersRepairNamingTheField() {
+		String bad = validTail(90, 95, "null").replace("\"timeline\":\"进店\"",
+				"\"timeline\":\"进店\",\"inventory\":[\"手电\",3]");
+		ScriptedLlm llm = new ScriptedLlm();
+		llm.script(wire("手电闪了两下。", bad), validTail(90, 95, "null"));
+		GameSession s = sessionWithInventory();
+
+		new EventLoopService(llm, prompts, mapper).execute(s, "A", new RecordingSink());
+
+		assertThat(llm.requests).hasSize(2);
+		assertThat(llm.requests.get(1).prompt()).contains("stateUpdate/inventory/1");
+	}
+
+	/** 测试面 7:回合 delta 不新增键(不带 world.character / inventory)。 */
+	@Test
+	void deltaCarriesNoInventory() {
+		String tail = validTail(90, 95, "null").replace("\"timeline\":\"进店\"",
+				"\"timeline\":\"进店\",\"inventory\":[\"店员工牌\"]");
+		ScriptedLlm llm = new ScriptedLlm();
+		llm.script(wire("手电闪了两下。", tail));
+		GameSession s = sessionWithInventory();
+		RecordingSink sink = new RecordingSink();
+
+		new EventLoopService(llm, prompts, mapper).execute(s, "A", sink);
+
+		assertThat(s.engine().world().path("character").path("inventory").toString()).isEqualTo("[\"店员工牌\"]");
+		assertThat(sink.delta.properties().stream().map(java.util.Map.Entry::getKey).toList())
+				.containsExactly("turn", "status", "hp", "san", "discoveredRules", "availableActions");
+	}
+
 	// ── 3. 保守 no-op:修复仍败 → turn++、hp/san 不动、仍发 delta(复用动作)──
 	@Test
 	void repairAlsoFailsDegradesToConservativeNoOp() {

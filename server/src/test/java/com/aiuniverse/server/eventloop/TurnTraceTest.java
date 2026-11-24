@@ -419,6 +419,27 @@ class TurnTraceTest {
 		assertThat(report.outcome()).isEqualTo(TraceReplayer.Outcome.CONSISTENT);
 	}
 
+	// ── ADR-046 测试面 8:带 inventory 的 parsed,档 1 回放确定性重现(含截断 issue)──
+
+	@Test
+	void inventoryRewriteAndTruncationReplayConsistently() {
+		GameSession s = session("rules_creepy", 0, false);
+		ScriptedLlm llm = new ScriptedLlm().then(wire("\"hp\":85,\"san\":70,\"inventory\":[\"a\",\"b\",\"c\",\"d\",\"e\",\"f\",\"g\",\"h\",\"i\"]",
+				"A", "B"));
+		RecordingTraceSink traces = new RecordingTraceSink();
+
+		machine(llm, new CountingStore(), traces).submitAction(s, "A", new Sink());
+
+		assertThat(s.engine().world().path("character").path("inventory")).as("前提:落账写了、截断到 8 条").hasSize(8);
+		assertThat(s.engine().issues()).as("前提:截断 issue").anyMatch(i -> i.contains("截断为前 8 条"));
+		TurnTrace t = traces.traces.get(0);
+		assertThat(t.parsed().path("stateUpdate").path("inventory")).as("轨迹里是模型给的 9 条").hasSize(9);
+		TraceReplayer.Report report = new TraceReplayer(service(new ScriptedLlm()), mapper, registry,
+				TurnTraceCollector.COMMIT).replay(t);
+		assertThat(report.differences()).isEmpty();
+		assertThat(report.outcome()).isEqualTo(TraceReplayer.Outcome.CONSISTENT);
+	}
+
 	// ── 测试面 7:流式期间不做 I/O ───────────────────────────────────────
 
 	@Test
