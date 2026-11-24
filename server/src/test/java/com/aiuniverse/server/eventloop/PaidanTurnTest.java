@@ -54,7 +54,7 @@ class PaidanTurnTest {
 			}
 			for (int t : TURNS) {
 				String name = m.id() + "_T" + (t + 1) + ".txt";
-				// ADR-037:锚定剔除骨架新增的现实边界块后,再与原快照逐字节比(决策 5(c))。
+				// ADR-037:锚定剔除骨架新增的现实边界块后,再与原快照逐字节比(决策 5(c));ADR-046 第二层同时剔物品三行。
 				assertThat(CommonPromptAdditions.stripTurn(
 						builder.buildTurnPrompt(engine(List.of(m.id()), m.attributes(), t), "A", "测试行动"), name))
 						.as(name).isEqualTo(snapshot(name));
@@ -64,9 +64,13 @@ class PaidanTurnTest {
 		for (FusionSummary c : registry.listFusionCombos()) {
 			for (int t : TURNS) {
 				String name = c.host() + "_x_" + c.foreign() + "_T" + (t + 1) + ".txt";
-				assertThat(CommonPromptAdditions.stripTurn(builder.buildTurnPrompt(
-						engine(List.of(c.host(), c.foreign()), registry.fusedAxes(c.host(), c.foreign()), t), "A", "测试行动"), name))
-						.as(name).isEqualTo(snapshot(name));
+				String stripped = CommonPromptAdditions.stripTurn(builder.buildTurnPrompt(
+						engine(List.of(c.host(), c.foreign()), registry.fusedAxes(c.host(), c.foreign()), t), "A", "测试行动"), name);
+				// ADR-046:《验讫》combo (6) 末尾另有一句,只在这一组合里剔(别的组合若也出现,不剔 → 逐字节比会红)。
+				if (c.host().equals("cultivation") && c.foreign().equals("cthulhu")) {
+					stripped = CommonPromptAdditions.stripYanqiTurn(stripped, name);
+				}
+				assertThat(stripped).as(name).isEqualTo(snapshot(name));
 				compared++;
 			}
 		}

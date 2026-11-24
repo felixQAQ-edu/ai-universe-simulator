@@ -32,6 +32,8 @@ import tools.jackson.databind.node.ObjectNode;
  *
  * <p><b>重录记录</b>:ADR-044 刀 1(待审 7《派单》b)重录 {@code world-gen.txt} —— 【世界名】下一行加【小标题】,
  * 与重录前那份的差异恰好是这一行;回合快照 {@code turn_T*.txt} 未动。
+ * ADR-046 刀 1 重录 10 份回合快照 {@code turn_T*.txt} —— 骨架尾巴字段清单里 {@code stateUpdate} 括注行之后加物品三行
+ * ({@link CommonPromptAdditions#INVENTORY_LINES}),与重录前那份的差异恰好是这三行(每份 +3 行、-0 行);{@code world-gen.txt} 未动。
  */
 class PaidanPromptSnapshotTest {
 

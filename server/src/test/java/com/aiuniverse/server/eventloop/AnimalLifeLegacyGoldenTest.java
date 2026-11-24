@@ -66,6 +66,7 @@ class AnimalLifeLegacyGoldenTest {
 			int turn = TURNS[i];
 			int close = CLOSE[i % CLOSE.length];
 			// ADR-037:旧局也拿到公共现实边界块;锚定剔除后与 583abc9 逐字节相同(CONTEXT §三.17 立字按 ADR-037 已知代价 9 订正)。
+			// ADR-046:旧局同样拿到骨架里的物品三行,stripTurn 第二层一并剔除(CONTEXT §三.17 再加订正块)。
 			String actual = CommonPromptAdditions.stripTurn(
 					builder.buildTurnPrompt(engine(mapper, turn, close), "A", "趴着", "", "", true), "legacy T" + turn);
 			assertThat(actual).as("T%d close=%d", turn, close).isEqualTo(golden(turn, close));
@@ -77,7 +78,7 @@ class AnimalLifeLegacyGoldenTest {
 		for (int i = 0; i < TURNS.length; i++) {
 			int turn = TURNS[i];
 			int close = CLOSE[i % CLOSE.length];
-			// 同样剔除后再比:差异不能只是 ADR-037 那一块。
+			// 同样剔除后再比:差异不能只是 ADR-037 / ADR-046 新增的那几行。
 			String fresh = CommonPromptAdditions.stripTurn(
 					builder.buildTurnPrompt(engine(mapper, turn, close), "A", "趴着", "", "", false), "fresh T" + turn);
 			assertThat(fresh).as("T%d", turn).isNotEqualTo(golden(turn, close));
